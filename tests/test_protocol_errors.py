@@ -1,9 +1,10 @@
 import pytest
 import asyncio
+from unittest.mock import patch
 from pure3270.protocol.data_stream import DataStreamParser, ParseError
 from pure3270.emulation.screen_buffer import ScreenBuffer
 from pure3270.protocol.tn3270_handler import TN3270Handler
-from pure3270.protocol.ssl_wrapper import SSLWrapper
+from pure3270.protocol.ssl_wrapper import SSLWrapper, SSLError
 import ssl
 
 

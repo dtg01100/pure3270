@@ -3,6 +3,8 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 from pure3270.protocol.data_stream import DataStreamParser, ParseError
 from pure3270.protocol.tn3270_handler import TN3270Handler, ProtocolError, NegotiationError
+from pure3270.protocol.ssl_wrapper import SSLWrapper, SSLError
+from pure3270.emulation.screen_buffer import ScreenBuffer
 import ssl
 
 
