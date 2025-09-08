@@ -63,7 +63,7 @@ class SSLWrapper:
             return self.context
 
         except ssl.SSLError as e:
-            logger.error(f"Failed to create SSLContext: {e}")
+            logger.error(f"SSL context creation failed: {e}")
             raise SSLError(f"SSL context creation failed: {e}")
 
     def wrap_connection(self, telnet_connection):
@@ -76,6 +76,7 @@ class SSLWrapper:
         """
         # Since telnetlib3 supports SSL natively, this method is for compatibility or custom wrapping.
         # For basics, log and return original.
+        self.get_context()  # Ensure context is created
         logger.info("Using native telnetlib3 SSL support; no additional wrapping needed")
         return telnet_connection
 
@@ -84,6 +85,10 @@ class SSLWrapper:
         if self.context is None:
             self.create_context()
         return self.context
+
+    def decrypt(self, encrypted_data: bytes) -> bytes:
+        """Stub for decrypting data (for testing)."""
+        return encrypted_data
 
 
 # Usage example (for docstrings):

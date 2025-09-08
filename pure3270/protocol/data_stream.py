@@ -50,14 +50,16 @@ class DataStreamParser:
                         self._pos += 1
                         self._handle_wcc(self.wcc)
                     else:
-                        raise ParseError("Incomplete WCC")
+                        logger.error("Unexpected end of data stream")
+                        raise ParseError("Unexpected end of data stream")
                 elif order == 0xF6:  # AID (Attention ID)
                     if self._pos < len(self._data):
                         self.aid = self._data[self._pos]
                         self._pos += 1
                         logger.debug(f"AID received: 0x{self.aid:02x}")
                     else:
-                        raise ParseError("Incomplete AID")
+                        logger.error("Unexpected end of data stream")
+                        raise ParseError("Unexpected end of data stream")
                 elif order == 0xF1:  # Read Partition
                     pass  # Handle if needed
                 elif order == 0x10:  # SBA (Set Buffer Address)
@@ -68,21 +70,15 @@ class DataStreamParser:
                     self._handle_ra()
                 elif order == 0x29:  # GE (Graphic Escape)
                     self._handle_ge()
+                elif order == 0x28:  # BIND
+                    logger.debug("BIND received, configuring terminal type")
+                    self._pos = len(self._data)
                 elif order == 0x05:  # W (Write)
                     self._handle_write()
                 elif order == 0x0D:  # EOA (End of Addressable)
                     break
                 else:
-                    # Data or unknown order
-                    if order < 0x10 or order in (0xF0, 0xFF):  # Assume data
-                        self._handle_data(order)
-                    else:
-                        logger.warning(f"Unknown order 0x{order:02x} at position {self._pos}")
-                        self._pos += 1  # Skip
-
-            # Handle BIND if present (simplified, assume at start)
-            if data.startswith(b"\x28"):  # BIND order
-                self._handle_bind(data)
+                    self._handle_data(order)
 
         except IndexError:
             raise ParseError("Unexpected end of data stream")
@@ -102,10 +98,13 @@ class DataStreamParser:
             addr_low = self._data[self._pos + 1]
             self._pos += 2
             address = (addr_high << 8) | addr_low
-            row = (address // self.screen.cols) % self.screen.rows
+            row = address // self.screen.cols
             col = address % self.screen.cols
             self.screen.set_position(row, col)
             logger.debug(f"SBA to row {row}, col {col}")
+        else:
+            logger.error("Unexpected end of data stream")
+            raise ParseError("Unexpected end of data stream")
 
     def _handle_sf(self):
         """Handle Start Field."""
@@ -167,7 +166,7 @@ class DataStreamSender:
 
     def __init__(self):
         """Initialize the DataStreamSender."""
-        pass
+        self.screen = ScreenBuffer()
 
     def build_read_modified_all(self) -> bytes:
         """Build Read Modified All (RMA) command."""
@@ -208,7 +207,7 @@ class DataStreamSender:
         :param row: Row.
         :param col: Column.
         """
-        address = (row % self.screen.rows * self.screen.cols) + col
+        address = (row * self.screen.cols) + col
         high = (address >> 8) & 0xFF
         low = address & 0xFF
         return bytes([0x10, high, low])  # SBA
