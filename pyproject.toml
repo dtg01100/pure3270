@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Pure Python 3270 emulator"
 readme = "README.md"
 authors = [{name = "Pure3270 Developers"}]
-dependencies = ["telnetlib3"]
+dependencies = []
 requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",

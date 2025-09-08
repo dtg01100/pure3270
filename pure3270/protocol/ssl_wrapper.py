@@ -11,8 +11,8 @@ class SSLError(Exception):
     pass
 
 class SSLWrapper:
-    """Layers SSL/TLS on top of telnet3 connections using Python's ssl module."""
-    """Layers SSL/TLS on top of telnet3 connections using Python's ssl module."""
+    """Layers SSL/TLS on top of asyncio connections using Python's ssl module."""
+    """Layers SSL/TLS on top of asyncio connections using Python's ssl module."""
 
     def __init__(
         self,
@@ -71,24 +71,17 @@ class SSLWrapper:
 
     def wrap_connection(self, telnet_connection):
         """
-        Wrap an existing telnet connection with SSL (if telnetlib3 doesn't handle natively).
+        Wrap an existing telnet connection with SSL (if asyncio doesn't handle natively).
 
-        :param telnet_connection: The telnet connection object (e.g., from telnetlib3).
+        :param telnet_connection: The telnet connection object (e.g., from asyncio.open_connection).
         :return: Wrapped connection.
-        Note: This is a stub; telnetlib3 handles SSL natively via ssl parameter.
+        Note: This is a stub; asyncio.open_connection handles SSL natively via ssl parameter.
         """
-        """
-        Wrap an existing telnet connection with SSL (if telnetlib3 doesn't handle natively).
-
-        :param telnet_connection: The telnet connection object (e.g., from telnetlib3).
-        :return: Wrapped connection.
-        Note: This is a stub; telnetlib3 handles SSL natively via ssl parameter.
-        """
-        # Since telnetlib3 supports SSL natively, this method is for compatibility or custom wrapping.
+        # Since asyncio supports SSL natively, this method is for compatibility or custom wrapping.
         # For basics, log and return original.
         self.get_context()  # Ensure context is created
         logger.info(
-            "Using native telnetlib3 SSL support; no additional wrapping needed"
+            "Using native asyncio SSL support; no additional wrapping needed"
         )
         return telnet_connection
 

@@ -12,9 +12,7 @@ setup(
     long_description_content_type="text/markdown",
     packages=find_packages(),
     include_package_data=True,
-    install_requires=[
-        "telnetlib3",
-    ],
+    install_requires=[],
     extras_require={
         "dev": ["pytest >= 7.0", "pytest-asyncio >= 0.21", "pytest-benchmark >= 4.0"],
         "test": ["pytest >= 7.0", "pytest-asyncio >= 0.21", "pytest-benchmark >= 4.0"],

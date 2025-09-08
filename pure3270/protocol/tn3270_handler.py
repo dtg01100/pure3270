@@ -1,4 +1,4 @@
-"""TN3270 protocol handler using telnetlib3 for networking."""
+"""TN3270 protocol handler using asyncio for networking."""
 
 import logging
 from typing import Optional, BinaryIO
@@ -35,7 +35,7 @@ class NegotiationError(ProtocolError):
     pass
 
 class TN3270Handler:
-    """Handles TN3270/TN3270E protocol using telnetlib3."""
+    """Handles TN3270/TN3270E protocol using asyncio."""
 
     def __init__(self, host: str, port: int = 23, ssl_context: Optional[BinaryIO] = None):
         """
@@ -373,7 +373,7 @@ class TN3270Handler:
         """Check if connected."""
         return self.writer is not None
 
-# Sync wrapper for convenience (since telnetlib3 is async, use asyncio.run for sync calls)
+# Sync wrapper for convenience (since asyncio is used, use asyncio.run for sync calls)
 import asyncio
 
 def sync_connect(handler: TN3270Handler):
