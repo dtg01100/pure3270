@@ -23,14 +23,12 @@ from ..session import Session as PureSession, Pure3270Error
 
 logger = logging.getLogger(__name__)
 
-
 class Pure3270PatchError(Pure3270Error):
     """Exception raised for patching-related errors, such as version mismatches."""
     """Exception raised for patching-related errors, such as version mismatches."""
     def __init__(self, message):
         super().__init__(message)
         logger.error(message)
-
 
 class MonkeyPatchManager:
     """
@@ -57,7 +55,7 @@ class MonkeyPatchManager:
     def _apply_module_patch(self, target_module_name: str, replacement_module: Any) -> None:
         """
         Redirect a module import using sys.modules.
-        
+
         :param target_module_name: Name of the module to patch (e.g., 's3270').
         :param replacement_module: Replacement module or class.
         :raises Pure3270PatchError: If patching fails.
@@ -87,7 +85,7 @@ class MonkeyPatchManager:
     ) -> None:
         """
         Override a method on an object with a new implementation.
-        
+
         :param obj: The object (class or instance) to patch.
         :param method_name: Name of the method to override.
         :param new_method: The new method function.
@@ -127,7 +125,7 @@ class MonkeyPatchManager:
     ) -> bool:
         """
         Check for version mismatches and handle gracefully.
-        
+
         :param module: The module to check (e.g., p3270).
         :param expected_version: Expected version string.
         :return: True if compatible, else False.
@@ -159,7 +157,7 @@ class MonkeyPatchManager:
     ) -> None:
         """
         Apply patches based on selective options.
-        
+
         :param patch_sessions: Whether to patch session-related functionality.
         :param patch_commands: Whether to patch command execution.
         :param strict_version: Raise error on version mismatch if True.
@@ -291,7 +289,6 @@ class MonkeyPatchManager:
         self.originals.clear()
         self.patched.clear()
 
-
 def enable_replacement(
     patch_sessions: bool = True,
     patch_commands: bool = True,
@@ -299,10 +296,10 @@ def enable_replacement(
 ) -> MonkeyPatchManager:
     """
     Top-level API for zero-configuration opt-in patching.
-    
+
     Applies global patches to p3270 for seamless pure3270 integration.
     Supports selective patching and fallback detection.
-    
+
     :param patch_sessions: Patch session initialization and methods (default True).
     :param patch_commands: Patch command execution (default True).
     :param strict_version: Raise error on version mismatch (default False).
@@ -325,9 +322,7 @@ def enable_replacement(
     manager.apply_patches(patch_sessions, patch_commands, strict_version)
     return manager
 
-
 patch = enable_replacement
-
 
 # For context manager usage
 class PatchContext:
@@ -342,7 +337,6 @@ class PatchContext:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.manager.unpatch()
 
-
 __all__ = ["MonkeyPatchManager", "enable_replacement", "patch", "Pure3270PatchError", "PatchContext"]
 
 # Global fallback for p3270 if not installed
@@ -356,5 +350,3 @@ except ImportError:
     mock_module.__version__ = "0.3.0"
     mock_module.session = mock_session_module
     sys.modules['p3270'] = mock_module
-    
-

@@ -40,19 +40,18 @@ try:
     # Import p3270 after patching
     import p3270
     print("p3270 imported after patching. Proceeding with end-to-end session.")
-    
+
     # Create session
     session = p3270.P3270Client()
     print("p3270.P3270Client created - patching applied.")
-    
+
     try:
         session.connect(args.host, port=args.port, ssl=args.ssl)
         print(f"Connected to {args.host}:{args.port}.")
         session.send('key Clear')
         print("Sent 'key Clear' to trigger login screen.")
         time.sleep(1)
-        
-        
+
         initial_screen = session.read()
         print("Login screen:")
         print(initial_screen)
@@ -66,8 +65,7 @@ try:
         session.send('key Enter')  # Submit
         print("Sent 'key Enter' to submit login.")
         time.sleep(1)
-        
-        
+
         # Read post-signin screen
         post_signin_screen = session.read()
         print("Post-signin screen:")
@@ -78,23 +76,22 @@ try:
         session.send('key Enter')
         print("Sent 'signoff' + 'key Enter'.")
         time.sleep(1)
-        
+
         post_signout_screen = session.read()
         print("Post-signout screen:")
         print(post_signout_screen)
-        
+
     except Exception as e:
         print(f"Session operations failed: {e}")
         print("Check DEBUG logs for details.")
-    
+
     # Always close
     session.close()
     print("Session closed.")
-    
+
 except ImportError:
     print("p3270 not installed. Cannot demonstrate end-to-end with p3270.")
     print("Install: pip install p3270")
     print("Patching applied; use standalone example for pure3270 directly.")
 
 print("End-to-end verification complete. Check logs for details.")
-

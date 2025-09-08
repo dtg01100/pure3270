@@ -4,11 +4,9 @@ from pure3270.patching.patching import (
     MonkeyPatchManager, enable_replacement, patch, Pure3270PatchError
 )
 
-
 @pytest.fixture
 def monkey_patch_manager():
     return MonkeyPatchManager()
-
 
 @pytest.fixture
 def mock_p3270():
@@ -19,7 +17,6 @@ def mock_p3270():
     mock_module.session = mock_session_module
     mock_module.__version__ = "0.3.0"
     return mock_module
-
 
 class TestMonkeyPatchManager:
     def test_init(self, monkey_patch_manager):
@@ -80,8 +77,6 @@ class TestMonkeyPatchManager:
         assert monkey_patch_manager.originals == {}
         assert monkey_patch_manager.patched == {}
 
-
-
 class TestEnableReplacement:
     def test_enable_replacement(self):
         manager = enable_replacement(patch_sessions=True, strict_version=False)
@@ -94,10 +89,8 @@ class TestEnableReplacement:
         with pytest.raises(Pure3270PatchError):
             enable_replacement(strict_version=True)
 
-
 def test_patch_alias():
     assert patch is enable_replacement
-
 
 class TestPatchContext:
     def test_context_manager(self):
@@ -108,7 +101,6 @@ class TestPatchContext:
                 with mock_context(mock_manager):
                     pass
             mock_manager.unpatch.assert_called_once()
-
 
 # Tests for real integration with p3270 (since installed)
 def test_real_patching_integration(caplog):
@@ -128,13 +120,11 @@ def test_real_patching_integration(caplog):
     assert hasattr(sess, '_pure_session')
     manager.unpatch()  # Cleanup
 
-
 def test_patching_with_p3270_not_installed(caplog):
     with mock_patch('builtins.__import__', side_effect=ImportError):
         from pure3270 import enable_replacement
         manager = enable_replacement()
     assert 'p3270 not installed' in caplog.text
-
 
 # General tests: exceptions, logging, performance
 def test_pure3270_patch_error(caplog):
@@ -145,13 +135,11 @@ def test_pure3270_patch_error(caplog):
             pass
     assert 'Test patch error' in caplog.text
 
-
 def test_patching_logging(caplog):
     manager = MonkeyPatchManager()
     with caplog.at_level('INFO'):
         manager.apply_patches()
     assert 'Patches applied' in caplog.text or 'warning' in caplog.text.lower()
-
 
 # Performance: time to apply patches
 def test_performance_patching(benchmark):
@@ -160,7 +148,6 @@ def test_performance_patching(benchmark):
         manager.apply_patches(strict_version=False)
     benchmark(apply_patches)
     # Ensure efficient patching
-
 
 # Error handling in patching
 def test_patching_fallback(caplog):
@@ -171,7 +158,6 @@ def test_patching_fallback(caplog):
         manager.apply_patches(strict_version=False)
     assert 'Version mismatch' in caplog.text
     assert 'Graceful degradation' in caplog.text
-
 
 # Verify method overrides with mock
 def test_method_override(monkey_patch_manager):

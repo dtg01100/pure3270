@@ -2,7 +2,6 @@ import pytest
 from unittest.mock import patch  # noqa: F401
 from pure3270.protocol.data_stream import ParseError
 
-
 @pytest.mark.asyncio
 class TestDataStreamParser:
     def test_init(self, data_stream_parser):
@@ -72,7 +71,6 @@ class TestDataStreamParser:
         data_stream_parser.aid = 0x7D
         assert data_stream_parser.get_aid() == 0x7D
 
-
 class TestDataStreamSender:
     def test_build_read_modified_all(self, data_stream_sender):
         stream = data_stream_sender.build_read_modified_all()
@@ -99,33 +97,27 @@ class TestDataStreamSender:
             stream = data_stream_sender.build_sba(0, 0)
             assert stream == b'\x10\x00\x00'
 
-
 # Sample data streams fixtures
 @pytest.fixture
 def sample_wcc_stream():
     return b'\xF5\xC1'  # WCC reset modified
 
-
 @pytest.fixture
 def sample_sba_stream():
     return b'\x10\x00\x14'  # SBA to row 0 col 20
-
 
 @pytest.fixture
 def sample_write_stream():
     return b'\x05\xC1\xC2\xC3'  # Write ABC
 
-
 def test_parse_sample_wcc(data_stream_parser, sample_wcc_stream):
     data_stream_parser.parse(sample_wcc_stream)
     assert data_stream_parser.wcc == 0xC1
-
 
 def test_parse_sample_sba(data_stream_parser, sample_sba_stream):
     with patch.object(data_stream_parser.screen, 'set_position'):
         data_stream_parser.parse(sample_sba_stream)
         data_stream_parser.screen.set_position.assert_called_with(0, 20)
-
 
 def test_parse_sample_write(data_stream_parser, sample_write_stream):
     with patch.object(data_stream_parser.screen, 'clear'):

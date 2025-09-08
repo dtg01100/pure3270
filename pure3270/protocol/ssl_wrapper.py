@@ -4,14 +4,11 @@ import ssl
 import logging
 from typing import Optional
 
-
 logger = logging.getLogger(__name__)
-
 
 class SSLError(Exception):
     """Error during SSL operations."""
     pass
-
 
 class SSLWrapper:
     """Layers SSL/TLS on top of telnet3 connections using Python's ssl module."""
@@ -75,7 +72,7 @@ class SSLWrapper:
     def wrap_connection(self, telnet_connection):
         """
         Wrap an existing telnet connection with SSL (if telnetlib3 doesn't handle natively).
-        
+
         :param telnet_connection: The telnet connection object (e.g., from telnetlib3).
         :return: Wrapped connection.
         Note: This is a stub; telnetlib3 handles SSL natively via ssl parameter.
@@ -105,9 +102,7 @@ class SSLWrapper:
         """Stub for decrypting data (for testing)."""
         return encrypted_data
 
-
 # Usage example (for docstrings):
 # wrapper = SSLWrapper(verify=True)
 # context = wrapper.create_context()
 # handler = TN3270Handler(host="example.com", port=992, ssl_context=context)
-

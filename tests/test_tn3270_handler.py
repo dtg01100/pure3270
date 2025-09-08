@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from pure3270.protocol.tn3270_handler import TN3270Handler, ProtocolError, NegotiationError
 from pure3270.protocol.ssl_wrapper import SSLWrapper
 
-
 @pytest.mark.asyncio
 class TestTN3270Handler:
     @patch('telnetlib3.open_connection')
@@ -83,7 +82,6 @@ class TestTN3270Handler:
         assert tn3270_handler.is_connected() is False
         tn3270_handler.telnet = MagicMock()
         assert tn3270_handler.is_connected() is True
-
 
     @patch.object(TN3270Handler, 'reader')
     @patch.object(TN3270Handler, 'writer')

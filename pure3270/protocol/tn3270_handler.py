@@ -3,13 +3,13 @@
 import logging
 from typing import Optional, BinaryIO
 import asyncio
-import telnetlib3
 
 # TN3270E constants
 IAC = 0xff
 SB = 0xfa
 SE = 0xf0
 DO = 0xfd
+DONT = 0xfe
 WILL = 0xfb
 WONT = 0xfc
 TELOPT_TN3270E = 24
@@ -40,7 +40,7 @@ class TN3270Handler:
     def __init__(self, host: str, port: int = 23, ssl_context: Optional[BinaryIO] = None):
         """
         Initialize the TN3270Handler.
- 
+
         :param host: Hostname or IP address.
         :param port: Port number (default 23 for telnet, 992 for secure).
         :param ssl_context: SSL context for secure connections (from SSLWrapper).
@@ -60,7 +60,7 @@ class TN3270Handler:
     async def connect(self):
         """
         Establish connection and negotiate TN3270/TN3270E.
- 
+
         :raises ConnectionError: If connection fails.
         :raises NegotiationError: If negotiation fails.
         """
@@ -71,19 +71,19 @@ class TN3270Handler:
                 self.reader, self.writer = await asyncio.open_connection(self.host, self.port)
             # Skip WONT ENVIRON to avoid connection reset
             logger.debug("Skipping WONT ENVIRON")
- 
+
             # Read any initial data from server
             try:
                 initial_data = await self.reader.read(1024)
                 logger.debug(f"Initial data from server: {initial_data.hex() if initial_data else 'None'}")
             except Exception as e:
                 logger.warning(f"Initial read warning: {e}")
- 
+
             logger.info(f"Connected to {self.host}:{self.port}")
-  
+
             # Negotiate TN3270
             await self._negotiate_tn3270()
-  
+
         except Exception as e:
             logger.error(f"Connection failed: {e}")
             raise ConnectionError(f"Failed to connect to {self.host}:{self.port}")
@@ -133,9 +133,11 @@ class TN3270Handler:
 
             if b"\xff\xfa\x18\x00\x02" in dev_response:  # SB DEVICE_TYPE IS
                 logger.info("Received DEVICE_TYPE IS, proceeding to FUNCTIONS")
-                # Send SB TN3270E FUNCTIONS REQUEST with bitmap 0x15 (BIND_IMAGE=1, RESPONSES=3 bit2=4, SYSREQ=5 bit4=16 -> 1+4+16=21=0x15)
+                # Send SB TN3270E FUNCTIONS REQUEST with bitmap 0x15
+                # (BIND_IMAGE=1, RESPONSES=3 bit2=4, SYSREQ=5 bit4=16 -> 1+4+16=21=0x15)
                 bitmap = b'\x15'
-                sb_functions_request = b'\xff\xfa\x18\x01\x01' + bitmap + b'\xff\xf0'  # IAC SB TELOPT FUNCTIONS REQUEST bitmap IAC SE
+                sb_functions_request = (b'\xff\xfa\x18\x01\x01' + bitmap + 
+                                      b'\xff\xf0')  # IAC SB TELOPT FUNCTIONS REQUEST bitmap IAC SE
                 self.writer.write(sb_functions_request)
                 await self.writer.drain()
                 logger.debug(f"Sent SB FUNCTIONS REQUEST: {sb_functions_request.hex()}")
@@ -182,7 +184,7 @@ class TN3270Handler:
             self.supports_tn3270 = False
             self.negotiated_tn3270e = False
         # Continue to EOR and terminal type anyway
- 
+
         # Send DO EOR for TN3270
         do_eor = b'\xff\xfd\x19'  # IAC DO EOR
         self.writer.write(do_eor)
@@ -200,12 +202,11 @@ class TN3270Handler:
                 logger.info("Received WILL EOR")
             else:
                 logger.warning("EOR not accepted or no response, continuing")
- 
 
     async def send_data(self, data: bytes):
         """
         Send 3270 data stream.
- 
+
         :param data: 3270 data stream bytes.
         :raises ProtocolError: If not connected.
         """
@@ -220,7 +221,7 @@ class TN3270Handler:
         """
         Receive 3270 data stream, handling TN3270E headers and BIND/UNBIND.
         Loops until EOR or full buffer, matching s3270 blocking behavior.
-  
+
         :param timeout: Overall read timeout in seconds (default 10s like s3270).
         :return: Received bytes (stripped of TN3270E header if applicable, up to EOR).
         :raises ProtocolError: If not connected.

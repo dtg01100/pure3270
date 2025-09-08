@@ -10,9 +10,6 @@ from pure3270.protocol.tn3270_handler import TN3270Handler
 from pure3270.protocol.data_stream import DataStreamParser, DataStreamSender
 from pure3270.protocol.ssl_wrapper import SSLWrapper
 
-
-
-
 @pytest.mark.asyncio
 class TestAsyncSession:
     def test_init(self, async_session):
@@ -128,7 +125,6 @@ class TestAsyncSession:
             async with async_session.managed():
                 pass
 
-
     async def test_pf_key_processing_with_aid(self, async_session):
         """
         Ported from s3270 test case 5: PF key processing with AID.
@@ -140,28 +136,27 @@ class TestAsyncSession:
         mock_handler.send_data = AsyncMock()
         async_session.handler = mock_handler
         async_session._connected = True
-    
+
         # Mock parser to set AID after send (simulate response)
         mock_parser = MagicMock()
         mock_parser.aid = 0x6D
         async_session.parser = mock_parser
-    
+
         # Mock screen for field advance
         with patch.object(async_session.screen, 'set_position') as mock_set_pos:
             # Send PF3 key
             await async_session.send('key PF3')
-    
+
             # Assert send_data called with correct AID (0x6D for PF3 as per case)
             mock_handler.send_data.assert_called_once()
             data = mock_handler.send_data.call_args[0][0]
             assert data == b'\x6D'  # AID 0x6D
-    
+
             # Assert AID set correctly
             assert async_session.parser.aid == 0x6D
-    
+
             # Assert field advance (e.g., cursor moved)
             mock_set_pos.assert_called_once()  # Or specific position
-
 
 class TestSession:
     def test_init(self, sync_session):
@@ -224,7 +219,6 @@ class TestSession:
         with sync_session:
             assert sync_session.connected is False  # Assume not connected
         sync_session.close.assert_called_once()
-
 
 # General tests for exceptions, logging, performance
 def test_session_error(caplog):

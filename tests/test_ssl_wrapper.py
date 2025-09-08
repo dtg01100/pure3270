@@ -3,7 +3,6 @@ from unittest.mock import patch, MagicMock
 from pure3270.protocol.ssl_wrapper import SSLWrapper, SSLError
 import ssl
 
-
 @pytest.mark.asyncio
 class TestSSLWrapper:
     def test_init(self, ssl_wrapper):
@@ -50,7 +49,6 @@ class TestSSLWrapper:
             context = ssl_wrapper.get_context()
         mock_create.assert_called_once()
         assert context == ssl_wrapper.context
-
 
     @patch('pure3270.protocol.ssl_wrapper.SSLWrapper.wrap_connection')
     @patch('pure3270.protocol.ssl_wrapper.SSLWrapper.create_context')

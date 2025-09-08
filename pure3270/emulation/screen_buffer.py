@@ -3,7 +3,6 @@
 from typing import List, Tuple, Optional
 from .ebcdic import EBCDICCodec
 
-
 class Field:
     """Represents a 3270 field with content, attributes, and boundaries."""
 
@@ -48,7 +47,6 @@ class Field:
 
     def __repr__(self) -> str:
         return f"Field(start={self.start}, end={self.end}, protected={self.protected})"
-
 
 class ScreenBuffer:
     """Manages the 3270 screen buffer, including characters, attributes, and fields."""

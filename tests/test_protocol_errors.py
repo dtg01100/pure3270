@@ -1,11 +1,11 @@
 import pytest
 import asyncio
+from unittest.mock import patch
 from pure3270.protocol.data_stream import DataStreamParser, ParseError
 from pure3270.emulation.screen_buffer import ScreenBuffer
 from pure3270.protocol.tn3270_handler import TN3270Handler
-from pure3270.protocol.ssl_wrapper import SSLWrapper
+from pure3270.protocol.ssl_wrapper import SSLWrapper, SSLError
 import ssl
-
 
 def test_parse_error(caplog):
     parser = DataStreamParser(ScreenBuffer())
@@ -14,14 +14,12 @@ def test_parse_error(caplog):
             parser.parse(b'\xF5')  # Incomplete
     assert 'Unexpected end' in caplog.text
 
-
 def test_protocol_error(caplog):
     handler = TN3270Handler('host', 23)
     handler.telnet = None
     with caplog.at_level('ERROR'):
         asyncio.run(handler.send_data(b''))
     assert 'Not connected' in caplog.text
-
 
 def test_ssl_error(caplog):
     wrapper = SSLWrapper()
