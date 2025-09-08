@@ -100,9 +100,9 @@ class MonkeyPatchManager:
     def apply_patches(self, patch_sessions: bool = True, patch_commands: bool = True, strict_version: bool = False, expected_version: str = "0.3.0") -> None:
         try:
             import p3270
-            if strict_version:
-                if not self._check_version_compatibility(p3270, expected_version):
-                    raise Pure3270PatchError(f"Version incompatible: {p3270.__version__}")
+            version_compatible = self._check_version_compatibility(p3270, expected_version)
+            if strict_version and not version_compatible:
+                raise Pure3270PatchError(f"Version incompatible: {getattr(p3270, '__version__', 'unknown')}")
             if patch_sessions:
                 original = getattr(p3270, 'S3270', None)
                 self._store_original('p3270.S3270', original)
@@ -170,20 +170,21 @@ def PatchContext(patches: Optional[Dict[str, Any]] = None):
 
 
 
-def enable_replacement(patch_sessions: bool = True, strict_version: bool = False, expected_version: str = "0.3.0") -> MonkeyPatchManager:
+def enable_replacement(patch_sessions: bool = True, patch_commands: bool = True, strict_version: bool = False, expected_version: str = "0.3.0") -> MonkeyPatchManager:
     """
     Enable replacement patching with version check.
-    
+
     Args:
         patch_sessions: Whether to patch sessions.
+        patch_commands: Whether to patch commands.
         strict_version: Whether to enforce strict version check.
         expected_version: The expected version for compatibility (default "0.3.0").
-    
+
     Raises:
         ValueError: If version or replacement fails.
     """
     manager = MonkeyPatchManager()
-    manager.apply_patches(patch_sessions=patch_sessions, strict_version=strict_version, expected_version=expected_version)
+    manager.apply_patches(patch_sessions=patch_sessions, patch_commands=patch_commands, strict_version=strict_version, expected_version=expected_version)
     return manager
 
 

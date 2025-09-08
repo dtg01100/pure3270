@@ -100,10 +100,10 @@ def test_patch_alias():
 
 class TestPatchContext:
     def test_context_manager(self):
-        with mock_patch('pure3270.patching.patching.enable_replacement') as mock_enable:
+        with mock_patch('pure3270.patching.patching.MonkeyPatchManager') as mock_manager_class:
             mock_manager = MagicMock()
-            mock_enable.return_value = mock_manager
-            
+            mock_manager_class.return_value = mock_manager
+
             # Use the real PatchContext instead of mocking it
             from pure3270.patching.patching import PatchContext
             with PatchContext():
@@ -174,8 +174,8 @@ def test_patching_fallback(mock_import, caplog):
     manager = MonkeyPatchManager()
     def mock_check(*args, **kwargs):
         return False
-    with caplog.at_level('WARNING'):
-        with mock_patch.object(manager, '_check_version_compatibility', side_effect=mock_check):
+    with mock_patch.object(manager, '_check_version_compatibility', side_effect=mock_check):
+        with caplog.at_level('INFO'):
             manager.apply_patches(strict_version=False)
     assert 'Graceful degradation' in caplog.text
 

@@ -51,7 +51,8 @@ class TestAsyncSession:
         mock_handler_instance = AsyncMock()
         mock_handler.return_value = mock_handler_instance
         mock_handler_instance.negotiate = AsyncMock()
-        mock_handler_instance._negotiate_tn3270.side_effect = Exception("Negotiation failed")
+        from pure3270.protocol.exceptions import NegotiationError
+        mock_handler_instance._negotiate_tn3270.side_effect = NegotiationError("Negotiation failed")
         mock_handler_instance.set_ascii_mode = AsyncMock()
 
         await async_session.connect()
@@ -93,9 +94,10 @@ class TestAsyncSession:
         async_session._handler.close = AsyncMock()
         async_session._connected = True
 
+        handler = async_session._handler
         await async_session.close()
 
-        async_session._handler.close.assert_called_once()
+        handler.close.assert_called_once()
         assert async_session._connected is False
         assert async_session._handler is None
 
@@ -197,9 +199,10 @@ class TestAsyncSession:
         """Test macro execution with malformed script raising MacroError."""
         async_session._handler = AsyncMock()
         async_session._connected = True
-        async_session.send.side_effect = MacroError('Invalid command')
-        with pytest.raises(MacroError):
-            await async_session.execute_macro('invalid_cmd;')
+        with patch.object(async_session, 'send', side_effect=MacroError('Invalid command')):
+            result = await async_session.execute_macro('invalid_cmd;')
+        assert result['success'] is False
+        assert 'Error in command' in result['output'][0]
 
     @pytest.mark.asyncio
     async def test_execute_macro_unhandled_exception(self, async_session):
@@ -208,8 +211,9 @@ class TestAsyncSession:
         async_session._connected = True
         async_session.send = AsyncMock()
         async_session.read = AsyncMock(side_effect=Exception('Unhandled'))
-        with pytest.raises(MacroError):
-            await async_session.execute_macro('cmd1;cmd2;')
+        result = await async_session.execute_macro('cmd1;cmd2;')
+        assert result['success'] is False
+        assert 'Error in command' in result['output'][0]
 
     @pytest.mark.asyncio
     async def test_execute_macro_timeout(self, async_session):
@@ -218,8 +222,9 @@ class TestAsyncSession:
         async_session._connected = True
         async_session.send = AsyncMock()
         async_session.read = AsyncMock(side_effect=[b'output1', asyncio.TimeoutError('Timeout')])
-        with pytest.raises(MacroError):
-            await async_session.execute_macro('cmd1;cmd2;')
+        result = await async_session.execute_macro('cmd1;cmd2;')
+        assert result['success'] is False
+        assert 'Error in command' in result['output'][1]
 
     @pytest.mark.asyncio
     async def test_execute_macro_empty(self, async_session):
