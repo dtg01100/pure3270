@@ -16,9 +16,10 @@ def test_parse_error(caplog):
 
 def test_protocol_error(caplog):
     handler = TN3270Handler('host', 23)
-    handler.telnet = None
+    handler.writer = None
     with caplog.at_level('ERROR'):
-        asyncio.run(handler.send_data(b''))
+        with pytest.raises(Exception):  # Catch ProtocolError
+            asyncio.run(handler.send_data(b''))
     assert 'Not connected' in caplog.text
 
 def test_ssl_error(caplog):
