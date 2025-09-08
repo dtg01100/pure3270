@@ -37,12 +37,14 @@ class Field:
         if not self.content:
             return ""
         codec = EBCDICCodec()
-        return codec.decode(self.content)
+        decoded, _ = codec.decode(self.content)
+        return decoded
 
     def set_content(self, text: str):
         """Set field content from Unicode string."""
         codec = EBCDICCodec()
-        self.content = codec.encode(text)
+        encoded, _ = codec.encode(text)
+        self.content = encoded
         self.modified = True
 
     def __repr__(self) -> str:

@@ -1,3 +1,3 @@
 from .patching import (
-    MonkeyPatchManager, enable_replacement, Pure3270PatchError, PatchContext  # noqa: F401
+    MonkeyPatchManager, enable_replacement, patch, Pure3270PatchError, PatchContext  # noqa: F401
 )

@@ -38,7 +38,7 @@ class TestMonkeyPatchManager:
         monkey_patch_manager._apply_method_patch(obj, 'test_method', new_method)
         assert hasattr(obj, 'test_method')
         assert callable(obj.test_method)
-        assert 'test_method' in monkey_patch_manager.patched
+        assert 'MagicMock.test_method' in monkey_patch_manager.patched
 
     def test_check_version_compatibility(self, monkey_patch_manager, mock_p3270):
         assert monkey_patch_manager._check_version_compatibility(mock_p3270, "0.3.0") is True

@@ -1,21 +1,13 @@
-"""Pure3270 library: Pure Python 3270 terminal emulator and p3270 integration."""
+"""
+pure3270 package init.
+Exports core classes and functions for 3270 terminal emulation.
+"""
 
-from .session import Session, setup_logging
-from .patching.patching import enable_replacement
-
-# Initialize logging by default
-setup_logging()
-
-__version__ = "0.1.0b1"
+from .session import Session, AsyncSession
+from .patching import enable_replacement
 
 __all__ = [
-    "Session",
-    "enable_replacement",
-    "setup_logging",
-    "Pure3270Error",
-    "SessionError",
-    "ProtocolError",
-    "NegotiationError",
-    "ParseError",
-    "Pure3270PatchError",
+    'Session',
+    'AsyncSession',
+    'enable_replacement'
 ]

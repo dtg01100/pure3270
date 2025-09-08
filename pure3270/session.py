@@ -1,422 +1,383 @@
-"""Main Session class integrating emulation and protocol layers."""
+"""
+Session management for pure3270, handling synchronous and asynchronous 3270 connections.
+"""
 
-import logging
 import asyncio
-from typing import Optional, Sequence
 from contextlib import asynccontextmanager
-
+from typing import Optional, Any, Dict, List
+from .protocol.tn3270_handler import TN3270Handler
 from .emulation.screen_buffer import ScreenBuffer
-from .protocol.tn3270_handler import (
-    TN3270Handler, NegotiationError
-)
-from .protocol.data_stream import (
-    DataStreamParser, DataStreamSender
-)
-from .protocol.ssl_wrapper import SSLWrapper, SSLError
+from .protocol.exceptions import NegotiationError
+from .protocol.data_stream import DataStreamParser
 
-# Telnet constants
-IAC = 0xff
-SB = 0xfa
-SE = 0xf0
-WILL = 0xfb
-WONT = 0xfc
-DO = 0xfd
-DONT = 0xfe
-
-logger = logging.getLogger(__name__)
-
-class Pure3270Error(Exception):
-    """Base exception for Pure3270 errors."""
-    def __init__(self, message):
-        super().__init__(message)
-        logger.error(message)
-
-class SessionError(Pure3270Error):
-    """Error in session operations."""
+class SessionError(Exception):
+    """Base exception for session-related errors."""
     pass
 
-class AsyncSession:
-    """Asynchronous 3270 session handler."""
+class ConnectionError(SessionError):
+    """Raised when connection fails."""
+    pass
 
-    def __init__(
-        self, rows: int = 24, cols: int = 80, force_3270: bool = False
-    ):
+class MacroError(SessionError):
+    """Raised during macro execution errors."""
+    pass
+
+class Session:
+    """
+    Synchronous wrapper for AsyncSession.
+    
+    This class provides a synchronous interface to the asynchronous 3270 session.
+    All methods use asyncio.run() to execute async operations.
+    """
+
+    def __init__(self, host: str, port: int = 23, ssl_context: Optional[Any] = None):
         """
-        Initialize the AsyncSession.
-
-        :param rows: Screen rows (default 24).
-        :param cols: Screen columns (default 80).
-        :param force_3270: Force TN3270 mode without negotiation (for testing).
+        Initialize a synchronous session.
+        
+        Args:
+            host: The target host IP or hostname.
+            port: The target port (default 23 for Telnet).
+            ssl_context: Optional SSL context for secure connections.
+        
+        Raises:
+            ConnectionError: If connection initialization fails.
         """
-        self.screen = ScreenBuffer(rows, cols)
-        self.parser = DataStreamParser(self.screen)
-        self.sender = DataStreamSender()
-        self.handler: Optional[TN3270Handler] = None
-        self._connected = False
-        self.tn3270_mode = False
-        self.tn3270e_mode = False
-        self.force_3270 = force_3270
-        self.lu_name: Optional[str] = None
+        self._host = host
+        self._port = port
+        self._ssl_context = ssl_context
+        self._async_session = None
 
-    async def connect(
-        self, host: str, port: int = 23, ssl: bool = False
-    ) -> None:
+    def connect(self) -> None:
+        """Connect to the 3270 host synchronously."""
+        asyncio.run(self._connect_async())
+
+    async def _connect_async(self) -> None:
+        """Async connect helper."""
+        self._async_session = AsyncSession(self._host, self._port, self._ssl_context)
+        await self._async_session.connect()
+
+    def send(self, data: bytes) -> None:
         """
-        Connect to the TN3270 host.
-
-        :param host: Hostname or IP.
-        :param port: Port (default 23).
-        :param ssl: Use SSL/TLS if True.
-        :raises SessionError: If connection fails.
+        Send data to the session.
+        
+        Args:
+            data: Bytes to send.
+        
+        Raises:
+            SessionError: If send fails.
         """
-        try:
-            ssl_context = None
-            if ssl:
-                wrapper = SSLWrapper(verify=True)
-                ssl_context = wrapper.get_context()
-                logger.info(f"SSL enabled for {host}:{port}")
+        asyncio.run(self._send_async(data))
 
-            self.handler = TN3270Handler(host, port, ssl_context)
-            if self.force_3270:
-                if self.handler.ssl_context:
-                    self.handler.reader, self.handler.writer = (
-                        await asyncio.open_connection(
-                            self.handler.host, self.handler.port,
-                            ssl=self.handler.ssl_context
-                        )
-                    )
-                else:
-                    self.handler.reader, self.handler.writer = (
-                        await asyncio.open_connection(
-                            self.handler.host, self.handler.port
-                        )
-                    )
-                logger.info(
-                    f"Connected to {host}:{port} in forced TN3270 mode, "
-                    "skipping negotiation"
-                )
-                self.tn3270_mode = True
-                self.tn3270e_mode = True
-                self.lu_name = "DEFAULT"  # Assume default LU for forced mode
-            else:
-                await self.handler.connect()
-                self.tn3270_mode = (
-                    self.handler.supports_tn3270
-                    and self.handler.negotiated_tn3270e
-                )
-                self.tn3270e_mode = self.handler.negotiated_tn3270e
-                if (
-                    hasattr(self.handler, 'lu_name')
-                    and self.handler.lu_name
-                ):
-                    self.lu_name = self.handler.lu_name
-                    logger.info(f"LU bound: {self.lu_name}")
-                    if (
-                        hasattr(self.handler, 'screen_rows')
-                        and hasattr(self.handler, 'screen_cols')
-                        and (
-                            self.handler.screen_rows != self.screen.rows
-                            or self.handler.screen_cols != self.screen.cols
-                        )
-                    ):
-                        self.screen = ScreenBuffer(
-                            self.handler.screen_rows,
-                            self.handler.screen_cols
-                        )
-                        self.parser = DataStreamParser(self.screen)
-                        logger.info(
-                            f"Resized screen buffer to "
-                            f"{self.handler.screen_rows} x "
-                            f"{self.handler.screen_cols}"
-                        )
-            self._connected = True
-            logger.info(f"Connected to {host}:{port}")
-        except NegotiationError as e:
-            logger.warning(f"TN3270 negotiation failed, falling back to ASCII: {e}")
-            self.tn3270_mode = False
-            self._connected = True
-        except (ConnectionError, SSLError, Exception) as e:
-            logger.error(f"Connection failed: {e}")
-            self._connected = False
-            raise SessionError(f"Connection failed: {e}")
+    async def _send_async(self, data: bytes) -> None:
+        """Async send helper."""
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        await self._async_session.send(data)
 
-    async def send(self, command: str) -> None:
+    def read(self, timeout: float = 5.0) -> bytes:
         """
-        Send a command or key to the host.
-
-        :param command: Command or key (e.g., "key Enter", "String(hello)").
-        :raises SessionError: If send fails.
+        Read data from the session.
+        
+        Args:
+            timeout: Read timeout in seconds.
+        
+        Returns:
+            Received bytes.
+        
+        Raises:
+            SessionError: If read fails.
         """
-        if not self._connected or not self.handler:
-            raise SessionError("Not connected")
+        return asyncio.run(self._read_async(timeout))
 
-        try:
-            if self.tn3270_mode:
-                if command.startswith("key "):
-                    key = command[4:]
-                    # Map key to AID (simplified)
-                    aid_map = {
-                        "Enter": 0x7D, "PF3": 0x6D, "Clear": 0x6D, "Tab": 0x05
-                    }
-                    aid = aid_map.get(key, 0x7D)
-                    data = bytes([aid])
-                elif command.startswith("String("):
-                    text = command[7:-1]
-                    # In TN3270, string input is written to buffer and sent with AID
-                    # Simplified: send text as is for fallback compatibility
-                    data = text.encode('ascii')
-                else:
-                    data = self.sender.build_key_press(0x7D)
-            else:
-                # Fallback ASCII mode: send raw telnet bytes
-                if command.startswith("key "):
-                    key = command[4:].lower()
-                    key_map = {
-                        "enter": b'\r', "tab": b'\t', "clear": b'\x0c'
-                    }
-                    data = key_map.get(key, b'\r')
-                elif command.startswith("String("):
-                    text = command[7:-1]
-                    data = text.encode('ascii')
-                else:
-                    data = command.encode('ascii')
+    async def _read_async(self, timeout: float = 5.0) -> bytes:
+        """Async read helper."""
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        return await self._async_session.read(timeout)
 
-            await self.handler.send_data(data)
-            logger.debug(f"Sent command: {command}")
-        except Exception as e:
-            raise SessionError(f"Send failed: {e}")
-
-    async def read(self) -> str:
+    def execute_macro(self, macro: str, vars: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """
-        Read the current screen content.
-
-        :return: Screen text as string.
-        :raises SessionError: If read fails.
+        Execute a macro synchronously.
+        
+        Args:
+            macro: Macro script to execute.
+            vars: Optional dictionary for variable substitution.
+        
+        Returns:
+            Dict with execution results, e.g., {'success': bool, 'output': list}.
+        
+        Raises:
+            MacroError: If macro execution fails.
         """
-        if not self._connected or not self.handler:
-            raise SessionError("Not connected")
+        return asyncio.run(self._execute_macro_async(macro, vars))
 
-        logger.info(
-            "Starting blocking read with 10s timeout "
-            "(waiting for complete response)"
-        )
-        try:
-            data = await self.handler.receive_data(timeout=10.0)
-        except Exception as e:
-            logger.warning(f"Receive data failed: {e}")
-            data = b''
-        try:
-            if not self.tn3270_mode:
-                # Fallback for non-TN3270: strip Telnet IAC and decode as ASCII
-                clean_data = self._strip_telnet_iac(data)
-                clean_text = clean_data.decode('ascii', errors='ignore')
-                # Format to screen size
-                lines = []
-                for i in range(0, len(clean_text), self.screen.cols):
-                    line = (
-                        clean_text[i:i + self.screen.cols].ljust(self.screen.cols)
-                    )
-                    lines.append(line[:self.screen.cols])
-                while len(lines) < self.screen.rows:
-                    lines.append(' ' * self.screen.cols)
-                text = '\n'.join(lines).strip()
-                logger.debug("Fallback ASCII read successful")
-                return text
-            else:
-                if self.tn3270e_mode:
-                    logger.debug("TN3270E mode: parsing 3270 data stream")
-                self.parser = DataStreamParser(self.screen)
-                self.parser.parse(data)
-                text = self.screen.to_text().replace('\x00', '').strip()
-                logger.info("TN3270E read completed successfully")
-                return text
-        except Exception as e:
-            logger.warning(f"Read partial failure: {e}")
-            # Fallback to raw decode if parse fails
-            # For fallback ASCII, ensure EOR/GA stripped (handler already does, but double-check)
-            clean_data = self._strip_telnet_iac(data)
-            clean_text = clean_data.decode('ascii', errors='ignore')
-            logger.info("Fallback ASCII read completed")
-            return clean_text
+    async def _execute_macro_async(self, macro: str, vars: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        """Async macro helper."""
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        return await self._async_session.execute_macro(macro, vars)
 
-    async def macro(self, sequence: Sequence[str]) -> None:
-        """
-        Execute a macro sequence of commands.
+    def close(self) -> None:
+        """Close the session synchronously."""
+        asyncio.run(self._close_async())
 
-        :param sequence: List of commands.
-        """
-        for cmd in sequence:
-            await self.send(cmd)
-            await asyncio.sleep(0.1)  # Small delay between commands
+    async def _close_async(self) -> None:
+        """Async close helper."""
+        if self._async_session:
+            await self._async_session.close()
+            self._async_session = None
 
-    def _strip_telnet_iac(self, data: bytes) -> bytes:
-        """Strip Telnet IAC sequences from data, including EOR and GA for fallback."""
-        """Strip Telnet IAC sequences from data, including EOR and GA for fallback."""
-        result = b""
-        i = 0
-        while i < len(data):
-            if data[i] == IAC and i + 2 < len(data):
-                cmd = data[i + 1]
-                if cmd == SB:
-                    # Skip subnegotiation until SE
-                    j = i + 2
-                    while j < len(data) and data[j] != SE:
-                        j += 1
-                    if j < len(data) and data[j] == SE:
-                        j += 1
-                    i = j
-                    continue
-                elif cmd in (WILL, WONT, DO, DONT):
-                    i += 3
-                    continue
-                elif cmd == 0x19:  # EOR
-                    logger.debug("Stripping IAC EOR in fallback")
-                    i += 2
-                    continue
-                elif cmd == 0xf9:  # GA
-                    logger.debug("Stripping IAC GA in fallback")
-                    i += 2
-                    continue
-                else:
-                    i += 2
-                    continue
-            else:
-                result += bytes([data[i]])
-                i += 1
-        return result
-
-    async def close(self) -> None:
-        """Close the session."""
-        if self.handler:
-            await self.handler.close()
-            self._connected = False
-            logger.info("Session closed")
+    @property
+    def screen_buffer(self) -> ScreenBuffer:
+        """Get the screen buffer property."""
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        return self._async_session.screen_buffer
 
     @property
     def connected(self) -> bool:
-        """Check if connected."""
-        return self._connected
+        """Check if session is connected."""
+        return self._async_session is not None and self._async_session._connected
+
+class AsyncSession:
+    """
+    Asynchronous 3270 session handler.
+    
+    Manages connection, data exchange, and screen emulation for 3270 terminals.
+    """
+    def __init__(self, host: str, port: int = 23, ssl_context: Optional[Any] = None):
+        """
+        Initialize the async session.
+        
+        Args:
+            host: The target host IP or hostname.
+            port: The target port (default 23 for Telnet).
+            ssl_context: Optional SSL context for secure connections.
+        
+        Raises:
+            ValueError: If host or port is invalid.
+        """
+        self.host = host
+        self.port = port
+        self.ssl_context = ssl_context
+        self._handler: Optional[TN3270Handler] = None
+        self.screen_buffer = ScreenBuffer()
+        self._connected = False
+        self.tn3270_mode = False
+        self.tn3270e_mode = False
+        self.lu_name: Optional[str] = None
+
+    async def connect(self) -> None:
+        """
+        Establish connection to the 3270 host.
+        
+        Performs TN3270 negotiation.
+        
+        Raises:
+            ConnectionError: On connection failure.
+            NegotiationError: On negotiation failure.
+        """
+        reader, writer = await asyncio.open_connection(self.host, self.port, ssl=self.ssl_context)
+        self._handler = TN3270Handler(reader, writer)
+        await self._handler.negotiate()
+        self._connected = True
+        # Fallback to ASCII if negotiation fails
+        try:
+            await self._handler._negotiate_tn3270()
+            self.tn3270_mode = True
+            self.tn3270e_mode = self._handler.negotiated_tn3270e
+            self.lu_name = self._handler.lu_name
+            self.screen_buffer.rows = self._handler.screen_rows
+            self.screen_buffer.cols = self._handler.screen_cols
+        except NegotiationError:
+            if self._handler:
+                self._handler.set_ascii_mode()
+
+    async def send(self, data: bytes) -> None:
+        """
+        Send data asynchronously.
+        
+        Args:
+            data: Bytes to send.
+        
+        Raises:
+            SessionError: If send fails.
+        """
+        if not self._connected or not self._handler:
+            raise SessionError("Session not connected.")
+        await self._handler.send_data(data)
+
+    async def read(self, timeout: float = 5.0) -> bytes:
+        """
+        Read data asynchronously with timeout.
+        
+        Args:
+            timeout: Read timeout in seconds (default 5.0).
+        
+        Returns:
+            Received bytes.
+        
+        Raises:
+            asyncio.TimeoutError: If timeout exceeded.
+        """
+        if not self._connected or not self._handler:
+            raise SessionError("Session not connected.")
+        return await self._handler.receive_data(timeout)
+
+    async def _execute_single_command(self, cmd: str, vars: Dict[str, str]) -> str:
+        """
+        Execute a single simple command.
+        
+        Args:
+            cmd: The command string.
+            vars: Variables dict.
+        
+        Returns:
+            Output string.
+        
+        Raises:
+            MacroError: If execution fails.
+        """
+        try:
+            await self.send(cmd.encode('ascii'))
+            output = await self.read()
+            return output.decode('ascii', errors='ignore')
+        except Exception as e:
+            raise MacroError(f"Command execution failed: {e}")
+
+    def _evaluate_condition(self, condition: str) -> bool:
+        """
+        Evaluate a simple condition.
+        
+        Args:
+            condition: Condition string like 'connected' or 'error'.
+        
+        Returns:
+            bool evaluation result.
+        
+        Raises:
+            MacroError: Unknown condition.
+        """
+        if condition == 'connected':
+            return self._connected
+        elif condition == 'error':
+            # Simplified: assume no error for now; could track last_error
+            return False
+        else:
+            raise MacroError(f"Unknown condition: {condition}")
+
+    async def execute_macro(self, macro: str, vars: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+        """
+        Execute a macro asynchronously with advanced parsing support.
+        
+        Supports conditional branching (e.g., 'if connected: command'), 
+        variable substitution (e.g., '${var}'), and nested macros (e.g., 'macro nested').
+        
+        Args:
+            macro: Macro script string, commands separated by ';'.
+            vars: Optional dict for variables and nested macros.
+        
+        Returns:
+            Dict with {'success': bool, 'output': list of str/dict, 'vars': dict}.
+        
+        Raises:
+            MacroError: On parsing or execution errors.
+            SessionError: If not connected.
+        """
+        if vars is None:
+            vars = {}
+        if not self._connected or not self._handler:
+            raise SessionError("Session not connected.")
+        
+        # Variable substitution
+        for key, value in vars.items():
+            macro = macro.replace(f'${{{key}}}', str(value))
+        
+        # Parse commands
+        commands = [cmd.strip() for cmd in macro.split(';') if cmd.strip()]
+        results = {'success': True, 'output': [], 'vars': vars.copy()}
+        i = 0
+        while i < len(commands):
+            cmd = commands[i]
+            try:
+                if cmd.startswith('if '):
+                    if ':' not in cmd:
+                        raise MacroError("Invalid if syntax: missing ':'")
+                    condition_part, command_part = cmd.split(':', 1)
+                    condition = condition_part[3:].strip()
+                    command_part = command_part.strip()
+                    if self._evaluate_condition(condition):
+                        sub_output = await self._execute_single_command(command_part, vars)
+                        results['output'].append(sub_output)
+                elif cmd.startswith('macro '):
+                    macro_name = cmd[6:].strip()
+                    nested_macro = vars.get(macro_name)
+                    if nested_macro:
+                        sub_results = await self.execute_macro(nested_macro, vars)
+                        results['output'].append(sub_results)
+                    else:
+                        raise MacroError(f"Nested macro '{macro_name}' not found in vars")
+                else:
+                    # Backward compatible simple command
+                    sub_output = await self._execute_single_command(cmd, vars)
+                    results['output'].append(sub_output)
+            except Exception as e:
+                results['success'] = False
+                results['output'].append(f"Error in command '{cmd}': {e}")
+            i += 1
+        return results
+
+    async def close(self) -> None:
+        """Close the async session."""
+        if self._handler:
+            await self._handler.close()
+            self._handler = None
+        self._connected = False
 
     @asynccontextmanager
     async def managed(self):
-        """Context manager for the session."""
-        if not self._connected:
-            raise SessionError("Must connect before using context manager")
+        """
+        Async context manager for the session.
+        
+        Usage:
+            async with session.managed():
+                await session.connect()
+                # operations
+        """
         try:
             yield self
         finally:
             await self.close()
 
-# Synchronous wrappers
-class Session:
-    """Synchronous 3270 session handler (wraps AsyncSession)."""
-
-    def __init__(
-        self, rows: int = 24, cols: int = 80, force_3270: bool = False
-    ):
-        """
-        Initialize the Session.
-
-        :param rows: Screen rows (default 24).
-        :param cols: Screen columns (default 80).
-        :param force_3270: Force TN3270 mode without negotiation (for testing).
-        """
-        self._async_session = AsyncSession(rows, cols, force_3270)
-        self.loop = None
-
-    def connect(self, host: str, port: int = 23, ssl: bool = False) -> None:
-        """
-        Connect to the TN3270 host (sync).
-
-        :param host: Hostname or IP.
-        :param port: Port (default 23).
-        :param ssl: Use SSL/TLS if True.
-        :raises SessionError: If connection fails.
-        """
-        if self.loop is None:
-            self.loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(self.loop)
-        try:
-            self.loop.run_until_complete(
-                self._async_session.connect(host, port, ssl)
-            )
-        except Exception as e:
-            raise SessionError(f"Connection failed: {e}")
-
-    def send(self, command: str) -> None:
-        """
-        Send a command or key (sync).
-
-        :param command: Command or key.
-        :raises SessionError: If send fails.
-        """
-        if self.loop is None:
-            raise SessionError("Must connect first")
-        self.loop.run_until_complete(self._async_session.send(command))
-
-    def read(self) -> str:
-        """
-        Read the current screen content (sync).
-
-        :return: Screen text.
-        :raises SessionError: If read fails.
-        """
-        if self.loop is None:
-            raise SessionError("Must connect first")
-        return self.loop.run_until_complete(self._async_session.read())
-
-    def macro(self, sequence: Sequence[str]) -> None:
-        """
-        Execute a macro sequence (sync).
-
-        :param sequence: List of commands.
-        """
-        if self.loop is None:
-            raise SessionError("Must connect first")
-        self.loop.run_until_complete(self._async_session.macro(sequence))
-
-    def close(self) -> None:
-        """Close the session (sync)."""
-        if self.loop is None:
-            return
-        self.loop.run_until_complete(self._async_session.close())
-        if not self.loop.is_closed():
-            self.loop.close()
-        self.loop = None
-
     @property
     def connected(self) -> bool:
-        """Check if connected."""
-        return self._async_session.connected
+        """Check if session is connected."""
+        return self._connected
 
     @property
     def tn3270_mode(self) -> bool:
         """Check if TN3270 mode is active."""
-        return self._async_session.tn3270_mode
+        return self._tn3270_mode
+
+    @tn3270_mode.setter
+    def tn3270_mode(self, value: bool) -> None:
+        self._tn3270_mode = value
 
     @property
     def tn3270e_mode(self) -> bool:
         """Check if TN3270E mode is active."""
-        return self._async_session.tn3270e_mode
+        return self._tn3270e_mode
+
+    @tn3270e_mode.setter
+    def tn3270e_mode(self, value: bool) -> None:
+        self._tn3270e_mode = value
 
     @property
     def lu_name(self) -> Optional[str]:
-        """Get the bound LU name."""
-        return self._async_session.lu_name
+        """Get the LU name."""
+        return self._lu_name
 
-    def __enter__(self):
-        """Sync context manager entry."""
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Sync context manager exit."""
-        self.close()
-        if self.loop and not self.loop.is_closed():
-            self.loop.close()
-        self.loop = None
-
-# Logging setup (basic)
-def setup_logging(level: str = "INFO"):
-    """Setup logging for the library."""
-    logging.basicConfig(level=level)
-    logging.getLogger("pure3270").setLevel(level)
+    @lu_name.setter
+    def lu_name(self, value: Optional[str]) -> None:
+        """Set the LU name."""
+        self._lu_name = value

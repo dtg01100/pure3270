@@ -14,12 +14,12 @@ class TestField:
         assert field.content == b'\xC1\xC2\xC3'
 
     def test_field_get_content(self, ebcdic_codec):
-        with patch.object(ebcdic_codec, 'decode', return_value='ABC'):
+        with patch.object(ebcdic_codec, 'decode', return_value=('ABC', 3)):
             field = Field(start=(0, 0), end=(0, 3), content=b'\xC1\xC2\xC3')
             assert field.get_content() == 'ABC'
 
     def test_field_set_content(self, ebcdic_codec):
-        with patch.object(ebcdic_codec, 'encode', return_value=b'\xC4\xC5\xC6'):
+        with patch.object(ebcdic_codec, 'encode', return_value=(b'\xC4\xC5\xC6', 3)):
             field = Field(start=(0, 0), end=(0, 3))
             field.set_content('DEF')
             assert field.content == b'\xC4\xC5\xC6'
@@ -88,7 +88,7 @@ class TestScreenBuffer:
     def test_get_field_content(self, screen_buffer):
         screen_buffer.fields = [Field((0, 0), (0, 3), content=b'\xC1\xC2\xC3')]
         with patch('pure3270.emulation.screen_buffer.EBCDICCodec') as mock_codec:
-            mock_codec.return_value.decode.return_value = 'ABC'
+            mock_codec.return_value.decode.return_value = ('ABC', 3)
             assert screen_buffer.get_field_content(0) == 'ABC'
         assert screen_buffer.get_field_content(1) == ''  # out of range
 
@@ -113,23 +113,23 @@ class TestEBCDICCodec:
         assert hasattr(ebcdic_codec, 'ebcdic_translate')
 
     def test_encode(self, ebcdic_codec):
-        encoded = ebcdic_codec.encode('A')
+        encoded, _ = ebcdic_codec.encode('A')
         assert encoded == b'\xC1'  # From mapping
-        encoded = ebcdic_codec.encode('ABC123')
-        assert encoded == b'\xC1\xC2\xC3\x40\x40\x40'  # A B C space for digits (incomplete mapping)
+        encoded, _ = ebcdic_codec.encode('ABC123')
+        assert encoded == b'\xC1\xC2\xC3\xF1\xF2\xF3'  # A B C digits in EBCDIC
 
     def test_encode_unknown_char(self, ebcdic_codec):
-        encoded = ebcdic_codec.encode('?')  # Unknown, maps to 0x7A
+        encoded, _ = ebcdic_codec.encode('?')  # Unknown, maps to 0x7A
         assert encoded == b'\x7A'
 
     def test_decode(self, ebcdic_codec):
-        decoded = ebcdic_codec.decode(b'\xC1\xC2\xC3')
+        decoded, _ = ebcdic_codec.decode(b'\xC1\xC2\xC3')
         assert decoded == 'ABC'
-        decoded = ebcdic_codec.decode(b'\xF0\xF1\xF2')
-        assert decoded == '012'
+        decoded, _ = ebcdic_codec.decode(b'\xF0\xF1\xF2')
+        assert decoded == '012'  # digits for EBCDIC digits
 
     def test_decode_translate(self, ebcdic_codec):
-        decoded = ebcdic_codec.decode(b'\xC1')
+        decoded, _ = ebcdic_codec.decode(b'\xC1')
         assert decoded == 'A'
 
     def test_encode_to_unicode_table(self, ebcdic_codec):
@@ -137,6 +137,37 @@ class TestEBCDICCodec:
         assert encoded == b'\xC1'
 
 # General tests for exceptions and logging (emulation specific)
+    def test_decode_unmapped_bytes(self, ebcdic_codec):
+        """Test decode with unmapped bytes defaults to 'z'."""
+        data = b'\x00\xFF\xAB'  # \x00 maps to Null, \xFF and \xAB unmapped
+        decoded, _ = ebcdic_codec.decode(data)
+        assert decoded == '\x00zz'  # Null + two 'z'
+
+    def test_encode_surrogate_escape(self, ebcdic_codec):
+        """Test encode with surrogate char defaults to 'z'."""
+        surrogate = '\ud800'
+        encoded, _ = ebcdic_codec.encode(surrogate)
+        assert encoded == b'\x7A'
+
+    def test_round_trip_mapped(self, ebcdic_codec):
+        """Test round-trip encode/decode for mapped characters."""
+        text = 'ABC'
+        encoded, _ = ebcdic_codec.encode(text)
+        decoded, _ = ebcdic_codec.decode(encoded)
+        assert decoded == text
+
+    def test_round_trip_unmapped(self, ebcdic_codec):
+        """Test round-trip for unmapped character defaults to 'z'."""
+        text = chr(0xFF)
+        encoded, _ = ebcdic_codec.encode(text)
+        decoded, _ = ebcdic_codec.decode(encoded)
+        assert decoded == 'z'
+
+    def test_decode_mock_data(self, ebcdic_codec):
+        """Test decode with mock unmapped data like b'\x00\xFF'."""
+        mock_data = b'\x00\xFF'
+        decoded, _ = ebcdic_codec.decode(mock_data)
+        assert decoded == '\x00z'
 def test_emulation_exception(caplog):
     with pytest.raises(ValueError):
         ScreenBuffer(rows=-1)
@@ -188,7 +219,7 @@ def test_read_modified_fields_after_change(screen_buffer, ebcdic_codec):
     screen_buffer.set_position(0, 0)
 
     # Modify field content
-    with patch.object(ebcdic_codec, 'encode', return_value=b'\xC1\xC2\xC3\xC4\xC5'):
+    with patch.object(ebcdic_codec, 'encode', return_value=(b'\xC1\xC2\xC3\xC4\xC5', 5)):
         field.set_content('ABCDE')
 
     # Simulate RMF: read modified fields

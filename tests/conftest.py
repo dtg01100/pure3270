@@ -1,4 +1,5 @@
 import pytest
+import asyncio
 from unittest.mock import AsyncMock  # noqa: F401
 
 from pure3270.emulation.screen_buffer import ScreenBuffer
@@ -34,12 +35,14 @@ def data_stream_parser(screen_buffer):
 
 @pytest.fixture
 def async_session():
-    return AsyncSession(rows=24, cols=80)
+    return AsyncSession("localhost", 23)
 
 @pytest.fixture
 def sync_session():
-    return Session(rows=24, cols=80)
-@pytest.fixture
+    return Session("localhost", 23)
 
+@pytest.fixture
 def tn3270_handler():
-    return TN3270Handler("localhost", 23)
+    reader = AsyncMock(spec=asyncio.StreamReader)
+    writer = AsyncMock(spec=asyncio.StreamWriter)
+    return TN3270Handler(reader, writer, host="localhost", port=23)
