@@ -129,7 +129,7 @@ All development and usage must occur within a Python virtual environment to mana
    ```
    pip install -e .
    ```
-   No external runtime dependencies; uses standard library. For development/testing, install optional deps: `pip install -r requirements-dev.txt` or `pip install .[test]` if configured in pyproject.toml (e.g., pytest, pytest-asyncio).
+   No external runtime dependencies; uses standard library. For development/testing, install optional deps: `pip install .[test]`.
 
 4. **Packaging note**: Distributed via `setup.py` or `pyproject.toml` with no `install_requires` for external packages, keeping it self-contained and pure Python.
 

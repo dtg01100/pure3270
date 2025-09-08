@@ -22,7 +22,14 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest >= 7.0", "pytest-asyncio >= 0.21", "pytest-benchmark >= 4.0"]
+test = [
+    "pytest >= 7.0",
+    "pytest-asyncio >= 0.21",
+    "pytest-benchmark >= 4.0",
+    "flake8 >= 7.0",
+    "black >= 24.0",
+    "pytest-cov >= 5.0",
+]
 
 [tool.pytest.ini_options]
 markers = [
