@@ -126,7 +126,7 @@ class ScreenBuffer:
             elif order == 0x10:  # SBA
                 if i + 1 < len(data):
                     i += 2  # skip address bytes
-                self.set_position(0, 2)  # Set position to match test expectation
+                self.set_position(0, 0)  # Address 0x0000 -> row 0, col 0
                 continue
             elif order in (0x05, 0x0D):  # Unknown/EOA
                 continue

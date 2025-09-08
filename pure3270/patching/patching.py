@@ -150,12 +150,14 @@ class MonkeyPatchManager:
             try:
                 import p3270
                 p_session = p3270
-                session_class = p3270.P3270Client
+                session_class = p3270.S3270
+                p3270_set = True
                 compatible = self._check_version_compatibility(p3270, expected_version)
                 if not compatible and strict_version:
                     raise Pure3270PatchError("Version incompatible with patches.")
                 if not compatible:
                     logger.warning("Graceful degradation: proceeding with patches despite version mismatch.")
+                p3270_set = True
                 p3270_set = True
             except ImportError:
                 logger.warning(
@@ -164,12 +166,11 @@ class MonkeyPatchManager:
                 )
                 # For simulation, create mock
                 mock_session = MagicMock()
-                mock_session_module = type('session', (), {'Session': mock_session})
                 mock_module = MagicMock(__name__='p3270')
                 mock_module.__version__ = "0.3.0"
-                mock_module.session = mock_session_module
+                mock_module.S3270 = mock_session
                 p_session = mock_module
-                session_class = mock_session_module.Session
+                session_class = mock_module.S3270
                 sys.modules['p3270'] = mock_module
                 p3270_set = False
             finally:
@@ -179,7 +180,7 @@ class MonkeyPatchManager:
             if patch_sessions:
                 # Patch Session to use PureSession transparently
                 original_session = session_class
-                self._store_original("p3270.P3270Client", original_session)
+                self._store_original("p3270.S3270", original_session)
 
                 def patched_init(self, *args, **kwargs):
                     """Patched __init__: Initialize with pure3270 Session."""

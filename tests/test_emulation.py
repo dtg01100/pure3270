@@ -164,7 +164,7 @@ SAMPLE_3270_STREAM = b'\x05\xF5\xC1\x10\x00\x00\xC1\xC2\xC3\x0D'  # Write, WCC, 
 def test_update_from_sample_stream(screen_buffer):
     with patch.object(screen_buffer, '_detect_fields'):
         screen_buffer.update_from_stream(SAMPLE_3270_STREAM)
-    assert screen_buffer.buffer[2:5] == b'\xC1\xC2\xC3'
+    assert screen_buffer.buffer[0:3] == b'\xC1\xC2\xC3'
 
 
 def test_basic_session_clear(screen_buffer):
