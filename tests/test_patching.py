@@ -112,6 +112,7 @@ class TestPatchContext:
 
 # Tests for real integration with p3270 (since installed)
 def test_real_patching_integration(caplog):
+    pytest.importorskip("p3270", reason="p3270 not available for integration test")
     from pure3270 import enable_replacement
     from p3270 import P3270Client as P3270Session
     # Configure caplog to capture INFO level messages
