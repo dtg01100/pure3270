@@ -13,8 +13,6 @@ For real usage: Set a valid host (e.g., IBM mainframe emulator) and port.
 Enable SSL for secure connections (port 992 typically).
 """
 
-import logging
-
 # Setup logging to see session events
 from pure3270 import setup_logging, Session
 setup_logging(level='INFO')
@@ -34,21 +32,21 @@ try:
     # Connect to the host
     session.connect(host, port=port, ssl=ssl)
     print(f"Connected to {host}:{port} (mock - in reality, would handle TN3270 negotiation).")
-    
+
     # Send commands: Type a string and press Enter
     session.send('String(User Login)')  # Simulate typing into a field
     session.send('key Enter')  # Submit the input
     print("Sent commands: 'String(User Login)' + 'key Enter'.")
-    
+
     # Optionally, execute a macro sequence
     # session.macro(['String(password)', 'key PF3'])  # Uncomment for multi-step
-    
+
     # Read the screen content (EBCDIC to ASCII translated)
     screen_text = session.read()
     print("Screen content after commands:")
     print(screen_text)
     print("(In real usage, this displays the 3270 screen scraped as text.)")
-    
+
 except Exception as e:
     print(f"Session operations failed (expected for mock host): {e}")
     print("For real standalone usage:")
@@ -56,7 +54,7 @@ except Exception as e:
     print("- Set ssl=True and port=992 for secure connections.")
     print("- Enable DEBUG logging: setup_logging('DEBUG') for protocol details.")
     print("- Test with a 3270 emulator or mainframe test system.")
-    
+
 finally:
     # Always close the session
     session.close()

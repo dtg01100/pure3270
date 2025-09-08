@@ -57,7 +57,7 @@ class MonkeyPatchManager:
     def _apply_module_patch(self, target_module_name: str, replacement_module: Any) -> None:
         """
         Redirect a module import using sys.modules.
-        
+
         :param target_module_name: Name of the module to patch (e.g., 's3270').
         :param replacement_module: Replacement module or class.
         :raises Pure3270PatchError: If patching fails.
@@ -87,7 +87,7 @@ class MonkeyPatchManager:
     ) -> None:
         """
         Override a method on an object with a new implementation.
-        
+
         :param obj: The object (class or instance) to patch.
         :param method_name: Name of the method to override.
         :param new_method: The new method function.
@@ -127,7 +127,7 @@ class MonkeyPatchManager:
     ) -> bool:
         """
         Check for version mismatches and handle gracefully.
-        
+
         :param module: The module to check (e.g., p3270).
         :param expected_version: Expected version string.
         :return: True if compatible, else False.
@@ -159,7 +159,7 @@ class MonkeyPatchManager:
     ) -> None:
         """
         Apply patches based on selective options.
-        
+
         :param patch_sessions: Whether to patch session-related functionality.
         :param patch_commands: Whether to patch command execution.
         :param strict_version: Raise error on version mismatch if True.
@@ -299,10 +299,10 @@ def enable_replacement(
 ) -> MonkeyPatchManager:
     """
     Top-level API for zero-configuration opt-in patching.
-    
+
     Applies global patches to p3270 for seamless pure3270 integration.
     Supports selective patching and fallback detection.
-    
+
     :param patch_sessions: Patch session initialization and methods (default True).
     :param patch_commands: Patch command execution (default True).
     :param strict_version: Raise error on version mismatch (default False).
@@ -356,5 +356,3 @@ except ImportError:
     mock_module.__version__ = "0.3.0"
     mock_module.session = mock_session_module
     sys.modules['p3270'] = mock_module
-    
-

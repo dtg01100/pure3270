@@ -426,4 +426,3 @@ def setup_logging(level: str = "INFO"):
     """Setup logging for the library."""
     logging.basicConfig(level=level)
     logging.getLogger("pure3270").setLevel(level)
-    

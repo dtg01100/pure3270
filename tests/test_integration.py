@@ -49,4 +49,3 @@ class TestIntegration:
         # Verify sends: two calls for macro, one for read? But macro only sends
         assert mock_handler.send_data.call_count == 2
         mock_handler.receive_data.assert_called_once()
-    

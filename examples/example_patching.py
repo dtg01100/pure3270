@@ -41,11 +41,11 @@ try:
     # Import p3270 after patching
     import p3270
     print("p3270 imported successfully after patching.")
-    
+
     # Create a client - this should use pure3270 under the hood
     session = p3270.P3270Client()
     print("p3270.P3270Client created - patching applied.")
-    
+
     # Verify patching by checking if the session has a _pure_session attribute (from patch)
     if hasattr(session, '_pure_session'):
         print("Patching verified: _pure_session attribute present.")
@@ -100,7 +100,7 @@ try:
 
     # Apply the patch to the class
     TN3270Handler.connect = patched_connect
-    
+
     # Attempt a mock connection (will fail without real host, but demonstrates flow)
     try:
         # Test connection with parameters
@@ -115,14 +115,14 @@ try:
         print(f"Screen after login attempt: {screen[:200]}...")
     except Exception as e:
         print(f"Connection or login failed: {e}")
-    
+
     # Close the session
     if hasattr(session, '_pure_session'):
         session._pure_session.close()
         print("Session closed via pure_session.")
     else:
         print("Session close skipped (no _pure_session).")
-    
+
 except ImportError:
     print("p3270 not installed. Patching simulates with mocks (check logs for details).")
     print("Install with: pip install p3270")

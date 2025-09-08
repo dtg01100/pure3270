@@ -75,7 +75,7 @@ class SSLWrapper:
     def wrap_connection(self, telnet_connection):
         """
         Wrap an existing telnet connection with SSL (if telnetlib3 doesn't handle natively).
-        
+
         :param telnet_connection: The telnet connection object (e.g., from telnetlib3).
         :return: Wrapped connection.
         Note: This is a stub; telnetlib3 handles SSL natively via ssl parameter.
@@ -110,4 +110,3 @@ class SSLWrapper:
 # wrapper = SSLWrapper(verify=True)
 # context = wrapper.create_context()
 # handler = TN3270Handler(host="example.com", port=992, ssl_context=context)
-
