@@ -48,5 +48,7 @@ def async_session():
 def sync_session():
     return Session(rows=24, cols=80)
 @pytest.fixture
+
+
 def tn3270_handler():
     return TN3270Handler("localhost", 23)

@@ -2,12 +2,16 @@
 
 import logging
 import asyncio
-from typing import Optional, List, Sequence
+from typing import Optional, Sequence
 from contextlib import asynccontextmanager
 
 from .emulation.screen_buffer import ScreenBuffer
-from .protocol.tn3270_handler import TN3270Handler, NegotiationError, sync_connect, sync_send, sync_receive, sync_close
-from .protocol.data_stream import DataStreamParser, DataStreamSender, ParseError
+from .protocol.tn3270_handler import (
+    TN3270Handler, NegotiationError
+)
+from .protocol.data_stream import (
+    DataStreamParser, DataStreamSender
+)
 from .protocol.ssl_wrapper import SSLWrapper, SSLError
 
 # Telnet constants
@@ -38,7 +42,9 @@ class SessionError(Pure3270Error):
 class AsyncSession:
     """Asynchronous 3270 session handler."""
 
-    def __init__(self, rows: int = 24, cols: int = 80, force_3270: bool = False):
+    def __init__(
+        self, rows: int = 24, cols: int = 80, force_3270: bool = False
+    ):
         """
         Initialize the AsyncSession.
 
@@ -56,7 +62,9 @@ class AsyncSession:
         self.force_3270 = force_3270
         self.lu_name: Optional[str] = None
 
-    async def connect(self, host: str, port: int = 23, ssl: bool = False) -> None:
+    async def connect(
+        self, host: str, port: int = 23, ssl: bool = False
+    ) -> None:
         """
         Connect to the TN3270 host.
 
@@ -75,25 +83,56 @@ class AsyncSession:
             self.handler = TN3270Handler(host, port, ssl_context)
             if self.force_3270:
                 if self.handler.ssl_context:
-                    self.handler.reader, self.handler.writer = await asyncio.open_connection(self.handler.host, self.handler.port, ssl=self.handler.ssl_context)
+                    self.handler.reader, self.handler.writer = (
+                        await asyncio.open_connection(
+                            self.handler.host, self.handler.port,
+                            ssl=self.handler.ssl_context
+                        )
+                    )
                 else:
-                    self.handler.reader, self.handler.writer = await asyncio.open_connection(self.handler.host, self.handler.port)
-                logger.info(f"Connected to {host}:{port} in forced TN3270 mode, skipping negotiation")
+                    self.handler.reader, self.handler.writer = (
+                        await asyncio.open_connection(
+                            self.handler.host, self.handler.port
+                        )
+                    )
+                logger.info(
+                    f"Connected to {host}:{port} in forced TN3270 mode, "
+                    "skipping negotiation"
+                )
                 self.tn3270_mode = True
                 self.tn3270e_mode = True
                 self.lu_name = "DEFAULT"  # Assume default LU for forced mode
             else:
                 await self.handler.connect()
-                self.tn3270_mode = self.handler.supports_tn3270 and self.handler.negotiated_tn3270e
+                self.tn3270_mode = (
+                    self.handler.supports_tn3270
+                    and self.handler.negotiated_tn3270e
+                )
                 self.tn3270e_mode = self.handler.negotiated_tn3270e
-                if hasattr(self.handler, 'lu_name') and self.handler.lu_name:
+                if (
+                    hasattr(self.handler, 'lu_name')
+                    and self.handler.lu_name
+                ):
                     self.lu_name = self.handler.lu_name
                     logger.info(f"LU bound: {self.lu_name}")
-                    if (hasattr(self.handler, 'screen_rows') and hasattr(self.handler, 'screen_cols') and
-                        (self.handler.screen_rows != self.screen.rows or self.handler.screen_cols != self.screen.cols)):
-                        self.screen = ScreenBuffer(self.handler.screen_rows, self.handler.screen_cols)
+                    if (
+                        hasattr(self.handler, 'screen_rows')
+                        and hasattr(self.handler, 'screen_cols')
+                        and (
+                            self.handler.screen_rows != self.screen.rows
+                            or self.handler.screen_cols != self.screen.cols
+                        )
+                    ):
+                        self.screen = ScreenBuffer(
+                            self.handler.screen_rows,
+                            self.handler.screen_cols
+                        )
                         self.parser = DataStreamParser(self.screen)
-                        logger.info(f"Resized screen buffer to {self.handler.screen_rows} x {self.handler.screen_cols}")
+                        logger.info(
+                            f"Resized screen buffer to "
+                            f"{self.handler.screen_rows} x "
+                            f"{self.handler.screen_cols}"
+                        )
             self._connected = True
             logger.info(f"Connected to {host}:{port}")
         except NegotiationError as e:
@@ -120,7 +159,9 @@ class AsyncSession:
                 if command.startswith("key "):
                     key = command[4:]
                     # Map key to AID (simplified)
-                    aid_map = {"Enter": 0x7D, "PF3": 0x6D, "Clear": 0x6D, "Tab": 0x05}
+                    aid_map = {
+                        "Enter": 0x7D, "PF3": 0x6D, "Clear": 0x6D, "Tab": 0x05
+                    }
                     aid = aid_map.get(key, 0x7D)
                     data = bytes([aid])
                 elif command.startswith("String("):
@@ -134,7 +175,9 @@ class AsyncSession:
                 # Fallback ASCII mode: send raw telnet bytes
                 if command.startswith("key "):
                     key = command[4:].lower()
-                    key_map = {"enter": b'\r', "tab": b'\t', "clear": b'\x0c'}
+                    key_map = {
+                        "enter": b'\r', "tab": b'\t', "clear": b'\x0c'
+                    }
                     data = key_map.get(key, b'\r')
                 elif command.startswith("String("):
                     text = command[7:-1]
@@ -157,7 +200,10 @@ class AsyncSession:
         if not self._connected or not self.handler:
             raise SessionError("Not connected")
 
-        logger.info("Starting blocking read with 10s timeout (waiting for complete response)")
+        logger.info(
+            "Starting blocking read with 10s timeout "
+            "(waiting for complete response)"
+        )
         try:
             data = await self.handler.receive_data(timeout=10.0)
         except Exception as e:
@@ -171,7 +217,9 @@ class AsyncSession:
                 # Format to screen size
                 lines = []
                 for i in range(0, len(clean_text), self.screen.cols):
-                    line = clean_text[i:i + self.screen.cols].ljust(self.screen.cols)
+                    line = (
+                        clean_text[i:i + self.screen.cols].ljust(self.screen.cols)
+                    )
                     lines.append(line[:self.screen.cols])
                 while len(lines) < self.screen.rows:
                     lines.append(' ' * self.screen.cols)
@@ -206,6 +254,7 @@ class AsyncSession:
             await asyncio.sleep(0.1)  # Small delay between commands
 
     def _strip_telnet_iac(self, data: bytes) -> bytes:
+        """Strip Telnet IAC sequences from data, including EOR and GA for fallback."""
         """Strip Telnet IAC sequences from data, including EOR and GA for fallback."""
         result = b""
         i = 0
@@ -267,7 +316,9 @@ class AsyncSession:
 class Session:
     """Synchronous 3270 session handler (wraps AsyncSession)."""
 
-    def __init__(self, rows: int = 24, cols: int = 80, force_3270: bool = False):
+    def __init__(
+        self, rows: int = 24, cols: int = 80, force_3270: bool = False
+    ):
         """
         Initialize the Session.
 
@@ -291,7 +342,9 @@ class Session:
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
         try:
-            self.loop.run_until_complete(self._async_session.connect(host, port, ssl))
+            self.loop.run_until_complete(
+                self._async_session.connect(host, port, ssl)
+            )
         except Exception as e:
             raise SessionError(f"Connection failed: {e}")
 
@@ -373,3 +426,4 @@ def setup_logging(level: str = "INFO"):
     """Setup logging for the library."""
     logging.basicConfig(level=level)
     logging.getLogger("pure3270").setLevel(level)
+    

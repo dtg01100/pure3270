@@ -1,10 +1,10 @@
 """EBCDIC encoding/decoding utilities for 3270 emulation."""
 
-import string
 from typing import Dict
 
 
 class EBCDICCodec:
+    """Custom codec for EBCDIC to/from Unicode conversion using translation tables."""
     """Custom codec for EBCDIC to/from Unicode conversion using translation tables."""
 
     def __init__(self):
@@ -12,13 +12,21 @@ class EBCDICCodec:
         # Partial EBCDIC to Unicode mapping (common characters; extend for full support)
         self.ebcdic_to_unicode_table = self._create_ebcdic_to_unicode()
         # Unicode to EBCDIC mapping (inverse, exclude digits to default to space in encode)
-        self.unicode_to_ebcdic_table = {v: k for k, v in self.ebcdic_to_unicode_table.items() if not ('0' <= chr(v) <= '9')}
+        self.unicode_to_ebcdic_table = {
+            v: k for k, v in self.ebcdic_to_unicode_table.items()
+            if not ('0' <= chr(v) <= '9')
+        }
 
         # For bytes.translate, create maketrans
         # EBCDIC to ASCII/Unicode (simplified, assuming ASCII subset)
         ebcdic_bytes = bytes(range(256))
-        unicode_bytes = bytes([self.ebcdic_to_unicode_table.get(i, ord('?')) for i in range(256)])
-        self.ebcdic_translate = ebcdic_bytes.maketrans(ebcdic_bytes, unicode_bytes)
+        unicode_bytes = bytes([
+            self.ebcdic_to_unicode_table.get(i, ord('?'))
+            for i in range(256)
+        ])
+        self.ebcdic_translate = ebcdic_bytes.maketrans(
+            ebcdic_bytes, unicode_bytes
+        )
 
     def _create_ebcdic_to_unicode(self) -> Dict[int, int]:
         """Create EBCDIC to Unicode mapping table (partial)."""

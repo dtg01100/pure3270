@@ -15,8 +15,14 @@ class SSLError(Exception):
 
 class SSLWrapper:
     """Layers SSL/TLS on top of telnet3 connections using Python's ssl module."""
+    """Layers SSL/TLS on top of telnet3 connections using Python's ssl module."""
 
-    def __init__(self, verify: bool = True, cafile: Optional[str] = None, capath: Optional[str] = None):
+    def __init__(
+        self,
+        verify: bool = True,
+        cafile: Optional[str] = None,
+        capath: Optional[str] = None
+    ):
         """
         Initialize the SSLWrapper.
 
@@ -69,6 +75,13 @@ class SSLWrapper:
     def wrap_connection(self, telnet_connection):
         """
         Wrap an existing telnet connection with SSL (if telnetlib3 doesn't handle natively).
+        
+        :param telnet_connection: The telnet connection object (e.g., from telnetlib3).
+        :return: Wrapped connection.
+        Note: This is a stub; telnetlib3 handles SSL natively via ssl parameter.
+        """
+        """
+        Wrap an existing telnet connection with SSL (if telnetlib3 doesn't handle natively).
 
         :param telnet_connection: The telnet connection object (e.g., from telnetlib3).
         :return: Wrapped connection.
@@ -77,7 +90,9 @@ class SSLWrapper:
         # Since telnetlib3 supports SSL natively, this method is for compatibility or custom wrapping.
         # For basics, log and return original.
         self.get_context()  # Ensure context is created
-        logger.info("Using native telnetlib3 SSL support; no additional wrapping needed")
+        logger.info(
+            "Using native telnetlib3 SSL support; no additional wrapping needed"
+        )
         return telnet_connection
 
     def get_context(self) -> ssl.SSLContext:
@@ -95,3 +110,4 @@ class SSLWrapper:
 # wrapper = SSLWrapper(verify=True)
 # context = wrapper.create_context()
 # handler = TN3270Handler(host="example.com", port=992, ssl_context=context)
+

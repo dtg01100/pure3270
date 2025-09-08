@@ -1,7 +1,7 @@
 """Data stream parser and sender for 3270 protocol."""
 
 import logging
-from typing import Optional, List, Tuple
+from typing import Optional
 from ..emulation.screen_buffer import ScreenBuffer
 
 

@@ -10,24 +10,31 @@ Requires: pure3270 and p3270 installed in venv. If p3270 absent, simulates.
 Run: python examples/example_end_to_end.py
 """
 
-import logging
 import argparse
+
+import time
 
 # Setup logging
 from pure3270 import setup_logging
 setup_logging(level='DEBUG')
 
-parser = argparse.ArgumentParser(description='End-to-end example for pure3270 with p3270 patching.')
+parser = argparse.ArgumentParser(
+    description='End-to-end example for pure3270 with p3270 patching.'
+)
 parser.add_argument('--host', default='localhost', help='Host to connect to')
 parser.add_argument('--port', type=int, default=23, help='Port to connect to')
 parser.add_argument('--user', default='guest', help='Username for login')
-parser.add_argument('--password', default='guest', help='Password for login')
+parser.add_argument(
+    '--password', default='guest', help='Password for login'
+)
 parser.add_argument('--ssl', action='store_true', default=False, help='Use SSL connection')
 args = parser.parse_args()
 
 # Apply patching before importing p3270
 from pure3270 import enable_replacement
-manager = enable_replacement(patch_sessions=True, patch_commands=True, strict_version=False)
+manager = enable_replacement(
+    patch_sessions=True, patch_commands=True, strict_version=False
+)
 
 try:
     # Import p3270 after patching
@@ -41,23 +48,25 @@ try:
     try:
         session.connect(args.host, port=args.port, ssl=args.ssl)
         print(f"Connected to {args.host}:{args.port}.")
-        
         session.send('key Clear')
         print("Sent 'key Clear' to trigger login screen.")
-        import time
         time.sleep(1)
+        
         
         initial_screen = session.read()
         print("Login screen:")
         print(initial_screen)
-        
         session.send(args.user)
         session.send('key Tab')  # Move to next field
         session.send(args.password)
-        print(f"Sent login credentials: '{args.user}' + 'key Tab' + '{args.password}'.")
+        print(
+            f"Sent login credentials: '{args.user}' + 'key Tab' + "
+            f"'{args.password}'."
+        )
         session.send('key Enter')  # Submit
         print("Sent 'key Enter' to submit login.")
         time.sleep(1)
+        
         
         # Read post-signin screen
         post_signin_screen = session.read()
@@ -88,3 +97,4 @@ except ImportError:
     print("Patching applied; use standalone example for pure3270 directly.")
 
 print("End-to-end verification complete. Check logs for details.")
+

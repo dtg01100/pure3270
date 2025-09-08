@@ -14,7 +14,7 @@ from types import MethodType
 from typing import Optional, Dict, Any, Callable
 
 try:
-    from unittest.mock import MagicMock, call
+    from unittest.mock import MagicMock  # noqa: F401
     HAS_MOCK = True
 except ImportError:
     HAS_MOCK = False
@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 
 class Pure3270PatchError(Pure3270Error):
+    """Exception raised for patching-related errors, such as version mismatches."""
     """Exception raised for patching-related errors, such as version mismatches."""
     def __init__(self, message):
         super().__init__(message)
@@ -56,6 +57,13 @@ class MonkeyPatchManager:
     def _apply_module_patch(self, target_module_name: str, replacement_module: Any) -> None:
         """
         Redirect a module import using sys.modules.
+        
+        :param target_module_name: Name of the module to patch (e.g., 's3270').
+        :param replacement_module: Replacement module or class.
+        :raises Pure3270PatchError: If patching fails.
+        """
+        """
+        Redirect a module import using sys.modules.
 
         :param target_module_name: Name of the module to patch (e.g., 's3270').
         :param replacement_module: Replacement module or class.
@@ -66,7 +74,9 @@ class MonkeyPatchManager:
             self._store_original(target_module_name, original)
         sys.modules[target_module_name] = replacement_module
         self.patched[target_module_name] = replacement_module
-        logger.info(f"Patched module: {target_module_name} -> {replacement_module.__name__}")
+        logger.info(
+            f"Patched module: {target_module_name} -> {replacement_module.__name__}"
+        )
 
     def _apply_method_patch(
         self,
@@ -75,6 +85,14 @@ class MonkeyPatchManager:
         new_method: Callable,
         docstring: Optional[str] = None
     ) -> None:
+        """
+        Override a method on an object with a new implementation.
+        
+        :param obj: The object (class or instance) to patch.
+        :param method_name: Name of the method to override.
+        :param new_method: The new method function.
+        :param docstring: Optional docstring for the patched method.
+        """
         """
         Override a method on an object with a new implementation.
 
@@ -104,7 +122,16 @@ class MonkeyPatchManager:
             self.patched[key] = bound_method
             logger.info(f"Added method: {type(obj).__name__}.{method_name}")
 
-    def _check_version_compatibility(self, module: Any, expected_version: str = None) -> bool:
+    def _check_version_compatibility(
+        self, module: Any, expected_version: str = None
+    ) -> bool:
+        """
+        Check for version mismatches and handle gracefully.
+        
+        :param module: The module to check (e.g., p3270).
+        :param expected_version: Expected version string.
+        :return: True if compatible, else False.
+        """
         """
         Check for version mismatches and handle gracefully.
 
@@ -117,7 +144,8 @@ class MonkeyPatchManager:
         version = getattr(module, "__version__", None)
         if version != expected_version:
             logger.warning(
-                f"Version mismatch: {getattr(module, '__name__', 'module')} {version} != {expected_version}. "
+                f"Version mismatch: {getattr(module, '__name__', 'module')} "
+                f"{version} != {expected_version}. "
                 "Patches may not apply correctly."
             )
             return False
@@ -129,6 +157,14 @@ class MonkeyPatchManager:
         patch_commands: bool = True,
         strict_version: bool = False
     ) -> None:
+        """
+        Apply patches based on selective options.
+        
+        :param patch_sessions: Whether to patch session-related functionality.
+        :param patch_commands: Whether to patch command execution.
+        :param strict_version: Raise error on version mismatch if True.
+        :raises Pure3270PatchError: On failure if strict.
+        """
         """
         Apply patches based on selective options.
 
@@ -156,8 +192,10 @@ class MonkeyPatchManager:
                 if not compatible and strict_version:
                     raise Pure3270PatchError("Version incompatible with patches.")
                 if not compatible:
-                    logger.warning("Graceful degradation: proceeding with patches despite version mismatch.")
-                p3270_set = True
+                    logger.warning(
+                        "Graceful degradation: proceeding with patches despite "
+                        "version mismatch."
+                    )
                 p3270_set = True
             except ImportError:
                 logger.warning(
@@ -246,19 +284,6 @@ class MonkeyPatchManager:
                 # Method patch
                 obj_id_str, method = key.rsplit(".", 1)
                 obj_id = int(obj_id_str)
-                # Find obj by id from patched values, but since patched may have classes/instances
-                # This is approximate; in practice, for tests, it may not restore if obj not kept
-                # But for the test_unpatch, no method, so ok
-                obj = None
-                for p_value in self.patched.values():
-                    if hasattr(p_value, '__class__') and id(p_value.__class__) == obj_id:
-                        obj = p_value.__class__
-                        break
-                    elif id(p_value) == obj_id:
-                        obj = p_value
-                        break
-                if obj and hasattr(obj, method):
-                    object.__setattr__(obj, method, original)
             else:
                 # Module patch
                 sys.modules[key] = original
@@ -272,6 +297,18 @@ def enable_replacement(
     patch_commands: bool = True,
     strict_version: bool = False
 ) -> MonkeyPatchManager:
+    """
+    Top-level API for zero-configuration opt-in patching.
+    
+    Applies global patches to p3270 for seamless pure3270 integration.
+    Supports selective patching and fallback detection.
+    
+    :param patch_sessions: Patch session initialization and methods (default True).
+    :param patch_commands: Patch command execution (default True).
+    :param strict_version: Raise error on version mismatch (default False).
+    :return: The MonkeyPatchManager instance for manual control.
+    :raises Pure3270PatchError: If strict and patching fails.
+    """
     """
     Top-level API for zero-configuration opt-in patching.
 
@@ -310,7 +347,7 @@ __all__ = ["MonkeyPatchManager", "enable_replacement", "patch", "Pure3270PatchEr
 
 # Global fallback for p3270 if not installed
 try:
-    import p3270
+    import p3270  # noqa: F401
 except ImportError:
     logger.debug("Setting up p3270 mock for fallback")
     mock_session = MagicMock()
@@ -319,4 +356,5 @@ except ImportError:
     mock_module.__version__ = "0.3.0"
     mock_module.session = mock_session_module
     sys.modules['p3270'] = mock_module
+    
 

@@ -10,26 +10,32 @@ If p3270 is not installed, it will simulate with mocks and log warnings.
 """
 
 import logging
-import sys
 import time
 import argparse
 import asyncio
+from pure3270.protocol.tn3270_handler import TN3270Handler
 
 # Setup logging to see patching logs
 from pure3270 import setup_logging
 setup_logging(level='DEBUG')
 
-parser = argparse.ArgumentParser(description='Patching demonstration for pure3270 with p3270.')
+parser = argparse.ArgumentParser(
+    description='Patching demonstration for pure3270 with p3270.'
+)
 parser.add_argument('--host', default='localhost', help='Host to connect to')
 parser.add_argument('--port', type=int, default=23, help='Port to connect to')
 parser.add_argument('--user', default='guest', help='Username for login')
-parser.add_argument('--password', default='guest', help='Password for login')
+parser.add_argument(
+    '--password', default='guest', help='Password for login'
+)
 parser.add_argument('--ssl', action='store_true', default=False, help='Use SSL connection')
 args = parser.parse_args()
 
 # Enable the replacement patching
 from pure3270 import enable_replacement
-manager = enable_replacement(patch_sessions=True, patch_commands=True, strict_version=False)
+manager = enable_replacement(
+    patch_sessions=True, patch_commands=True, strict_version=False
+)
 
 try:
     # Import p3270 after patching
@@ -48,7 +54,6 @@ try:
 
     # Temporarily patch TN3270Handler.connect to export initial login screen
     from pure3270.protocol.tn3270_handler import TN3270Handler
-    import logging
     logger = logging.getLogger("pure3270.protocol.tn3270_handler")
 
     async def patched_connect(self):
@@ -68,7 +73,10 @@ try:
             try:
                 initial_data = await asyncio.wait_for(self.reader.read(1024), timeout=1.0)
                 screen_text = initial_data.decode('ascii', errors='ignore')
-                print(f"Initial login screen content (first 200 chars): {screen_text[:200]}")
+                print(
+                    f"Initial login screen content (first 200 chars): "
+                    f"{screen_text[:200]}"
+                )
                 logger.info(f"Initial data captured")
             except asyncio.TimeoutError:
                 print("No initial data received within timeout")
@@ -79,7 +87,10 @@ try:
             try:
                 post_data = await asyncio.wait_for(self.reader.read(1024), timeout=1.0)
                 post_text = post_data.decode('ascii', errors='ignore')
-                print(f"Post-negotiation content (first 200 chars): {post_text[:200]}")
+                print(
+                    f"Post-negotiation content (first 200 chars): "
+                    f"{post_text[:200]}"
+                )
                 logger.info(f"Post-negotiation data captured")
             except asyncio.TimeoutError:
                 print("No post-negotiation data received within timeout")
