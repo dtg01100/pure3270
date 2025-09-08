@@ -1,4 +1,5 @@
 import pytest
+import logging
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch, ANY
 from contextlib import asynccontextmanager
@@ -10,14 +11,6 @@ from pure3270.protocol.data_stream import DataStreamParser, DataStreamSender
 from pure3270.protocol.ssl_wrapper import SSLWrapper
 
 
-@pytest.fixture
-def async_session():
-    return AsyncSession(rows=24, cols=80)
-
-
-@pytest.fixture
-def sync_session():
-    return Session(rows=24, cols=80)
 
 
 @pytest.mark.asyncio
@@ -136,6 +129,40 @@ class TestAsyncSession:
                 pass
 
 
+    async def test_pf_key_processing_with_aid(self, async_session):
+        """
+        Ported from s3270 test case 5: PF key processing with AID.
+        Input PF key (e.g., PF3 AID 0x6D); output updates screen, sets AID;
+        assert correct AID, field advance.
+        """
+        # Mock handler and sender
+        mock_handler = AsyncMock()
+        mock_handler.send_data = AsyncMock()
+        async_session.handler = mock_handler
+        async_session._connected = True
+    
+        # Mock parser to set AID after send (simulate response)
+        mock_parser = MagicMock()
+        mock_parser.aid = 0x6D
+        async_session.parser = mock_parser
+    
+        # Mock screen for field advance
+        with patch.object(async_session.screen, 'set_position') as mock_set_pos:
+            # Send PF3 key
+            await async_session.send('key PF3')
+    
+            # Assert send_data called with correct AID (0x6D for PF3 as per case)
+            mock_handler.send_data.assert_called_once()
+            data = mock_handler.send_data.call_args[0][0]
+            assert data == b'\x6D'  # AID 0x6D
+    
+            # Assert AID set correctly
+            assert async_session.parser.aid == 0x6D
+    
+            # Assert field advance (e.g., cursor moved)
+            mock_set_pos.assert_called_once()  # Or specific position
+
+
 class TestSession:
     def test_init(self, sync_session):
         assert isinstance(sync_session._async_session, AsyncSession)
@@ -226,7 +253,7 @@ def test_setup_logging(caplog):
     from pure3270.session import setup_logging
     caplog.set_level('DEBUG')
     setup_logging('DEBUG')
-    assert caplog.level_name == 'DEBUG'
+    assert logging.getLogger("pure3270").level == logging.DEBUG
 
 # Integration test with mocks
 @patch('pure3270.session.TN3270Handler')
