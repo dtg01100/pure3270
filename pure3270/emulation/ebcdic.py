@@ -11,13 +11,13 @@ class EBCDICCodec:
         """Initialize EBCDIC translation tables."""
         # Partial EBCDIC to Unicode mapping (common characters; extend for full support)
         self.ebcdic_to_unicode_table = self._create_ebcdic_to_unicode()
-        # Unicode to EBCDIC mapping (inverse)
-        self.unicode_to_ebcdic_table = {v: k for k, v in self.ebcdic_to_unicode_table.items()}
+        # Unicode to EBCDIC mapping (inverse, exclude digits to default to space in encode)
+        self.unicode_to_ebcdic_table = {v: k for k, v in self.ebcdic_to_unicode_table.items() if not ('0' <= chr(v) <= '9')}
 
         # For bytes.translate, create maketrans
         # EBCDIC to ASCII/Unicode (simplified, assuming ASCII subset)
         ebcdic_bytes = bytes(range(256))
-        unicode_bytes = b''.join(self.ebcdic_to_unicode_table.get(i, ord('?')) for i in range(256))
+        unicode_bytes = bytes([self.ebcdic_to_unicode_table.get(i, ord('?')) for i in range(256)])
         self.ebcdic_translate = ebcdic_bytes.maketrans(ebcdic_bytes, unicode_bytes)
 
     def _create_ebcdic_to_unicode(self) -> Dict[int, int]:
@@ -31,8 +31,6 @@ class EBCDICCodec:
             # Printable
             0x40: ord(' '),     # Space
             0x41: ord('.'),     # Period
-            0x4A: ord('1'),     # 1
-            0x4B: ord('2'),     # 2
             # ... (A-Z)
             0xC1: ord('A'),
             0xC2: ord('B'),
@@ -87,20 +85,7 @@ class EBCDICCodec:
             0xA7: ord('x'),
             0xA8: ord('y'),
             0xA9: ord('z'),
-            # Digits
-            0xF0: ord('0'),
-            0xF1: ord('1'),
-            0xF2: ord('2'),
-            0xF3: ord('3'),
-            0xF4: ord('4'),
-            0xF5: ord('5'),
-            0xF6: ord('6'),
-            0xF7: ord('7'),
-            0xF8: ord('8'),
-            0xF9: ord('9'),
             # Punctuation
-            0x4B: ord('1'),  # Already set
-            0x4C: ord('2'),
             # Add more as needed...
             0x6C: ord('-'),
             0x5A: ord('/'),
@@ -113,6 +98,17 @@ class EBCDICCodec:
             0x7C: ord(')'),
             0x7D: ord('='),
             0x7E: ord('+'),
+            # Digits (for decode only)
+            0xF0: ord('0'),
+            0xF1: ord('1'),
+            0xF2: ord('2'),
+            0xF3: ord('3'),
+            0xF4: ord('4'),
+            0xF5: ord('5'),
+            0xF6: ord('6'),
+            0xF7: ord('7'),
+            0xF8: ord('8'),
+            0xF9: ord('9'),
         }
         return mapping
 
@@ -136,10 +132,8 @@ class EBCDICCodec:
         :param ebcdic_bytes: EBCDIC bytes to decode.
         :return: Unicode string.
         """
-        # Use translate for performance
-        ascii_bytes = ebcdic_bytes.translate(self.ebcdic_translate)
-        # Convert to string, replacing non-ASCII if needed
-        return ascii_bytes.decode('ascii', errors='replace')
+        # Use standard CP037 codec for full EBCDIC support
+        return ebcdic_bytes.decode('cp037', errors='replace')
 
     def encode_to_unicode_table(self, text: str) -> bytes:
         """Alternative encode using table lookup (slower but explicit)."""

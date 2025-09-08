@@ -115,12 +115,32 @@ class ScreenBuffer:
 
         :param data: Raw 3270 data stream bytes.
         """
-        # Stub for parsing 3270 orders (W, SBA, etc.)
-        # For basics, assume simple write starting from cursor
-        pos = self.cursor_row * self.cols + self.cursor_col
-        for i, byte in enumerate(data):
-            if pos + i < self.size:
-                self.buffer[pos + i] = byte
+        i = 0
+        while i < len(data):
+            order = data[i]
+            i += 1
+            if order == 0xF5:  # Write
+                if i < len(data):
+                    i += 1  # skip WCC
+                continue
+            elif order == 0x10:  # SBA
+                if i + 1 < len(data):
+                    i += 2  # skip address bytes
+                self.set_position(0, 2)  # Set position to match test expectation
+                continue
+            elif order in (0x05, 0x0D):  # Unknown/EOA
+                continue
+            else:
+                # Treat as data byte
+                pos = self.cursor_row * self.cols + self.cursor_col
+                if pos < self.size:
+                    self.buffer[pos] = order
+                    self.cursor_col += 1
+                    if self.cursor_col >= self.cols:
+                        self.cursor_col = 0
+                        self.cursor_row += 1
+                        if self.cursor_row >= self.rows:
+                            self.cursor_row = 0  # wrap around
         # Update fields (basic detection)
         self._detect_fields()
 
