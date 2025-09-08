@@ -256,6 +256,8 @@ def test_pure3270_error(caplog):
 
 # Performance: time macro execution
 def test_performance_macro(benchmark, sync_session):
+    sync_session._connected = True
+    sync_session.loop = MagicMock()
     @patch('pure3270.session.asyncio.run')
     def run_macro(mock_run):
         sync_session.macro(['key Enter'] * 10)
