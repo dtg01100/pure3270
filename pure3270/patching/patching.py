@@ -10,7 +10,7 @@ import sys
 import builtins
 import logging
 import inspect
-from types import MethodType
+from types import MethodType, ModuleType
 from typing import Optional, Dict, Any, Callable
 
 try:
@@ -201,10 +201,9 @@ class MonkeyPatchManager:
                     "simulating for verification. Install p3270 for full integration."
                 )
                 # For simulation, create mock
-                mock_session = MagicMock()
-                mock_module = MagicMock(__name__='p3270')
-                mock_module.__version__ = "0.3.0"
-                mock_module.P3270Client = mock_session
+                mock_module = type('p3270', (), {'__name__': 'p3270', '__version__': '0.3.0'})
+                MockP3270Client = type('MockP3270Client', (), {})
+                mock_module.P3270Client = MockP3270Client
                 p_session = mock_module
                 session_class = mock_module.P3270Client
                 sys.modules['p3270'] = mock_module
@@ -216,7 +215,7 @@ class MonkeyPatchManager:
             if patch_sessions:
                 # Patch Session to use PureSession transparently
                 original_session = session_class
-                self._store_original("p3270.P3270Client", original_session)
+                self._store_original("p3270.S3270", original_session)
 
                 def patched_init(self, *args, **kwargs):
                     """Patched __init__: Initialize with pure3270 Session."""
@@ -273,7 +272,10 @@ class MonkeyPatchManager:
     def unpatch(self) -> None:
         """Revert all applied patches."""
         # Workaround for mocked builtins.setattr to avoid recursion
-        is_mocked_setattr = HAS_MOCK and isinstance(builtins.setattr, MagicMock)
+        is_mocked_setattr = False
+        if HAS_MOCK:
+            from unittest.mock import MagicMock
+            is_mocked_setattr = isinstance(builtins.setattr, MagicMock)
         if is_mocked_setattr:
             builtins.setattr(object(), '__dummy__', None)  # Dummy call if needed
 
@@ -344,9 +346,7 @@ try:
     import p3270  # noqa: F401
 except ImportError:
     logger.debug("Setting up p3270 mock for fallback")
-    mock_session = MagicMock()
+    mock_session = type('MockSession', (), {})
     mock_session_module = type('session', (), {'Session': mock_session})
-    mock_module = MagicMock(__name__='p3270')
-    mock_module.__version__ = "0.3.0"
-    mock_module.session = mock_session_module
+    mock_module = type('p3270', (), {'__name__': 'p3270', '__version__': '0.3.0', 'session': mock_session_module})
     sys.modules['p3270'] = mock_module

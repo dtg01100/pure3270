@@ -46,16 +46,22 @@ class TestMonkeyPatchManager:
         assert monkey_patch_manager._check_version_compatibility(mock_p3270, "0.3.0") is False
 
     @mock_patch('builtins.__import__')
-    @mock_patch('pure3270.patching.patching.p3270')
-    def test_apply_patches_success(self, mock_p3270, mock_import, monkey_patch_manager):
-        mock_import.return_value = mock_p3270
+    def test_apply_patches_success(self, mock_import, monkey_patch_manager, mock_p3270):
+        def import_side_effect(name, *args, **kwargs):
+            if name == 'p3270':
+                return mock_p3270
+            return __import__(name, *args, **kwargs)
+        mock_import.side_effect = import_side_effect
         monkey_patch_manager.apply_patches(patch_sessions=True, patch_commands=True, strict_version=False)
         assert 'p3270.S3270' in monkey_patch_manager.originals
 
     @mock_patch('builtins.__import__')
-    @mock_patch('pure3270.patching.patching.p3270')
-    def test_apply_patches_version_mismatch(self, mock_p3270, mock_import, monkey_patch_manager):
-        mock_import.return_value = mock_p3270
+    def test_apply_patches_version_mismatch(self, mock_import, monkey_patch_manager, mock_p3270):
+        def import_side_effect(name, *args, **kwargs):
+            if name == 'p3270':
+                return mock_p3270
+            return __import__(name, *args, **kwargs)
+        mock_import.side_effect = import_side_effect
         mock_p3270.__version__ = "0.2.0"
         # Should raise if strict
         with pytest.raises(Pure3270PatchError):
@@ -154,13 +160,20 @@ def test_performance_patching(benchmark):
     # Ensure efficient patching
 
 # Error handling in patching
-def test_patching_fallback(caplog):
+@mock_patch('builtins.__import__')
+def test_patching_fallback(mock_import, caplog):
+    def import_side_effect(name, *args, **kwargs):
+        if name == 'p3270':
+            mock_p3270 = MagicMock(__version__="0.2.0")
+            return mock_p3270
+        return __import__(name, *args, **kwargs)
+    mock_import.side_effect = import_side_effect
+
     manager = MonkeyPatchManager()
     def mock_check(*args, **kwargs):
         return False
     with mock_patch.object(manager, '_check_version_compatibility', side_effect=mock_check):
         manager.apply_patches(strict_version=False)
-    assert 'Graceful degradation' in caplog.text
     assert 'Graceful degradation' in caplog.text
 
 # Verify method overrides with mock
