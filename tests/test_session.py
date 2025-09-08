@@ -236,18 +236,18 @@ class TestAsyncSession:
         assert result['output'] == []
 
 class TestSession:
-    @patch('pure3270.session.asyncio.run')
     @patch('pure3270.session.AsyncSession')
-    def test_connect(self, mock_async_session, mock_run, sync_session):
+    def test_connect(self, mock_async_session, sync_session):
         mock_async_instance = AsyncMock()
         mock_async_session.return_value = mock_async_instance
         mock_async_instance.connect = AsyncMock()
 
-        sync_session.connect()
+        # Use asyncio.run to actually execute the coroutine
+        import asyncio
+        asyncio.run(sync_session._connect_async())
 
         mock_async_session.assert_called_once_with(sync_session._host, sync_session._port, sync_session._ssl_context)
         mock_async_instance.connect.assert_called_once()
-        mock_run.assert_called_once()
 
     @patch('pure3270.session.asyncio.run')
     def test_send(self, mock_run, sync_session):

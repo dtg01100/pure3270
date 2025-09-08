@@ -272,6 +272,9 @@ class TestTN3270Handler:
         assert tn3270_handler.is_connected() is False
         tn3270_handler.writer = MagicMock()
         tn3270_handler.reader = MagicMock()
+        # Configure mock methods for liveness checks
+        tn3270_handler.writer.is_closing.return_value = False
+        tn3270_handler.reader.at_eof.return_value = False
         tn3270_handler._connected = True
         assert tn3270_handler.is_connected() is True
 

@@ -103,6 +103,8 @@ class MonkeyPatchManager:
             version_compatible = self._check_version_compatibility(p3270, expected_version)
             if strict_version and not version_compatible:
                 raise Pure3270PatchError(f"Version incompatible: {getattr(p3270, '__version__', 'unknown')}")
+            if not version_compatible and not strict_version:
+                logger.info("Graceful degradation: Version mismatch but continuing with patching")
             if patch_sessions:
                 original = getattr(p3270, 'S3270', None)
                 self._store_original('p3270.S3270', original)
