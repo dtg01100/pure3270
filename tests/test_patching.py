@@ -1,8 +1,8 @@
 import pytest
 from unittest.mock import MagicMock, Mock, patch as mock_patch
-import sys
-from pure3270.patching.patching import MonkeyPatchManager, enable_replacement, patch, Pure3270PatchError
-from pure3270.session import Session as PureSession
+from pure3270.patching.patching import (
+    MonkeyPatchManager, enable_replacement, patch, Pure3270PatchError
+)
 
 
 @pytest.fixture
@@ -81,6 +81,7 @@ class TestMonkeyPatchManager:
         assert monkey_patch_manager.patched == {}
 
 
+
 class TestEnableReplacement:
     def test_enable_replacement(self):
         manager = enable_replacement(patch_sessions=True, strict_version=False)
@@ -144,11 +145,13 @@ def test_pure3270_patch_error(caplog):
             pass
     assert 'Test patch error' in caplog.text
 
+
 def test_patching_logging(caplog):
     manager = MonkeyPatchManager()
     with caplog.at_level('INFO'):
         manager.apply_patches()
     assert 'Patches applied' in caplog.text or 'warning' in caplog.text.lower()
+
 
 # Performance: time to apply patches
 def test_performance_patching(benchmark):
@@ -157,6 +160,7 @@ def test_performance_patching(benchmark):
         manager.apply_patches(strict_version=False)
     benchmark(apply_patches)
     # Ensure efficient patching
+
 
 # Error handling in patching
 def test_patching_fallback(caplog):
@@ -167,6 +171,7 @@ def test_patching_fallback(caplog):
         manager.apply_patches(strict_version=False)
     assert 'Version mismatch' in caplog.text
     assert 'Graceful degradation' in caplog.text
+
 
 # Verify method overrides with mock
 def test_method_override(monkey_patch_manager):

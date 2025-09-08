@@ -1,9 +1,7 @@
 import pytest
-from unittest.mock import patch, MagicMock
-import time
+from unittest.mock import patch  # noqa: F401
 
 from pure3270.emulation.screen_buffer import ScreenBuffer, Field
-from pure3270.emulation.ebcdic import EBCDICCodec
 
 
 
@@ -33,6 +31,9 @@ class TestField:
     def test_field_repr(self):
         field = Field(start=(0, 0), end=(0, 5), protected=False)
         assert repr(field) == "Field(start=(0, 0), end=(0, 5), protected=False)"
+
+
+
 
 
 class TestScreenBuffer:
@@ -149,6 +150,7 @@ def test_emulation_exception(caplog):
         ScreenBuffer(rows=-1)
     assert 'error' not in caplog.text  # No logging in init
 
+
 # Performance basic test: time to fill buffer
 def test_performance_buffer_fill(screen_buffer):
     import time
@@ -158,6 +160,8 @@ def test_performance_buffer_fill(screen_buffer):
     end = time.time()
     assert end - start < 0.1  # Basic threshold
 
+
+
 # Sample 3270 data stream test
 SAMPLE_3270_STREAM = b'\x05\xF5\xC1\x10\x00\x00\xC1\xC2\xC3\x0D'  # Write, WCC, SBA(0,0), ABC, EOA
 
@@ -165,6 +169,8 @@ def test_update_from_sample_stream(screen_buffer):
     with patch.object(screen_buffer, '_detect_fields'):
         screen_buffer.update_from_stream(SAMPLE_3270_STREAM)
     assert screen_buffer.buffer[0:3] == b'\xC1\xC2\xC3'
+
+
 
 
 def test_basic_session_clear(screen_buffer):

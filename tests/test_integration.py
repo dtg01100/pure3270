@@ -1,10 +1,6 @@
 import pytest
-import asyncio
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, patch
 
-from pure3270.session import AsyncSession
-from pure3270.emulation.screen_buffer import ScreenBuffer
-from pure3270.protocol.data_stream import DataStreamSender, DataStreamParser
 
 
 
@@ -29,7 +25,9 @@ class TestIntegration:
         expected_pattern[0:5] = b'\xC1\xC2\xC3\xC4\xC5'  # Sample 'ABCDE' in EBCDIC
 
         # Simulate receive data after sends: Write with sample data
-        stream = b'\xF5\x10\x00\x00' + bytes(expected_pattern) + b'\x0D'  # WCC, SBA(0,0), data, EOA
+        stream = (
+            b'\xF5\x10\x00\x00' + bytes(expected_pattern) + b'\x0D'  # WCC, SBA(0,0), data, EOA
+        )
         mock_handler.receive_data.return_value = stream
 
         async_session.handler = mock_handler
@@ -51,3 +49,4 @@ class TestIntegration:
         # Verify sends: two calls for macro, one for read? But macro only sends
         assert mock_handler.send_data.call_count == 2
         mock_handler.receive_data.assert_called_once()
+    

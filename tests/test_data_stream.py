@@ -1,7 +1,6 @@
 import pytest
-from unittest.mock import patch, MagicMock
-from pure3270.protocol.data_stream import DataStreamParser, ParseError
-from pure3270.emulation.screen_buffer import ScreenBuffer
+from unittest.mock import patch  # noqa: F401
+from pure3270.protocol.data_stream import ParseError
 
 
 @pytest.mark.asyncio

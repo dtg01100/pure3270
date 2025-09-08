@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock  # noqa: F401
 
 from pure3270.emulation.screen_buffer import ScreenBuffer
 from pure3270.emulation.ebcdic import EBCDICCodec
