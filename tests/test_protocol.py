@@ -7,9 +7,6 @@ from pure3270.protocol.ssl_wrapper import SSLWrapper, SSLError
 from pure3270.emulation.screen_buffer import ScreenBuffer
 import ssl
 
-
-
-
 @pytest.mark.asyncio
 class TestDataStreamParser:
     def test_init(self, data_stream_parser):
@@ -79,7 +76,6 @@ class TestDataStreamParser:
         data_stream_parser.aid = 0x7D
         assert data_stream_parser.get_aid() == 0x7D
 
-
 class TestDataStreamSender:
     def test_build_read_modified_all(self, data_stream_sender):
         stream = data_stream_sender.build_read_modified_all()
@@ -105,7 +101,6 @@ class TestDataStreamSender:
         with patch('pure3270.protocol.data_stream.ScreenBuffer', rows=24, cols=80):
             stream = data_stream_sender.build_sba(0, 0)
             assert stream == b'\x10\x00\x00'
-
 
 @pytest.mark.asyncio
 class TestSSLWrapper:
@@ -154,7 +149,6 @@ class TestSSLWrapper:
         mock_create.assert_called_once()
         assert context == ssl_wrapper.context
 
-
     @patch('pure3270.protocol.ssl_wrapper.SSLWrapper.wrap_connection')
     @patch('pure3270.protocol.ssl_wrapper.SSLWrapper.create_context')
     def test_ssl_encryption_for_data_transit(self, mock_create, mock_wrap, ssl_wrapper):
@@ -178,7 +172,6 @@ class TestSSLWrapper:
         assert plain_text not in mock_wrap.return_value
         mock_create.assert_called_once()
         mock_wrap.assert_called_once()
-
 
 @pytest.mark.asyncio
 class TestTN3270Handler:
@@ -259,7 +252,6 @@ class TestTN3270Handler:
         tn3270_handler.telnet = MagicMock()
         assert tn3270_handler.is_connected() is True
 
-
     @patch.object(TN3270Handler, 'reader')
     @patch.object(TN3270Handler, 'writer')
     async def test_tn3270e_negotiation_with_fallback(self, mock_writer, mock_reader, tn3270_handler):
@@ -283,40 +275,33 @@ class TestTN3270Handler:
         mock_writer.write.assert_any_call(b'\xff\xfd\x24')  # DO TN3270E
         # No NegotiationError raised
 
-
 # Sample data streams fixtures
 @pytest.fixture
 def sample_wcc_stream():
     return b'\xF5\xC1'  # WCC reset modified
 
-
 @pytest.fixture
 def sample_sba_stream():
     return b'\x10\x00\x14'  # SBA to row 0 col 20
-
 
 @pytest.fixture
 def sample_write_stream():
     return b'\x05\xC1\xC2\xC3'  # Write ABC
 
-
 def test_parse_sample_wcc(data_stream_parser, sample_wcc_stream):
     data_stream_parser.parse(sample_wcc_stream)
     assert data_stream_parser.wcc == 0xC1
-
 
 def test_parse_sample_sba(data_stream_parser, sample_sba_stream):
     with patch.object(data_stream_parser.screen, 'set_position'):
         data_stream_parser.parse(sample_sba_stream)
         data_stream_parser.screen.set_position.assert_called_with(0, 20)
 
-
 def test_parse_sample_write(data_stream_parser, sample_write_stream):
     with patch.object(data_stream_parser.screen, 'clear'):
         data_stream_parser.parse(sample_write_stream)
         data_stream_parser.screen.clear.assert_called_once()
     assert data_stream_parser.screen.buffer[0:3] == b'\xC1\xC2\xC3'
-
 
 # General tests: exceptions, logging, performance
 def test_parse_error(caplog):
@@ -326,14 +311,12 @@ def test_parse_error(caplog):
             parser.parse(b'\xF5')  # Incomplete
     assert 'Unexpected end' in caplog.text
 
-
 def test_protocol_error(caplog):
     handler = TN3270Handler('host', 23)
     handler.telnet = None
     with caplog.at_level('ERROR'):
         asyncio.run(handler.send_data(b''))
     assert 'Not connected' in caplog.text
-
 
 def test_ssl_error(caplog):
     wrapper = SSLWrapper()
@@ -342,7 +325,6 @@ def test_ssl_error(caplog):
             with pytest.raises(SSLError):
                 wrapper.create_context()
     assert 'SSL context creation failed' in caplog.text
-
 
 # Performance: parse large stream (reduced size to avoid OOM)
 def test_performance_parse(data_stream_parser):

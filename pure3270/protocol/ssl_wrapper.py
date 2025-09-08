@@ -4,14 +4,11 @@ import ssl
 import logging
 from typing import Optional
 
-
 logger = logging.getLogger(__name__)
-
 
 class SSLError(Exception):
     """Error during SSL operations."""
     pass
-
 
 class SSLWrapper:
     """Layers SSL/TLS on top of telnet3 connections using Python's ssl module."""
@@ -104,7 +101,6 @@ class SSLWrapper:
     def decrypt(self, encrypted_data: bytes) -> bytes:
         """Stub for decrypting data (for testing)."""
         return encrypted_data
-
 
 # Usage example (for docstrings):
 # wrapper = SSLWrapper(verify=True)

@@ -203,7 +203,6 @@ class TN3270Handler:
             else:
                 logger.warning("EOR not accepted or no response, continuing")
 
-
     async def send_data(self, data: bytes):
         """
         Send 3270 data stream.

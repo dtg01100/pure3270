@@ -23,9 +23,7 @@ WONT = 0xfc
 DO = 0xfd
 DONT = 0xfe
 
-
 logger = logging.getLogger(__name__)
-
 
 class Pure3270Error(Exception):
     """Base exception for Pure3270 errors."""
@@ -33,11 +31,9 @@ class Pure3270Error(Exception):
         super().__init__(message)
         logger.error(message)
 
-
 class SessionError(Pure3270Error):
     """Error in session operations."""
     pass
-
 
 class AsyncSession:
     """Asynchronous 3270 session handler."""
@@ -311,7 +307,6 @@ class AsyncSession:
         finally:
             await self.close()
 
-
 # Synchronous wrappers
 class Session:
     """Synchronous 3270 session handler (wraps AsyncSession)."""
@@ -419,7 +414,6 @@ class Session:
         if self.loop and not self.loop.is_closed():
             self.loop.close()
         self.loop = None
-
 
 # Logging setup (basic)
 def setup_logging(level: str = "INFO"):

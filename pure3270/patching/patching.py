@@ -23,14 +23,12 @@ from ..session import Session as PureSession, Pure3270Error
 
 logger = logging.getLogger(__name__)
 
-
 class Pure3270PatchError(Pure3270Error):
     """Exception raised for patching-related errors, such as version mismatches."""
     """Exception raised for patching-related errors, such as version mismatches."""
     def __init__(self, message):
         super().__init__(message)
         logger.error(message)
-
 
 class MonkeyPatchManager:
     """
@@ -291,7 +289,6 @@ class MonkeyPatchManager:
         self.originals.clear()
         self.patched.clear()
 
-
 def enable_replacement(
     patch_sessions: bool = True,
     patch_commands: bool = True,
@@ -325,9 +322,7 @@ def enable_replacement(
     manager.apply_patches(patch_sessions, patch_commands, strict_version)
     return manager
 
-
 patch = enable_replacement
-
 
 # For context manager usage
 class PatchContext:
@@ -341,7 +336,6 @@ class PatchContext:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.manager.unpatch()
-
 
 __all__ = ["MonkeyPatchManager", "enable_replacement", "patch", "Pure3270PatchError", "PatchContext"]
 

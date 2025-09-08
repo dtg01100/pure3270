@@ -52,7 +52,6 @@ try:
         print("Sent 'key Clear' to trigger login screen.")
         time.sleep(1)
 
-
         initial_screen = session.read()
         print("Login screen:")
         print(initial_screen)
@@ -66,7 +65,6 @@ try:
         session.send('key Enter')  # Submit
         print("Sent 'key Enter' to submit login.")
         time.sleep(1)
-
 
         # Read post-signin screen
         post_signin_screen = session.read()

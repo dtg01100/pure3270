@@ -4,14 +4,11 @@ import logging
 from typing import Optional
 from ..emulation.screen_buffer import ScreenBuffer
 
-
 logger = logging.getLogger(__name__)
-
 
 class ParseError(Exception):
     """Error during data stream parsing."""
     pass
-
 
 class DataStreamParser:
     """Parses incoming 3270 data streams and updates the screen buffer."""
@@ -160,7 +157,6 @@ class DataStreamParser:
         """Get the last received AID."""
         return self.aid
 
-
 class DataStreamSender:
     """Constructs outgoing 3270 data streams."""
 
@@ -225,6 +221,5 @@ class DataStreamSender:
         if numeric:
             attr |= 0x20
         return bytes([0x1D, attr])  # SF
-
 
 # Note: screen reference needed for build_sba; assume passed or global for basics

@@ -3,9 +3,6 @@ from unittest.mock import patch  # noqa: F401
 
 from pure3270.emulation.screen_buffer import ScreenBuffer, Field
 
-
-
-
 class TestField:
     def test_field_init(self):
         field = Field(start=(0, 0), end=(0, 5), protected=True, numeric=True, modified=False, content=b'\xC1\xC2\xC3')
@@ -32,10 +29,6 @@ class TestField:
         field = Field(start=(0, 0), end=(0, 5), protected=False)
         assert repr(field) == "Field(start=(0, 0), end=(0, 5), protected=False)"
 
-
-
-
-
 class TestScreenBuffer:
     def test_init(self, screen_buffer):
         assert screen_buffer.rows == 24
@@ -49,7 +42,7 @@ class TestScreenBuffer:
     def test_clear(self, screen_buffer):
         screen_buffer.buffer = bytearray([1] * 1920)
         screen_buffer.attributes = bytearray([2] * 5760)
-        screen_buffer.fields = [Field((0,0),(0,1))]
+        screen_buffer.fields = [Field((0, 0), (0, 1))]
         screen_buffer.cursor_row = 5
         screen_buffer.cursor_col = 10
         screen_buffer.clear()
@@ -93,15 +86,15 @@ class TestScreenBuffer:
             assert screen_buffer.buffer[pos + i] == sample_stream[i % 3]
 
     def test_get_field_content(self, screen_buffer):
-        screen_buffer.fields = [Field((0,0),(0,3), content=b'\xC1\xC2\xC3')]
+        screen_buffer.fields = [Field((0, 0), (0, 3), content=b'\xC1\xC2\xC3')]
         with patch('pure3270.emulation.screen_buffer.EBCDICCodec') as mock_codec:
             mock_codec.return_value.decode.return_value = 'ABC'
             assert screen_buffer.get_field_content(0) == 'ABC'
         assert screen_buffer.get_field_content(1) == ''  # out of range
 
     def test_read_modified_fields(self, screen_buffer):
-        field1 = Field((0,0),(0,3), modified=True)
-        field2 = Field((1,0),(1,3), modified=False)
+        field1 = Field((0, 0), (0, 3), modified=True)
+        field2 = Field((1, 0), (1, 3), modified=False)
         screen_buffer.fields = [field1, field2]
         with patch.object(field1, 'get_content', return_value='MOD'), \
              patch.object(field2, 'get_content', return_value='NOT'):
@@ -112,7 +105,6 @@ class TestScreenBuffer:
 
     def test_repr(self, screen_buffer):
         assert repr(screen_buffer) == "ScreenBuffer(24x80, fields=0)"
-
 
 class TestEBCDICCodec:
     def test_init(self, ebcdic_codec):
@@ -150,7 +142,6 @@ def test_emulation_exception(caplog):
         ScreenBuffer(rows=-1)
     assert 'error' not in caplog.text  # No logging in init
 
-
 # Performance basic test: time to fill buffer
 def test_performance_buffer_fill(screen_buffer):
     import time
@@ -160,8 +151,6 @@ def test_performance_buffer_fill(screen_buffer):
     end = time.time()
     assert end - start < 0.1  # Basic threshold
 
-
-
 # Sample 3270 data stream test
 SAMPLE_3270_STREAM = b'\x05\xF5\xC1\x10\x00\x00\xC1\xC2\xC3\x0D'  # Write, WCC, SBA(0,0), ABC, EOA
 
@@ -169,9 +158,6 @@ def test_update_from_sample_stream(screen_buffer):
     with patch.object(screen_buffer, '_detect_fields'):
         screen_buffer.update_from_stream(SAMPLE_3270_STREAM)
     assert screen_buffer.buffer[0:3] == b'\xC1\xC2\xC3'
-
-
-
 
 def test_basic_session_clear(screen_buffer):
     """
@@ -189,7 +175,6 @@ def test_basic_session_clear(screen_buffer):
     assert screen_buffer.cursor_row == 0
     assert screen_buffer.cursor_col == 0
     assert len(screen_buffer.fields) == 0
-
 
 def test_read_modified_fields_after_change(screen_buffer, ebcdic_codec):
     """

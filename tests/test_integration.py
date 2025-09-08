@@ -1,10 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, patch
 
-
-
-
-
 @pytest.mark.asyncio
 class TestIntegration:
     async def test_end_to_end_macro_execution(self, async_session):

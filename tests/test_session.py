@@ -10,9 +10,6 @@ from pure3270.protocol.tn3270_handler import TN3270Handler
 from pure3270.protocol.data_stream import DataStreamParser, DataStreamSender
 from pure3270.protocol.ssl_wrapper import SSLWrapper
 
-
-
-
 @pytest.mark.asyncio
 class TestAsyncSession:
     def test_init(self, async_session):
@@ -128,7 +125,6 @@ class TestAsyncSession:
             async with async_session.managed():
                 pass
 
-
     async def test_pf_key_processing_with_aid(self, async_session):
         """
         Ported from s3270 test case 5: PF key processing with AID.
@@ -161,7 +157,6 @@ class TestAsyncSession:
 
             # Assert field advance (e.g., cursor moved)
             mock_set_pos.assert_called_once()  # Or specific position
-
 
 class TestSession:
     def test_init(self, sync_session):
@@ -224,7 +219,6 @@ class TestSession:
         with sync_session:
             assert sync_session.connected is False  # Assume not connected
         sync_session.close.assert_called_once()
-
 
 # General tests for exceptions, logging, performance
 def test_session_error(caplog):

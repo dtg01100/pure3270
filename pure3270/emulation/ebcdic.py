@@ -2,7 +2,6 @@
 
 from typing import Dict
 
-
 class EBCDICCodec:
     """Custom codec for EBCDIC to/from Unicode conversion using translation tables."""
     """Custom codec for EBCDIC to/from Unicode conversion using translation tables."""
@@ -146,7 +145,6 @@ class EBCDICCodec:
     def encode_to_unicode_table(self, text: str) -> bytes:
         """Alternative encode using table lookup (slower but explicit)."""
         return self.encode(text)
-
 
 # For testing (optional, not part of API)
 if __name__ == "__main__":
