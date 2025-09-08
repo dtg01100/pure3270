@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 @pytest.mark.asyncio
 class TestIntegration:
@@ -28,9 +28,12 @@ class TestIntegration:
 
         async_session.handler = mock_handler
         async_session._connected = True
+        async_session.tn3270_mode = True  # Enable TN3270 mode for proper parsing
 
-        with patch.object(async_session.parser, 'parse') as mock_parse:
-            mock_parse.side_effect = lambda data: setattr(async_session.screen, 'buffer', expected_pattern)
+        with patch('pure3270.session.DataStreamParser') as mock_parser_class:
+            mock_parser_instance = MagicMock()
+            mock_parser_class.return_value = mock_parser_instance
+            mock_parser_instance.parse.side_effect = lambda data: setattr(async_session.screen, 'buffer', expected_pattern)
 
             # Execute macro: startup connect (already mocked), send string, key Enter, read
             macro_sequence = ['String(login)', 'key Enter']
