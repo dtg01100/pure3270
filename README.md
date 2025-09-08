@@ -138,7 +138,7 @@ class Session:
         :param rows: Screen rows (default 24).
         :param cols: Screen columns (default 80).
         """
-    
+
     def connect(self, host: str, port: int = 23, ssl: bool = False) -> None:
         """
         Connect to the TN3270 host (sync).
@@ -148,7 +148,7 @@ class Session:
         :param ssl: Use SSL/TLS if True.
         :raises SessionError: If connection fails.
         """
-    
+
     def send(self, command: str) -> None:
         """
         Send a command or key (sync).
@@ -156,7 +156,7 @@ class Session:
         :param command: Command or key (e.g., "key Enter", "String(hello)").
         :raises SessionError: If send fails.
         """
-    
+
     def read(self) -> str:
         """
         Read the current screen content (sync).
@@ -164,19 +164,19 @@ class Session:
         :return: Screen text as string.
         :raises SessionError: If read fails.
         """
-    
+
     def macro(self, sequence: Sequence[str]) -> None:
         """
         Execute a macro sequence (sync).
         
         :param sequence: List of commands.
         """
-    
+
     def close(self) -> None:
         """
         Close the session (sync).
         """
-    
+
     @property
     def connected(self) -> bool:
         """
@@ -237,6 +237,10 @@ Run them in your activated venv: `python examples/example_patching.py`. Replace 
 - **Async/Sync Mix**: Use `Session` for sync code; `AsyncSession` for async. Don't mix in the same script without `asyncio.run()`.
 
 For more, enable verbose logging or consult [`architecture.md`](architecture.md).
+
+## Credits
+
+Credits: Some tests and examples in this project are inspired by and adapted from the IBM s3270 terminal emulator project, which served as a valuable reference for 3270 protocol handling and emulation techniques.
 
 ## License and Contributing
 See [`setup.py`](setup.py) for author info. Contributions welcome via issues/PRs.
