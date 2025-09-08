@@ -3,7 +3,6 @@ from unittest.mock import patch, MagicMock
 from pure3270.protocol.ssl_wrapper import SSLWrapper, SSLError
 import ssl
 
-@pytest.mark.asyncio
 class TestSSLWrapper:
     def test_init(self, ssl_wrapper):
         assert ssl_wrapper.verify is True

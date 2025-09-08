@@ -183,3 +183,74 @@ def test_method_override(monkey_patch_manager):
     monkey_patch_manager._apply_method_patch(obj, 'method', new_method)
     assert hasattr(obj, 'method')
     assert callable(obj.method)
+
+def test_pure3270_patch_error_instantiation(caplog):
+    with caplog.at_level('ERROR'):
+        try:
+            raise Pure3270PatchError('Test message')
+        except Pure3270PatchError as e:
+            pass
+    assert 'Test message' in caplog.text
+
+def test_store_original_duplicate(monkey_patch_manager):
+    monkey_patch_manager._store_original('key', 'value')
+    monkey_patch_manager._store_original('key', 'new_value')
+    assert monkey_patch_manager.originals['key'] == 'value'  # Not overwritten
+
+@mock_patch('sys.modules')
+def test_apply_module_patch_with_original(mock_sys_modules, monkey_patch_manager):
+    original = MagicMock()
+    mock_sys_modules.get.return_value = original
+    replacement = MagicMock(__name__='Replacement')
+    monkey_patch_manager._apply_module_patch('s3270', replacement)
+    assert 's3270' in monkey_patch_manager.originals
+    assert monkey_patch_manager.originals['s3270'] == original
+    mock_sys_modules.__setitem__.assert_called_with('s3270', replacement)
+
+def test_apply_module_patch_logging(caplog, monkey_patch_manager):
+    replacement = MagicMock(__name__='Replacement')
+    with caplog.at_level('INFO'):
+        monkey_patch_manager._apply_module_patch('s3270', replacement)
+    assert f"Patched module: s3270 -> Replacement" in caplog.text
+
+def test_apply_method_patch_class(monkey_patch_manager):
+    class TestClass:
+        pass
+    new_method = Mock()
+    docstring = "Test doc"
+    monkey_patch_manager._apply_method_patch(TestClass, 'test_method', new_method, docstring)
+    assert hasattr(TestClass, 'test_method')
+    assert TestClass.test_method.__doc__ == docstring
+    assert 'TestClass.test_method' in monkey_patch_manager.patched
+
+def test_apply_method_patch_instance_docstring(monkey_patch_manager):
+    obj = Mock()
+    new_method = Mock()
+    docstring = "Test doc"
+    monkey_patch_manager._apply_method_patch(obj, 'test_method', new_method, docstring)
+    assert hasattr(obj, 'test_method')
+
+def test_apply_method_patch_class_logging(caplog, monkey_patch_manager):
+    class TestClass:
+        pass
+    new_method = Mock()
+    with caplog.at_level('INFO'):
+        monkey_patch_manager._apply_method_patch(TestClass, 'test_method', new_method)
+    assert 'Added method: TestClass.test_method' in caplog.text
+
+def test_apply_method_patch_instance_logging(caplog, monkey_patch_manager):
+    obj = Mock()
+    new_method = Mock()
+    with caplog.at_level('INFO'):
+        monkey_patch_manager._apply_method_patch(obj, 'test_method', new_method)
+    assert 'Added method: Mock.test_method' in caplog.text
+
+def test_check_version_compatibility_no_expected(monkey_patch_manager):
+    module = MagicMock()
+    assert monkey_patch_manager._check_version_compatibility(module) is True
+
+def test_check_version_compatibility_mismatch_warning(caplog, monkey_patch_manager):
+    module = MagicMock(__name__='test', __version__='0.2.0')
+    with caplog.at_level('WARNING'):
+        assert monkey_patch_manager._check_version_compatibility(module, '0.3.0') is False
+    assert 'Version mismatch' in caplog.text

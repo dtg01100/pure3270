@@ -106,17 +106,16 @@ class MonkeyPatchManager:
             key = method_name
         self._store_original(key, original_method)
 
+        if docstring:
+            setattr(new_method, '__doc__', docstring)
+
         if inspect.isclass(obj):
             setattr(obj, method_name, new_method)
-            if docstring:
-                setattr(new_method, '__doc__', docstring)
             self.patched[key] = new_method
             logger.info(f"Added method: {obj.__name__}.{method_name}")
         else:
             bound_method = MethodType(new_method, obj)
             setattr(obj, method_name, bound_method)
-            if docstring:
-                setattr(bound_method, '__doc__', docstring)
             self.patched[key] = bound_method
             logger.info(f"Added method: {type(obj).__name__}.{method_name}")
 

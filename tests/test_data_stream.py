@@ -2,7 +2,6 @@ import pytest
 from unittest.mock import patch  # noqa: F401
 from pure3270.protocol.data_stream import ParseError
 
-@pytest.mark.asyncio
 class TestDataStreamParser:
     def test_init(self, data_stream_parser):
         assert data_stream_parser.screen is not None

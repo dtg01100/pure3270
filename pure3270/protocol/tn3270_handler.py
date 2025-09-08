@@ -92,7 +92,7 @@ class TN3270Handler:
         """Perform TN3270 negotiation aligned with s3270."""
         # Send DO TN3270E directly
         do_tn3270e = b'\xff\xfd\x24'  # IAC DO TN3270E
-        self.writer.write(do_tn3270e)
+        await self.writer.write(do_tn3270e)
         await self.writer.drain()
         logger.debug(f"Sent DO TN3270E: {do_tn3270e.hex()}")
         try:
@@ -114,7 +114,7 @@ class TN3270Handler:
             # Send SB TN3270E DEVICE_TYPE REQUEST
             model = b'IBM-3279-4-E'
             sb_device_request = b'\xff\xfa\x18\x00\x01' + model + b'\xff\xf0'  # IAC SB TELOPT DEVICE_TYPE REQUEST model IAC SE
-            self.writer.write(sb_device_request)
+            await self.writer.write(sb_device_request)
             await self.writer.drain()
             logger.debug(f"Sent SB DEVICE_TYPE REQUEST: {sb_device_request.hex()}")
             try:
@@ -136,9 +136,9 @@ class TN3270Handler:
                 # Send SB TN3270E FUNCTIONS REQUEST with bitmap 0x15
                 # (BIND_IMAGE=1, RESPONSES=3 bit2=4, SYSREQ=5 bit4=16 -> 1+4+16=21=0x15)
                 bitmap = b'\x15'
-                sb_functions_request = (b'\xff\xfa\x18\x01\x01' + bitmap + 
+                sb_functions_request = (b'\xff\xfa\x18\x01\x01' + bitmap +
                                       b'\xff\xf0')  # IAC SB TELOPT FUNCTIONS REQUEST bitmap IAC SE
-                self.writer.write(sb_functions_request)
+                await self.writer.write(sb_functions_request)
                 await self.writer.drain()
                 logger.debug(f"Sent SB FUNCTIONS REQUEST: {sb_functions_request.hex()}")
                 try:
@@ -187,7 +187,7 @@ class TN3270Handler:
 
         # Send DO EOR for TN3270
         do_eor = b'\xff\xfd\x19'  # IAC DO EOR
-        self.writer.write(do_eor)
+        await self.writer.write(do_eor)
         await self.writer.drain()
         logger.debug(f"Sent DO EOR: {do_eor.hex()}")
         try:
@@ -213,7 +213,7 @@ class TN3270Handler:
         if self.writer is None:
             logger.error("Not connected")
             raise ProtocolError("Not connected")
-        self.writer.write(data)
+        await self.writer.write(data)
         await self.writer.drain()
         logger.debug(f"Sent {len(data)} bytes")
 

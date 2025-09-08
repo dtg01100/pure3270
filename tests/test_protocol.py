@@ -7,7 +7,6 @@ from pure3270.protocol.ssl_wrapper import SSLWrapper, SSLError
 from pure3270.emulation.screen_buffer import ScreenBuffer
 import ssl
 
-@pytest.mark.asyncio
 class TestDataStreamParser:
     def test_init(self, data_stream_parser):
         assert data_stream_parser.screen is not None
@@ -102,7 +101,6 @@ class TestDataStreamSender:
             stream = data_stream_sender.build_sba(0, 0)
             assert stream == b'\x10\x00\x00'
 
-@pytest.mark.asyncio
 class TestSSLWrapper:
     def test_init(self, ssl_wrapper):
         assert ssl_wrapper.verify is True
@@ -177,7 +175,6 @@ class TestSSLWrapper:
         assert wrapped == mock_connection  # Stub returns original
         assert decrypted == encrypted_data  # Stub returns input
 
-@pytest.mark.asyncio
 @pytest.mark.asyncio
 class TestTN3270Handler:
     @patch('asyncio.open_connection')
