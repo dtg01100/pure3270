@@ -6,7 +6,7 @@ from .patching.patching import enable_replacement
 # Initialize logging by default
 setup_logging()
 
-__version__ = "0.1.0"
+__version__ = "0.1.0b1"
 
 __all__ = [
     "Session",
