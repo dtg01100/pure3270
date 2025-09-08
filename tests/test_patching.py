@@ -114,10 +114,12 @@ class TestPatchContext:
 def test_real_patching_integration(caplog):
     from pure3270 import enable_replacement
     from p3270 import P3270Client as P3270Session
-    # Enable replacement
-    manager = enable_replacement(strict_version=False)
-    # Test if p3270 Session now uses pure backend
-    sess = P3270Session()
+    # Configure caplog to capture INFO level messages
+    with caplog.at_level('INFO'):
+        # Enable replacement
+        manager = enable_replacement(strict_version=False)
+        # Test if p3270 Session now uses pure backend
+        sess = P3270Session()
     # Assert logging shows patched
     assert 'Patched Session' in caplog.text
     # Note: Skipping unpatch() call due to bug in unpatch logic with module-level patches
@@ -172,8 +174,9 @@ def test_patching_fallback(mock_import, caplog):
     manager = MonkeyPatchManager()
     def mock_check(*args, **kwargs):
         return False
-    with mock_patch.object(manager, '_check_version_compatibility', side_effect=mock_check):
-        manager.apply_patches(strict_version=False)
+    with caplog.at_level('WARNING'):
+        with mock_patch.object(manager, '_check_version_compatibility', side_effect=mock_check):
+            manager.apply_patches(strict_version=False)
     assert 'Graceful degradation' in caplog.text
 
 # Verify method overrides with mock
@@ -247,7 +250,7 @@ def test_apply_method_patch_instance_logging(caplog, monkey_patch_manager):
 
 def test_check_version_compatibility_no_expected(monkey_patch_manager):
     module = MagicMock()
-    assert monkey_patch_manager._check_version_compatibility(module) is True
+    assert monkey_patch_manager._check_version_compatibility(module, expected_version=None) is True
 
 def test_check_version_compatibility_mismatch_warning(caplog, monkey_patch_manager):
     module = MagicMock(__name__='test', __version__='0.2.0')

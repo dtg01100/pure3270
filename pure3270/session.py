@@ -165,7 +165,7 @@ class AsyncSession:
         self._connected = False
         self.tn3270_mode = False
         self.tn3270e_mode = False
-        self.lu_name: Optional[str] = None
+        self._lu_name: Optional[str] = None
 
     async def connect(self) -> None:
         """
@@ -186,7 +186,7 @@ class AsyncSession:
             await self._handler._negotiate_tn3270()
             self.tn3270_mode = True
             self.tn3270e_mode = self._handler.negotiated_tn3270e
-            self.lu_name = self._handler.lu_name
+            self._lu_name = self._handler.lu_name
             self.screen_buffer.rows = self._handler.screen_rows
             self.screen_buffer.cols = self._handler.screen_cols
         except NegotiationError:
@@ -222,7 +222,15 @@ class AsyncSession:
         """
         if not self._connected or not self._handler:
             raise SessionError("Session not connected.")
-        return await self._handler.receive_data(timeout)
+        
+        data = await self._handler.receive_data(timeout)
+        
+        # Parse the received data if in TN3270 mode
+        if self.tn3270_mode and data:
+            parser = DataStreamParser(self.screen_buffer)
+            parser.parse(data)
+        
+        return data
 
     async def _execute_single_command(self, cmd: str, vars: Dict[str, str]) -> str:
         """
@@ -331,7 +339,7 @@ class AsyncSession:
         """Close the async session."""
         if self._handler:
             await self._handler.close()
-            self._handler = None
+        self._handler = None
         self._connected = False
 
     @asynccontextmanager
@@ -381,3 +389,64 @@ class AsyncSession:
     def lu_name(self, value: Optional[str]) -> None:
         """Set the LU name."""
         self._lu_name = value
+
+    @property
+    def screen(self) -> ScreenBuffer:
+        """Get the screen buffer (alias for screen_buffer for compatibility)."""
+        return self.screen_buffer
+
+    @property
+    def handler(self) -> Optional[TN3270Handler]:
+        """Get the handler (public interface for compatibility)."""
+        return self._handler
+
+    @handler.setter
+    def handler(self, value: Optional[TN3270Handler]) -> None:
+        """Set the handler (public interface for compatibility)."""
+        self._handler = value
+
+    async def macro(self, commands: List[str]) -> None:
+        """
+        Execute a list of macro commands.
+        
+        Args:
+            commands: List of macro command strings.
+                     Supported formats:
+                     - 'String(text)' - Send text as EBCDIC
+                     - 'key Enter' - Send Enter key
+                     - 'key <keyname>' - Send other keys
+        
+        Raises:
+            MacroError: If command parsing or execution fails.
+            SessionError: If not connected.
+        """
+        if not self._connected or not self.handler:
+            raise SessionError("Session not connected.")
+        
+        from .protocol.data_stream import DataStreamSender
+        from .emulation.ebcdic import translate_ascii_to_ebcdic
+        
+        sender = DataStreamSender()
+        
+        for command in commands:
+            command = command.strip()
+            try:
+                if command.startswith('String(') and command.endswith(')'):
+                    # Extract text from String(text)
+                    text = command[7:-1]  # Remove 'String(' and ')'
+                    # Convert to EBCDIC and send
+                    ebcdic_data = translate_ascii_to_ebcdic(text)
+                    await self.send(ebcdic_data)
+                elif command.startswith('key '):
+                    # Extract key name
+                    key_name = command[4:].strip()
+                    if key_name.lower() == 'enter':
+                        # Send Enter AID (0x7D)
+                        key_data = sender.build_key_press(0x7D)
+                        await self.send(key_data)
+                    else:
+                        raise MacroError(f"Unsupported key: {key_name}")
+                else:
+                    raise MacroError(f"Unsupported command format: {command}")
+            except Exception as e:
+                raise MacroError(f"Failed to execute command '{command}': {e}")
