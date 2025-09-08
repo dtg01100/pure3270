@@ -22,4 +22,9 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest >= 7.0", "pytest-asyncio >= 0.21"]
+test = ["pytest >= 7.0", "pytest-asyncio >= 0.21", "pytest-benchmark >= 4.0"]
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')"
+]

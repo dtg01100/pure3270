@@ -16,7 +16,8 @@ setup(
         "telnetlib3",
     ],
     extras_require={
-        "dev": ["pytest"],
+        "dev": ["pytest", "pytest-asyncio", "pytest-benchmark"],
+        "test": ["pytest >= 7.0", "pytest-asyncio >= 0.21", "pytest-benchmark >= 4.0"],
     },
     python_requires=">=3.8",
     classifiers=[
