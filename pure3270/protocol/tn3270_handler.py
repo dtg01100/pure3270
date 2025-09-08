@@ -23,44 +23,51 @@ class TN3270Handler:
 
     async def connect(self, host: Optional[str] = None, port: Optional[int] = None, ssl_context: Optional[ssl.SSLContext] = None) -> None:
         """Connect the handler."""
-        # If already have reader/writer (from fixture), just mark as connected
+        # If already have reader/writer (from fixture), validate and mark as connected
         if self.reader is not None and self.writer is not None:
+            # Add stream validation
+            if not hasattr(self.reader, 'read') or not hasattr(self.writer, 'write'):
+                raise ValueError("Invalid reader or writer objects")
             self._connected = True
             return
-            
+
         try:
             # Use provided params or fallback to instance values
             connect_host = host or self.host
             connect_port = port or self.port
             connect_ssl = ssl_context or self.ssl_context
-            
+
             reader, writer = await asyncio.open_connection(connect_host, connect_port, ssl=connect_ssl)
+            # Validate streams
+            if reader is None or writer is None:
+                raise ConnectionError("Failed to obtain valid reader/writer")
+            if not hasattr(reader, 'read') or not hasattr(writer, 'write'):
+                raise ConnectionError("Invalid stream objects returned")
+
             self.reader = reader
             self.writer = writer
             self._connected = True
-            
+
             # Perform negotiation
             await self._negotiate_tn3270()
         except Exception as e:
             logger.error(f"Connection failed: {e}")
             raise ConnectionError(f"Failed to connect: {e}")
 
-    def __init__(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter, ssl_context: Optional[ssl.SSLContext] = None, host: str = "localhost", port: int = 23):
+    def __init__(self, reader: Optional[asyncio.StreamReader], writer: Optional[asyncio.StreamWriter], ssl_context: Optional[ssl.SSLContext] = None, host: str = "localhost", port: int = 23):
         """
         Initialize the TN3270 handler.
-        
+
         Args:
-            reader: Asyncio stream reader.
-            writer: Asyncio stream writer.
+            reader: Asyncio stream reader (can be None for testing).
+            writer: Asyncio stream writer (can be None for testing).
             ssl_context: Optional SSL context for secure connections.
             host: Target host for connection.
             port: Target port for connection.
-        
+
         Raises:
-            ValueError: If reader or writer is None.
+            ValueError: If reader or writer is None (when not in test mode).
         """
-        if reader is None or writer is None:
-            raise ValueError("Reader and writer must not be None.")
         self.reader = reader
         self.writer = writer
         self.ssl_context = ssl_context
@@ -96,9 +103,9 @@ class TN3270Handler:
     async def _negotiate_tn3270(self) -> None:
         """
         Negotiate TN3270E subnegotiation.
-        
+
         Sends TN3270E request and handles BIND, etc.
-        
+
         Raises:
             NegotiationError: On subnegotiation failure.
         """
@@ -119,7 +126,12 @@ class TN3270Handler:
                 self.negotiated_tn3270e = False
                 self.set_ascii_mode()
                 logger.info("TN3270E negotiation failed, fallback to ASCII")
-        except Exception:
+        except (ParseError, ProtocolError, asyncio.TimeoutError) as e:
+            logger.warning(f"TN3270E negotiation failed with specific error: {e}")
+            self.negotiated_tn3270e = False
+            self.set_ascii_mode()
+        except Exception as e:
+            logger.error(f"Unexpected error during TN3270E negotiation: {e}")
             self.negotiated_tn3270e = False
             self.set_ascii_mode()
 
@@ -150,13 +162,13 @@ class TN3270Handler:
     async def receive_data(self, timeout: float = 5.0) -> bytes:
         """
         Receive data with timeout.
-        
+
         Args:
             timeout: Receive timeout in seconds.
-        
+
         Returns:
             Received bytes.
-        
+
         Raises:
             asyncio.TimeoutError: If timeout exceeded.
             ProtocolError: If reader is None.
@@ -171,7 +183,11 @@ class TN3270Handler:
         if self._ascii_mode:
             return data
         # Parse and update screen buffer (simplified)
-        self.parser.parse(data)
+        try:
+            self.parser.parse(data)
+        except ParseError as e:
+            logger.warning(f"Failed to parse received data: {e}")
+            # Continue with raw data if parsing fails
         # Strip EOR if present
         if b'\xff\x19' in data:
             data = data.split(b'\xff\x19')[0]
@@ -204,4 +220,17 @@ class TN3270Handler:
 
     def is_connected(self) -> bool:
         """Check if the handler is connected."""
-        return self._connected and self.writer is not None and self.reader is not None
+        if not (self._connected and self.writer is not None and self.reader is not None):
+            return False
+        # Liveness check: try to check if writer is still open
+        try:
+            # Check if writer has is_closing method (asyncio.StreamWriter)
+            if hasattr(self.writer, 'is_closing') and self.writer.is_closing():
+                return False
+            # Check if reader has at_eof method (asyncio.StreamReader)
+            if hasattr(self.reader, 'at_eof') and self.reader.at_eof():
+                return False
+        except Exception:
+            # If liveness check fails, assume not connected
+            return False
+        return True

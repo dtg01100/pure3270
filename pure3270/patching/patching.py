@@ -27,10 +27,10 @@ class MonkeyPatchManager:
     Handles version checks and patch application for compatibility.
     """
 
-    def __init__(self, patches: Dict[str, Any] = None):
+    def __init__(self, patches: Optional[Dict[str, Any]] = None):
         """
         Initialize the patch manager.
-        
+
         Args:
             patches: Dictionary of patches to apply (module_name: patch_functions).
         """
@@ -93,6 +93,7 @@ class MonkeyPatchManager:
         actual_version = getattr(module, '__version__', None)
         if actual_version != expected_version:
             logger.warning(f"Version mismatch: expected {expected_version}, got {actual_version}")
+            logger.info("Graceful degradation: proceeding with partial compatibility")
             return False
         return True
 
@@ -119,20 +120,39 @@ class MonkeyPatchManager:
 
     def unpatch(self) -> None:
         for key, original in self.originals.items():
+            if original is None:
+                continue  # Skip None originals
             if '.' in key:
                 # Method patch
                 obj_name, method = key.rsplit('.', 1)
-                # Reconstruct, but simplified
-                pass  # Implementation for restore
+                # Try to reconstruct the object from the name
+                try:
+                    if obj_name in sys.modules:
+                        obj = sys.modules[obj_name]
+                    else:
+                        # For class methods, try to find the class
+                        parts = obj_name.split('.')
+                        obj = sys.modules.get(parts[0])
+                        if obj and len(parts) > 1:
+                            for part in parts[1:]:
+                                obj = getattr(obj, part, None)
+                                if obj is None:
+                                    break
+                    if obj is not None:
+                        setattr(obj, method, original)
+                        logger.debug(f"Restored method {key}")
+                except Exception as e:
+                    logger.warning(f"Failed to restore method {key}: {e}")
             else:
                 # Module patch
                 sys.modules[key] = original
+                logger.debug(f"Restored module {key}")
         self.originals.clear()
         self.patched.clear()
         logger.info("Unpatched all")
 
 @contextmanager
-def PatchContext(patches: Dict[str, Any] = None):
+def PatchContext(patches: Optional[Dict[str, Any]] = None):
     """
     Context manager for temporary patching.
     

@@ -3,12 +3,15 @@ Session management for pure3270, handling synchronous and asynchronous 3270 conn
 """
 
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 from typing import Optional, Any, Dict, List
 from .protocol.tn3270_handler import TN3270Handler
 from .emulation.screen_buffer import ScreenBuffer
 from .protocol.exceptions import NegotiationError
 from .protocol.data_stream import DataStreamParser
+
+logger = logging.getLogger(__name__)
 
 class SessionError(Exception):
     """Base exception for session-related errors."""
@@ -137,7 +140,9 @@ class Session:
     @property
     def connected(self) -> bool:
         """Check if session is connected."""
-        return self._async_session is not None and self._async_session._connected
+        if self._async_session is None:
+            return False
+        return self._async_session.connected
 
 class AsyncSession:
     """
@@ -189,7 +194,8 @@ class AsyncSession:
             self._lu_name = self._handler.lu_name
             self.screen_buffer.rows = self._handler.screen_rows
             self.screen_buffer.cols = self._handler.screen_cols
-        except NegotiationError:
+        except NegotiationError as e:
+            logger.warning(f"TN3270 negotiation failed, falling back to ASCII mode: {e}")
             if self._handler:
                 self._handler.set_ascii_mode()
 

@@ -43,6 +43,5 @@ def sync_session():
 
 @pytest.fixture
 def tn3270_handler():
-    reader = AsyncMock(spec=asyncio.StreamReader)
-    writer = AsyncMock(spec=asyncio.StreamWriter)
-    return TN3270Handler(reader, writer, host="localhost", port=23)
+    # Don't pre-set reader/writer for connection tests
+    return TN3270Handler(None, None, host="localhost", port=23)
