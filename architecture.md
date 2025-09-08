@@ -5,91 +5,91 @@
 The `pure3270` library is a self-contained, pure Python 3.8+ implementation designed to emulate the functionality of the `s3270` terminal emulator. It is primarily intended for integration with the `p3270` library through runtime monkey-patching, allowing seamless replacement of `p3270`'s underlying dependencies on `s3270` without requiring external binaries or complex setup. The design emphasizes zero-configuration opt-in via a simple `pure3270.enable_replacement()` function, which applies global patching by default but supports selective configuration.
 
 Key design principles:
-- **Purity**: Minimal external dependencies: telnet3 (pure Python telnet implementation) for protocol handling, plus Python standard library (e.g., `ssl` for TLS, `logging` for logs). This maintains self-contained nature without native binaries.
+- **Purity**: Standard library only (e.g., `asyncio` for networking, `ssl` for TLS, `logging` for logs). This maintains self-contained nature without external dependencies or native binaries.
 - **Compatibility**: Mirrors `s3270` and `p3270` interfaces where possible, with Pythonic enhancements like context managers and optional asyncio support.
 - **Performance**: Efficient byte handling using `bytearray` and `struct` for EBCDIC and protocol streams.
-- **Extensibility**: Plugin hooks for future features (e.g., graphics via 3270 graphics extensions).
-- **Robustness**: Comprehensive error handling with custom exceptions and structured logging.
+- **Extensibility**: Subclassing for custom behaviors (e.g., extending `Session` or `DataStreamParser`).
+- **Robustness**: Comprehensive error handling with custom inline exceptions and structured logging.
 
-The library supports TN3270 and TN3270E protocols, full 3270 terminal emulation (including screen buffer, fields, WCC, AID), and keyboard simulation for scripting. Telnet3 handles networking and protocol under the hood transparently, ensuring API compatibility.
+The library supports TN3270 and TN3270E protocols, full 3270 terminal emulation (including screen buffer, fields, WCC, AID), and basic key simulation for scripting. Asyncio handles networking and protocol transparently, ensuring API compatibility.
 
 ## Package Structure
 
-The package follows a modular directory layout to separate concerns: emulation logic, protocol handling, patching mechanisms, and utilities. This structure promotes maintainability and allows for easy extension.
+The package follows a modular directory layout to separate concerns: emulation logic, protocol handling, patching mechanisms. This structure promotes maintainability and allows for easy extension.
 
-Suggested directory layout:
+Actual directory layout:
 ```
 pure3270/
 ├── __init__.py          # Public API entrypoint (e.g., enable_replacement(), Session)
+├── session.py           # Main Session and AsyncSession classes
 ├── emulation/           # Core 3270 terminal emulation
 │   ├── __init__.py
-│   ├── screen.py        # ScreenBuffer class, field management, rendering
-│   ├── keyboard.py      # Key simulation and AID/WCC handling
-│   └── codec.py         # EBCDIC encoding/decoding utilities
+│   ├── ebcdic.py        # EBCDIC encoding/decoding utilities
+│   └── screen_buffer.py # ScreenBuffer class, field management, rendering
 ├── protocol/            # TN3270/TN3270E protocol implementation
 │   ├── __init__.py
-│   ├── tn3270.py        # TN3270Handler for connection, data stream parsing/sending
-│   ├── datastream.py    # DataStreamParser/Sender for 3270 orders and BIND
-│   └── ssl_wrapper.py   # SSL/TLS integration using stdlib ssl module
-├── patching/            # Monkey-patching mechanisms for p3270 integration
-│   ├── __init__.py
-│   ├── manager.py       # MonkeyPatchManager for dynamic overrides
-│   └── overrides.py     # Pre-defined patches for p3270 Session, commands, etc.
-├── utils/               # Shared utilities
-│   ├── __init__.py
-│   ├── errors.py        # Custom exceptions (e.g., Pure3270Error, ProtocolError)
-│   └── logger.py        # Logging configuration and handlers
-└── examples/            # Integration examples (non-code, descriptive)
-    └── integration.md   # How-to guides for patching and standalone use
+│   ├── data_stream.py   # DataStreamParser/Sender for 3270 orders and BIND
+│   ├── ssl_wrapper.py   # SSL/TLS integration using stdlib ssl module
+│   └── tn3270_handler.py # TN3270Handler for connection, negotiation, data stream handling
+└── patching/            # Monkey-patching mechanisms for p3270 integration
+    ├── __init__.py
+    └── patching.py      # MonkeyPatchManager for dynamic overrides and enable_replacement()
 
-Note: telnet3 is listed as a dependency in setup.py or pyproject.toml (e.g., `install_requires=['telnet3']`), preserving the pure Python, self-contained design.
+Top-level directories:
+- examples/              # Python example scripts (e.g., example_end_to_end.py, example_patching.py)
+- tests/                 # Unit and integration tests
+- pyproject.toml         # Project configuration and dependencies (standard library only for runtime)
+- setup.py               # Setuptools configuration
 ```
+
+Note: No external runtime dependencies; uses Python standard library. Development dependencies (e.g., pytest) are in pyproject.toml under [project.optional-dependencies.test].
 
 Key modules and classes:
 
 - **`pure3270/__init__.py`**: Exports main classes like `Session` and functions like `enable_replacement()`. Initializes logging.
-  
-- **`emulation/screen.py`**:
+
+- **`pure3270/session.py`**:
+  - `Session` and `AsyncSession`: Main session handlers integrating emulation and protocol. Supports connect, send (keys/commands), read (screen scraping), macro execution. Uses context managers and asyncio for non-blocking I/O.
+  - Exceptions: `Pure3270Error` (base), `SessionError`.
+
+- **`emulation/screen_buffer.py`**:
   - `ScreenBuffer`: Manages the 24x80 (or configurable) screen buffer as a `bytearray` of EBCDIC bytes. Handles attributes (protected/modified), fields (start/end, type), and rendering to text (screen scraping).
   - `Field`: Represents input/output fields with properties for content, attributes (e.g., numeric-only, protected).
 
-- **`emulation/keyboard.py`**:
-  - `KeyboardSimulator`: Simulates key presses, generating AID (Attention ID) keys (e.g., Enter, PF1-24) and WCC (Write Control Character) for commands.
+- **`emulation/ebcdic.py`**:
+  - `EBCDICCodec`: Custom codec for EBCDIC <-> Unicode conversion using translation tables and `cp037` decoding.
 
-- **`emulation/codec.py`**:
-  - `EBCDICCodec`: Custom codec for EBCDIC <-> Unicode conversion using translation tables (pre-defined byte mappings).
+- **`protocol/tn3270_handler.py`**:
+  - `TN3270Handler`: Handles asyncio-based TCP connections, negotiations (TN3270/TN3270E including EOR, BIND), and subnegotiation. Implements raw telnet commands (IAC/SB) for 3270-specific data stream sending/receiving.
+  - Exceptions: `ProtocolError` (base), `NegotiationError`.
 
-- **`protocol/tn3270.py`**:
-  - `TN3270Handler`: Integrates telnet3 for TCP connections, negotiations (TN3270/TN3270E including EOR, BIND), and subnegotiation. Uses telnet3's Telnet client for low-level telnet operations, with custom extensions for 3270-specific data stream sending/receiving.
-
-- **`protocol/datastream.py`**:
-  - `DataStreamParser`: Parses incoming 3270 data streams (orders like SBA, SF, RA, GE), updates screen buffer.
-  - `DataStreamSender`: Constructs outgoing streams for commands (e.g., Read Modified Fields).
+- **`protocol/data_stream.py`**:
+  - `DataStreamParser`: Parses incoming 3270 data streams (orders like SBA, SF, RA, GE, W), updates screen buffer.
+  - `DataStreamSender`: Constructs outgoing streams for commands (e.g., Read Modified Fields, key press with AID).
+  - Exception: `ParseError`.
 
 - **`protocol/ssl_wrapper.py`**:
-  - `SSLWrapper`: Layers SSL via stdlib `ssl` module on telnet3's underlying socket/transport for secure connections, ensuring TLS 1.2+ compatibility. If telnet3 supports native SSL in future, migrate to it; otherwise, wrap the telnet3 socket.
+  - `SSLWrapper`: Creates `ssl.SSLContext` for TLS 1.2+ secure connections, with optional certificate verification.
+  - Exception: `SSLError`.
 
-- **`patching/manager.py`**:
-  - `MonkeyPatchManager`: Core class for applying patches. Uses `sys.modules` manipulation and `types.MethodType` for method overrides.
-
-- **`patching/overrides.py`**: Defines patch mappings, e.g., override `p3270.session.Session.__init__` to use `Pure3270Session`.
-
-- **`utils/errors.py`**: Exceptions like `ConnectionError`, `ParseError`, `PatchError`.
-- **`utils/logger.py`**: Configures `logging` with levels (DEBUG for protocol traces, INFO for session events).
+- **`patching/patching.py`**:
+  - `MonkeyPatchManager`: Core class for applying patches. Uses `sys.modules` manipulation and `types.MethodType` for method overrides on `p3270` (e.g., Session init/connect/send/read).
+  - `enable_replacement()`: Zero-config function to apply patches (alias: `patch`).
+  - Exception: `Pure3270PatchError`.
 
 ## Core Emulation
 
 The emulation layer provides a virtual 3270 terminal without relying on native libraries.
 
-- **Screen Buffer Management**: `ScreenBuffer` uses a fixed-size `bytearray` (e.g., 24*80 + attributes). Each position stores EBCDIC char + 3-byte attribute (protection, intensity, etc.). Fields are tracked via a list of `Field` objects with start/end indices. Supports Read Modified All (RMA), Read Modified Fields (RMF) via buffer scanning.
+- **Screen Buffer Management**: `ScreenBuffer` (in screen_buffer.py) uses a fixed-size `bytearray` (e.g., 24*80 + attributes). Each position stores EBCDIC char + 3-byte attribute (protection, intensity, etc.). Fields are tracked via a list of `Field` objects with start/end indices. Supports Read Modified All (RMA), Read Modified Fields (RMF) via buffer scanning.
 
-- **EBCDIC Handling**: `EBCDICCodec` implements bidirectional translation using static dictionaries (e.g., `ebcdic_to_unicode = {0x41: 'A', ...}`). For performance, uses `bytes.translate()` with a pre-computed table.
+- **EBCDIC Handling**: `EBCDICCodec` (in ebcdic.py) implements bidirectional translation using static dictionaries and `cp037` codec for performance.
 
-- **Fields and Attributes**: WCC parsed to set buffer state (e.g., reset modified flags). AID handling maps keys to actions (e.g., Enter AID=0x7D triggers data send).
+- **Fields and Attributes**: WCC parsed to set buffer state (e.g., reset modified flags). AID handling maps keys to actions (e.g., Enter AID=0x7D triggers data send) in session.py.
 
-- **Screen Scraping**: `screen.py` provides `to_text()` method for ASCII conversion, `get_field_content(field_id)` for extraction.
+- **Screen Scraping**: `screen_buffer.py` provides `to_text()` method for ASCII conversion, `get_field_content(field_id)` for extraction.
 
-- **Keyboard Simulation**: `KeyboardSimulator` queues key events, translates to 3270 PS/2 scancodes, injects into data stream.
+- **Keyboard Simulation**: Basic key handling in `session.py` via AID mapping (e.g., "key Enter" -> AID 0x7D, "String(hello)" -> text input). No advanced queuing or PS/2 scancodes.
 
 Text-based diagram of screen buffer structure:
 ```
@@ -101,7 +101,7 @@ Text-based diagram of screen buffer structure:
 Attributes: byte 0: protected (bit 1), modified (bit 7)
             byte 1: foreground color
             byte 2: background color, highlighting
-Fields: Linked list or array of {start: (row,col), end: (row,col), type: 'input/output'}
+Fields: List of {start: (row,col), end: (row,col), type: 'input/output'}
 ```
 
 ## Development Setup
@@ -125,13 +125,13 @@ All development and usage must occur within a Python virtual environment to mana
      .venv\Scripts\activate
      ```
 
-3. **Install dependencies**:
+3. **Install the library**:
    ```
-   pip install telnet3
+   pip install -e .
    ```
-   Telnet3 is the only external dependency, installed via pip. For development, also install other tools if needed (e.g., `pip install -r requirements-dev.txt` for testing/linting).
+   No external runtime dependencies; uses standard library. For development/testing, install optional deps: `pip install -r requirements-dev.txt` or `pip install .[test]` if configured in pyproject.toml (e.g., pytest, pytest-asyncio).
 
-4. **Packaging note**: Include telnet3 in the package distribution (e.g., via `setup.py` or `pyproject.toml` with `install_requires=['telnet3']`). This keeps the library self-contained and pure Python.
+4. **Packaging note**: Distributed via `setup.py` or `pyproject.toml` with no `install_requires` for external packages, keeping it self-contained and pure Python.
 
 Deactivate with `deactivate` when done.
 
@@ -139,21 +139,21 @@ Deactivate with `deactivate` when done.
 
 Supports TN3270 (RFC 1576) and enhanced TN3270E (RFC 2355) for better reliability.
 
-- **Connection**: `TN3270Handler` uses telnet3 to create the telnet connection, sends DO TN3270 via telnet3's negotiation, handles WILL/WONT for TN3270/TN3270E. For SSL, applies `SSLWrapper` to the telnet3 transport/socket if `secure=True`.
+- **Connection**: `TN3270Handler` (in tn3270_handler.py) uses `asyncio.open_connection` for TCP connections, sends raw DO TN3270E via IAC, handles WILL/WONT for TN3270/TN3270E. For SSL, applies `SSLWrapper` context to the asyncio transport if `secure=True`.
 
-- **Data Stream**: Incoming: Leverages telnet3 for receiving telnet-encoded data, then `DataStreamParser` decodes 3270 orders (e.g., W (Write), EWA (Erase Write Alternate)). Outgoing: `DataStreamSender` builds 3270 packets, encodes via telnet3 for sending. BIND image parsed for terminal type negotiation.
+- **Data Stream**: Incoming: Receives via asyncio reader, then `DataStreamParser` (in data_stream.py) decodes 3270 orders (e.g., W (Write), EWA (Erase Write Alternate), SBA, SF). Outgoing: `DataStreamSender` builds 3270 packets, sends via asyncio writer. BIND image parsed for terminal type negotiation and screen sizing.
 
-- **BIND Handling**: Parses BIND command to extract USABLE AREA size, configures `ScreenBuffer` accordingly.
+- **BIND Handling**: Parses BIND command to extract USABLE AREA size, configures `ScreenBuffer` accordingly (e.g., 24x80 or 32x80).
 
-- **Error Handling**: Timeouts via `socket.settimeout()`, protocol errors raise `ProtocolError`.
+- **Error Handling**: Timeouts via `asyncio.wait_for()`, protocol errors raise `ProtocolError` or `NegotiationError`.
 
-Text-based diagram for telnet3 integration flow:
+Text-based diagram for asyncio integration flow:
 ```
-Pure3270 Client --> telnet3 Telnet Client --> TCP/SSL Socket
-                   Negotiation (DO TN3270, WILL TN3270E)
-                   Data Send/Recv (telnet3 handles telnet layer)
-                   Custom 3270 Parser/Sender (on top of telnet3 streams)
-SSLWrapper (if secure) --> Wraps telnet3 socket with ssl.SSLContext
+Pure3270 Client --> asyncio.open_connection --> TCP/SSL Transport
+                    Negotiation (IAC DO TN3270E, SB DEVICE_TYPE)
+                    Data Send/Recv (raw IAC/SB telnet layer)
+                    Custom 3270 Parser/Sender (on top of asyncio streams)
+SSLWrapper (if secure) --> Provides ssl.SSLContext for asyncio
 ```
 
 Mermaid diagram for protocol flow:
@@ -161,14 +161,14 @@ Mermaid diagram for protocol flow:
 sequenceDiagram
     participant Client as Pure3270 Client
     participant Server as TN3270 Server
-    Client->>Server: TCP Connect + SSL (if enabled)
-    Client->>Server: DO TN3270 / WILL TN3270E
-    Server->>Client: BIND Image
+    Client->>Server: asyncio TCP Connect + SSL (if enabled)
+    Client->>Server: IAC DO TN3270E / WILL TN3270E
+    Server->>Client: BIND Image (via SB)
     loop Session
-        Server->>Client: Data Stream (e.g., Write Order)
+        Server->>Client: Data Stream (e.g., Write Order, IAC EOR)
         Client->>Parser: Parse & Update Screen
-        Client->>Simulator: Handle AID/Key
-        Client->>Server: Send Data Stream (e.g., Read Modified)
+        Client->>Session: Handle AID/Key
+        Client->>Server: Send Data Stream (e.g., Read Modified, AID)
     end
 ```
 
@@ -177,60 +177,62 @@ sequenceDiagram
 Runtime monkey-patching integrates with `p3270` by overriding its internal calls to `s3270`.
 
 - **Strategies**:
-  - **Import Alteration**: Hook `sys.modules` to replace `p3270`'s import of `s3270` with `pure3270.emulation`.
-  - **Method Overrides**: Use `setattr` on `p3270.session.Session` to swap `__init__`, `connect`, `send_command`, etc., with pure3270 equivalents.
-  - **Fallback**: If `p3270` version mismatch detected (via inspection), log warning and disable patching, falling back to original.
+  - **Method Overrides**: Use `setattr` and `MethodType` on `p3270.session.Session` to swap `__init__`, `connect`, `send`, `read`, `close` with pure3270 equivalents (delegating to `Session`).
+  - **Version Check**: Inspect `p3270.__version__` for compatibility; warn/log on mismatch, optional strict raise.
+  - **Fallback**: If `p3270` not installed or mismatch, log warning and simulate/mock for verification.
 
 - **Configuration API**:
-  - `pure3270.patch(global=True, selective_modules=['session'], secure=False)`: Applies patches. `global=True` patches all imports; `selective_modules` targets specific parts.
-  - `pure3270.enable_replacement()`: Zero-config alias for `patch(global=True)`.
+  - `enable_replacement(global=True, selective_modules=['session'], strict_version=False)`: Applies patches. Selective targets session/commands.
+  - `patch()`: Alias for `enable_replacement()` for zero-config.
 
-- **Implementation**: `MonkeyPatchManager` uses a context manager for reversible patches:
+- **Implementation**: Single `patching.py` with `MonkeyPatchManager` as context manager for reversible patches:
   ```python
-  with MonkeyPatchManager():
-      # Patches active
+  from pure3270.patching.patching import enable_replacement
+  enable_replacement()  # Applies patches
   ```
 
 Text-based diagram for patching flow:
 ```
-p3270 Import "s3270" --> sys.modules hook --> pure3270.emulation
-p3270.Session.connect() --> override --> Pure3270Session.connect()
-If mismatch: Log & Skip --> Original s3270
+p3270 Session.__init__() --> override --> Pure3270 Session._pure_session
+p3270.Session.connect() --> delegate --> Pure3270Session.connect(asyncio)
+If mismatch: Log & Proceed (or raise if strict) --> Partial/Original
 ```
 
 ## API Compatibility
 
-The API remains fully compatible with existing p3270 and s3270 interfaces. Telnet3 integration is handled transparently under the hood in `TN3270Handler` and related classes, with no changes to public methods like `connect()`, `send()`, or `read_screen()`. Developers using the library or patched p3270 sessions will not notice the switch from direct sockets to telnet3.
+The API remains fully compatible with existing p3270 and s3270 interfaces. Asyncio integration is handled transparently under the hood in `TN3270Handler` and `AsyncSession`, with no changes to public methods like `connect()`, `send()`, or `read_screen()`. Developers using the library or patched p3270 sessions will not notice the switch to pure Python emulation.
 
-- **Mirroring s3270**: `Session` class with `connect(host, port=23)`, `send('key Enter')`, `read_screen()`, `disconnect()`. Supports scripting commands like `s3270` (e.g., `String("field")`).
+- **Mirroring s3270**: `Session` class with `connect(host, port=23)`, `send('key Enter')`, `read()` (returns text), `disconnect()` via `close()`. Supports scripting commands like `s3270` (e.g., `String("field")`).
 
 - **Pythonic Features**:
   - Context manager: `with Session() as sess: sess.connect(...)`
-  - Asyncio: Optional `AsyncSession` using `asyncio` for non-blocking I/O (via `asyncio.open_connection`).
-  - Properties: `sess.screen.text` for scraping.
+  - Asyncio: `AsyncSession` for non-blocking I/O.
+  - Properties: Access via `read()` for scraping.
 
 - **Standalone Usage**: Can be used independently without patching, e.g., `sess = Session(); sess.connect('host')`.
 
 ## Extensibility
 
-- **Hooks**: Event system in `Session` (e.g., `on_data_received`, `on_key_press`) as callables. For graphics, hook `on_graphic_order` in `DataStreamParser`.
-- **Plugins**: Register via `Session.register_hook(name, callback)` for custom extensions (e.g., graphics rendering).
+- **Subclassing**: Extend `Session` for custom session logic, `DataStreamParser` for new orders, or `MonkeyPatchManager` for additional overrides.
+- **Custom Patches**: Modify `apply_patches()` in `MonkeyPatchManager` for selective integrations beyond p3270.
 
 ## Error Handling, Logging, Performance
 
-- **Errors**: Hierarchy: `Pure3270Error` base, subclasses like `EmulationError`, `ProtocolError`, `PatchError`. Raised with context (e.g., line/col in screen).
-- **Logging**: Uses `logging` module. Default: INFO level, with `pure3270` logger. Protocol traces at DEBUG. Configurable via `patch(log_level='DEBUG')`.
-- **Performance**: Byte operations with `bytearray` for mutable buffers. Avoid string conversions; use `memoryview` for zero-copy slicing in parsing. Target: <1ms per screen update.
+- **Errors**: Inline exceptions: `Pure3270Error` (base, in session.py/patching.py), `SessionError` (session.py), `ProtocolError`/`NegotiationError` (tn3270_handler.py), `ParseError` (data_stream.py), `SSLError` (ssl_wrapper.py), `Pure3270PatchError` (patching.py). Raised with context (e.g., connection details).
+
+- **Logging**: Uses stdlib `logging` module. Default: INFO level, with `pure3270` logger. Protocol traces at DEBUG. Configurable via `setup_logging(level='DEBUG')` in __init__.py.
+
+- **Performance**: Byte operations with `bytearray` for mutable buffers. Avoid string conversions; use `asyncio` for efficient I/O. Target: <1ms per screen update.
 
 ## Integration Examples
 
-- **Patching**:
+- **Patching** (see top-level examples/example_patching.py):
   1. Import: `from pure3270 import enable_replacement; enable_replacement()`
   2. Use p3270 normally: `from p3270 import Session; sess = Session(); sess.connect('host')` – internally uses pure3270.
 
-- **Standalone**:
-  1. `from pure3270 import Session; with Session(secure=True) as sess: sess.connect('host', 992); sess.send('key PF3'); print(sess.screen.text)`
+- **Standalone** (see top-level examples/example_end_to_end.py):
+  1. `from pure3270 import Session; with Session(secure=True) as sess: sess.connect('host', 992); sess.send('key PF3'); print(sess.read())`
 
-- **Selective Patching**: `pure3270.patch(selective_modules=['protocol'])` – Only overrides connection handling.
+- **Selective Patching**: `enable_replacement(patch_sessions=True, patch_commands=False)` – Only overrides session methods.
 
 This design ensures seamless integration, high fidelity to 3270 standards, and room for growth.
