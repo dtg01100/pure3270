@@ -24,7 +24,9 @@ def main():
     """CLI entry point for s3270-compatible interface."""
     parser = argparse.ArgumentParser(description="pure3270 - 3270 Terminal Emulator")
     parser.add_argument("host", help="Host to connect to")
-    parser.add_argument("port", type=int, nargs='?', default=23, help="Port (default 23)")
+    parser.add_argument(
+        "port", type=int, nargs="?", default=23, help="Port (default 23)"
+    )
     parser.add_argument("--ssl", action="store_true", help="Use SSL/TLS")
     parser.add_argument("--script", help="Script file to execute")
     args = parser.parse_args()
@@ -38,17 +40,19 @@ def main():
 
         if args.script:
             # Execute script file
-            with open(args.script, 'r') as f:
+            with open(args.script, "r") as f:
                 commands = [line.strip() for line in f if line.strip()]
-            result = session.execute_macro(';'.join(commands))
+            result = session.execute_macro(";".join(commands))
             print("Script executed:", result)
         else:
             # Interactive mode
-            print("Enter commands (e.g., 'String(hello)', 'key Enter'). Type 'quit' to exit.")
+            print(
+                "Enter commands (e.g., 'String(hello)', 'key Enter'). Type 'quit' to exit."
+            )
             while True:
                 try:
                     command = input("> ").strip()
-                    if command.lower() in ('quit', 'exit'):
+                    if command.lower() in ("quit", "exit"):
                         break
                     result = session.execute_macro(command)
                     print("Result:", result)

@@ -746,7 +746,7 @@ class AsyncSession:
                     await self.insert()
                 elif command.startswith("MoveCursor("):
                     # Parse MoveCursor(row, col)
-                    args = command[11:-1].split(',')
+                    args = command[11:-1].split(",")
                     if len(args) == 2:
                         row = int(args[0].strip())
                         col = int(args[1].strip())
@@ -754,7 +754,7 @@ class AsyncSession:
                     else:
                         raise MacroError("Invalid MoveCursor format")
                 elif command.startswith("MoveCursor1("):
-                    args = command[12:-1].split(',')
+                    args = command[12:-1].split(",")
                     if len(args) == 2:
                         row = int(args[0].strip())
                         col = int(args[1].strip())
@@ -798,7 +798,7 @@ class AsyncSession:
                     script = command[7:-1]
                     await self.script(script)
                 elif command.startswith("Set("):
-                    args = command[4:-1].split(',')
+                    args = command[4:-1].split(",")
                     if len(args) == 2:
                         option = args[0].strip()
                         value = args[1].strip()
@@ -856,7 +856,7 @@ class AsyncSession:
                     option = command[7:-1]
                     await self.toggle_option(option)
                 elif command.startswith("Trace("):
-                    on = command[6:-1].lower() == 'on'
+                    on = command[6:-1].lower() == "on"
                     await self.trace(on)
                 elif command.startswith("Transfer("):
                     file = command[9:-1]
@@ -954,7 +954,9 @@ class AsyncSession:
             ebcdic_bytes = self.ebcdic(content)  # Assuming ebcdic method exists
             modified_bytes.append((pos, ebcdic_bytes))
 
-        input_stream = sender.build_input_stream(modified_bytes, aid, self.screen_buffer.cols)
+        input_stream = sender.build_input_stream(
+            modified_bytes, aid, self.screen_buffer.cols
+        )
         await self.send(input_stream)
         # Reset modified flags for sent fields
         for field in self.screen_buffer.fields:
@@ -972,6 +974,7 @@ class AsyncSession:
             ASCII string.
         """
         from .emulation.ebcdic import translate_ebcdic_to_ascii
+
         return translate_ebcdic_to_ascii(data)
 
     def ebcdic(self, text: str) -> bytes:
@@ -985,6 +988,7 @@ class AsyncSession:
             EBCDIC bytes.
         """
         from .emulation.ebcdic import translate_ascii_to_ebcdic
+
         return translate_ascii_to_ebcdic(text)
 
     def ascii1(self, byte_val: int) -> str:
@@ -998,6 +1002,7 @@ class AsyncSession:
             ASCII character.
         """
         from .emulation.ebcdic import translate_ebcdic_to_ascii
+
         return translate_ebcdic_to_ascii(bytes([byte_val]))
 
     def ebcdic1(self, char: str) -> int:
@@ -1011,6 +1016,7 @@ class AsyncSession:
             EBCDIC byte value.
         """
         from .emulation.ebcdic import translate_ascii_to_ebcdic
+
         ebcdic_bytes = translate_ascii_to_ebcdic(char)
         return ebcdic_bytes[0] if ebcdic_bytes else 0
 
@@ -1213,7 +1219,7 @@ class AsyncSession:
         """Erase all input fields (s3270 EraseInput() action)."""
         for field in self.screen_buffer.fields:
             if not field.protected:
-                field.content = b'\x40' * len(field.content)  # Space
+                field.content = b"\x40" * len(field.content)  # Space
                 field.modified = True
 
     async def delete_field(self) -> None:
@@ -1291,7 +1297,9 @@ class AsyncSession:
 
     async def info(self) -> None:
         """Display session information (s3270 Info() action)."""
-        print(f"Connected: {self._connected}, TN3270 mode: {self.tn3270_mode}, LU: {self._lu_name}")
+        print(
+            f"Connected: {self._connected}, TN3270 mode: {self.tn3270_mode}, LU: {self._lu_name}"
+        )
 
     async def quit(self) -> None:
         """Quit the session (s3270 Quit() action)."""
@@ -1335,6 +1343,7 @@ class AsyncSession:
     async def pause(self, seconds: float = 1.0) -> None:
         """Pause for seconds (s3270 Pause() action)."""
         import asyncio
+
         await asyncio.sleep(seconds)
 
     async def ansi_text(self, data: bytes) -> str:
@@ -1372,7 +1381,7 @@ class AsyncSession:
     async def nvt_text(self, text: str) -> None:
         """Send NVT text (s3270 NvtText() action)."""
         # Send as ASCII
-        data = text.encode('ascii')
+        data = text.encode("ascii")
         await self.send(data)
 
     async def print_text(self, text: str) -> None:

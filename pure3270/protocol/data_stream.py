@@ -303,8 +303,6 @@ class DataStreamSender:
         stream = bytearray([aid])
         return bytes(stream)
 
-
-
     def build_input_stream(
         self,
         modified_fields: List[Tuple[Tuple[int, int], bytes]],
