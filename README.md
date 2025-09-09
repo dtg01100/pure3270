@@ -1,6 +1,6 @@
 # Pure3270: Pure Python 3270 Terminal Emulation Library
 
-[![codecov](https://codecov.io/gh/dlafreniere/pure3270/branch/main/graph/badge.svg?token=YOUR_CODECOV_TOKEN)](https://codecov.io/gh/dlafreniere/pure3270)
+[![Coverage Status](https://coveralls.io/repos/github/dlafreniere/pure3270/badge.svg?branch=main)](https://coveralls.io/github/dlafreniere/pure3270?branch=main)
 [![Linting](https://img.shields.io/badge/linting-pass-brightgreen)](https://img.shields.io/badge/linting-pass-brightgreen)
 
 Pure3270 is a self-contained, pure Python 3.8+ implementation of a 3270 terminal emulator, designed to emulate the functionality of the `s3270` terminal emulator. It integrates seamlessly with the `p3270` library through runtime monkey-patching, allowing you to replace `p3270`'s dependency on the external `s3270` binary without complex setup. The library uses standard asyncio for networking with no external telnet dependencies and supports TN3270 and TN3270E protocols, full 3270 emulation (screen buffer, fields, keyboard simulation), and optional SSL/TLS.
