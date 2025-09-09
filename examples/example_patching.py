@@ -17,22 +17,24 @@ from pure3270.protocol.tn3270_handler import TN3270Handler
 
 # Setup logging to see patching logs
 from pure3270 import setup_logging
-setup_logging(level='DEBUG')
+
+setup_logging(level="DEBUG")
 
 parser = argparse.ArgumentParser(
-    description='Patching demonstration for pure3270 with p3270.'
+    description="Patching demonstration for pure3270 with p3270."
 )
-parser.add_argument('--host', default='localhost', help='Host to connect to')
-parser.add_argument('--port', type=int, default=23, help='Port to connect to')
-parser.add_argument('--user', default='guest', help='Username for login')
+parser.add_argument("--host", default="localhost", help="Host to connect to")
+parser.add_argument("--port", type=int, default=23, help="Port to connect to")
+parser.add_argument("--user", default="guest", help="Username for login")
+parser.add_argument("--password", default="guest", help="Password for login")
 parser.add_argument(
-    '--password', default='guest', help='Password for login'
+    "--ssl", action="store_true", default=False, help="Use SSL connection"
 )
-parser.add_argument('--ssl', action='store_true', default=False, help='Use SSL connection')
 args = parser.parse_args()
 
 # Enable the replacement patching
 from pure3270 import enable_replacement
+
 manager = enable_replacement(
     patch_sessions=True, patch_commands=True, strict_version=False
 )
@@ -40,6 +42,7 @@ manager = enable_replacement(
 try:
     # Import p3270 after patching
     import p3270
+
     print("p3270 imported successfully after patching.")
 
     # Create a client - this should use pure3270 under the hood
@@ -47,13 +50,14 @@ try:
     print("p3270.P3270Client created - patching applied.")
 
     # Verify patching by checking if the session has a _pure_session attribute (from patch)
-    if hasattr(session, '_pure_session'):
+    if hasattr(session, "_pure_session"):
         print("Patching verified: _pure_session attribute present.")
     else:
         print("Warning: Patching may not have applied fully (check logs).")
 
     # Temporarily patch TN3270Handler.connect to export initial login screen
     from pure3270.protocol.tn3270_handler import TN3270Handler
+
     logger = logging.getLogger("pure3270.protocol.tn3270_handler")
 
     async def patched_connect(self):
@@ -66,13 +70,15 @@ try:
                 self.reader, self.writer = await asyncio.open_connection(
                     self.host, self.port
                 )
-            wont_environ = b'\xff\xfc\x27'  # IAC WONT ENVIRON
+            wont_environ = b"\xff\xfc\x27"  # IAC WONT ENVIRON
             self.writer.write(wont_environ)
             await self.writer.drain()
             # Read and capture initial response (login screen)
             try:
-                initial_data = await asyncio.wait_for(self.reader.read(1024), timeout=1.0)
-                screen_text = initial_data.decode('ascii', errors='ignore')
+                initial_data = await asyncio.wait_for(
+                    self.reader.read(1024), timeout=1.0
+                )
+                screen_text = initial_data.decode("ascii", errors="ignore")
                 print(
                     f"Initial login screen content (first 200 chars): "
                     f"{screen_text[:200]}"
@@ -86,10 +92,9 @@ try:
             # Capture post-negotiation screen for debugging
             try:
                 post_data = await asyncio.wait_for(self.reader.read(1024), timeout=1.0)
-                post_text = post_data.decode('ascii', errors='ignore')
+                post_text = post_data.decode("ascii", errors="ignore")
                 print(
-                    f"Post-negotiation content (first 200 chars): "
-                    f"{post_text[:200]}"
+                    f"Post-negotiation content (first 200 chars): " f"{post_text[:200]}"
                 )
                 logger.info(f"Post-negotiation data captured")
             except asyncio.TimeoutError:
@@ -107,9 +112,9 @@ try:
         session.connect(args.host, port=args.port, ssl=args.ssl)
         # Perform login with test credentials
         session.send(args.user)
-        session.send('key Enter')
+        session.send("key Enter")
         session.send(args.password)
-        session.send('key Enter')
+        session.send("key Enter")
         time.sleep(2)
         screen = session.read()
         print(f"Screen after login attempt: {screen[:200]}...")
@@ -117,15 +122,19 @@ try:
         print(f"Connection or login failed: {e}")
 
     # Close the session
-    if hasattr(session, '_pure_session'):
+    if hasattr(session, "_pure_session"):
         session._pure_session.close()
         print("Session closed via pure_session.")
     else:
         print("Session close skipped (no _pure_session).")
 
 except ImportError:
-    print("p3270 not installed. Patching simulates with mocks (check logs for details).")
+    print(
+        "p3270 not installed. Patching simulates with mocks (check logs for details)."
+    )
     print("Install with: pip install p3270")
     print("Patching still applied for when p3270 is available.")
 
-print("Patching demonstration complete. Check logs above for patch application details.")
+print(
+    "Patching demonstration complete. Check logs above for patch application details."
+)

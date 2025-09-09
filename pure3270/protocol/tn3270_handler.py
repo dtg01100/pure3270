@@ -14,19 +14,25 @@ from .exceptions import NegotiationError, ProtocolError, ParseError
 
 logger = logging.getLogger(__name__)
 
+
 class TN3270Handler:
     """
     Handler for TN3270 protocol over Telnet.
-    
+
     Manages stream I/O, negotiation, and data parsing for 3270 emulation.
     """
 
-    async def connect(self, host: Optional[str] = None, port: Optional[int] = None, ssl_context: Optional[ssl.SSLContext] = None) -> None:
+    async def connect(
+        self,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        ssl_context: Optional[ssl.SSLContext] = None,
+    ) -> None:
         """Connect the handler."""
         # If already have reader/writer (from fixture), validate and mark as connected
         if self.reader is not None and self.writer is not None:
             # Add stream validation
-            if not hasattr(self.reader, 'read') or not hasattr(self.writer, 'write'):
+            if not hasattr(self.reader, "read") or not hasattr(self.writer, "write"):
                 raise ValueError("Invalid reader or writer objects")
             self._connected = True
             return
@@ -37,11 +43,13 @@ class TN3270Handler:
             connect_port = port or self.port
             connect_ssl = ssl_context or self.ssl_context
 
-            reader, writer = await asyncio.open_connection(connect_host, connect_port, ssl=connect_ssl)
+            reader, writer = await asyncio.open_connection(
+                connect_host, connect_port, ssl=connect_ssl
+            )
             # Validate streams
             if reader is None or writer is None:
                 raise ConnectionError("Failed to obtain valid reader/writer")
-            if not hasattr(reader, 'read') or not hasattr(writer, 'write'):
+            if not hasattr(reader, "read") or not hasattr(writer, "write"):
                 raise ConnectionError("Invalid stream objects returned")
 
             self.reader = reader
@@ -54,7 +62,14 @@ class TN3270Handler:
             logger.error(f"Connection failed: {e}")
             raise ConnectionError(f"Failed to connect: {e}")
 
-    def __init__(self, reader: Optional[asyncio.StreamReader], writer: Optional[asyncio.StreamWriter], ssl_context: Optional[ssl.SSLContext] = None, host: str = "localhost", port: int = 23):
+    def __init__(
+        self,
+        reader: Optional[asyncio.StreamReader],
+        writer: Optional[asyncio.StreamWriter],
+        ssl_context: Optional[ssl.SSLContext] = None,
+        host: str = "localhost",
+        port: int = 23,
+    ):
         """
         Initialize the TN3270 handler.
 
@@ -86,15 +101,15 @@ class TN3270Handler:
     async def negotiate(self) -> None:
         """
         Perform initial Telnet negotiation.
-        
+
         Sends DO TERMINAL-TYPE and waits for responses.
-        
+
         Raises:
             NegotiationError: If negotiation fails.
         """
         if self.writer is None:
             raise ProtocolError("Writer is None; cannot negotiate.")
-        send_iac(self.writer, b'\xff\xfd\x27')  # DO TERMINAL-TYPE
+        send_iac(self.writer, b"\xff\xfd\x27")  # DO TERMINAL-TYPE
         await self.writer.drain()
         # Handle response (simplified)
         data = await self._read_iac()
@@ -113,19 +128,21 @@ class TN3270Handler:
         if self.writer is None:
             raise ProtocolError("Writer is None; cannot negotiate TN3270.")
         # Send TN3270E subnegotiation
-        tn3270e_request = b'\x00\x00\x01\x00\x00\x18\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
-        send_subnegotiation(self.writer, b'\x19', tn3270e_request)
+        tn3270e_request = b"\x00\x00\x01\x00\x00\x18\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+        send_subnegotiation(self.writer, b"\x19", tn3270e_request)
         await self.writer.drain()
         # Parse response
         try:
             response = await self.receive_data(10.0)
-            if b'\x28' in response or b'\xff\xfb\x24' in response:  # TN3270E positive response
+            if (
+                b"\x28" in response or b"\xff\xfb\x24" in response
+            ):  # TN3270E positive response
                 self.negotiated_tn3270e = True
                 self.parser.parse(response)
                 logger.info("TN3270E negotiation successful")
-                
+
                 # Check if this is a printer session based on LU name or BIND response
-                if self.lu_name and ('LTR' in self.lu_name or 'PTR' in self.lu_name):
+                if self.lu_name and ("LTR" in self.lu_name or "PTR" in self.lu_name):
                     self.is_printer_session = True
                     logger.info(f"Printer session detected for LU: {self.lu_name}")
             else:
@@ -144,7 +161,7 @@ class TN3270Handler:
     def set_ascii_mode(self) -> None:
         """
         Set the handler to ASCII mode fallback.
-        
+
         Disables EBCDIC processing.
         """
         self._ascii_mode = True
@@ -152,10 +169,10 @@ class TN3270Handler:
     async def send_data(self, data: bytes) -> None:
         """
         Send data over the connection.
-        
+
         Args:
             data: Bytes to send.
-        
+
         Raises:
             ProtocolError: If writer is None or send fails.
         """
@@ -195,29 +212,29 @@ class TN3270Handler:
             logger.warning(f"Failed to parse received data: {e}")
             # Continue with raw data if parsing fails
         # Strip EOR if present
-        if b'\xff\x19' in data:
-            data = data.split(b'\xff\x19')[0]
+        if b"\xff\x19" in data:
+            data = data.split(b"\xff\x19")[0]
         return data
 
     async def send_scs_data(self, scs_data: bytes) -> None:
         """
         Send SCS character data for printer sessions.
-        
+
         Args:
             scs_data: SCS character data to send
-            
+
         Raises:
             ProtocolError: If not connected or not a printer session
         """
-        if not self.is_connected():
+        if not self._connected:
             raise ProtocolError("Not connected")
-            
+
         if not self.is_printer_session:
             raise ProtocolError("Not a printer session")
-            
+
         if self.writer is None:
             raise ProtocolError("Writer is None; cannot send SCS data.")
-            
+
         # Send SCS data
         self.writer.write(scs_data)
         await self.writer.drain()
@@ -226,23 +243,24 @@ class TN3270Handler:
     async def send_print_eoj(self) -> None:
         """
         Send PRINT-EOJ (End of Job) command for printer sessions.
-        
+
         Raises:
             ProtocolError: If not connected or not a printer session
         """
-        if not self.is_connected():
+        if not self._connected:
             raise ProtocolError("Not connected")
-            
+
         if not self.is_printer_session:
             raise ProtocolError("Not a printer session")
-            
+
         from .data_stream import DataStreamSender
+
         sender = DataStreamSender()
         eoj_command = sender.build_scs_ctl_codes(0x01)  # PRINT_EOJ
-        
+
         if self.writer is None:
             raise ProtocolError("Writer is None; cannot send PRINT-EOJ.")
-            
+
         self.writer.write(eoj_command)
         await self.writer.drain()
         logger.debug("Sent PRINT-EOJ command")
@@ -250,10 +268,10 @@ class TN3270Handler:
     async def _read_iac(self) -> bytes:
         """
         Read IAC (Interpret As Command) sequence.
-        
+
         Returns:
             IAC response bytes.
-        
+
         Raises:
             ParseError: If IAC parsing fails.
         """
@@ -274,25 +292,25 @@ class TN3270Handler:
 
     def is_connected(self) -> bool:
         """Check if the handler is connected."""
-        if not (self._connected and self.writer is not None and self.reader is not None):
-            return False
-        # Liveness check: try to check if writer is still open
-        try:
-            # Check if writer has is_closing method (asyncio.StreamWriter)
-            if hasattr(self.writer, 'is_closing') and self.writer.is_closing():
+        if self._connected and self.writer is not None and self.reader is not None:
+            # Liveness check: try to check if writer is still open
+            try:
+                # Check if writer has is_closing method (asyncio.StreamWriter)
+                if hasattr(self.writer, "is_closing") and self.writer.is_closing():
+                    return False
+                # Check if reader has at_eof method (asyncio.StreamReader)
+                if hasattr(self.reader, "at_eof") and self.reader.at_eof():
+                    return False
+            except Exception:
+                # If liveness check fails, assume not connected
                 return False
-            # Check if reader has at_eof method (asyncio.StreamReader)
-            if hasattr(self.reader, 'at_eof') and self.reader.at_eof():
-                return False
-        except Exception:
-            # If liveness check fails, assume not connected
-            return False
-        return True
+            return True
+        return False
 
     def is_printer_session_active(self) -> bool:
         """
         Check if this is a printer session.
-        
+
         Returns:
             bool: True if this is a printer session
         """

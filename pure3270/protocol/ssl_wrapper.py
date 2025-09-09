@@ -6,19 +6,23 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+
 class SSLError(Exception):
     """Error during SSL operations."""
+
     pass
+
 
 class SSLWrapper:
     """Layers SSL/TLS on top of asyncio connections using Python's ssl module."""
+
     """Layers SSL/TLS on top of asyncio connections using Python's ssl module."""
 
     def __init__(
         self,
         verify: bool = True,
         cafile: Optional[str] = None,
-        capath: Optional[str] = None
+        capath: Optional[str] = None,
     ):
         """
         Initialize the SSLWrapper.
@@ -80,9 +84,7 @@ class SSLWrapper:
         # Since asyncio supports SSL natively, this method is for compatibility or custom wrapping.
         # For basics, log and return original.
         self.get_context()  # Ensure context is created
-        logger.info(
-            "Using native asyncio SSL support; no additional wrapping needed"
-        )
+        logger.info("Using native asyncio SSL support; no additional wrapping needed")
         return telnet_connection
 
     def get_context(self) -> ssl.SSLContext:
@@ -94,6 +96,7 @@ class SSLWrapper:
     def decrypt(self, encrypted_data: bytes) -> bytes:
         """Stub for decrypting data (for testing)."""
         return encrypted_data
+
 
 # Usage example (for docstrings):
 # wrapper = SSLWrapper(verify=True)

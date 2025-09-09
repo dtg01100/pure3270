@@ -1,39 +1,46 @@
 import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
-from pure3270.protocol.tn3270_handler import TN3270Handler, ProtocolError, NegotiationError
+from pure3270.protocol.tn3270_handler import (
+    TN3270Handler,
+    ProtocolError,
+    NegotiationError,
+)
 from pure3270.protocol.ssl_wrapper import SSLWrapper
+
 
 class TestTN3270Handler:
     @pytest.mark.asyncio
-    @patch('asyncio.open_connection')
+    @patch("asyncio.open_connection")
     async def test_connect_non_ssl(self, mock_open, tn3270_handler):
         mock_reader = AsyncMock()
         mock_writer = AsyncMock()
-        mock_reader.read.return_value = b''  # Initial data
+        mock_reader.read.return_value = b""  # Initial data
         mock_open.return_value = (mock_reader, mock_writer)
-        with patch.object(tn3270_handler, '_negotiate_tn3270'):
+        with patch.object(tn3270_handler, "_negotiate_tn3270"):
             await tn3270_handler.connect()
         mock_open.assert_called_with(tn3270_handler.host, tn3270_handler.port, ssl=None)
         assert tn3270_handler.reader == mock_reader
         assert tn3270_handler.writer == mock_writer
 
     @pytest.mark.asyncio
-    @patch('asyncio.open_connection')
+    @patch("asyncio.open_connection")
     async def test_connect_ssl(self, mock_open, tn3270_handler):
         ssl_wrapper = SSLWrapper()
         ssl_context = ssl_wrapper.get_context()
         tn3270_handler.ssl_context = ssl_context
         mock_reader = AsyncMock()
         mock_writer = AsyncMock()
-        mock_reader.read.return_value = b''  # Initial data
+        mock_reader.read.return_value = b""  # Initial data
         mock_open.return_value = (mock_reader, mock_writer)
-        with patch.object(tn3270_handler, '_negotiate_tn3270'):
+        with patch.object(tn3270_handler, "_negotiate_tn3270"):
             await tn3270_handler.connect()
-        mock_open.assert_called_with(tn3270_handler.host, tn3270_handler.port, ssl=ssl_context)
+        mock_open.assert_called_with(
+            tn3270_handler.host, tn3270_handler.port, ssl=ssl_context
+        )
 
     @pytest.mark.asyncio
-    @patch('asyncio.open_connection')
+    @patch("asyncio.open_connection")
     async def test_connect_error(self, mock_open, tn3270_handler):
         mock_open.side_effect = Exception("Connection failed")
         with pytest.raises(ConnectionError):
@@ -44,15 +51,15 @@ class TestTN3270Handler:
         tn3270_handler.reader = AsyncMock()
         tn3270_handler.writer = AsyncMock()
         tn3270_handler.writer.drain = AsyncMock()
-        
+
         # Mock the negotiation sequence
         tn3270_handler.reader.read.side_effect = [
-            b'\xff\xfb\x24',  # WILL TN3270E
-            b'\xff\xfa\x18\x00\x02IBM-3279-4-E\xff\xf0',  # DEVICE_TYPE IS
-            b'\xff\xfa\x18\x01\x02\x15\xff\xf0',  # FUNCTIONS IS
-            b'\xff\xfb\x19',  # WILL EOR
+            b"\xff\xfb\x24",  # WILL TN3270E
+            b"\xff\xfa\x18\x00\x02IBM-3279-4-E\xff\xf0",  # DEVICE_TYPE IS
+            b"\xff\xfa\x18\x01\x02\x15\xff\xf0",  # FUNCTIONS IS
+            b"\xff\xfb\x19",  # WILL EOR
         ]
-        
+
         await tn3270_handler._negotiate_tn3270()
         assert tn3270_handler.negotiated_tn3270e is True
 
@@ -61,16 +68,16 @@ class TestTN3270Handler:
         tn3270_handler.reader = AsyncMock()
         tn3270_handler.writer = AsyncMock()
         tn3270_handler.writer.drain = AsyncMock()
-        
+
         # Mock failure response - WONT TN3270E
-        tn3270_handler.reader.read.return_value = b'\xff\xfc\x24'  # WONT TN3270E
-        
+        tn3270_handler.reader.read.return_value = b"\xff\xfc\x24"  # WONT TN3270E
+
         await tn3270_handler._negotiate_tn3270()
         assert tn3270_handler.negotiated_tn3270e is False
 
     @pytest.mark.asyncio
     async def test_send_data(self, tn3270_handler):
-        data = b'\x7D'
+        data = b"\x7d"
         tn3270_handler.writer = AsyncMock()
         tn3270_handler.writer.drain = AsyncMock()
         await tn3270_handler.send_data(data)
@@ -80,13 +87,13 @@ class TestTN3270Handler:
     async def test_send_data_not_connected(self, tn3270_handler):
         tn3270_handler.writer = None
         with pytest.raises(ProtocolError):
-            await tn3270_handler.send_data(b'')
+            await tn3270_handler.send_data(b"")
 
     @pytest.mark.asyncio
     async def test_receive_data(self, tn3270_handler):
-        data = b'\xC1\xC2'
+        data = b"\xc1\xc2"
         tn3270_handler.reader = AsyncMock()
-        tn3270_handler.reader.read.return_value = data + b'\xff\x19'  # Add EOR marker
+        tn3270_handler.reader.read.return_value = data + b"\xff\x19"  # Add EOR marker
         received = await tn3270_handler.receive_data()
         assert received == data
 
@@ -114,6 +121,7 @@ class TestTN3270Handler:
         tn3270_handler.reader.at_eof = MagicMock(return_value=False)
         tn3270_handler._connected = True
         assert tn3270_handler.is_connected() is True
+
     def test_is_connected_writer_closing(self, tn3270_handler):
         tn3270_handler.writer = MagicMock()
         tn3270_handler.reader = MagicMock()
@@ -130,7 +138,6 @@ class TestTN3270Handler:
         tn3270_handler._connected = True
         assert tn3270_handler.is_connected() is False
 
-
     @pytest.mark.asyncio
     async def test_tn3270e_negotiation_with_fallback(self, tn3270_handler):
         """
@@ -144,8 +151,8 @@ class TestTN3270Handler:
 
         # Mock responses: WONT TN3270E
         tn3270_handler.reader.read.side_effect = [
-            b'\xff\xfc\x24',  # WONT TN3270E
-            b'\xff\xfb\x19',  # WILL EOR
+            b"\xff\xfc\x24",  # WONT TN3270E
+            b"\xff\xfb\x19",  # WILL EOR
         ]
 
         # Call negotiate
@@ -160,8 +167,9 @@ class TestTN3270Handler:
         tn3270_handler._connected = True
         tn3270_handler.is_printer_session = True
         tn3270_handler.writer = AsyncMock()
+        tn3270_handler.reader = AsyncMock()
         tn3270_handler.writer.drain = AsyncMock()
-        
+
         await tn3270_handler.send_scs_data(b"printer data")
         tn3270_handler.writer.write.assert_called_with(b"printer data")
         tn3270_handler.writer.drain.assert_awaited_once()
@@ -170,7 +178,7 @@ class TestTN3270Handler:
     async def test_send_scs_data_not_printer_session(self, tn3270_handler):
         tn3270_handler._connected = True
         tn3270_handler.is_printer_session = False
-        
+
         with pytest.raises(ProtocolError):
             await tn3270_handler.send_scs_data(b"printer data")
 
@@ -179,8 +187,9 @@ class TestTN3270Handler:
         tn3270_handler._connected = True
         tn3270_handler.is_printer_session = True
         tn3270_handler.writer = AsyncMock()
+        tn3270_handler.reader = AsyncMock()
         tn3270_handler.writer.drain = AsyncMock()
-        
+
         await tn3270_handler.send_print_eoj()
         # Should send SCS-CTL-CODES with PRINT-EOJ (0x01)
         tn3270_handler.writer.write.assert_called()
@@ -190,13 +199,13 @@ class TestTN3270Handler:
     async def test_send_print_eoj_not_printer_session(self, tn3270_handler):
         tn3270_handler._connected = True
         tn3270_handler.is_printer_session = False
-        
+
         with pytest.raises(ProtocolError):
             await tn3270_handler.send_print_eoj()
 
     def test_is_printer_session_active(self, tn3270_handler):
         tn3270_handler.is_printer_session = False
         assert tn3270_handler.is_printer_session_active() is False
-        
+
         tn3270_handler.is_printer_session = True
         assert tn3270_handler.is_printer_session_active() is True

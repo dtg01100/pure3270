@@ -2,10 +2,15 @@ import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 from pure3270.protocol.data_stream import DataStreamParser, ParseError
-from pure3270.protocol.tn3270_handler import TN3270Handler, ProtocolError, NegotiationError
+from pure3270.protocol.tn3270_handler import (
+    TN3270Handler,
+    ProtocolError,
+    NegotiationError,
+)
 from pure3270.protocol.ssl_wrapper import SSLWrapper, SSLError
 from pure3270.emulation.screen_buffer import ScreenBuffer
 import ssl
+
 
 class TestDataStreamParser:
     def test_init(self, data_stream_parser):
@@ -16,58 +21,58 @@ class TestDataStreamParser:
         assert data_stream_parser.aid is None
 
     def test_parse_wcc(self, data_stream_parser):
-        sample_data = b'\xF5\xC1'  # WCC 0xC1
+        sample_data = b"\xf5\xc1"  # WCC 0xC1
         data_stream_parser.parse(sample_data)
         assert data_stream_parser.wcc == 0xC1
         # Check if clear was called if bit set
         assert data_stream_parser.screen.buffer == bytearray(1920)  # cleared if bit 0
 
     def test_parse_aid(self, data_stream_parser):
-        sample_data = b'\xF6\x7D'  # AID Enter 0x7D
+        sample_data = b"\xf6\x7d"  # AID Enter 0x7D
         data_stream_parser.parse(sample_data)
         assert data_stream_parser.aid == 0x7D
 
     def test_parse_sba(self, data_stream_parser):
-        sample_data = b'\x10\x00\x00'  # SBA to 0,0
-        with patch.object(data_stream_parser.screen, 'set_position'):
+        sample_data = b"\x10\x00\x00"  # SBA to 0,0
+        with patch.object(data_stream_parser.screen, "set_position"):
             data_stream_parser.parse(sample_data)
             data_stream_parser.screen.set_position.assert_called_with(0, 0)
 
     def test_parse_sf(self, data_stream_parser):
-        sample_data = b'\x1D\x40'  # SF protected
-        with patch.object(data_stream_parser.screen, 'write_char'):
+        sample_data = b"\x1d\x40"  # SF protected
+        with patch.object(data_stream_parser.screen, "write_char"):
             data_stream_parser.parse(sample_data)
             data_stream_parser.screen.write_char.assert_called_once()
 
     def test_parse_ra(self, data_stream_parser):
-        sample_data = b'\xF3\x40\x00\x05'  # RA space 5 times
+        sample_data = b"\xf3\x40\x00\x05"  # RA space 5 times
         data_stream_parser.parse(sample_data)
         # Assert logging or basic handling
 
     def test_parse_ge(self, data_stream_parser):
-        sample_data = b'\x29'  # GE
+        sample_data = b"\x29"  # GE
         data_stream_parser.parse(sample_data)
         # Assert debug log for unsupported
 
     def test_parse_write(self, data_stream_parser):
-        sample_data = b'\x05'  # Write
-        with patch.object(data_stream_parser.screen, 'clear'):
+        sample_data = b"\x05"  # Write
+        with patch.object(data_stream_parser.screen, "clear"):
             data_stream_parser.parse(sample_data)
             data_stream_parser.screen.clear.assert_called_once()
 
     def test_parse_data(self, data_stream_parser):
-        sample_data = b'\xC1\xC2'  # Data ABC
+        sample_data = b"\xc1\xc2"  # Data ABC
         data_stream_parser.parse(sample_data)
         # Check buffer updated
-        assert data_stream_parser.screen.buffer[0:2] == b'\xC1\xC2'
+        assert data_stream_parser.screen.buffer[0:2] == b"\xc1\xc2"
 
     def test_parse_bind(self, data_stream_parser):
-        sample_data = b'\x28' + b'\x00' * 10  # BIND stub
+        sample_data = b"\x28" + b"\x00" * 10  # BIND stub
         data_stream_parser.parse(sample_data)
         # Assert debug log
 
     def test_parse_incomplete(self, data_stream_parser):
-        sample_data = b'\xF5'  # Incomplete WCC
+        sample_data = b"\xf5"  # Incomplete WCC
         with pytest.raises(ParseError):
             data_stream_parser.parse(sample_data)
 
@@ -75,31 +80,33 @@ class TestDataStreamParser:
         data_stream_parser.aid = 0x7D
         assert data_stream_parser.get_aid() == 0x7D
 
+
 class TestDataStreamSender:
     def test_build_read_modified_all(self, data_stream_sender):
         stream = data_stream_sender.build_read_modified_all()
-        assert stream == b'\x7D\xF1'  # AID + Read Partition
+        assert stream == b"\x7d\xf1"  # AID + Read Partition
 
     def test_build_read_modified_fields(self, data_stream_sender):
         stream = data_stream_sender.build_read_modified_fields()
-        assert stream == b'\x7D\xF6\xF0'
+        assert stream == b"\x7d\xf6\xf0"
 
     def test_build_key_press(self, data_stream_sender):
         stream = data_stream_sender.build_key_press(0x7D)
-        assert stream == b'\x7D'
+        assert stream == b"\x7d"
 
     def test_build_write(self, data_stream_sender):
-        data = b'\xC1\xC2'
+        data = b"\xc1\xc2"
         stream = data_stream_sender.build_write(data)
-        assert stream.startswith(b'\xF5\xC1\x05')
-        assert b'\xC1\xC2' in stream
-        assert stream.endswith(b'\x0D')
+        assert stream.startswith(b"\xf5\xc1\x05")
+        assert b"\xc1\xc2" in stream
+        assert stream.endswith(b"\x0d")
 
     def test_build_sba(self, data_stream_sender):
         # Note: sender has no screen, but assume default
-        with patch('pure3270.protocol.data_stream.ScreenBuffer', rows=24, cols=80):
+        with patch("pure3270.protocol.data_stream.ScreenBuffer", rows=24, cols=80):
             stream = data_stream_sender.build_sba(0, 0)
-            assert stream == b'\x10\x00\x00'
+            assert stream == b"\x10\x00\x00"
+
 
 class TestSSLWrapper:
     def test_init(self, ssl_wrapper):
@@ -108,11 +115,11 @@ class TestSSLWrapper:
         assert ssl_wrapper.capath is None
         assert ssl_wrapper.context is None
 
-    @patch('ssl.SSLContext')
+    @patch("ssl.SSLContext")
     def test_create_context_verify(self, mock_ssl_context, ssl_wrapper):
         ctx = MagicMock()
         mock_ssl_context.return_value = ctx
-        with patch('ssl.PROTOCOL_TLS_CLIENT'):
+        with patch("ssl.PROTOCOL_TLS_CLIENT"):
             ssl_wrapper.create_context()
         mock_ssl_context.assert_called_once()
         assert ctx.check_hostname is True
@@ -120,17 +127,17 @@ class TestSSLWrapper:
         assert ctx.minimum_version == ssl.TLSVersion.TLSv1_2
         ctx.set_ciphers.assert_called_with("HIGH:!aNULL:!MD5")
 
-    @patch('ssl.SSLContext')
+    @patch("ssl.SSLContext")
     def test_create_context_no_verify(self, mock_ssl_context, ssl_wrapper):
         wrapper = SSLWrapper(verify=False)
         ctx = MagicMock()
         mock_ssl_context.return_value = ctx
-        with patch('ssl.PROTOCOL_TLS_CLIENT'):
+        with patch("ssl.PROTOCOL_TLS_CLIENT"):
             wrapper.create_context()
         ctx.check_hostname = False
         ctx.verify_mode = 0  # CERT_NONE
 
-    @patch('ssl.SSLContext')
+    @patch("ssl.SSLContext")
     def test_create_context_error(self, mock_ssl_context, ssl_wrapper):
         mock_ssl_context.side_effect = ssl.SSLError("Test error")
         with pytest.raises(SSLError):
@@ -142,7 +149,7 @@ class TestSSLWrapper:
         assert wrapped == telnet_conn  # Stub returns original
 
     def test_get_context(self, ssl_wrapper):
-        with patch.object(ssl_wrapper, 'create_context') as mock_create:
+        with patch.object(ssl_wrapper, "create_context") as mock_create:
             context = ssl_wrapper.get_context()
         mock_create.assert_called_once()
         assert context == ssl_wrapper.context
@@ -155,54 +162,57 @@ class TestSSLWrapper:
         """
         # Test the basic encryption workflow
         mock_connection = MagicMock()
-        
+
         # Call create_context through wrapper
-        with patch('ssl.SSLContext') as mock_ssl_context:
+        with patch("ssl.SSLContext") as mock_ssl_context:
             mock_context = MagicMock()
             mock_ssl_context.return_value = mock_context
             context = ssl_wrapper.get_context()  # This will call create_context
-            
+
         # Wrap connection
         wrapped = ssl_wrapper.wrap_connection(mock_connection)
-        
+
         # Test decrypt (which is a stub)
-        plain_text = b'plain_data'
-        encrypted_data = b'encrypted_data'
+        plain_text = b"plain_data"
+        encrypted_data = b"encrypted_data"
         decrypted = ssl_wrapper.decrypt(encrypted_data)
-        
+
         # Assert context was created and connection was handled
         assert ssl_wrapper.context is not None
         assert wrapped == mock_connection  # Stub returns original
         assert decrypted == encrypted_data  # Stub returns input
 
+
 @pytest.mark.asyncio
 class TestTN3270Handler:
-    @patch('asyncio.open_connection')
+    @patch("asyncio.open_connection")
     async def test_connect_non_ssl(self, mock_open, tn3270_handler):
         mock_reader = AsyncMock()
         mock_writer = AsyncMock()
-        mock_reader.read.return_value = b''  # Initial data
+        mock_reader.read.return_value = b""  # Initial data
         mock_open.return_value = (mock_reader, mock_writer)
-        with patch.object(tn3270_handler, '_negotiate_tn3270'):
+        with patch.object(tn3270_handler, "_negotiate_tn3270"):
             await tn3270_handler.connect()
         mock_open.assert_called_with(tn3270_handler.host, tn3270_handler.port, ssl=None)
         assert tn3270_handler.reader == mock_reader
         assert tn3270_handler.writer == mock_writer
 
-    @patch('asyncio.open_connection')
+    @patch("asyncio.open_connection")
     async def test_connect_ssl(self, mock_open, tn3270_handler):
         ssl_wrapper = SSLWrapper()
         ssl_context = ssl_wrapper.get_context()
         tn3270_handler.ssl_context = ssl_context
         mock_reader = AsyncMock()
         mock_writer = AsyncMock()
-        mock_reader.read.return_value = b''  # Initial data
+        mock_reader.read.return_value = b""  # Initial data
         mock_open.return_value = (mock_reader, mock_writer)
-        with patch.object(tn3270_handler, '_negotiate_tn3270'):
+        with patch.object(tn3270_handler, "_negotiate_tn3270"):
             await tn3270_handler.connect()
-        mock_open.assert_called_with(tn3270_handler.host, tn3270_handler.port, ssl=ssl_context)
+        mock_open.assert_called_with(
+            tn3270_handler.host, tn3270_handler.port, ssl=ssl_context
+        )
 
-    @patch('asyncio.open_connection')
+    @patch("asyncio.open_connection")
     async def test_connect_error(self, mock_open, tn3270_handler):
         mock_open.side_effect = Exception("Connection failed")
         with pytest.raises(ConnectionError):
@@ -212,15 +222,15 @@ class TestTN3270Handler:
         tn3270_handler.reader = AsyncMock()
         tn3270_handler.writer = AsyncMock()
         tn3270_handler.writer.drain = AsyncMock()
-        
+
         # Mock the negotiation sequence
         tn3270_handler.reader.read.side_effect = [
-            b'\xff\xfb\x24',  # WILL TN3270E
-            b'\xff\xfa\x18\x00\x02IBM-3279-4-E\xff\xf0',  # DEVICE_TYPE IS
-            b'\xff\xfa\x18\x01\x02\x15\xff\xf0',  # FUNCTIONS IS
-            b'\xff\xfb\x19',  # WILL EOR
+            b"\xff\xfb\x24",  # WILL TN3270E
+            b"\xff\xfa\x18\x00\x02IBM-3279-4-E\xff\xf0",  # DEVICE_TYPE IS
+            b"\xff\xfa\x18\x01\x02\x15\xff\xf0",  # FUNCTIONS IS
+            b"\xff\xfb\x19",  # WILL EOR
         ]
-        
+
         await tn3270_handler._negotiate_tn3270()
         assert tn3270_handler.negotiated_tn3270e is True
 
@@ -228,15 +238,15 @@ class TestTN3270Handler:
         tn3270_handler.reader = AsyncMock()
         tn3270_handler.writer = AsyncMock()
         tn3270_handler.writer.drain = AsyncMock()
-        
+
         # Mock failure response - WONT TN3270E
-        tn3270_handler.reader.read.return_value = b'\xff\xfc\x24'  # WONT TN3270E
-        
+        tn3270_handler.reader.read.return_value = b"\xff\xfc\x24"  # WONT TN3270E
+
         await tn3270_handler._negotiate_tn3270()
         assert tn3270_handler.negotiated_tn3270e is False
 
     async def test_send_data(self, tn3270_handler):
-        data = b'\x7D'
+        data = b"\x7d"
         tn3270_handler.writer = AsyncMock()
         tn3270_handler.writer.drain = AsyncMock()
         await tn3270_handler.send_data(data)
@@ -245,12 +255,12 @@ class TestTN3270Handler:
     async def test_send_data_not_connected(self, tn3270_handler):
         tn3270_handler.writer = None
         with pytest.raises(ProtocolError):
-            await tn3270_handler.send_data(b'')
+            await tn3270_handler.send_data(b"")
 
     async def test_receive_data(self, tn3270_handler):
-        data = b'\xC1\xC2'
+        data = b"\xc1\xc2"
         tn3270_handler.reader = AsyncMock()
-        tn3270_handler.reader.read.return_value = data + b'\xff\x19'  # Add EOR marker
+        tn3270_handler.reader.read.return_value = data + b"\xff\x19"  # Add EOR marker
         received = await tn3270_handler.receive_data()
         assert received == data
 
@@ -290,8 +300,8 @@ class TestTN3270Handler:
 
         # Mock responses: WONT TN3270E
         tn3270_handler.reader.read.side_effect = [
-            b'\xff\xfc\x24',  # WONT TN3270E
-            b'\xff\xfb\x19',  # WILL EOR
+            b"\xff\xfc\x24",  # WONT TN3270E
+            b"\xff\xfb\x19",  # WILL EOR
         ]
 
         # Call negotiate
@@ -301,60 +311,70 @@ class TestTN3270Handler:
         assert tn3270_handler.negotiated_tn3270e is False
         # No NegotiationError raised
 
+
 # Sample data streams fixtures
 @pytest.fixture
 def sample_wcc_stream():
-    return b'\xF5\xC1'  # WCC reset modified
+    return b"\xf5\xc1"  # WCC reset modified
+
 
 @pytest.fixture
 def sample_sba_stream():
-    return b'\x10\x00\x14'  # SBA to row 0 col 20
+    return b"\x10\x00\x14"  # SBA to row 0 col 20
+
 
 @pytest.fixture
 def sample_write_stream():
-    return b'\x05\xC1\xC2\xC3'  # Write ABC
+    return b"\x05\xc1\xc2\xc3"  # Write ABC
+
 
 def test_parse_sample_wcc(data_stream_parser, sample_wcc_stream):
     data_stream_parser.parse(sample_wcc_stream)
     assert data_stream_parser.wcc == 0xC1
 
+
 def test_parse_sample_sba(data_stream_parser, sample_sba_stream):
-    with patch.object(data_stream_parser.screen, 'set_position'):
+    with patch.object(data_stream_parser.screen, "set_position"):
         data_stream_parser.parse(sample_sba_stream)
         data_stream_parser.screen.set_position.assert_called_with(0, 20)
 
+
 def test_parse_sample_write(data_stream_parser, sample_write_stream):
-    with patch.object(data_stream_parser.screen, 'clear'):
+    with patch.object(data_stream_parser.screen, "clear"):
         data_stream_parser.parse(sample_write_stream)
         data_stream_parser.screen.clear.assert_called_once()
-    assert data_stream_parser.screen.buffer[0:3] == b'\xC1\xC2\xC3'
+    assert data_stream_parser.screen.buffer[0:3] == b"\xc1\xc2\xc3"
+
 
 # General tests: exceptions, logging, performance
 def test_parse_error(caplog):
     parser = DataStreamParser(ScreenBuffer())
-    with caplog.at_level('ERROR'):
+    with caplog.at_level("ERROR"):
         with pytest.raises(ParseError):
-            parser.parse(b'\xF5')  # Incomplete
-    assert 'Unexpected end' in caplog.text
+            parser.parse(b"\xf5")  # Incomplete
+    assert "Unexpected end" in caplog.text
+
 
 def test_protocol_error(caplog):
-    handler = TN3270Handler(None, None, None, 'host', 23)
+    handler = TN3270Handler(None, None, None, "host", 23)
     handler.writer = None
-    with caplog.at_level('ERROR'):
+    with caplog.at_level("ERROR"):
         with pytest.raises(Exception):  # Catch ProtocolError
-            asyncio.run(handler.send_data(b''))
-    assert 'Not connected' in caplog.text
+            asyncio.run(handler.send_data(b""))
+    assert "Not connected" in caplog.text
+
 
 def test_ssl_error(caplog):
     wrapper = SSLWrapper()
-    with patch('ssl.SSLContext', side_effect=ssl.SSLError('Test')):
-        with caplog.at_level('ERROR'):
+    with patch("ssl.SSLContext", side_effect=ssl.SSLError("Test")):
+        with caplog.at_level("ERROR"):
             with pytest.raises(SSLError):
                 wrapper.create_context()
-    assert 'SSL context creation failed' in caplog.text
+    assert "SSL context creation failed" in caplog.text
+
 
 # Performance: parse large stream (reduced size to avoid OOM)
 def test_performance_parse(data_stream_parser):
-    large_stream = b'\x05' + b'\x40' * 1000  # Reduced size to avoid OOM
+    large_stream = b"\x05" + b"\x40" * 1000  # Reduced size to avoid OOM
     data_stream_parser.parse(large_stream)
     # No benchmark to avoid OOM

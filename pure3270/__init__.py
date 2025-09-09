@@ -7,18 +7,15 @@ import logging
 from .session import Session, AsyncSession
 from .patching import enable_replacement
 
-def setup_logging(level='INFO'):
+
+def setup_logging(level="INFO"):
     """
     Setup basic logging configuration.
-    
+
     Args:
         level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     """
     logging.basicConfig(level=getattr(logging, level.upper()))
 
-__all__ = [
-    'Session',
-    'AsyncSession',
-    'enable_replacement',
-    'setup_logging'
-]
+
+__all__ = ["Session", "AsyncSession", "enable_replacement", "setup_logging"]

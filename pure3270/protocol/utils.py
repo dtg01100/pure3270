@@ -5,18 +5,19 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Telnet constants
-IAC = 0xff
-SB = 0xfa
-SE = 0xf0
-WILL = 0xfb
-WONT = 0xfc
-DO = 0xfd
-DONT = 0xfe
+IAC = 0xFF
+SB = 0xFA
+SE = 0xF0
+WILL = 0xFB
+WONT = 0xFC
+DO = 0xFD
+DONT = 0xFE
+
 
 def send_iac(writer, data: bytes) -> None:
     """
     Send IAC command.
-    
+
     Args:
         writer: StreamWriter.
         data: Data bytes after IAC.
@@ -25,10 +26,11 @@ def send_iac(writer, data: bytes) -> None:
         writer.write(bytes([IAC]) + data)
         writer.drain()
 
+
 def send_subnegotiation(writer, opt: bytes, data: bytes) -> None:
     """
     Send subnegotiation.
-    
+
     Args:
         writer: StreamWriter.
         opt: Option byte.
@@ -39,7 +41,10 @@ def send_subnegotiation(writer, opt: bytes, data: bytes) -> None:
         writer.write(sub)
         writer.drain()
 
-def strip_telnet_iac(data: bytes, handle_eor_ga: bool = False, enable_logging: bool = False) -> bytes:
+
+def strip_telnet_iac(
+    data: bytes, handle_eor_ga: bool = False, enable_logging: bool = False
+) -> bytes:
     """
     Strip Telnet IAC sequences from data.
 
@@ -66,7 +71,7 @@ def strip_telnet_iac(data: bytes, handle_eor_ga: bool = False, enable_logging: b
                 elif cmd in (WILL, WONT, DO, DONT):
                     i += 3
                     continue
-                elif handle_eor_ga and cmd in (0x19, 0xf9):  # EOR or GA
+                elif handle_eor_ga and cmd in (0x19, 0xF9):  # EOR or GA
                     if enable_logging:
                         if cmd == 0x19:
                             logger.debug("Stripping IAC EOR in fallback")

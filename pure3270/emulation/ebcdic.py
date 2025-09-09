@@ -151,15 +151,16 @@ for i in range(0xF0, 0xFA):
     EBCDIC_TO_ASCII[i] = 0x30 + (i - 0xF0)  # 0xF0 -> 0x30 '0', etc.
 
 # Override for substitute 0x7A to 'z' for round_trip test
-EBCDIC_TO_ASCII[0x7A] = ord('z')
+EBCDIC_TO_ASCII[0x7A] = ord("z")
 
 # Remove '?' mapping to make it unknown
-if ord('?') in ASCII_TO_EBCDIC:
-    del ASCII_TO_EBCDIC[ord('?')]
+if ord("?") in ASCII_TO_EBCDIC:
+    del ASCII_TO_EBCDIC[ord("?")]
 
 # Remove '?' from mapping to make it unknown
-if ord('?') in ASCII_TO_EBCDIC:
-    del ASCII_TO_EBCDIC[ord('?')]
+if ord("?") in ASCII_TO_EBCDIC:
+    del ASCII_TO_EBCDIC[ord("?")]
+
 
 class EBCDICCodec(codecs.Codec):
     """EBCDIC to ASCII codec for 3270 emulation."""
@@ -168,24 +169,28 @@ class EBCDICCodec(codecs.Codec):
         self.ebcdic_to_unicode_table = EBCDIC_TO_ASCII
         self.ebcdic_translate = EBCDIC_TO_ASCII
 
-    def encode(self, input: str, errors: str = 'strict'):
+    def encode(self, input: str, errors: str = "strict"):
         """Encode ASCII to EBCDIC."""
         logger.debug(f"Encoding input: {input}")
         output = bytearray()
         for char in input:
             code = ord(char)
-            ebcdic_code = ASCII_TO_EBCDIC.get(code, 0x7A)  # Default to EBCDIC substitute 0x7A for unknown
+            ebcdic_code = ASCII_TO_EBCDIC.get(
+                code, 0x7A
+            )  # Default to EBCDIC substitute 0x7A for unknown
             output.append(ebcdic_code)
         result = bytes(output)
         logger.debug(f"Encoded output: {result}")
         return result, len(input)
 
-    def decode(self, input: bytes, errors: str = 'strict'):
+    def decode(self, input: bytes, errors: str = "strict"):
         """Decode EBCDIC to ASCII."""
         logger.debug(f"Decoding input: {input}")
-        output = ''
+        output = ""
         for byte in input:
-            ascii_code = EBCDIC_TO_ASCII.get(byte, ord('z'))  # Default to 'z' for unknown
+            ascii_code = EBCDIC_TO_ASCII.get(
+                byte, ord("z")
+            )  # Default to 'z' for unknown
             output += chr(ascii_code)
         logger.debug(f"Decoded output: {output}")
         return output, len(input)
@@ -195,37 +200,40 @@ class EBCDICCodec(codecs.Codec):
         encoded, length = self.encode(input)
         return encoded
 
+
 def encode_field_attribute(attr: int) -> int:
     """
     Encode 3270 field attribute to EBCDIC.
-    
+
     Args:
         attr: Attribute code (e.g., 0xF1 for unprotected).
-    
+
     Returns:
         EBCDIC encoded attribute.
     """
     return attr  # In this implementation, attributes are direct; extend for specifics
 
+
 def translate_ebcdic_to_ascii(data: bytes) -> str:
     """
     Translate EBCDIC bytes to ASCII string.
-    
+
     Args:
         data: EBCDIC encoded bytes.
-    
+
     Returns:
         ASCII string.
     """
-    return ''.join(chr(EBCDIC_TO_ASCII.get(b, 0x20)) for b in data)
+    return "".join(chr(EBCDIC_TO_ASCII.get(b, 0x20)) for b in data)
+
 
 def translate_ascii_to_ebcdic(text: str) -> bytes:
     """
     Translate ASCII string to EBCDIC bytes.
-    
+
     Args:
         text: ASCII string.
-    
+
     Returns:
         EBCDIC bytes.
     """

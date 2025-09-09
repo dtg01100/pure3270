@@ -15,7 +15,8 @@ Enable SSL for secure connections (port 992 typically).
 
 # Setup logging to see session events
 from pure3270 import setup_logging, Session
-setup_logging(level='INFO')
+
+setup_logging(level="INFO")
 
 print("Starting standalone pure3270 session demonstration.")
 
@@ -24,18 +25,20 @@ session = Session(rows=24, cols=80)
 print("pure3270.Session created successfully.")
 
 # Mock connection parameters (replace for real)
-host = 'mock-tn3270-host.example.com'  # e.g., 'your-mainframe.example.com'
+host = "mock-tn3270-host.example.com"  # e.g., 'your-mainframe.example.com'
 port = 23  # 992 for SSL
 ssl = False  # Set True for TLS/SSL connections
 
 try:
     # Connect to the host
     session.connect(host, port=port, ssl=ssl)
-    print(f"Connected to {host}:{port} (mock - in reality, would handle TN3270 negotiation).")
+    print(
+        f"Connected to {host}:{port} (mock - in reality, would handle TN3270 negotiation)."
+    )
 
     # Send commands: Type a string and press Enter
-    session.send('String(User Login)')  # Simulate typing into a field
-    session.send('key Enter')  # Submit the input
+    session.send("String(User Login)")  # Simulate typing into a field
+    session.send("key Enter")  # Submit the input
     print("Sent commands: 'String(User Login)' + 'key Enter'.")
 
     # Optionally, execute a macro sequence

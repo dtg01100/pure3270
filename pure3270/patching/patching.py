@@ -14,16 +14,19 @@ from pure3270.session import AsyncSession as PureSession
 
 logger = logging.getLogger(__name__)
 
+
 class Pure3270PatchError(Exception):
     """Raised on patching errors."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         logger.error(args[0] if args else str(self))
 
+
 class MonkeyPatchManager:
     """
     Manager for applying monkey patches to modules.
-    
+
     Handles version checks and patch application for compatibility.
     """
 
@@ -44,13 +47,13 @@ class MonkeyPatchManager:
     def apply(self, module_name: str) -> bool:
         """
         Apply patches to a specific module.
-        
+
         Args:
             module_name: Name of the module to patch.
-        
+
         Returns:
             True if patches were applied successfully.
-        
+
         Raises:
             ValueError: If module not found or patching fails.
         """
@@ -75,7 +78,13 @@ class MonkeyPatchManager:
         self.patched[module_name] = replacement
         logger.info(f"Patched module: {module_name} -> {replacement.__name__}")
 
-    def _apply_method_patch(self, obj: Any, method_name: str, new_method: Any, docstring: Optional[str] = None) -> None:
+    def _apply_method_patch(
+        self,
+        obj: Any,
+        method_name: str,
+        new_method: Any,
+        docstring: Optional[str] = None,
+    ) -> None:
         original = getattr(obj, method_name, None)
         if isinstance(obj, type):
             class_name = obj.__name__
@@ -89,33 +98,50 @@ class MonkeyPatchManager:
         self.patched[key] = new_method
         logger.info(f"Added method: {class_name}.{method_name}")
 
-    def _check_version_compatibility(self, module: Any, expected_version: str = "0.3.0") -> bool:
-        actual_version = getattr(module, '__version__', None)
+    def _check_version_compatibility(
+        self, module: Any, expected_version: str = "0.3.0"
+    ) -> bool:
+        actual_version = getattr(module, "__version__", None)
         if actual_version != expected_version:
-            logger.warning(f"Version mismatch: expected {expected_version}, got {actual_version}")
+            logger.warning(
+                f"Version mismatch: expected {expected_version}, got {actual_version}"
+            )
             logger.info("Graceful degradation: proceeding with partial compatibility")
             return False
         return True
 
-    def apply_patches(self, patch_sessions: bool = True, patch_commands: bool = True, strict_version: bool = False, expected_version: str = "0.3.0") -> None:
+    def apply_patches(
+        self,
+        patch_sessions: bool = True,
+        patch_commands: bool = True,
+        strict_version: bool = False,
+        expected_version: str = "0.3.0",
+    ) -> None:
         try:
             import p3270
-            version_compatible = self._check_version_compatibility(p3270, expected_version)
+
+            version_compatible = self._check_version_compatibility(
+                p3270, expected_version
+            )
             if strict_version and not version_compatible:
-                raise Pure3270PatchError(f"Version incompatible: {getattr(p3270, '__version__', 'unknown')}")
+                raise Pure3270PatchError(
+                    f"Version incompatible: {getattr(p3270, '__version__', 'unknown')}"
+                )
             if not version_compatible and not strict_version:
-                logger.info("Graceful degradation: Version mismatch but continuing with patching")
+                logger.info(
+                    "Graceful degradation: Version mismatch but continuing with patching"
+                )
             if patch_sessions:
-                original = getattr(p3270, 'S3270', None)
-                self._store_original('p3270.S3270', original)
-                setattr(p3270, 'S3270', PureSession)
+                original = getattr(p3270, "S3270", None)
+                self._store_original("p3270.S3270", original)
+                setattr(p3270, "S3270", PureSession)
                 logger.info("Patched Session")
             logger.info("Patches applied")
         except ImportError as e:
             logger.warning(f"p3270 not installed: {e}")
             if strict_version:
                 raise Pure3270PatchError("p3270 required for strict mode")
-            self._store_original('p3270.S3270', None)
+            self._store_original("p3270.S3270", None)
         except Exception as e:
             logger.error(f"Patch error: {e}")
             raise Pure3270PatchError(str(e))
@@ -124,16 +150,16 @@ class MonkeyPatchManager:
         for key, original in self.originals.items():
             if original is None:
                 continue  # Skip None originals
-            if '.' in key:
+            if "." in key:
                 # Method patch
-                obj_name, method = key.rsplit('.', 1)
+                obj_name, method = key.rsplit(".", 1)
                 # Try to reconstruct the object from the name
                 try:
                     if obj_name in sys.modules:
                         obj = sys.modules[obj_name]
                     else:
                         # For class methods, try to find the class
-                        parts = obj_name.split('.')
+                        parts = obj_name.split(".")
                         obj = sys.modules.get(parts[0])
                         if obj and len(parts) > 1:
                             for part in parts[1:]:
@@ -153,14 +179,15 @@ class MonkeyPatchManager:
         self.patched.clear()
         logger.info("Unpatched all")
 
+
 @contextmanager
 def PatchContext(patches: Optional[Dict[str, Any]] = None):
     """
     Context manager for temporary patching.
-    
+
     Args:
         patches: Patches to apply.
-    
+
     Yields:
         Manager instance.
     """
@@ -171,8 +198,12 @@ def PatchContext(patches: Optional[Dict[str, Any]] = None):
         manager.unpatch()
 
 
-
-def enable_replacement(patch_sessions: bool = True, patch_commands: bool = True, strict_version: bool = False, expected_version: str = "0.3.0") -> MonkeyPatchManager:
+def enable_replacement(
+    patch_sessions: bool = True,
+    patch_commands: bool = True,
+    strict_version: bool = False,
+    expected_version: str = "0.3.0",
+) -> MonkeyPatchManager:
     """
     Enable replacement patching with version check.
 
@@ -186,7 +217,12 @@ def enable_replacement(patch_sessions: bool = True, patch_commands: bool = True,
         ValueError: If version or replacement fails.
     """
     manager = MonkeyPatchManager()
-    manager.apply_patches(patch_sessions=patch_sessions, patch_commands=patch_commands, strict_version=strict_version, expected_version=expected_version)
+    manager.apply_patches(
+        patch_sessions=patch_sessions,
+        patch_commands=patch_commands,
+        strict_version=strict_version,
+        expected_version=expected_version,
+    )
     return manager
 
 

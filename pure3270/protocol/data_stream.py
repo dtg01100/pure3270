@@ -1,5 +1,6 @@
 """Data stream parser and sender for 3270 protocol."""
 
+from typing import List, Tuple, Optional
 import logging
 from typing import Optional
 from ..emulation.screen_buffer import ScreenBuffer
@@ -162,7 +163,7 @@ class DataStreamParser:
         if self._pos < len(self._data):
             scs_code = self._data[self._pos]
             self._pos += 1
-            
+
             if scs_code == PRINT_EOJ:
                 logger.debug("SCS PRINT-EOJ received")
                 # Handle End of Job processing
@@ -197,7 +198,7 @@ class DataStreamParser:
     def _handle_scs_data(self, data: bytes):
         """
         Handle SCS character stream data for printer sessions.
-        
+
         :param data: SCS character data
         """
         # In a full implementation, this would process SCS character data
@@ -213,33 +214,6 @@ class DataStreamParser:
             col = 0
             row += 1
         self.screen.set_position(row, col)
-
-    def _handle_scs_ctl_codes(self):
-        """Handle SCS Control Codes for printer sessions."""
-        if self._pos < len(self._data):
-            scs_code = self._data[self._pos]
-            self._pos += 1
-            
-            if scs_code == PRINT_EOJ:
-                logger.debug("SCS PRINT-EOJ received")
-                # Handle End of Job processing
-                # In a real implementation, this would trigger printer job completion
-            else:
-                logger.debug(f"Unknown SCS control code: 0x{scs_code:02x}")
-        else:
-            logger.error("Unexpected end of data stream in SCS control codes")
-            raise ParseError("Unexpected end of data stream in SCS control codes")
-
-    def _handle_data_stream_ctl(self):
-        """Handle Data Stream Control for printer data streams."""
-        if self._pos < len(self._data):
-            ctl_code = self._data[self._pos]
-            self._pos += 1
-            logger.debug(f"Data Stream Control code: 0x{ctl_code:02x}")
-            # Implementation would handle specific data stream control functions
-        else:
-            logger.error("Unexpected end of data stream in data stream control")
-            raise ParseError("Unexpected end of data stream in data stream control")
 
 
 class DataStreamSender:
@@ -265,7 +239,7 @@ class DataStreamSender:
     def build_scs_ctl_codes(self, scs_code: int) -> bytes:
         """
         Build SCS Control Codes for printer sessions.
-        
+
         :param scs_code: SCS control code to send
         """
         return bytes([SCS_CTL_CODES, scs_code])
@@ -273,7 +247,7 @@ class DataStreamSender:
     def build_data_stream_ctl(self, ctl_code: int) -> bytes:
         """
         Build Data Stream Control command.
-        
+
         :param ctl_code: Data stream control code
         """
         return bytes([DATA_STREAM_CTL, ctl_code])
@@ -333,7 +307,7 @@ class DataStreamSender:
     def build_scs_ctl_codes(self, scs_code: int) -> bytes:
         """
         Build SCS Control Codes for printer sessions.
-        
+
         :param scs_code: SCS control code to send
         """
         return bytes([SCS_CTL_CODES, scs_code])
@@ -341,10 +315,37 @@ class DataStreamSender:
     def build_data_stream_ctl(self, ctl_code: int) -> bytes:
         """
         Build Data Stream Control command.
-        
+
         :param ctl_code: Data stream control code
         """
         return bytes([DATA_STREAM_CTL, ctl_code])
 
+    def get_aid(self) -> Optional[int]:
+        """Get the current AID value."""
+        return self.aid
 
-# Note: screen reference needed for build_sba; assume passed or global for basics
+    def build_input_stream(
+        self,
+        modified_fields: List[Tuple[Tuple[int, int], bytes]],
+        aid: int,
+        cols: int = 80,
+    ) -> bytes:
+        """
+        Build 3270 input data stream for modified fields and AID.
+
+        :param modified_fields: List of ((row, col), content_bytes) for each modified field.
+        :param aid: Attention ID byte for the key press.
+        :param cols: Number of columns for SBA calculation.
+        :return: Complete input data stream bytes.
+        """
+        stream = bytearray()
+        for start_pos, content in modified_fields:
+            row, col = start_pos
+            # SBA to field start
+            sba = self.build_sba(row, col, cols)
+            stream.extend(sba)
+            # Field data
+            stream.extend(content)
+        # Append AID
+        stream.append(aid)
+        return bytes(stream)

@@ -3,6 +3,7 @@
 from typing import List, Tuple, Optional
 from .ebcdic import EBCDICCodec
 
+
 class Field:
     """Represents a 3270 field with content, attributes, and boundaries."""
 
@@ -49,6 +50,7 @@ class Field:
 
     def __repr__(self) -> str:
         return f"Field(start={self.start}, end={self.end}, protected={self.protected})"
+
 
 class ScreenBuffer:
     """Manages the 3270 screen buffer, including characters, attributes, and fields."""
@@ -160,11 +162,13 @@ class ScreenBuffer:
                 elif in_field and protected:
                     in_field = False
                     end = (row, col - 1) if col > 0 else (row, self.cols - 1)
-                    content = bytes(self.buffer[pos - (col - start[1]):pos])
-                    self.fields.append(Field(start, end, protected=True, content=content))
+                    content = bytes(self.buffer[pos - (col - start[1]) : pos])
+                    self.fields.append(
+                        Field(start, end, protected=True, content=content)
+                    )
         if in_field:
             end = (self.rows - 1, self.cols - 1)
-            content = bytes(self.buffer[start[0] * self.cols + start[1]:])
+            content = bytes(self.buffer[start[0] * self.cols + start[1] :])
             self.fields.append(Field(start, end, protected=False, content=content))
 
     def to_text(self) -> str:
@@ -205,5 +209,17 @@ class ScreenBuffer:
                 modified.append((field.start, content))
         return modified
 
-    def __repr__(self) -> str:
-        return f"ScreenBuffer({self.rows}x{self.cols}, fields={len(self.fields)})"
+    def set_modified(self, row: int, col: int, modified: bool = True):
+        """Set modified flag for position."""
+        if 0 <= row < self.rows and 0 <= col < self.cols:
+            pos = row * self.cols + col
+            attr_offset = pos * 3 + 2  # Assume byte 2 for modified
+            self.attributes[attr_offset] = 0x01 if modified else 0x00
+
+    def is_position_modified(self, row: int, col: int) -> bool:
+        """Check if position is modified."""
+        if 0 <= row < self.rows and 0 <= col < self.cols:
+            pos = row * self.cols + col
+            attr_offset = pos * 3 + 2
+            return bool(self.attributes[attr_offset])
+        return False
