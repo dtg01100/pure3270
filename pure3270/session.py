@@ -40,7 +40,12 @@ class Session:
     All methods use asyncio.run() to execute async operations.
     """
 
-    def __init__(self, host: Optional[str] = None, port: int = 23, ssl_context: Optional[Any] = None):
+    def __init__(
+        self,
+        host: Optional[str] = None,
+        port: int = 23,
+        ssl_context: Optional[Any] = None,
+    ):
         """
         Initialize a synchronous session.
 
@@ -57,14 +62,19 @@ class Session:
         self._ssl_context = ssl_context
         self._async_session = None
 
-    def connect(self, host: Optional[str] = None, port: Optional[int] = None, ssl_context: Optional[Any] = None) -> None:
+    def connect(
+        self,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        ssl_context: Optional[Any] = None,
+    ) -> None:
         """Connect to the 3270 host synchronously.
-    
+
         Args:
             host: Optional host override.
             port: Optional port override (default 23).
             ssl_context: Optional SSL context override.
-    
+
         Raises:
             ConnectionError: If connection fails.
         """
@@ -80,10 +90,10 @@ class Session:
     def send(self, data: bytes) -> None:
         """
         Send data to the session.
-    
+
         Args:
             data: Bytes to send.
-    
+
         Raises:
             SessionError: If send fails.
         """
@@ -94,13 +104,13 @@ class Session:
     def read(self, timeout: float = 5.0) -> bytes:
         """
         Read data from the session.
-    
+
         Args:
             timeout: Read timeout in seconds.
-    
+
         Returns:
             Received bytes.
-    
+
         Raises:
             SessionError: If read fails.
         """
@@ -113,14 +123,14 @@ class Session:
     ) -> Dict[str, Any]:
         """
         Execute a macro synchronously.
-    
+
         Args:
             macro: Macro script to execute.
             vars: Optional dictionary for variable substitution.
-    
+
         Returns:
             Dict with execution results, e.g., {'success': bool, 'output': list}.
-    
+
         Raises:
             MacroError: If macro execution fails.
         """
@@ -133,11 +143,11 @@ class Session:
         if self._async_session:
             asyncio.run(self._async_session.close())
             self._async_session = None
-        
+
     def open(self, host: str, port: int = 23) -> None:
         """Open connection synchronously (s3270 Open() action)."""
         self.connect(host, port)
-        
+
     def close_script(self) -> None:
         """Close script synchronously (s3270 CloseScript() action)."""
         if self._async_session:
@@ -146,10 +156,10 @@ class Session:
     def ascii(self, data: bytes) -> str:
         """
         Convert EBCDIC data to ASCII text (s3270 Ascii() action).
-    
+
         Args:
             data: EBCDIC bytes to convert.
-    
+
         Returns:
             ASCII string representation.
         """
@@ -160,10 +170,10 @@ class Session:
     def ebcdic(self, text: str) -> bytes:
         """
         Convert ASCII text to EBCDIC data (s3270 Ebcdic() action).
-    
+
         Args:
             text: ASCII text to convert.
-    
+
         Returns:
             EBCDIC bytes representation.
         """
@@ -174,10 +184,10 @@ class Session:
     def ascii1(self, byte_val: int) -> str:
         """
         Convert a single EBCDIC byte to ASCII character (s3270 Ascii1() action).
-    
+
         Args:
             byte_val: EBCDIC byte value.
-    
+
         Returns:
             ASCII character.
         """
@@ -188,10 +198,10 @@ class Session:
     def ebcdic1(self, char: str) -> int:
         """
         Convert a single ASCII character to EBCDIC byte (s3270 Ebcdic1() action).
-    
+
         Args:
             char: ASCII character to convert.
-    
+
         Returns:
             EBCDIC byte value.
         """
@@ -202,10 +212,10 @@ class Session:
     def ascii_field(self, field_index: int) -> str:
         """
         Convert field content to ASCII text (s3270 AsciiField() action).
-    
+
         Args:
             field_index: Index of field to convert.
-    
+
         Returns:
             ASCII string representation of field content.
         """
@@ -216,7 +226,7 @@ class Session:
     def cursor_select(self) -> None:
         """
         Select field at cursor (s3270 CursorSelect() action).
-    
+
         Raises:
             SessionError: If not connected.
         """
@@ -227,7 +237,7 @@ class Session:
     def delete_field(self) -> None:
         """
         Delete field at cursor (s3270 DeleteField() action).
-    
+
         Raises:
             SessionError: If not connected.
         """
@@ -238,11 +248,11 @@ class Session:
     def echo(self, text: str) -> None:
         """Echo text (s3270 Echo() action)."""
         print(text)
-        
+
     def circum_not(self) -> None:
         """
         Toggle circumvention of field protection (s3270 CircumNot() action).
-    
+
         Raises:
             SessionError: If not connected.
         """
@@ -253,66 +263,66 @@ class Session:
     def script(self, commands: str) -> None:
         """
         Execute script (s3270 Script() action).
-    
+
         Args:
             commands: Script commands.
-    
+
         Raises:
             SessionError: If not connected.
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
         asyncio.run(self._async_session.script(commands))
-        
+
     def execute(self, command: str) -> str:
         """Execute external command synchronously (s3270 Execute() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
         return asyncio.run(self._async_session.execute(command))
-        
+
     def capabilities(self) -> str:
         """Get capabilities synchronously (s3270 Capabilities() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
         return asyncio.run(self._async_session.capabilities())
-        
+
     def interrupt(self) -> None:
         """Send interrupt synchronously (s3270 Interrupt() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
         asyncio.run(self._async_session.interrupt())
-        
+
     def key(self, keyname: str) -> None:
         """Send key synchronously (s3270 Key() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
         asyncio.run(self._async_session.key(keyname))
-        
+
     def query(self, query_type: str = "All") -> str:
         """Query screen synchronously (s3270 Query() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
         return asyncio.run(self._async_session.query(query_type))
-        
+
     def set_option(self, option: str, value: str) -> None:
         """Set option synchronously (s3270 Set() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
         asyncio.run(self._async_session.set(option, value))
-        
+
     def exit(self) -> None:
         """Exit synchronously (s3270 Exit() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
         asyncio.run(self._async_session.exit())
-        
+
     def keyboard_disable(self) -> None:
         """Disable keyboard input (s3270 KeyboardDisable() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
         self._async_session.keyboard_disabled = True
         logger.info("Keyboard disabled")
-        
+
     def enter(self) -> None:
         """Send Enter key synchronously (s3270 Enter() action)."""
         if not self._async_session:
@@ -322,7 +332,7 @@ class Session:
     def erase(self) -> None:
         """
         Erase character at cursor (s3270 Erase() action).
-    
+
         Raises:
             SessionError: If not connected.
         """
@@ -333,7 +343,7 @@ class Session:
     def erase_eof(self) -> None:
         """
         Erase from cursor to end of field (s3270 EraseEOF() action).
-    
+
         Raises:
             SessionError: If not connected.
         """
@@ -344,7 +354,7 @@ class Session:
     def home(self) -> None:
         """
         Move cursor to home position (s3270 Home() action).
-    
+
         Raises:
             SessionError: If not connected.
         """
@@ -355,7 +365,7 @@ class Session:
     def left(self) -> None:
         """
         Move cursor left one position (s3270 Left() action).
-    
+
         Raises:
             SessionError: If not connected.
         """
@@ -366,7 +376,7 @@ class Session:
     def right(self) -> None:
         """
         Move cursor right one position (s3270 Right() action).
-    
+
         Raises:
             SessionError: If not connected.
         """
@@ -377,7 +387,7 @@ class Session:
     def up(self) -> None:
         """
         Move cursor up one row (s3270 Up() action).
-    
+
         Raises:
             SessionError: If not connected.
         """
@@ -388,7 +398,7 @@ class Session:
     def down(self) -> None:
         """
         Move cursor down one row (s3270 Down() action).
-    
+
         Raises:
             SessionError: If not connected.
         """
@@ -399,7 +409,7 @@ class Session:
     def backspace(self) -> None:
         """
         Send backspace (s3270 BackSpace() action).
-    
+
         Raises:
             SessionError: If not connected.
         """
@@ -410,7 +420,7 @@ class Session:
     def tab(self) -> None:
         """
         Move cursor to next field or right (s3270 Tab() action).
-    
+
         Raises:
             SessionError: If not connected.
         """
@@ -421,7 +431,7 @@ class Session:
     def backtab(self) -> None:
         """
         Move cursor to previous field or left (s3270 BackTab() action).
-    
+
         Raises:
             SessionError: If not connected.
         """
@@ -451,7 +461,12 @@ class AsyncSession:
     Manages connection, data exchange, and screen emulation for 3270 terminals.
     """
 
-    def __init__(self, host: Optional[str] = None, port: int = 23, ssl_context: Optional[Any] = None):
+    def __init__(
+        self,
+        host: Optional[str] = None,
+        port: int = 23,
+        ssl_context: Optional[Any] = None,
+    ):
         """
         Initialize the async session.
 
@@ -475,15 +490,21 @@ class AsyncSession:
         self.insert_mode = False
         self.circumvent_protection = False
         self.resources = {}
-        self.model = '2'
+        self.model = "2"
         self.color_mode = False
         self.color_palette = [(0, 0, 0)] * 16
-        self.font = 'fixed'
+        self.font = "fixed"
         self.keymap = None
         self._resource_mtime = 0
         self.keyboard_disabled = False
+        self.logger = logging.getLogger(__name__)
 
-    async def connect(self, host: Optional[str] = None, port: Optional[int] = None, ssl_context: Optional[Any] = None) -> None:
+    async def connect(
+        self,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        ssl_context: Optional[Any] = None,
+    ) -> None:
         """
         Establish connection to the 3270 host.
         Performs TN3270 negotiation.
@@ -503,7 +524,9 @@ class AsyncSession:
         if ssl_context is not None:
             self.ssl_context = ssl_context
         if not self.host:
-            raise ValueError("Host must be provided either at initialization or in connect call.")
+            raise ValueError(
+                "Host must be provided either at initialization or in connect call."
+            )
         reader, writer = await asyncio.open_connection(
             self.host, self.port, ssl=self.ssl_context
         )
@@ -663,6 +686,14 @@ class AsyncSession:
                         raise MacroError(
                             f"Nested macro '{macro_name}' not found in vars"
                         )
+                elif cmd.startswith("LoadResource(") and cmd.endswith(")"):
+                    file_path = cmd[
+                        13:-1
+                    ].strip()  # Start from index 13 to skip "LoadResource("
+                    await self.load_resource_definitions(file_path)
+                    results["output"].append(
+                        f"Loaded resource definitions from {file_path}"
+                    )
                 else:
                     # Backward compatible simple command
                     sub_output = await self._execute_single_command(cmd, vars)
@@ -679,39 +710,43 @@ class AsyncSession:
             await self._handler.close()
         self._handler = None
         self._connected = False
-    
+
     async def execute(self, command: str) -> str:
         """Execute external command (s3270 Execute() action)."""
         import subprocess
+
         result = subprocess.run(command, shell=True, capture_output=True, text=True)
         return result.stdout + result.stderr
-    
+
     async def exit(self) -> None:
         """Exit session (s3270 Exit() action, alias to close)."""
         await self.close()
         logger.info("Session exited (Exit action)")
-    
+
     async def quit(self) -> None:
         """Quit session (s3270 Quit() action, alias to close)."""
         await self.close()
         logger.info("Session quit (Quit action)")
-    
+
     async def capabilities(self) -> str:
         """Return session capabilities (s3270 Capabilities() action)."""
         caps = f"TN3270: {self.tn3270_mode}, TN3270E: {self.tn3270e_mode}, LU: {self._lu_name or 'None'}, Screen: {self.screen_buffer.rows}x{self.screen_buffer.cols}"
         logger.info(f"Capabilities: {caps}")
         return caps
-    
+
     async def interrupt(self) -> None:
         """Send interrupt (s3270 Interrupt() action, ATTN key)."""
         await self.submit(0x7E)  # ATTN AID
         logger.info("Interrupt sent")
-    
+
     async def key(self, keyname: str) -> None:
         """Send key (s3270 Key() action)."""
         # Use AID_MAP from macro
         AID_MAP = {
-            "enter": 0x7D, "clear": 0x6D, "attn": 0x7E, "reset": 0x7F,
+            "enter": 0x7D,
+            "clear": 0x6D,
+            "attn": 0x7E,
+            "reset": 0x7F,
             # Add more keys as needed
         }
         aid = AID_MAP.get(keyname.lower())
@@ -719,7 +754,7 @@ class AsyncSession:
             raise ValueError(f"Unknown key: {keyname}")
         await self.submit(aid)
         logger.info(f"Key sent: {keyname}")
-    
+
     async def query(self, query_type: str = "All") -> str:
         """Query screen (s3270 Query() action, using screen_buffer)."""
         if query_type == "Format":
@@ -729,10 +764,10 @@ class AsyncSession:
         else:
             raise ValueError(f"Unknown query type: {query_type}")
         logger.info(f"Query {query_type} executed")
-    
+
     async def set(self, option: str, value: str) -> None:
         """Set option (s3270 Set() action)."""
-        if not hasattr(self, '_options'):
+        if not hasattr(self, "_options"):
             self._options = {}
         self._options[option] = value
         logger.info(f"Set {option} to {value}")
@@ -803,7 +838,7 @@ class AsyncSession:
     async def macro(self, commands: List[str]) -> None:
         """
         Execute a list of macro commands using a dispatcher for maintainability.
-    
+
         Args:
             commands: List of macro command strings.
                      Supported formats:
@@ -814,19 +849,19 @@ class AsyncSession:
                          - String(Hello World)
                          - key enter
                          - Execute(ls -l)
-    
+
         Raises:
             MacroError: If command parsing or execution fails.
             SessionError: If not connected.
         """
         if not self._connected or not self.handler:
             raise SessionError("Session not connected.")
-    
+
         from .protocol.data_stream import DataStreamSender
         from .emulation.ebcdic import translate_ascii_to_ebcdic
-    
+
         sender = DataStreamSender()
-    
+
         # AID mapping for common keys
         AID_MAP = {
             "enter": 0x7D,
@@ -861,7 +896,7 @@ class AsyncSession:
             "attn": 0x7E,
             "reset": 0x7F,
         }
-    
+
         # Command dispatcher for simple actions
         simple_actions = {
             "Interrupt()": self.interrupt,
@@ -902,7 +937,7 @@ class AsyncSession:
             "Right2()": self.right2,
             "MonoCase()": self.mono_case,
         }
-    
+
         for command in commands:
             command = command.strip()
             try:
@@ -1190,7 +1225,9 @@ class AsyncSession:
         ebcdic_bytes = self.ebcdic(text)
         for byte in ebcdic_bytes:
             row, col = self.screen_buffer.get_position()
-            self.screen_buffer.write_char(byte, row, col, circumvent_protection=self.circumvent_protection)
+            self.screen_buffer.write_char(
+                byte, row, col, circumvent_protection=self.circumvent_protection
+            )
             await self.right()
 
     async def backtab(self) -> None:
@@ -1314,8 +1351,8 @@ class AsyncSession:
 
     async def insert(self) -> None:
         """Insert character at cursor (s3270 Insert() action)."""
-        # For now, just toggle insert mode or something; full implementation needs input
-        pass  # Placeholder
+        # Toggle insert mode
+        self.insert_mode = not self.insert_mode
 
     async def delete(self) -> None:
         """Delete character at cursor (s3270 Delete() action)."""
@@ -1370,7 +1407,7 @@ class AsyncSession:
         """Delete field at cursor (s3270 DeleteField() action)."""
         row, col = self.screen_buffer.get_position()
         field = self.screen_buffer.get_field_at_position(row, col)
-        
+
         if field and not field.protected:
             # Remove the field from the buffer
             self.screen_buffer.remove_field(field)
@@ -1446,12 +1483,12 @@ class AsyncSession:
         """Close the session (s3270 Close() action)."""
         await self.close()
         logger.info("Session closed (Close action)")
-    
+
     async def close_script(self) -> None:
         """Close the script session (s3270 CloseScript() action)."""
         await self.close()
         logger.info("Script session closed (CloseScript action)")
-    
+
     async def open(self, host: str, port: int = 23) -> None:
         """Open connection (s3270 Open() action, alias to connect with default port)."""
         await self.connect(host, port)
@@ -1466,7 +1503,6 @@ class AsyncSession:
         print(
             f"Connected: {self._connected}, TN3270 mode: {self.tn3270_mode}, LU: {self._lu_name}"
         )
-
 
     async def newline(self) -> None:
         """Move to next line (s3270 Newline() action)."""
@@ -1493,12 +1529,12 @@ class AsyncSession:
     async def script(self, commands: str) -> None:
         """Execute script (s3270 Script() action)."""
         # Parse and execute commands line by line
-        for line in commands.split('\n'):
+        for line in commands.split("\n"):
             cmd = line.strip()
-            if cmd and not cmd.startswith('#'):
+            if cmd and not cmd.startswith("#"):
                 # Assume cmd is a method name like "cursor_select"
                 # Strip parentheses if present
-                if cmd.endswith('()'):
+                if cmd.endswith("()"):
                     cmd = cmd[:-2]
                 try:
                     method = getattr(self, cmd, None)
@@ -1534,7 +1570,7 @@ class AsyncSession:
 
     async def show(self) -> None:
         """Show screen content (s3270 Show() action)."""
-        print(self.screen_buffer.to_text(), end='')
+        print(self.screen_buffer.to_text(), end="")
 
     async def snap(self) -> None:
         """Save screen snapshot (s3270 Snap() action)."""
@@ -1632,7 +1668,7 @@ class AsyncSession:
 
         # Parse xrdb file and store in self.resources
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, "r") as f:
                 lines = f.readlines()
         except IOError as e:
             raise SessionError(f"Failed to read resource file {file_path}: {e}")
@@ -1640,26 +1676,26 @@ class AsyncSession:
         self.resources = {}
         i = 0
         while i < len(lines):
-            line = lines[i].rstrip('\n\r')
+            line = lines[i].rstrip("\n\r")
             i += 1
 
             # Skip comments
-            if line.strip().startswith('#') or line.strip().startswith('!'):
+            if line.strip().startswith("#") or line.strip().startswith("!"):
                 continue
 
             # Handle multi-line: if ends with \, append next line
-            while line.endswith('\\'):
+            while line.endswith("\\"):
                 if i < len(lines):
-                    next_line = lines[i].rstrip('\n\r')
-                    line = line[:-1].rstrip() + ' ' + next_line.lstrip()
+                    next_line = lines[i].rstrip("\n\r")
+                    line = line[:-1].rstrip() + " " + next_line.lstrip()
                     i += 1
                 else:
                     break
 
-            if ':' not in line:
+            if ":" not in line:
                 continue
 
-            parts = line.split(':', 1)
+            parts = line.split(":", 1)
             if len(parts) != 2:
                 continue
 
@@ -1667,7 +1703,7 @@ class AsyncSession:
             value = parts[1].strip()
 
             # Only process s3270.* resources
-            if key.startswith('s3270.'):
+            if key.startswith("s3270."):
                 resource_key = key[6:]  # Remove 's3270.' prefix
                 self.resources[resource_key] = value
 
@@ -1677,17 +1713,17 @@ class AsyncSession:
     async def apply_resources(self) -> None:
         """Apply parsed resources to session state."""
         if not self.resources:
-            logger.info("No resources to apply")
+            self.logger.info("No resources to apply")
             return
 
         for key, value in self.resources.items():
             try:
-                if key.startswith('color') and key[5:].isdigit():
+                if key.startswith("color") and key[5:].isdigit():
                     idx_str = key[5:]
                     if idx_str.isdigit():
                         idx = int(idx_str)
                         if 0 <= idx <= 15:
-                            if value.startswith('#') and len(value) == 7:
+                            if value.startswith("#") and len(value) == 7:
                                 hex_val = value[1:]
                                 r = int(hex_val[0:2], 16)
                                 g = int(hex_val[2:4], 16)
@@ -1699,40 +1735,51 @@ class AsyncSession:
                                 if idx < len(self.screen_buffer.attributes) // 3:
                                     # Example: set default fg (idx 1) or bg
                                     if idx == 1:  # default fg
-                                        for i in range(1, len(self.screen_buffer.attributes), 3):
-                                            self.screen_buffer.attributes[i] = r  # Use red as example
-                                    logger.info(f"Applied color{idx}: RGB({r},{g},{b}) to buffer")
+                                        for i in range(
+                                            1, len(self.screen_buffer.attributes), 3
+                                        ):
+                                            self.screen_buffer.attributes[i] = (
+                                                r  # Use red as example
+                                            )
+                                    self.logger.info(
+                                        f"Applied color{idx}: RGB({r},{g},{b}) to buffer"
+                                    )
                             else:
                                 raise ValueError("Invalid hex format")
                         else:
-                            logger.warning(f"Color index {idx} out of range 0-15")
-                elif key == 'font':
+                            self.logger.warning(f"Color index {idx} out of range 0-15")
+                elif key == "font":
                     self.font = value
-                    logger.info(f"Font set to {value}")
+                    self.logger.info(f"Font set to {value}")
                     # Handler may not support, skip
-                elif key == 'keymap':
+                elif key == "keymap":
                     self.keymap = value
-                    logger.info(f"Keymap set to {value}")
+                    self.logger.info(f"Keymap set to {value}")
                     # Handler may not support, skip
-                elif key == 'ssl':
+                elif key == "ssl":
                     val = value.lower()
-                    logger.info(f"SSL option set to {val} (cannot change mid-session)")
-                elif key == 'model':
+                    self.logger.info(
+                        f"SSL option set to {val} (cannot change mid-session)"
+                    )
+                elif key == "model":
                     self.model = value
-                    self.color_mode = (value == '3')  # 3279 is color model
+                    self.color_mode = value == "3"  # 3279 is color model
                     if self.tn3270_mode and self.handler:
                         # If connected, may need to renegotiate model, but skip for now
                         pass
-                    logger.info(f"Model set to {value}, color mode: {self.color_mode}")
+                    self.logger.info(
+                        f"Model set to {value}, color mode: {self.color_mode}"
+                    )
                 else:
-                    logger.debug(f"Unknown resource {key}: {value}")
+                    self.logger.debug(f"Unknown resource {key}: {value}")
             except ValueError as e:
-                logger.warning(f"Invalid resource {key}: {e}")
-                raise SessionError(f"Invalid resource {key}: {value}")
+                self.logger.warning(f"Invalid resource {key}: {e}")
+                # Don't raise an exception, just continue with other resources
+                continue
             except Exception as e:
-                logger.error(f"Error applying resource {key}: {e}")
+                self.logger.error(f"Error applying resource {key}: {e}")
 
-        logger.info("Resources applied successfully")
+        self.logger.info("Resources applied successfully")
 
     def set_field_attribute(self, field_index: int, attr: str, value: int) -> None:
         """Set field attribute (extended beyond basic protection/numeric)."""

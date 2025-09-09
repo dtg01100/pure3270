@@ -296,3 +296,13 @@ class TN3270Handler:
     def screen_cols(self) -> int:
         """Get screen columns."""
         return self.negotiator.screen_cols
+
+    @property
+    def is_printer_session(self) -> bool:
+        """Get printer session status."""
+        return self.negotiator.is_printer_session
+
+    @is_printer_session.setter
+    def is_printer_session(self, value: bool) -> None:
+        """Set printer session status."""
+        self.negotiator.is_printer_session = value

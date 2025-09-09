@@ -193,7 +193,9 @@ class TestTN3270Handler:
         mock_reader.read.return_value = b""  # Initial data
         mock_open.return_value = (mock_reader, mock_writer)
         # Mock the negotiator's _read_iac method to return valid IAC data
-        with patch.object(tn3270_handler.negotiator, '_read_iac', return_value=b"\xff\xfd\x18"):
+        with patch.object(
+            tn3270_handler.negotiator, "_read_iac", return_value=b"\xff\xfd\x18"
+        ):
             with patch.object(tn3270_handler, "_negotiate_tn3270"):
                 await tn3270_handler.connect()
         mock_open.assert_called_with(tn3270_handler.host, tn3270_handler.port, ssl=None)
@@ -210,7 +212,9 @@ class TestTN3270Handler:
         mock_reader.read.return_value = b""  # Initial data
         mock_open.return_value = (mock_reader, mock_writer)
         # Mock the negotiator's _read_iac method to return valid IAC data
-        with patch.object(tn3270_handler.negotiator, '_read_iac', return_value=b"\xff\xfd\x18"):
+        with patch.object(
+            tn3270_handler.negotiator, "_read_iac", return_value=b"\xff\xfd\x18"
+        ):
             with patch.object(tn3270_handler, "_negotiate_tn3270"):
                 await tn3270_handler.connect()
         mock_open.assert_called_with(

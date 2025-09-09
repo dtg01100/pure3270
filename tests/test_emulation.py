@@ -78,13 +78,17 @@ class TestScreenBuffer:
 
     def test_write_char_out_of_bounds(self, screen_buffer):
         screen_buffer.write_char(0xC1, 25, 81)  # out of bounds
-        assert screen_buffer.buffer[0] == 0  # no change
+        assert (
+            screen_buffer.buffer[0] == 0x40
+        )  # no change (buffer initialized with spaces)
 
     @patch("pure3270.emulation.screen_buffer.EBCDICCodec")
     def test_to_text(self, mock_codec, screen_buffer):
         mock_codec.return_value.decode.return_value = ("Test Line", 9)
         screen_buffer.buffer = bytearray([0xC1] * 80)  # A repeated
-        with patch.object(mock_codec.return_value, "decode", return_value=("A" * 80, 80)):
+        with patch.object(
+            mock_codec.return_value, "decode", return_value=("A" * 80, 80)
+        ):
             text = screen_buffer.to_text()
             lines = text.split("\n")
             assert len(lines) == 24

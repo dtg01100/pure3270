@@ -69,7 +69,7 @@ class ScreenBuffer:
         self.cols = cols
         self.size = rows * cols
         # EBCDIC character buffer - initialize to spaces
-        self.buffer = bytearray(b'\x40' * self.size)
+        self.buffer = bytearray(b"\x40" * self.size)
         # Attributes buffer: 3 bytes per position (protection, foreground, background/highlight)
         self.attributes = bytearray(self.size * 3)
         # List of fields
@@ -83,7 +83,7 @@ class ScreenBuffer:
 
     def clear(self):
         """Clear the screen buffer and reset fields."""
-        self.buffer = bytearray(b'\x40' * self.size)
+        self.buffer = bytearray(b"\x40" * self.size)
         self.attributes = bytearray(self.size * 3)
         self.fields = []
         self.cursor_row = 0
@@ -98,7 +98,14 @@ class ScreenBuffer:
         """Get current cursor position."""
         return (self.cursor_row, self.cursor_col)
 
-    def write_char(self, ebcdic_byte: int, row: int, col: int, protected: bool = False, circumvent_protection: bool = False):
+    def write_char(
+        self,
+        ebcdic_byte: int,
+        row: int,
+        col: int,
+        protected: bool = False,
+        circumvent_protection: bool = False,
+    ):
         """
         Write an EBCDIC character to the buffer at position.
 
@@ -169,14 +176,26 @@ class ScreenBuffer:
                 elif in_field and protected:
                     in_field = False
                     end = (row, col - 1) if col > 0 else (row, self.cols - 1)
-                    content = bytes(self.buffer[pos - (col - start[1]) : pos])
+                    # Calculate content from start to end
+                    start_pos = start[0] * self.cols + start[1]
+                    end_pos = row * self.cols + (col - 1)
+                    content = bytes(self.buffer[start_pos : end_pos + 1])
+                    # Input fields are not protected (protected=False)
                     self.fields.append(
-                        Field(start, end, protected=True, content=content)
+                        Field(start, end, protected=False, content=content)
                     )
         if in_field:
             end = (self.rows - 1, self.cols - 1)
-            content = bytes(self.buffer[start[0] * self.cols + start[1] :])
-            self.fields.append(Field(start, end, protected=False, content=content))
+            # Calculate content from start to end
+            start_pos = start[0] * self.cols + start[1]
+            end_pos = end[0] * self.cols + end[1]
+            content = bytes(self.buffer[start_pos : end_pos + 1])
+            # Determine protection status of the final field
+            end_pos_attr = end_pos * 3
+            is_protected = bool(self.attributes[end_pos_attr] & 0x02)
+            self.fields.append(
+                Field(start, end, protected=is_protected, content=content)
+            )
 
     def to_text(self) -> str:
         """
@@ -257,7 +276,7 @@ class ScreenBuffer:
                         self.buffer[pos] = 0x40  # Space in EBCDIC
                         # Clear attributes
                         attr_offset = pos * 3
-                        self.attributes[attr_offset:attr_offset+3] = b'\x00\x00\x00'
+                        self.attributes[attr_offset : attr_offset + 3] = b"\x00\x00\x00"
         # Re-detect fields to update boundaries
         self._detect_fields()
 

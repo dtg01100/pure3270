@@ -33,8 +33,8 @@ class TestAsyncSession:
         mock_writer = AsyncMock()
         mock_open.return_value = (mock_reader, mock_writer)
         mock_handler.return_value = AsyncMock()
-        mock_reader.readexactly.return_value = b'\xff\xfb\x27'
-        mock_reader.read.return_value = b'\x28\x00\x01\x00'
+        mock_reader.readexactly.return_value = b"\xff\xfb\x27"
+        mock_reader.read.return_value = b"\x28\x00\x01\x00"
         mock_handler.return_value.set_ascii_mode = AsyncMock()
 
         await async_session.connect()
@@ -53,11 +53,12 @@ class TestAsyncSession:
         mock_open.return_value = (mock_reader, mock_writer)
         handler_instance = AsyncMock()
         mock_handler.return_value = handler_instance
-        mock_reader.readexactly.return_value = b'\xff\xfb\x27'
-        mock_reader.read.return_value = b''
-        
+        mock_reader.readexactly.return_value = b"\xff\xfb\x27"
+        mock_reader.read.return_value = b""
+
         # Mock negotiate to raise NegotiationError
         from pure3270.protocol.exceptions import NegotiationError
+
         handler_instance.negotiate.side_effect = NegotiationError("Negotiation failed")
 
         # Test that NegotiationError is raised
@@ -71,8 +72,8 @@ class TestAsyncSession:
         mock_writer = AsyncMock()
         mock_open.return_value = (mock_reader, mock_writer)
         mock_handler.return_value = AsyncMock()
-        mock_reader.readexactly.return_value = b'\xff\xfb\x27'
-        mock_reader.read.return_value = b'\x28\x00\x01\x00'
+        mock_reader.readexactly.return_value = b"\xff\xfb\x27"
+        mock_reader.read.return_value = b"\x28\x00\x01\x00"
         mock_handler.return_value.set_ascii_mode = AsyncMock()
 
         await async_session.connect()
@@ -96,8 +97,8 @@ class TestAsyncSession:
         mock_open.return_value = (mock_reader, mock_writer)
         handler_instance = AsyncMock()
         mock_handler.return_value = handler_instance
-        mock_reader.readexactly.return_value = b'\xff\xfb\x27'
-        mock_reader.read.return_value = b'\x28\x00\x01\x00'
+        mock_reader.readexactly.return_value = b"\xff\xfb\x27"
+        mock_reader.read.return_value = b"\x28\x00\x01\x00"
         handler_instance.set_ascii_mode = AsyncMock()
         handler_instance.receive_data.return_value = b"test"
         # Mock handler properties
@@ -152,14 +153,15 @@ class TestAsyncSession:
     async def test_conditional_branching(self):
         """Test conditional branching in execute_macro."""
         session = AsyncSession("localhost", 23)
-        with patch("pure3270.session.asyncio.open_connection") as mock_open, \
-             patch("pure3270.session.TN3270Handler") as mock_handler:
+        with patch("pure3270.session.asyncio.open_connection") as mock_open, patch(
+            "pure3270.session.TN3270Handler"
+        ) as mock_handler:
             mock_reader = AsyncMock()
             mock_writer = AsyncMock()
             mock_open.return_value = (mock_reader, mock_writer)
             mock_handler.return_value = AsyncMock()
-            mock_reader.readexactly.return_value = b'\xff\xfb\x27'
-            mock_reader.read.return_value = b'\x28\x00\x01\x00'
+            mock_reader.readexactly.return_value = b"\xff\xfb\x27"
+            mock_reader.read.return_value = b"\x28\x00\x01\x00"
             mock_handler.return_value.set_ascii_mode = AsyncMock()
             await session.connect()
         session.send = AsyncMock()
@@ -178,14 +180,15 @@ class TestAsyncSession:
     async def test_variable_substitution(self):
         """Test variable substitution in execute_macro."""
         session = AsyncSession("localhost", 23)
-        with patch("pure3270.session.asyncio.open_connection") as mock_open, \
-             patch("pure3270.session.TN3270Handler") as mock_handler:
+        with patch("pure3270.session.asyncio.open_connection") as mock_open, patch(
+            "pure3270.session.TN3270Handler"
+        ) as mock_handler:
             mock_reader = AsyncMock()
             mock_writer = AsyncMock()
             mock_open.return_value = (mock_reader, mock_writer)
             mock_handler.return_value = AsyncMock()
-            mock_reader.readexactly.return_value = b'\xff\xfb\x27'
-            mock_reader.read.return_value = b'\x28\x00\x01\x00'
+            mock_reader.readexactly.return_value = b"\xff\xfb\x27"
+            mock_reader.read.return_value = b"\x28\x00\x01\x00"
             mock_handler.return_value.set_ascii_mode = AsyncMock()
             await session.connect()
         session.send = AsyncMock()
@@ -204,14 +207,15 @@ class TestAsyncSession:
     async def test_nested_macros(self):
         """Test nested macros in execute_macro."""
         session = AsyncSession("localhost", 23)
-        with patch("pure3270.session.asyncio.open_connection") as mock_open, \
-             patch("pure3270.session.TN3270Handler") as mock_handler:
+        with patch("pure3270.session.asyncio.open_connection") as mock_open, patch(
+            "pure3270.session.TN3270Handler"
+        ) as mock_handler:
             mock_reader = AsyncMock()
             mock_writer = AsyncMock()
             mock_open.return_value = (mock_reader, mock_writer)
             mock_handler.return_value = AsyncMock()
-            mock_reader.readexactly.return_value = b'\xff\xfb\x27'
-            mock_reader.read.return_value = b'\x28\x00\x01\x00'
+            mock_reader.readexactly.return_value = b"\xff\xfb\x27"
+            mock_reader.read.return_value = b"\x28\x00\x01\x00"
             mock_handler.return_value.set_ascii_mode = AsyncMock()
             await session.connect()
         session.send = AsyncMock()
@@ -237,14 +241,15 @@ class TestAsyncSession:
             mock_patch.side_effect = ValueError("Incompatible version")
 
             session = AsyncSession("localhost", 23)
-            with patch("pure3270.session.asyncio.open_connection") as mock_open, \
-                 patch("pure3270.session.TN3270Handler") as mock_handler:
+            with patch("pure3270.session.asyncio.open_connection") as mock_open, patch(
+                "pure3270.session.TN3270Handler"
+            ) as mock_handler:
                 mock_reader = AsyncMock()
                 mock_writer = AsyncMock()
                 mock_open.return_value = (mock_reader, mock_writer)
                 mock_handler.return_value = AsyncMock()
-                mock_reader.readexactly.return_value = b'\xff\xfb\x27'
-                mock_reader.read.return_value = b'\x28\x00\x01\x00'
+                mock_reader.readexactly.return_value = b"\xff\xfb\x27"
+                mock_reader.read.return_value = b"\x28\x00\x01\x00"
                 mock_handler.return_value.set_ascii_mode = AsyncMock()
                 await session.connect()
             session.send = AsyncMock()
@@ -260,14 +265,15 @@ class TestAsyncSession:
     @pytest.mark.asyncio
     async def test_execute_macro_malformed(self, async_session):
         """Test macro execution with malformed script raising MacroError."""
-        with patch("pure3270.session.asyncio.open_connection") as mock_open, \
-             patch("pure3270.session.TN3270Handler") as mock_handler:
+        with patch("pure3270.session.asyncio.open_connection") as mock_open, patch(
+            "pure3270.session.TN3270Handler"
+        ) as mock_handler:
             mock_reader = AsyncMock()
             mock_writer = AsyncMock()
             mock_open.return_value = (mock_reader, mock_writer)
             mock_handler.return_value = AsyncMock()
-            mock_reader.readexactly.return_value = b'\xff\xfb\x27'
-            mock_reader.read.return_value = b'\x28\x00\x01\x00'
+            mock_reader.readexactly.return_value = b"\xff\xfb\x27"
+            mock_reader.read.return_value = b"\x28\x00\x01\x00"
             mock_handler.return_value.set_ascii_mode = AsyncMock()
             await async_session.connect()
         with patch.object(
@@ -280,14 +286,15 @@ class TestAsyncSession:
     @pytest.mark.asyncio
     async def test_execute_macro_unhandled_exception(self, async_session):
         """Test unhandled exception in async macro loop raises MacroError."""
-        with patch("pure3270.session.asyncio.open_connection") as mock_open, \
-             patch("pure3270.session.TN3270Handler") as mock_handler:
+        with patch("pure3270.session.asyncio.open_connection") as mock_open, patch(
+            "pure3270.session.TN3270Handler"
+        ) as mock_handler:
             mock_reader = AsyncMock()
             mock_writer = AsyncMock()
             mock_open.return_value = (mock_reader, mock_writer)
             mock_handler.return_value = AsyncMock()
-            mock_reader.readexactly.return_value = b'\xff\xfb\x27'
-            mock_reader.read.return_value = b'\x28\x00\x01\x00'
+            mock_reader.readexactly.return_value = b"\xff\xfb\x27"
+            mock_reader.read.return_value = b"\x28\x00\x01\x00"
             mock_handler.return_value.set_ascii_mode = AsyncMock()
             await async_session.connect()
         async_session.send = AsyncMock()
@@ -299,14 +306,15 @@ class TestAsyncSession:
     @pytest.mark.asyncio
     async def test_execute_macro_timeout(self, async_session):
         """Test macro execution failure with timeout raises MacroError."""
-        with patch("pure3270.session.asyncio.open_connection") as mock_open, \
-             patch("pure3270.session.TN3270Handler") as mock_handler:
+        with patch("pure3270.session.asyncio.open_connection") as mock_open, patch(
+            "pure3270.session.TN3270Handler"
+        ) as mock_handler:
             mock_reader = AsyncMock()
             mock_writer = AsyncMock()
             mock_open.return_value = (mock_reader, mock_writer)
             mock_handler.return_value = AsyncMock()
-            mock_reader.readexactly.return_value = b'\xff\xfb\x27'
-            mock_reader.read.return_value = b'\x28\x00\x01\x00'
+            mock_reader.readexactly.return_value = b"\xff\xfb\x27"
+            mock_reader.read.return_value = b"\x28\x00\x01\x00"
             mock_handler.return_value.set_ascii_mode = AsyncMock()
             await async_session.connect()
         async_session.send = AsyncMock()
@@ -457,6 +465,7 @@ class TestAsyncSessionAdvanced:
     async def test_cursor_select_action(self, async_session):
         """Test CursorSelect action."""
         from pure3270.emulation.screen_buffer import Field
+
         field = Field((0, 0), (0, 5), protected=False, selected=False)
         async_session.screen_buffer.fields = [field]
         async_session.screen_buffer.set_position(0, 2)
@@ -468,6 +477,7 @@ class TestAsyncSessionAdvanced:
         """Test DeleteField action."""
         # Set up a simple field manually for testing
         from pure3270.emulation.screen_buffer import Field
+
         field = Field((0, 0), (0, 5), protected=False)
         async_session.screen_buffer.fields = [field]
         async_session.screen_buffer.set_position(0, 2)
@@ -496,7 +506,7 @@ class TestAsyncSessionAdvanced:
         # Mock connection for local operations
         async_session._connected = True
         async_session.handler = AsyncMock()
-        
+
         # Setup protected field
         async_session.screen_buffer.attributes[0] = 0x02  # Protected
         async_session.circumvent_protection = True
@@ -509,13 +519,15 @@ class TestAsyncSessionAdvanced:
         # Mock connection for local operations
         async_session._connected = True
         async_session.handler = AsyncMock()
-        
+
         # Setup protected field
         async_session.screen_buffer.attributes[0] = 0x02  # Protected
         async_session.circumvent_protection = False
         async_session.screen_buffer.set_position(0, 0)
         await async_session.insert_text("A")
-        assert list(async_session.screen_buffer.buffer[0:1]) == [0x40]  # Space (skipped)
+        assert list(async_session.screen_buffer.buffer[0:1]) == [
+            0x40
+        ]  # Space (skipped)
 
     async def test_disconnect_action(self, async_session):
         """Test Disconnect action."""
@@ -528,6 +540,7 @@ class TestAsyncSessionAdvanced:
         """Test Info action (capture output)."""
         import sys
         from io import StringIO
+
         old_stdout = sys.stdout
         sys.stdout = captured_output = StringIO()
         try:
@@ -572,7 +585,6 @@ class TestAsyncSessionAdvanced:
         await async_session.paste_string("test")
         mock_insert.assert_called_once_with("test")
 
-
     async def test_set_option_action(self, async_session):
         """Test Set action."""
         # Placeholder test
@@ -584,6 +596,7 @@ class TestAsyncSessionAdvanced:
         """Test Bell action."""
         import sys
         from io import StringIO
+
         old_stdout = sys.stdout
         sys.stdout = captured_output = StringIO()
         try:
@@ -596,6 +609,7 @@ class TestAsyncSessionAdvanced:
     async def test_pause_action(self, async_session):
         """Test Pause action."""
         import time
+
         start = time.time()
         await async_session.pause(0.1)
         end = time.time()
@@ -603,19 +617,20 @@ class TestAsyncSessionAdvanced:
 
     async def test_ansi_text_action(self, async_session):
         """Test AnsiText action."""
-        data = b"\xC1\xC2"  # EBCDIC 'A' 'B'
+        data = b"\xc1\xc2"  # EBCDIC 'A' 'B'
         result = await async_session.ansi_text(data)
         assert result == "AB"
 
     async def test_hex_string_action(self, async_session):
         """Test HexString action."""
         result = await async_session.hex_string("C1 C2")
-        assert result == b'\xC1\xC2'
+        assert result == b"\xc1\xc2"
 
     async def test_show_action(self, async_session):
         """Test Show action."""
         import sys
         from io import StringIO
+
         old_stdout = sys.stdout
         sys.stdout = captured_output = StringIO()
         try:
@@ -630,7 +645,7 @@ class TestAsyncSessionAdvanced:
         # Mock connection for local operations
         async_session._connected = True
         async_session.handler = AsyncMock()
-        
+
         async_session.screen_buffer.set_position(0, 5)
         await async_session.left2()
         row, col = async_session.screen_buffer.get_position()
@@ -641,7 +656,7 @@ class TestAsyncSessionAdvanced:
         # Mock connection for local operations
         async_session._connected = True
         async_session.handler = AsyncMock()
-        
+
         async_session.screen_buffer.set_position(0, 0)
         await async_session.right2()
         row, col = async_session.screen_buffer.get_position()
@@ -658,6 +673,7 @@ class TestAsyncSessionAdvanced:
         """Test PrintText action."""
         import sys
         from io import StringIO
+
         old_stdout = sys.stdout
         sys.stdout = captured_output = StringIO()
         try:
@@ -670,7 +686,10 @@ class TestAsyncSessionAdvanced:
     async def test_read_buffer_action(self, async_session):
         """Test ReadBuffer action."""
         buffer = await async_session.read_buffer()
-        assert isinstance(buffer, bytes) and len(buffer) == async_session.screen_buffer.size
+        assert (
+            isinstance(buffer, bytes)
+            and len(buffer) == async_session.screen_buffer.size
+        )
 
     async def test_reconnect_action(self, async_session):
         """Test Reconnect action."""
@@ -730,27 +749,29 @@ class TestAsyncSessionAdvanced:
         await async_session.wait_condition("condition")
         assert True
 
-    @patch('os.path.getmtime', return_value=1234567890.0)
+    @patch("os.path.getmtime", return_value=1234567890.0)
     @pytest.mark.asyncio
     async def test_load_resource_definitions(self, mock_getmtime, async_session):
         """Test resource definitions loading."""
         # Mock connection for local operations
         async_session._connected = True
         async_session.handler = AsyncMock()
-        
+
         # Mock file path and check no error
-        with patch('builtins.open', mock_open(read_data="s3270.model: 3279")):
+        with patch("builtins.open", mock_open(read_data="s3270.model: 3279")):
             await async_session.load_resource_definitions("test.xrdb")
         assert True
 
-    @patch('os.path.getmtime', return_value=1234567890.0)
+    @patch("os.path.getmtime", return_value=1234567890.0)
     @pytest.mark.asyncio
-    async def test_load_resource_definitions_parsing(self, mock_getmtime, async_session):
+    async def test_load_resource_definitions_parsing(
+        self, mock_getmtime, async_session
+    ):
         """Test parsing valid xrdb file."""
         # Mock connection for local operations
         async_session._connected = True
         async_session.handler = AsyncMock()
-        
+
         xrdb_content = """s3270.color8: #FF0000
 s3270.ssl: true
 s3270.model: 3279
@@ -758,68 +779,72 @@ s3270.font: monospace
 # comment
 s3270.keymap: default
 """
-        with patch('builtins.open', mock_open(read_data=xrdb_content)):
-            await async_session.load_resource_definitions('test.xrdb')
+        with patch("builtins.open", mock_open(read_data=xrdb_content)):
+            await async_session.load_resource_definitions("test.xrdb")
 
         assert async_session.resources == {
-            'color8': '#FF0000',
-            'ssl': 'true',
-            'model': '3279',
-            'font': 'monospace',
-            'keymap': 'default'
+            "color8": "#FF0000",
+            "ssl": "true",
+            "model": "3279",
+            "font": "monospace",
+            "keymap": "default",
         }
-        assert async_session.model == '3279'
+        assert async_session.model == "3279"
         assert async_session.color_mode is False  # 3279 is not '3'
-        assert async_session.font == 'monospace'
-        assert async_session.keymap == 'default'
+        assert async_session.font == "monospace"
+        assert async_session.keymap == "default"
         # Check color applied
         r, g, b = async_session.color_palette[8]
         assert r == 255 and g == 0 and b == 0
 
-    @patch('os.path.getmtime', return_value=1234567890.0)
+    @patch("os.path.getmtime", return_value=1234567890.0)
     @pytest.mark.asyncio
     async def test_load_resource_definitions_error(self, mock_getmtime, async_session):
         """Test error handling: invalid file raises error."""
         # Mock connection for local operations
         async_session._connected = True
         async_session.handler = AsyncMock()
-        
-        with patch('builtins.open', side_effect=IOError("File not found")):
-            with pytest.raises(SessionError):
-                await async_session.load_resource_definitions('nonexistent.xrdb')
 
-    @patch('os.path.getmtime', return_value=1234567890.0)
+        with patch("builtins.open", side_effect=IOError("File not found")):
+            with pytest.raises(SessionError):
+                await async_session.load_resource_definitions("nonexistent.xrdb")
+
+    @patch("os.path.getmtime", return_value=1234567890.0)
     @pytest.mark.asyncio
-    async def test_load_resource_definitions_invalid_resource(self, mock_getmtime, async_session):
+    async def test_load_resource_definitions_invalid_resource(
+        self, mock_getmtime, async_session
+    ):
         """Test error handling: invalid resource logged but partial success."""
         # Mock connection for local operations
         async_session._connected = True
         async_session.handler = AsyncMock()
-        
+
         xrdb_content = """s3270.color8: invalid
 s3270.model: 3279
 """
-        with patch('builtins.open', mock_open(read_data=xrdb_content)):
-            with patch.object(async_session, 'logger') as mock_logger:
-                await async_session.load_resource_definitions('test.xrdb')
+        with patch("builtins.open", mock_open(read_data=xrdb_content)):
+            with patch.object(async_session, "logger") as mock_logger:
+                await async_session.load_resource_definitions("test.xrdb")
 
         # Partial success: model applied
-        assert async_session.model == '3279'
+        assert async_session.model == "3279"
         # Invalid color logged
         mock_logger.warning.assert_called()
         # No SessionError raised
 
-    @patch('os.path.getmtime', return_value=1234567890.0)
+    @patch("os.path.getmtime", return_value=1234567890.0)
     @pytest.mark.asyncio
-    async def test_load_resource_definitions_integration_macro(self, mock_getmtime, async_session):
+    async def test_load_resource_definitions_integration_macro(
+        self, mock_getmtime, async_session
+    ):
         """Integration test: Load resources in macro and verify."""
         # Mock connection for local operations
         async_session._connected = True
         async_session.handler = AsyncMock()
-        
+
         xrdb_content = """s3270.color1: #00FF00
 """
-        with patch('builtins.open', mock_open(read_data=xrdb_content)):
+        with patch("builtins.open", mock_open(read_data=xrdb_content)):
             # Mock macro execution to include LoadResource
             async_session.load_resource_definitions = AsyncMock()
             macro = "LoadResource(test.xrdb); key Enter"
@@ -835,7 +860,10 @@ s3270.model: 3279
         """Test extended field attributes."""
         # Setup a field
         from pure3270.emulation.screen_buffer import Field
-        async_session.screen_buffer.fields = [Field((0,0), (0,10), protected=False, content=b"test")]
+
+        async_session.screen_buffer.fields = [
+            Field((0, 0), (0, 10), protected=False, content=b"test")
+        ]
         async_session.set_field_attribute(0, "color", 0x01)
         # Check if attributes were set (simplified)
         assert len(async_session.screen_buffer.attributes) > 0
@@ -871,7 +899,13 @@ s3270.model: 3279
     async def test_erase_input_action(self, async_session):
         """Test EraseInput action."""
         from pure3270.emulation.screen_buffer import Field
-        field = Field((0,0), (0,5), protected=False, content=bytes([0xC1,0xC2,0xC3,0xC4,0xC5]))
+
+        field = Field(
+            (0, 0),
+            (0, 5),
+            protected=False,
+            content=bytes([0xC1, 0xC2, 0xC3, 0xC4, 0xC5]),
+        )
         async_session.screen_buffer.fields = [field]
         await async_session.erase_input()
         assert list(field.content) == [0x40] * 5  # Spaces
@@ -923,4 +957,3 @@ s3270.model: 3279
         await async_session.delete()
         assert list(async_session.screen_buffer.buffer[1:3]) == [0xC2, 0xC3]
         assert list(async_session.screen_buffer.buffer[3:4]) == [0x40]  # Last cleared
-
