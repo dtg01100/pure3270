@@ -6,9 +6,30 @@ from ..emulation.screen_buffer import ScreenBuffer
 
 logger = logging.getLogger(__name__)
 
+
 class ParseError(Exception):
     """Error during data stream parsing."""
+
     pass
+
+
+# 3270 Data Stream Orders
+WCC = 0xF5
+AID = 0xF6
+READ_PARTITION = 0xF1
+SBA = 0x10
+SF = 0x1D
+RA = 0xF3
+GE = 0x29
+BIND = 0x28
+WRITE = 0x05
+EOA = 0x0D
+SCS_CTL_CODES = 0x04
+DATA_STREAM_CTL = 0x40
+
+# SCS Control Codes
+PRINT_EOJ = 0x01
+
 
 class DataStreamParser:
     """Parses incoming 3270 data streams and updates the screen buffer."""
@@ -41,7 +62,7 @@ class DataStreamParser:
                 order = self._data[self._pos]
                 self._pos += 1
 
-                if order == 0xF5:  # WCC (Write Control Character)
+                if order == WCC:  # WCC (Write Control Character)
                     if self._pos < len(self._data):
                         self.wcc = self._data[self._pos]
                         self._pos += 1
@@ -49,7 +70,7 @@ class DataStreamParser:
                     else:
                         logger.error("Unexpected end of data stream")
                         raise ParseError("Unexpected end of data stream")
-                elif order == 0xF6:  # AID (Attention ID)
+                elif order == AID:  # AID (Attention ID)
                     if self._pos < len(self._data):
                         self.aid = self._data[self._pos]
                         self._pos += 1
@@ -57,23 +78,27 @@ class DataStreamParser:
                     else:
                         logger.error("Unexpected end of data stream")
                         raise ParseError("Unexpected end of data stream")
-                elif order == 0xF1:  # Read Partition
+                elif order == READ_PARTITION:  # Read Partition
                     pass  # Handle if needed
-                elif order == 0x10:  # SBA (Set Buffer Address)
+                elif order == SBA:  # SBA (Set Buffer Address)
                     self._handle_sba()
-                elif order == 0x1D:  # SF (Start Field)
+                elif order == SF:  # SF (Start Field)
                     self._handle_sf()
-                elif order == 0xF3:  # RA (Repeat to Address)
+                elif order == RA:  # RA (Repeat to Address)
                     self._handle_ra()
-                elif order == 0x29:  # GE (Graphic Escape)
+                elif order == GE:  # GE (Graphic Escape)
                     self._handle_ge()
-                elif order == 0x28:  # BIND
+                elif order == BIND:  # BIND
                     logger.debug("BIND received, configuring terminal type")
                     self._pos = len(self._data)
-                elif order == 0x05:  # W (Write)
+                elif order == WRITE:  # W (Write)
                     self._handle_write()
-                elif order == 0x0D:  # EOA (End of Addressable)
+                elif order == EOA:  # EOA (End of Addressable)
                     break
+                elif order == SCS_CTL_CODES:  # SCS Control Codes
+                    self._handle_scs_ctl_codes()
+                elif order == DATA_STREAM_CTL:  # Data Stream Control
+                    self._handle_data_stream_ctl()
                 else:
                     self._handle_data(order)
 
@@ -105,15 +130,20 @@ class DataStreamParser:
 
     def _handle_sf(self):
         """Handle Start Field."""
-        if self._pos + 1 < len(self._data):
+        if self._pos < len(self._data):
             attr = self._data[self._pos]
             self._pos += 1
             protected = bool(attr & 0x40)  # Bit 6: protected
-            numeric = bool(attr & 0x20)    # Bit 5: numeric
+            numeric = bool(attr & 0x20)  # Bit 5: numeric
             # Update field attributes at current position
             row, col = self.screen.get_position()
-            self.screen.write_char(0x40, row, col, protected=protected)  # Space with attr
+            self.screen.write_char(
+                0x40, row, col, protected=protected
+            )  # Space with attr
             logger.debug(f"SF: protected={protected}, numeric={numeric}")
+        else:
+            logger.error("Unexpected end of data stream")
+            raise ParseError("Unexpected end of data stream")
 
     def _handle_ra(self):
         """Handle Repeat to Address (basic)."""
@@ -127,6 +157,33 @@ class DataStreamParser:
             # Implement repeat logic...
             logger.debug(f"RA: repeat 0x{repeat_char:02x} {count} times")
 
+    def _handle_scs_ctl_codes(self):
+        """Handle SCS Control Codes for printer sessions."""
+        if self._pos < len(self._data):
+            scs_code = self._data[self._pos]
+            self._pos += 1
+            
+            if scs_code == PRINT_EOJ:
+                logger.debug("SCS PRINT-EOJ received")
+                # Handle End of Job processing
+                # In a real implementation, this would trigger printer job completion
+            else:
+                logger.debug(f"Unknown SCS control code: 0x{scs_code:02x}")
+        else:
+            logger.error("Unexpected end of data stream in SCS control codes")
+            raise ParseError("Unexpected end of data stream in SCS control codes")
+
+    def _handle_data_stream_ctl(self):
+        """Handle Data Stream Control for printer data streams."""
+        if self._pos < len(self._data):
+            ctl_code = self._data[self._pos]
+            self._pos += 1
+            logger.debug(f"Data Stream Control code: 0x{ctl_code:02x}")
+            # Implementation would handle specific data stream control functions
+        else:
+            logger.error("Unexpected end of data stream in data stream control")
+            raise ParseError("Unexpected end of data stream in data stream control")
+
     def _handle_ge(self):
         """Handle Graphic Escape (stub)."""
         logger.debug("GE encountered (graphics not supported)")
@@ -136,6 +193,16 @@ class DataStreamParser:
         self.screen.clear()
         # Subsequent data is written to buffer
         logger.debug("Write order: clearing and writing")
+
+    def _handle_scs_data(self, data: bytes):
+        """
+        Handle SCS character stream data for printer sessions.
+        
+        :param data: SCS character data
+        """
+        # In a full implementation, this would process SCS character data
+        # for printer output rather than screen display
+        logger.debug(f"SCS data received: {len(data)} bytes")
 
     def _handle_data(self, byte: int):
         """Handle data byte."""
@@ -147,15 +214,33 @@ class DataStreamParser:
             row += 1
         self.screen.set_position(row, col)
 
-    def _handle_bind(self, data: bytes):
-        """Handle BIND image (basic)."""
-        # Parse BIND for usable area, etc.
-        logger.debug("BIND received, configuring terminal type")
-        # Assume default 24x80 for now
+    def _handle_scs_ctl_codes(self):
+        """Handle SCS Control Codes for printer sessions."""
+        if self._pos < len(self._data):
+            scs_code = self._data[self._pos]
+            self._pos += 1
+            
+            if scs_code == PRINT_EOJ:
+                logger.debug("SCS PRINT-EOJ received")
+                # Handle End of Job processing
+                # In a real implementation, this would trigger printer job completion
+            else:
+                logger.debug(f"Unknown SCS control code: 0x{scs_code:02x}")
+        else:
+            logger.error("Unexpected end of data stream in SCS control codes")
+            raise ParseError("Unexpected end of data stream in SCS control codes")
 
-    def get_aid(self) -> Optional[int]:
-        """Get the last received AID."""
-        return self.aid
+    def _handle_data_stream_ctl(self):
+        """Handle Data Stream Control for printer data streams."""
+        if self._pos < len(self._data):
+            ctl_code = self._data[self._pos]
+            self._pos += 1
+            logger.debug(f"Data Stream Control code: 0x{ctl_code:02x}")
+            # Implementation would handle specific data stream control functions
+        else:
+            logger.error("Unexpected end of data stream in data stream control")
+            raise ParseError("Unexpected end of data stream in data stream control")
+
 
 class DataStreamSender:
     """Constructs outgoing 3270 data streams."""
@@ -167,7 +252,9 @@ class DataStreamSender:
     def build_read_modified_all(self) -> bytes:
         """Build Read Modified All (RMA) command."""
         # AID for Enter + Read Modified All
-        stream = bytearray([0x7D, 0xF1])  # AID Enter, Read Partition (simplified for RMA)
+        stream = bytearray(
+            [0x7D, 0xF1]
+        )  # AID Enter, Read Partition (simplified for RMA)
         return bytes(stream)
 
     def build_read_modified_fields(self) -> bytes:
@@ -175,14 +262,21 @@ class DataStreamSender:
         stream = bytearray([0x7D, 0xF6, 0xF0])  # AID Enter, Read Modified, all fields
         return bytes(stream)
 
-    def build_key_press(self, aid: int) -> bytes:
+    def build_scs_ctl_codes(self, scs_code: int) -> bytes:
         """
-        Build data stream for key press (AID).
+        Build SCS Control Codes for printer sessions.
+        
+        :param scs_code: SCS control code to send
+        """
+        return bytes([SCS_CTL_CODES, scs_code])
 
-        :param aid: Attention ID (e.g., 0x7D for Enter).
+    def build_data_stream_ctl(self, ctl_code: int) -> bytes:
         """
-        stream = bytearray([aid])
-        return bytes(stream)
+        Build Data Stream Control command.
+        
+        :param ctl_code: Data stream control code
+        """
+        return bytes([DATA_STREAM_CTL, ctl_code])
 
     def build_write(self, data: bytes, wcc: int = 0xC1) -> bytes:
         """
@@ -221,5 +315,36 @@ class DataStreamSender:
         if numeric:
             attr |= 0x20
         return bytes([0x1D, attr])  # SF
+
+    def build_key_press(self, aid: int) -> bytes:
+        """
+        Build data stream for key press (AID).
+
+        :param aid: Attention ID (e.g., 0x7D for Enter).
+        """
+        stream = bytearray([aid])
+        return bytes(stream)
+
+    def build_read_modified_fields(self) -> bytes:
+        """Build Read Modified Fields (RMF) command."""
+        stream = bytearray([0x7D, 0xF6, 0xF0])  # AID Enter, Read Modified, all fields
+        return bytes(stream)
+
+    def build_scs_ctl_codes(self, scs_code: int) -> bytes:
+        """
+        Build SCS Control Codes for printer sessions.
+        
+        :param scs_code: SCS control code to send
+        """
+        return bytes([SCS_CTL_CODES, scs_code])
+
+    def build_data_stream_ctl(self, ctl_code: int) -> bytes:
+        """
+        Build Data Stream Control command.
+        
+        :param ctl_code: Data stream control code
+        """
+        return bytes([DATA_STREAM_CTL, ctl_code])
+
 
 # Note: screen reference needed for build_sba; assume passed or global for basics

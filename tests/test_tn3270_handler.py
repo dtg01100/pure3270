@@ -154,3 +154,49 @@ class TestTN3270Handler:
         # Assert fallback to basic TN3270, no error
         assert tn3270_handler.negotiated_tn3270e is False
         # No NegotiationError raised
+
+    @pytest.mark.asyncio
+    async def test_send_scs_data_printer_session(self, tn3270_handler):
+        tn3270_handler._connected = True
+        tn3270_handler.is_printer_session = True
+        tn3270_handler.writer = AsyncMock()
+        tn3270_handler.writer.drain = AsyncMock()
+        
+        await tn3270_handler.send_scs_data(b"printer data")
+        tn3270_handler.writer.write.assert_called_with(b"printer data")
+        tn3270_handler.writer.drain.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_send_scs_data_not_printer_session(self, tn3270_handler):
+        tn3270_handler._connected = True
+        tn3270_handler.is_printer_session = False
+        
+        with pytest.raises(ProtocolError):
+            await tn3270_handler.send_scs_data(b"printer data")
+
+    @pytest.mark.asyncio
+    async def test_send_print_eoj_printer_session(self, tn3270_handler):
+        tn3270_handler._connected = True
+        tn3270_handler.is_printer_session = True
+        tn3270_handler.writer = AsyncMock()
+        tn3270_handler.writer.drain = AsyncMock()
+        
+        await tn3270_handler.send_print_eoj()
+        # Should send SCS-CTL-CODES with PRINT-EOJ (0x01)
+        tn3270_handler.writer.write.assert_called()
+        tn3270_handler.writer.drain.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_send_print_eoj_not_printer_session(self, tn3270_handler):
+        tn3270_handler._connected = True
+        tn3270_handler.is_printer_session = False
+        
+        with pytest.raises(ProtocolError):
+            await tn3270_handler.send_print_eoj()
+
+    def test_is_printer_session_active(self, tn3270_handler):
+        tn3270_handler.is_printer_session = False
+        assert tn3270_handler.is_printer_session_active() is False
+        
+        tn3270_handler.is_printer_session = True
+        assert tn3270_handler.is_printer_session_active() is True

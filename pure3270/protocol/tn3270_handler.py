@@ -81,6 +81,7 @@ class TN3270Handler:
         self.lu_name = None
         self.screen_rows = 24
         self.screen_cols = 80
+        self.is_printer_session = False
 
     async def negotiate(self) -> None:
         """
@@ -122,6 +123,11 @@ class TN3270Handler:
                 self.negotiated_tn3270e = True
                 self.parser.parse(response)
                 logger.info("TN3270E negotiation successful")
+                
+                # Check if this is a printer session based on LU name or BIND response
+                if self.lu_name and ('LTR' in self.lu_name or 'PTR' in self.lu_name):
+                    self.is_printer_session = True
+                    logger.info(f"Printer session detected for LU: {self.lu_name}")
             else:
                 self.negotiated_tn3270e = False
                 self.set_ascii_mode()
@@ -193,6 +199,54 @@ class TN3270Handler:
             data = data.split(b'\xff\x19')[0]
         return data
 
+    async def send_scs_data(self, scs_data: bytes) -> None:
+        """
+        Send SCS character data for printer sessions.
+        
+        Args:
+            scs_data: SCS character data to send
+            
+        Raises:
+            ProtocolError: If not connected or not a printer session
+        """
+        if not self.is_connected():
+            raise ProtocolError("Not connected")
+            
+        if not self.is_printer_session:
+            raise ProtocolError("Not a printer session")
+            
+        if self.writer is None:
+            raise ProtocolError("Writer is None; cannot send SCS data.")
+            
+        # Send SCS data
+        self.writer.write(scs_data)
+        await self.writer.drain()
+        logger.debug(f"Sent {len(scs_data)} bytes of SCS data")
+
+    async def send_print_eoj(self) -> None:
+        """
+        Send PRINT-EOJ (End of Job) command for printer sessions.
+        
+        Raises:
+            ProtocolError: If not connected or not a printer session
+        """
+        if not self.is_connected():
+            raise ProtocolError("Not connected")
+            
+        if not self.is_printer_session:
+            raise ProtocolError("Not a printer session")
+            
+        from .data_stream import DataStreamSender
+        sender = DataStreamSender()
+        eoj_command = sender.build_scs_ctl_codes(0x01)  # PRINT_EOJ
+        
+        if self.writer is None:
+            raise ProtocolError("Writer is None; cannot send PRINT-EOJ.")
+            
+        self.writer.write(eoj_command)
+        await self.writer.drain()
+        logger.debug("Sent PRINT-EOJ command")
+
     async def _read_iac(self) -> bytes:
         """
         Read IAC (Interpret As Command) sequence.
@@ -234,3 +288,12 @@ class TN3270Handler:
             # If liveness check fails, assume not connected
             return False
         return True
+
+    def is_printer_session_active(self) -> bool:
+        """
+        Check if this is a printer session.
+        
+        Returns:
+            bool: True if this is a printer session
+        """
+        return self.is_printer_session
