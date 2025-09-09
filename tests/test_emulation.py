@@ -56,7 +56,7 @@ class TestScreenBuffer:
         screen_buffer.cursor_col = 10
         screen_buffer.clear()
         assert len(screen_buffer.buffer) == 1920 and all(
-            b == 0 for b in screen_buffer.buffer
+            b == 0x40 for b in screen_buffer.buffer
         )
         assert len(screen_buffer.attributes) == 5760 and all(
             b == 0 for b in screen_buffer.attributes
@@ -82,9 +82,9 @@ class TestScreenBuffer:
 
     @patch("pure3270.emulation.screen_buffer.EBCDICCodec")
     def test_to_text(self, mock_codec, screen_buffer):
-        mock_codec.return_value.decode.return_value = "Test Line"
+        mock_codec.return_value.decode.return_value = ("Test Line", 9)
         screen_buffer.buffer = bytearray([0xC1] * 80)  # A repeated
-        with patch.object(mock_codec.return_value, "decode", return_value="A" * 80):
+        with patch.object(mock_codec.return_value, "decode", return_value=("A" * 80, 80)):
             text = screen_buffer.to_text()
             lines = text.split("\n")
             assert len(lines) == 24

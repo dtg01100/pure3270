@@ -15,8 +15,9 @@ class TestDataStreamParser:
         sample_data = b"\xf5\xc1"  # WCC 0xC1
         data_stream_parser.parse(sample_data)
         assert data_stream_parser.wcc == 0xC1
-        # Check if clear was called if bit set
-        assert data_stream_parser.screen.buffer == bytearray(1920)  # cleared if bit 0
+        # Check if clear was called if bit set (bit 0 means reset modified flags)
+        # Our implementation clears buffer to spaces (0x40) when cleared
+        assert data_stream_parser.screen.buffer == bytearray([0x40] * 1920)
 
     def test_parse_aid(self, data_stream_parser):
         sample_data = b"\xf6\x7d"  # AID Enter 0x7D

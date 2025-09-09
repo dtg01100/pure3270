@@ -1112,9 +1112,7 @@ class AsyncSession:
         Raises:
             SessionError: If not connected.
         """
-        if not self._connected or not self.handler:
-            raise SessionError("Session not connected.")
-
+        # Cursor movement doesn't require connection
         row, col = self.screen_buffer.get_position()
         if row > 0:
             row -= 1
@@ -1129,9 +1127,7 @@ class AsyncSession:
         Raises:
             SessionError: If not connected.
         """
-        if not self._connected or not self.handler:
-            raise SessionError("Session not connected.")
-
+        # Cursor movement doesn't require connection
         row, col = self.screen_buffer.get_position()
         row += 1
         if row >= self.screen_buffer.rows:
@@ -1319,8 +1315,9 @@ class AsyncSession:
 
     async def page_up(self) -> None:
         """Page up (s3270 PageUp() action)."""
-        for _ in range(self.screen_buffer.rows):
-            await self.up()
+        # Move to top of screen
+        row, col = self.screen_buffer.get_position()
+        self.screen_buffer.set_position(0, col)
 
     async def paste_string(self, text: str) -> None:
         """Paste string (s3270 PasteString() action)."""
@@ -1356,7 +1353,7 @@ class AsyncSession:
 
     async def show(self) -> None:
         """Show screen content (s3270 Show() action)."""
-        print(self.screen_buffer.to_text())
+        print(self.screen_buffer.to_text(), end='')
 
     async def snap(self) -> None:
         """Save screen snapshot (s3270 Snap() action)."""

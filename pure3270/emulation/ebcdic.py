@@ -201,6 +201,11 @@ class EBCDICCodec(codecs.Codec):
         return encoded
 
 
+def get_p3270_version():
+    """Get p3270 version for patching (placeholder)."""
+    return "0.3.0"
+
+
 def encode_field_attribute(attr: int) -> int:
     """
     Encode 3270 field attribute to EBCDIC.
