@@ -14,6 +14,7 @@ class Field:
         protected: bool = False,
         numeric: bool = False,
         modified: bool = False,
+        selected: bool = False,
         content: Optional[bytes] = None,
     ):
         """
@@ -24,6 +25,7 @@ class Field:
         :param protected: Whether the field is protected (non-input).
         :param numeric: Whether the field accepts only numeric input.
         :param modified: Whether the field has been modified.
+        :param selected: Whether the field is selected.
         :param content: Initial EBCDIC content bytes.
         """
         self.start = start
@@ -31,6 +33,7 @@ class Field:
         self.protected = protected
         self.numeric = numeric
         self.modified = modified
+        self.selected = selected
         self.content = content or b""
 
     def get_content(self) -> str:
@@ -95,19 +98,23 @@ class ScreenBuffer:
         """Get current cursor position."""
         return (self.cursor_row, self.cursor_col)
 
-    def write_char(self, ebcdic_byte: int, row: int, col: int, protected: bool = False):
+    def write_char(self, ebcdic_byte: int, row: int, col: int, protected: bool = False, circumvent_protection: bool = False):
         """
         Write an EBCDIC character to the buffer at position.
 
         :param ebcdic_byte: EBCDIC byte value.
         :param row: Row position.
         :param col: Column position.
-        :param protected: Protection attribute.
+        :param protected: Protection attribute to set.
+        :param circumvent_protection: If True, write even to protected fields.
         """
         if 0 <= row < self.rows and 0 <= col < self.cols:
             pos = row * self.cols + col
-            self.buffer[pos] = ebcdic_byte
             attr_offset = pos * 3
+            is_protected = bool(self.attributes[attr_offset] & 0x02)
+            if is_protected and not circumvent_protection:
+                return  # Skip writing to protected field
+            self.buffer[pos] = ebcdic_byte
             # Set protection bit (simplified: byte 0 bit 1)
             self.attributes[attr_offset] = 0x02 if protected else 0x00
 
@@ -226,3 +233,34 @@ class ScreenBuffer:
 
     def __repr__(self) -> str:
         return f"ScreenBuffer({self.rows}x{self.cols}, fields={len(self.fields)})"
+
+    def get_field_at_position(self, row: int, col: int) -> Optional[Field]:
+        """Get the field containing the given position, if any."""
+        for field in self.fields:
+            start_row, start_col = field.start
+            end_row, end_col = field.end
+            if start_row <= row <= end_row and start_col <= col <= end_col:
+                return field
+        return None
+
+    def remove_field(self, field: Field) -> None:
+        """Remove a field from the fields list and clear its content in the buffer."""
+        if field in self.fields:
+            self.fields.remove(field)
+            # Clear the buffer content for this field
+            start_row, start_col = field.start
+            end_row, end_col = field.end
+            for r in range(start_row, end_row + 1):
+                for c in range(start_col, end_col + 1):
+                    if r < self.rows and c < self.cols:
+                        pos = r * self.cols + c
+                        self.buffer[pos] = 0x40  # Space in EBCDIC
+                        # Clear attributes
+                        attr_offset = pos * 3
+                        self.attributes[attr_offset:attr_offset+3] = b'\x00\x00\x00'
+        # Re-detect fields to update boundaries
+        self._detect_fields()
+
+    def update_fields(self) -> None:
+        """Update field detection and attributes."""
+        self._detect_fields()

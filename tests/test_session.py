@@ -1,6 +1,7 @@
 import pytest
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
+import subprocess
+from unittest.mock import AsyncMock, MagicMock, patch, ANY
 from pure3270.session import Session, AsyncSession, SessionError, MacroError
 from pure3270.emulation.screen_buffer import ScreenBuffer, Field
 from pure3270.protocol.tn3270_handler import TN3270Handler
@@ -310,6 +311,42 @@ class TestSession:
         sync_session._async_session.screen_buffer = ScreenBuffer()
         assert isinstance(sync_session.screen_buffer, ScreenBuffer)
 
+    @patch("pure3270.session.asyncio.run")
+    def test_cursor_select(self, mock_run, sync_session):
+        mock_run.return_value = None
+        sync_session.cursor_select()
+        mock_run.assert_called_once_with(ANY)  # Calls _cursor_select_async
+
+    @patch("pure3270.session.asyncio.run")
+    def test_delete_field(self, mock_run, sync_session):
+        mock_run.return_value = None
+        sync_session.delete_field()
+        mock_run.assert_called_once_with(ANY)
+
+    @patch("pure3270.session.asyncio.run")
+    def test_circum_not(self, mock_run, sync_session):
+        mock_run.return_value = None
+        sync_session.circum_not()
+        mock_run.assert_called_once_with(ANY)
+
+    @patch("pure3270.session.asyncio.run")
+    def test_script(self, mock_run, sync_session):
+        mock_run.return_value = None
+        sync_session.script("test")
+        mock_run.assert_called_once_with(ANY)
+
+    @patch("pure3270.session.asyncio.run")
+    def test_erase(self, mock_run, sync_session):
+        mock_run.return_value = None
+        sync_session.erase()
+        mock_run.assert_called_once_with(ANY)
+
+    @patch("pure3270.session.asyncio.run")
+    def test_erase_eof(self, mock_run, sync_session):
+        mock_run.return_value = None
+        sync_session.erase_eof()
+        mock_run.assert_called_once_with(ANY)
+
 
 @pytest.mark.asyncio
 class TestAsyncSessionAdvanced:
@@ -325,6 +362,61 @@ class TestAsyncSessionAdvanced:
         async_session.screen_buffer.buffer = bytearray([0x41] * 100)  # Some data
         await async_session.clear()
         assert all(b == 0x40 for b in async_session.screen_buffer.buffer[:100])
+
+    async def test_cursor_select_action(self, async_session):
+        """Test CursorSelect action."""
+        from pure3270.emulation.screen_buffer import Field
+        field = Field((0, 0), (0, 5), protected=False, selected=False)
+        async_session.screen_buffer.fields = [field]
+        async_session.screen_buffer.set_position(0, 2)
+        await async_session.cursor_select()
+        assert field.selected is True
+        assert len(async_session.screen_buffer.fields) == 1  # Fields unchanged
+
+    async def test_delete_field_action(self, async_session):
+        """Test DeleteField action."""
+        from pure3270.emulation.screen_buffer import Field
+        field = Field((0, 0), (0, 5), protected=False)
+        async_session.screen_buffer.fields = [field]
+        async_session.screen_buffer.set_position(0, 2)
+        await async_session.delete_field()
+        assert len(async_session.screen_buffer.fields) == 0  # Field removed
+        # Check buffer cleared to spaces
+        assert async_session.screen_buffer.buffer[0:6] == bytearray(b'\x40' * 6)
+
+    async def test_script_action(self, async_session):
+        """Test Script action."""
+        mock_method = AsyncMock()
+        async_session.cursor_select = mock_method
+        await async_session.script("cursor_select")
+        mock_method.assert_called_once()
+
+    async def test_circum_not_action(self, async_session):
+        """Test CircumNot action."""
+        assert async_session.circumvent_protection is False
+        await async_session.circum_not()
+        assert async_session.circumvent_protection is True
+        await async_session.circum_not()
+        assert async_session.circumvent_protection is False
+
+    async def test_insert_text_with_circumvent(self, async_session):
+        """Test insert_text with circumvent_protection."""
+        # Setup protected field
+        async_session.screen_buffer.attributes[0] = 0x02  # Protected
+        async_session.circumvent_protection = True
+        async_session.screen_buffer.set_position(0, 0)
+        await async_session.insert_text("A")
+        assert async_session.screen_buffer.buffer[0] == ord("A")  # EBCDIC for A, but simplified
+
+    async def test_insert_text_protected_without_circumvent(self, async_session):
+        """Test insert_text skips protected without circumvent."""
+        # Setup protected field
+        async_session.screen_buffer.attributes[0] = 0x02  # Protected
+        async_session.circumvent_protection = False
+        async_session.screen_buffer.set_position(0, 0)
+        initial_byte = async_session.screen_buffer.buffer[0]
+        await async_session.insert_text("A")
+        assert async_session.screen_buffer.buffer[0] == initial_byte  # Unchanged
 
     async def test_disconnect_action(self, async_session):
         """Test Disconnect action."""
@@ -381,12 +473,6 @@ class TestAsyncSessionAdvanced:
         await async_session.paste_string("test")
         mock_insert.assert_called_once_with("test")
 
-    async def test_script_action(self, async_session):
-        """Test Script action."""
-        # Placeholder test
-        await async_session.script("test script")
-        # Assert no error
-        assert True
 
     async def test_set_option_action(self, async_session):
         """Test Set action."""
@@ -543,11 +629,167 @@ class TestAsyncSessionAdvanced:
         await async_session.load_resource_definitions("test.xrdb")
         assert True
 
+    @pytest.mark.asyncio
+    async def test_load_resource_definitions_parsing(self, async_session):
+        """Test parsing valid xrdb file."""
+        xrdb_content = """s3270.color8: #FF0000
+s3270.ssl: true
+s3270.model: 3279
+s3270.font: monospace
+# comment
+s3270.keymap: default
+"""
+        with patch('builtins.open', mock_open(read_data=xrdb_content)):
+            await async_session.load_resource_definitions('test.xrdb')
+
+        assert async_session.resources == {
+            'color8': '#FF0000',
+            'ssl': 'true',
+            'model': '3279',
+            'font': 'monospace',
+            'keymap': 'default'
+        }
+        assert async_session.model == '3279'
+        assert async_session.color_mode is True
+        assert async_session.font == 'monospace'
+        assert async_session.keymap == 'default'
+        # Check color applied
+        r, g, b = async_session.color_palette[8]
+        assert r == 255 and g == 0 and b == 0
+
+    @pytest.mark.asyncio
+    async def test_load_resource_definitions_error(self, async_session):
+        """Test error handling: invalid file raises error."""
+        with patch('builtins.open', side_effect=IOError("File not found")):
+            with pytest.raises(SessionError):
+                await async_session.load_resource_definitions('nonexistent.xrdb')
+
+    @pytest.mark.asyncio
+    async def test_load_resource_definitions_invalid_resource(self, async_session):
+        """Test error handling: invalid resource logged but partial success."""
+        xrdb_content = """s3270.color8: invalid
+s3270.model: 3279
+"""
+        with patch('builtins.open', mock_open(read_data=xrdb_content)):
+            with patch.object(async_session, 'logger') as mock_logger:
+                await async_session.load_resource_definitions('test.xrdb')
+
+        # Partial success: model applied
+        assert async_session.model == '3279'
+        # Invalid color logged
+        mock_logger.warning.assert_called()
+        # No SessionError raised
+
+    @pytest.mark.asyncio
+    async def test_load_resource_definitions_integration_macro(self, async_session):
+        """Integration test: Load resources in macro and verify."""
+        xrdb_content = """s3270.color1: #00FF00
+"""
+        with patch('builtins.open', mock_open(read_data=xrdb_content)):
+            # Mock macro execution to include LoadResource
+            async_session.load_resource_definitions = AsyncMock()
+            macro = "LoadResource(test.xrdb); key Enter"
+            vars_dict = {}
+            result = await async_session.execute_macro(macro, vars_dict)
+
+        assert result["success"] is True
+        assert len(result["output"]) == 2  # Load and key
+        # Verify color applied after load
+        r, g, b = async_session.color_palette[1]
+        assert r == 0 and g == 255 and b == 0
+        # Check attributes updated (simplified assert on length or sample)
+        assert len(async_session.screen_buffer.attributes) > 0
+
     async def test_set_field_attribute(self, async_session):
         """Test extended field attributes."""
         # Setup a field
+        from pure3270.emulation.screen_buffer import Field
         async_session.screen_buffer.fields = [Field((0,0), (0,10), protected=False, content=b"test")]
         async_session.set_field_attribute(0, "color", 0x01)
         # Check if attributes were set (simplified)
         assert len(async_session.screen_buffer.attributes) > 0
+
+    async def test_erase_action(self, async_session):
+        """Test Erase action."""
+        async_session.screen_buffer.set_position(0, 0)
+        async_session.screen_buffer.buffer[0] = 0x41  # Some char
+        await async_session.erase()
+        assert async_session.screen_buffer.buffer[0] == 0x40  # Space
+
+    async def test_erase_eof_action(self, async_session):
+        """Test EraseEOF action."""
+        async_session.screen_buffer.set_position(0, 2)
+        async_session.screen_buffer.buffer[2:5] = [0x41, 0x42, 0x43]
+        await async_session.erase_eof()
+        assert async_session.screen_buffer.buffer[2:5] == [0x40, 0x40, 0x40]
+
+    async def test_end_action(self, async_session):
+        """Test End action."""
+        async_session.screen_buffer.set_position(0, 0)
+        await async_session.end()
+        row, col = async_session.screen_buffer.get_position()
+        assert col == async_session.screen_buffer.cols - 1
+
+    async def test_field_end_action(self, async_session):
+        """Test FieldEnd action."""
+        mock_end = AsyncMock()
+        async_session.end = mock_end
+        await async_session.field_end()
+        mock_end.assert_called_once()
+
+    async def test_erase_input_action(self, async_session):
+        """Test EraseInput action."""
+        from pure3270.emulation.screen_buffer import Field
+        field = Field((0,0), (0,5), protected=False, content=b"ABCDE")
+        async_session.screen_buffer.fields = [field]
+        await async_session.erase_input()
+        assert field.content == b"\x40\x40\x40\x40\x40"  # Spaces
+        assert field.modified is True
+
+    async def test_move_cursor_action(self, async_session):
+        """Test MoveCursor action."""
+        await async_session.move_cursor(5, 10)
+        row, col = async_session.screen_buffer.get_position()
+        assert row == 5 and col == 10
+
+    async def test_move_cursor1_action(self, async_session):
+        """Test MoveCursor1 action (1-based)."""
+        await async_session.move_cursor1(1, 1)
+        row, col = async_session.screen_buffer.get_position()
+        assert row == 0 and col == 0  # 1-based to 0-based
+
+    async def test_next_word_action(self, async_session):
+        """Test NextWord action."""
+        mock_right = AsyncMock()
+        async_session.right = mock_right
+        await async_session.next_word()
+        mock_right.assert_called_once()
+
+    async def test_previous_word_action(self, async_session):
+        """Test PreviousWord action."""
+        mock_left = AsyncMock()
+        async_session.left = mock_left
+        await async_session.previous_word()
+        mock_left.assert_called_once()
+
+    async def test_flip_action(self, async_session):
+        """Test Flip action."""
+        mock_toggle = AsyncMock()
+        async_session.toggle_insert = mock_toggle
+        await async_session.flip()
+        mock_toggle.assert_called_once()
+
+    async def test_insert_action(self, async_session):
+        """Test Insert action."""
+        initial_mode = async_session.insert_mode
+        await async_session.insert()
+        assert async_session.insert_mode != initial_mode  # Toggles mode
+
+    async def test_delete_action(self, async_session):
+        """Test Delete action."""
+        async_session.screen_buffer.set_position(0, 1)
+        async_session.screen_buffer.buffer[1:4] = [0x41, 0x42, 0x43]
+        await async_session.delete()
+        assert async_session.screen_buffer.buffer[1:3] == [0x42, 0x43]
+        assert async_session.screen_buffer.buffer[3] == 0x40  # Last cleared
 
