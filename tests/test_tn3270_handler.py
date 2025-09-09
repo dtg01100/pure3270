@@ -17,8 +17,10 @@ class TestTN3270Handler:
         mock_writer = AsyncMock()
         mock_reader.read.return_value = b""  # Initial data
         mock_open.return_value = (mock_reader, mock_writer)
-        with patch.object(tn3270_handler, "_negotiate_tn3270"):
-            await tn3270_handler.connect()
+        # Mock the negotiator's _read_iac method to return valid IAC data
+        with patch.object(tn3270_handler.negotiator, '_read_iac', return_value=b"\xff\xfd\x18"):
+            with patch.object(tn3270_handler, "_negotiate_tn3270"):
+                await tn3270_handler.connect()
         mock_open.assert_called_with(tn3270_handler.host, tn3270_handler.port, ssl=None)
         assert tn3270_handler.reader == mock_reader
         assert tn3270_handler.writer == mock_writer
@@ -33,8 +35,10 @@ class TestTN3270Handler:
         mock_writer = AsyncMock()
         mock_reader.read.return_value = b""  # Initial data
         mock_open.return_value = (mock_reader, mock_writer)
-        with patch.object(tn3270_handler, "_negotiate_tn3270"):
-            await tn3270_handler.connect()
+        # Mock the negotiator's _read_iac method to return valid IAC data
+        with patch.object(tn3270_handler.negotiator, '_read_iac', return_value=b"\xff\xfd\x18"):
+            with patch.object(tn3270_handler, "_negotiate_tn3270"):
+                await tn3270_handler.connect()
         mock_open.assert_called_with(
             tn3270_handler.host, tn3270_handler.port, ssl=ssl_context
         )
@@ -51,6 +55,8 @@ class TestTN3270Handler:
         tn3270_handler.reader = AsyncMock()
         tn3270_handler.writer = AsyncMock()
         tn3270_handler.writer.drain = AsyncMock()
+        # Update negotiator's writer as well
+        tn3270_handler.negotiator.writer = tn3270_handler.writer
 
         # Mock the negotiation sequence
         tn3270_handler.reader.read.side_effect = [
@@ -68,6 +74,8 @@ class TestTN3270Handler:
         tn3270_handler.reader = AsyncMock()
         tn3270_handler.writer = AsyncMock()
         tn3270_handler.writer.drain = AsyncMock()
+        # Update negotiator's writer as well
+        tn3270_handler.negotiator.writer = tn3270_handler.writer
 
         # Mock failure response - WONT TN3270E
         tn3270_handler.reader.read.return_value = b"\xff\xfc\x24"  # WONT TN3270E
@@ -148,6 +156,8 @@ class TestTN3270Handler:
         tn3270_handler.reader = AsyncMock()
         tn3270_handler.writer = AsyncMock()
         tn3270_handler.writer.drain = AsyncMock()
+        # Update negotiator's writer as well
+        tn3270_handler.negotiator.writer = tn3270_handler.writer
 
         # Mock responses: WONT TN3270E
         tn3270_handler.reader.read.side_effect = [
@@ -165,7 +175,7 @@ class TestTN3270Handler:
     @pytest.mark.asyncio
     async def test_send_scs_data_printer_session(self, tn3270_handler):
         tn3270_handler._connected = True
-        tn3270_handler.is_printer_session = True
+        tn3270_handler.negotiator.is_printer_session = True
         tn3270_handler.writer = AsyncMock()
         tn3270_handler.reader = AsyncMock()
         tn3270_handler.writer.drain = AsyncMock()
@@ -185,7 +195,7 @@ class TestTN3270Handler:
     @pytest.mark.asyncio
     async def test_send_print_eoj_printer_session(self, tn3270_handler):
         tn3270_handler._connected = True
-        tn3270_handler.is_printer_session = True
+        tn3270_handler.negotiator.is_printer_session = True
         tn3270_handler.writer = AsyncMock()
         tn3270_handler.reader = AsyncMock()
         tn3270_handler.writer.drain = AsyncMock()

@@ -24,6 +24,10 @@ print("Starting standalone pure3270 session demonstration.")
 session = Session(host="mock-tn3270-host.example.com", port=23)
 print("pure3270.Session created successfully.")
 
+# Define host and port variables for the print statement
+host = "mock-tn3270-host.example.com"
+port = 23
+
 try:
     # Connect to the host
     session.connect()

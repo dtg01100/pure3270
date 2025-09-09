@@ -40,12 +40,12 @@ class Session:
     All methods use asyncio.run() to execute async operations.
     """
 
-    def __init__(self, host: str, port: int = 23, ssl_context: Optional[Any] = None):
+    def __init__(self, host: Optional[str] = None, port: int = 23, ssl_context: Optional[Any] = None):
         """
         Initialize a synchronous session.
 
         Args:
-            host: The target host IP or hostname.
+            host: The target host IP or hostname (can be set later in connect()).
             port: The target port (default 23 for Telnet).
             ssl_context: Optional SSL context for secure connections.
 
@@ -64,11 +64,10 @@ class Session:
             host: Optional host override.
             port: Optional port override (default 23).
             ssl_context: Optional SSL context override.
+    
+        Raises:
+            ConnectionError: If connection fails.
         """
-        asyncio.run(self._connect_async(host, port, ssl_context))
-
-    async def _connect_async(self, host: Optional[str] = None, port: Optional[int] = None, ssl_context: Optional[Any] = None) -> None:
-        """Async connect helper."""
         if host is not None:
             self._host = host
         if port is not None:
@@ -76,110 +75,84 @@ class Session:
         if ssl_context is not None:
             self._ssl_context = ssl_context
         self._async_session = AsyncSession(self._host, self._port, self._ssl_context)
-        await self._async_session.connect(host, port, ssl_context)
+        asyncio.run(self._async_session.connect())
 
     def send(self, data: bytes) -> None:
         """
         Send data to the session.
-
+    
         Args:
             data: Bytes to send.
-
+    
         Raises:
             SessionError: If send fails.
         """
-        asyncio.run(self._send_async(data))
-
-    async def _send_async(self, data: bytes) -> None:
-        """Async send helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        await self._async_session.send(data)
+        asyncio.run(self._async_session.send(data))
 
     def read(self, timeout: float = 5.0) -> bytes:
         """
         Read data from the session.
-
+    
         Args:
             timeout: Read timeout in seconds.
-
+    
         Returns:
             Received bytes.
-
+    
         Raises:
             SessionError: If read fails.
         """
-        return asyncio.run(self._read_async(timeout))
-
-    async def _read_async(self, timeout: float = 5.0) -> bytes:
-        """Async read helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        return await self._async_session.read(timeout)
+        return asyncio.run(self._async_session.read(timeout))
 
     def execute_macro(
         self, macro: str, vars: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
         """
         Execute a macro synchronously.
-
+    
         Args:
             macro: Macro script to execute.
             vars: Optional dictionary for variable substitution.
-
+    
         Returns:
             Dict with execution results, e.g., {'success': bool, 'output': list}.
-
+    
         Raises:
             MacroError: If macro execution fails.
         """
-        return asyncio.run(self._execute_macro_async(macro, vars))
-
-    async def _execute_macro_async(
-        self, macro: str, vars: Optional[Dict[str, str]] = None
-    ) -> Dict[str, Any]:
-        """Async macro helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        return await self._async_session.execute_macro(macro, vars)
+        return asyncio.run(self._async_session.execute_macro(macro, vars))
 
     def close(self) -> None:
         """Close the session synchronously."""
-        asyncio.run(self._close_async())
-    
+        if self._async_session:
+            asyncio.run(self._async_session.close())
+            self._async_session = None
+        
     def open(self, host: str, port: int = 23) -> None:
         """Open connection synchronously (s3270 Open() action)."""
         self.connect(host, port)
-    
+        
     def close_script(self) -> None:
         """Close script synchronously (s3270 CloseScript() action)."""
-        asyncio.run(self._close_script_async())
-    
-    async def _close_script_async(self) -> None:
-        """Async close script helper."""
         if self._async_session:
-            await self._async_session.close_script()
-
-    async def _close_async(self) -> None:
-        """Async close helper."""
-        if self._async_session:
-            await self._async_session.close()
-            self._async_session = None
+            asyncio.run(self._async_session.close_script())
 
     def ascii(self, data: bytes) -> str:
         """
         Convert EBCDIC data to ASCII text (s3270 Ascii() action).
-
+    
         Args:
             data: EBCDIC bytes to convert.
-
+    
         Returns:
             ASCII string representation.
         """
-        return asyncio.run(self._ascii_async(data))
-
-    async def _ascii_async(self, data: bytes) -> str:
-        """Async ascii helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
         return self._async_session.ascii(data)
@@ -187,17 +160,13 @@ class Session:
     def ebcdic(self, text: str) -> bytes:
         """
         Convert ASCII text to EBCDIC data (s3270 Ebcdic() action).
-
+    
         Args:
             text: ASCII text to convert.
-
+    
         Returns:
             EBCDIC bytes representation.
         """
-        return asyncio.run(self._ebcdic_async(text))
-
-    async def _ebcdic_async(self, text: str) -> bytes:
-        """Async ebcdic helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
         return self._async_session.ebcdic(text)
@@ -205,17 +174,13 @@ class Session:
     def ascii1(self, byte_val: int) -> str:
         """
         Convert a single EBCDIC byte to ASCII character (s3270 Ascii1() action).
-
+    
         Args:
             byte_val: EBCDIC byte value.
-
+    
         Returns:
             ASCII character.
         """
-        return asyncio.run(self._ascii1_async(byte_val))
-
-    async def _ascii1_async(self, byte_val: int) -> str:
-        """Async ascii1 helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
         return self._async_session.ascii1(byte_val)
@@ -223,17 +188,13 @@ class Session:
     def ebcdic1(self, char: str) -> int:
         """
         Convert a single ASCII character to EBCDIC byte (s3270 Ebcdic1() action).
-
+    
         Args:
             char: ASCII character to convert.
-
+    
         Returns:
             EBCDIC byte value.
         """
-        return asyncio.run(self._ebcdic1_async(char))
-
-    async def _ebcdic1_async(self, char: str) -> int:
-        """Async ebcdic1 helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
         return self._async_session.ebcdic1(char)
@@ -241,17 +202,13 @@ class Session:
     def ascii_field(self, field_index: int) -> str:
         """
         Convert field content to ASCII text (s3270 AsciiField() action).
-
+    
         Args:
             field_index: Index of field to convert.
-
+    
         Returns:
             ASCII string representation of field content.
         """
-        return asyncio.run(self._ascii_field_async(field_index))
-
-    async def _ascii_field_async(self, field_index: int) -> str:
-        """Async ascii_field helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
         return self._async_session.ascii_field(field_index)
@@ -259,43 +216,29 @@ class Session:
     def cursor_select(self) -> None:
         """
         Select field at cursor (s3270 CursorSelect() action).
-
+    
         Raises:
             SessionError: If not connected.
         """
-        asyncio.run(self._cursor_select_async())
-
-    async def _cursor_select_async(self) -> None:
-        """Async cursor_select helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        await self._async_session.cursor_select()
+        asyncio.run(self._async_session.cursor_select())
 
     def delete_field(self) -> None:
         """
         Delete field at cursor (s3270 DeleteField() action).
-
+    
         Raises:
             SessionError: If not connected.
         """
-        asyncio.run(self._delete_field_async())
-
-    async def _delete_field_async(self) -> None:
-        """Async delete_field helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        await self._async_session.delete_field()
+        asyncio.run(self._async_session.delete_field())
 
     def echo(self, text: str) -> None:
         """Echo text (s3270 Echo() action)."""
         print(text)
-    
-    async def _echo_async(self, text: str) -> None:
-        """Async echo helper."""
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        print(text)
-    
+        
     def circum_not(self) -> None:
         """
         Toggle circumvention of field protection (s3270 CircumNot() action).
@@ -303,13 +246,9 @@ class Session:
         Raises:
             SessionError: If not connected.
         """
-        asyncio.run(self._circum_not_async())
-
-    async def _circum_not_async(self) -> None:
-        """Async circum_not helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        await self._async_session.circum_not()
+        asyncio.run(self._async_session.circum_not())
 
     def script(self, commands: str) -> None:
         """
@@ -321,269 +260,174 @@ class Session:
         Raises:
             SessionError: If not connected.
         """
-        asyncio.run(self._script_async(commands))
-    
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        asyncio.run(self._async_session.script(commands))
+        
     def execute(self, command: str) -> str:
         """Execute external command synchronously (s3270 Execute() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        return asyncio.run(self._execute_async(command))
-    
+        return asyncio.run(self._async_session.execute(command))
+        
     def capabilities(self) -> str:
         """Get capabilities synchronously (s3270 Capabilities() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        return asyncio.run(self._capabilities_async())
-    
+        return asyncio.run(self._async_session.capabilities())
+        
     def interrupt(self) -> None:
         """Send interrupt synchronously (s3270 Interrupt() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._interrupt_async())
-    
+        asyncio.run(self._async_session.interrupt())
+        
     def key(self, keyname: str) -> None:
         """Send key synchronously (s3270 Key() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._key_async(keyname))
-    
+        asyncio.run(self._async_session.key(keyname))
+        
     def query(self, query_type: str = "All") -> str:
         """Query screen synchronously (s3270 Query() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        return asyncio.run(self._query_async(query_type))
-    
+        return asyncio.run(self._async_session.query(query_type))
+        
     def set_option(self, option: str, value: str) -> None:
         """Set option synchronously (s3270 Set() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._set_option_async(option, value))
-    
+        asyncio.run(self._async_session.set(option, value))
+        
     def exit(self) -> None:
         """Exit synchronously (s3270 Exit() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._exit_async())
-    
+        asyncio.run(self._async_session.exit())
+        
     def keyboard_disable(self) -> None:
         """Disable keyboard input (s3270 KeyboardDisable() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
         self._async_session.keyboard_disabled = True
         logger.info("Keyboard disabled")
-    
-    async def _keyboard_disable_async(self) -> None:
-        """Async keyboard disable helper."""
-        self.keyboard_disabled = True
-        logger.info("Keyboard disabled")
-    
+        
     def enter(self) -> None:
         """Send Enter key synchronously (s3270 Enter() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._enter_async())
-    
-    async def _enter_async(self) -> None:
-        """Async enter helper."""
-        await self._async_session.enter()
-    
-    async def _script_async(self, commands: str) -> None:
-        """Async script helper."""
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        await self._async_session.script(commands)
-    
-    async def _execute_async(self, command: str) -> str:
-        """Async execute helper."""
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        return await self._async_session.execute(command)
-    
-    async def _capabilities_async(self) -> str:
-        """Async capabilities helper."""
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        return await self._async_session.capabilities()
-    
-    async def _interrupt_async(self) -> None:
-        """Async interrupt helper."""
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        await self._async_session.interrupt()
-    
-    async def _key_async(self, keyname: str) -> None:
-        """Async key helper."""
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        await self._async_session.key(keyname)
-    
-    async def _query_async(self, query_type: str = "All") -> str:
-        """Async query helper."""
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        return await self._async_session.query(query_type)
-    
-    async def _set_option_async(self, option: str, value: str) -> None:
-        """Async set option helper."""
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        await self._async_session.set(option, value)
-    
-    async def _exit_async(self) -> None:
-        """Async exit helper."""
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        await self._async_session.exit()
+        asyncio.run(self._async_session.enter())
 
     def erase(self) -> None:
         """
         Erase character at cursor (s3270 Erase() action).
-
+    
         Raises:
             SessionError: If not connected.
         """
-        asyncio.run(self._erase_async())
-
-    async def _erase_async(self) -> None:
-        """Async erase helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        await self._async_session.erase()
+        asyncio.run(self._async_session.erase())
 
     def erase_eof(self) -> None:
         """
         Erase from cursor to end of field (s3270 EraseEOF() action).
-
+    
         Raises:
             SessionError: If not connected.
         """
-        asyncio.run(self._erase_eof_async())
-
-    async def _erase_eof_async(self) -> None:
-        """Async erase_eof helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        await self._async_session.erase_eof()
+        asyncio.run(self._async_session.erase_eof())
 
     def home(self) -> None:
         """
         Move cursor to home position (s3270 Home() action).
-
+    
         Raises:
             SessionError: If not connected.
         """
-        asyncio.run(self._home_async())
-
-    async def _home_async(self) -> None:
-        """Async home helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        await self._async_session.home()
+        asyncio.run(self._async_session.home())
 
     def left(self) -> None:
         """
         Move cursor left one position (s3270 Left() action).
-
+    
         Raises:
             SessionError: If not connected.
         """
-        asyncio.run(self._left_async())
-
-    async def _left_async(self) -> None:
-        """Async left helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        await self._async_session.left()
+        asyncio.run(self._async_session.left())
 
     def right(self) -> None:
         """
         Move cursor right one position (s3270 Right() action).
-
+    
         Raises:
             SessionError: If not connected.
         """
-        asyncio.run(self._right_async())
-
-    async def _right_async(self) -> None:
-        """Async right helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        await self._async_session.right()
+        asyncio.run(self._async_session.right())
 
     def up(self) -> None:
         """
         Move cursor up one row (s3270 Up() action).
-
+    
         Raises:
             SessionError: If not connected.
         """
-        asyncio.run(self._up_async())
-
-    async def _up_async(self) -> None:
-        """Async up helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        await self._async_session.up()
+        asyncio.run(self._async_session.up())
 
     def down(self) -> None:
         """
         Move cursor down one row (s3270 Down() action).
-
+    
         Raises:
             SessionError: If not connected.
         """
-        asyncio.run(self._down_async())
-
-    async def _down_async(self) -> None:
-        """Async down helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        await self._async_session.down()
+        asyncio.run(self._async_session.down())
 
     def backspace(self) -> None:
         """
         Send backspace (s3270 BackSpace() action).
-
+    
         Raises:
             SessionError: If not connected.
         """
-        asyncio.run(self._backspace_async())
-
-    async def _backspace_async(self) -> None:
-        """Async backspace helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        await self._async_session.backspace()
+        asyncio.run(self._async_session.backspace())
 
     def tab(self) -> None:
         """
         Move cursor to next field or right (s3270 Tab() action).
-
+    
         Raises:
             SessionError: If not connected.
         """
-        asyncio.run(self._tab_async())
-
-    async def _tab_async(self) -> None:
-        """Async tab helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        await self._async_session.tab()
+        asyncio.run(self._async_session.tab())
 
     def backtab(self) -> None:
         """
         Move cursor to previous field or left (s3270 BackTab() action).
-
+    
         Raises:
             SessionError: If not connected.
         """
-        asyncio.run(self._backtab_async())
-
-    async def _backtab_async(self) -> None:
-        """Async backtab helper."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        await self._async_session.backtab()
+        asyncio.run(self._async_session.backtab())
 
     @property
     def screen_buffer(self) -> ScreenBuffer:
@@ -607,12 +451,12 @@ class AsyncSession:
     Manages connection, data exchange, and screen emulation for 3270 terminals.
     """
 
-    def __init__(self, host: str, port: int = 23, ssl_context: Optional[Any] = None):
+    def __init__(self, host: Optional[str] = None, port: int = 23, ssl_context: Optional[Any] = None):
         """
         Initialize the async session.
 
         Args:
-            host: The target host IP or hostname.
+            host: The target host IP or hostname (can be set later in connect()).
             port: The target port (default 23 for Telnet).
             ssl_context: Optional SSL context for secure connections.
 
@@ -637,6 +481,7 @@ class AsyncSession:
         self.font = 'fixed'
         self.keymap = None
         self._resource_mtime = 0
+        self.keyboard_disabled = False
 
     async def connect(self, host: Optional[str] = None, port: Optional[int] = None, ssl_context: Optional[Any] = None) -> None:
         """
@@ -957,7 +802,7 @@ class AsyncSession:
 
     async def macro(self, commands: List[str]) -> None:
         """
-        Execute a list of macro commands.
+        Execute a list of macro commands using a dispatcher for maintainability.
     
         Args:
             commands: List of macro command strings.
@@ -965,6 +810,10 @@ class AsyncSession:
                      - 'String(text)' - Send text as EBCDIC
                      - 'key Enter' - Send Enter key
                      - 'key <keyname>' - Send other keys (PF1-PF24, PA1-PA3, etc.)
+                     Examples:
+                         - String(Hello World)
+                         - key enter
+                         - Execute(ls -l)
     
         Raises:
             MacroError: If command parsing or execution fails.
@@ -1013,15 +862,56 @@ class AsyncSession:
             "reset": 0x7F,
         }
     
+        # Command dispatcher for simple actions
+        simple_actions = {
+            "Interrupt()": self.interrupt,
+            "CircumNot()": self.circum_not,
+            "CursorSelect()": self.cursor_select,
+            "Delete()": self.delete,
+            "DeleteField()": self.delete_field,
+            "Dup()": self.dup,
+            "End()": self.end,
+            "Erase()": self.erase,
+            "EraseEOF()": self.erase_eof,
+            "EraseInput()": self.erase_input,
+            "FieldEnd()": self.field_end,
+            "FieldMark()": self.field_mark,
+            "Flip()": self.flip,
+            "Insert()": self.insert,
+            "NextWord()": self.next_word,
+            "PreviousWord()": self.previous_word,
+            "RestoreInput()": self.restore_input,
+            "SaveInput()": self.save_input,
+            "Tab()": self.tab,
+            "ToggleInsert()": self.toggle_insert,
+            "ToggleReverse()": self.toggle_reverse,
+            "Clear()": self.clear,
+            "Close()": self.close_session,
+            "CloseScript()": self.close_script,
+            "Disconnect()": self.disconnect,
+            "Exit()": self.exit,
+            "Info()": self.info,
+            "Quit()": self.quit,
+            "Newline()": self.newline,
+            "PageDown()": self.page_down,
+            "PageUp()": self.page_up,
+            "Bell()": self.bell,
+            "Show()": self.show,
+            "Snap()": self.snap,
+            "Left2()": self.left2,
+            "Right2()": self.right2,
+            "MonoCase()": self.mono_case,
+        }
+    
         for command in commands:
             command = command.strip()
             try:
-                if command.startswith("String(") and command.endswith(")"):
-                    # Extract text from String(text)
-                    text = command[7:-1]  # Remove 'String(' and ')'
+                if command in simple_actions:
+                    await simple_actions[command]()
+                elif command.startswith("String(") and command.endswith(")"):
+                    text = command[7:-1]
                     await self.insert_text(text)
                 elif command.startswith("key "):
-                    # Extract key name
                     key_name = command[4:].strip().lower()
                     aid = AID_MAP.get(key_name)
                     if aid is not None:
@@ -1038,12 +928,8 @@ class AsyncSession:
                 elif command == "Capabilities()":
                     result = await self.capabilities()
                     print(result)
-                elif command == "Interrupt()":
-                    await self.interrupt()
                 elif command.startswith("Query("):
                     query_type = command[6:-1].strip()
-                    if query_type == "All":
-                        query_type = "All"
                     result = await self.query(query_type)
                     print(result)
                 elif command.startswith("Set("):
@@ -1054,34 +940,7 @@ class AsyncSession:
                         await self.set(option, value)
                     else:
                         raise MacroError("Invalid Set format")
-                elif command == "CircumNot()":
-                    await self.circum_not()
-                elif command == "CursorSelect()":
-                    await self.cursor_select()
-                elif command == "Delete()":
-                    await self.delete()
-                elif command == "DeleteField()":
-                    await self.delete_field()
-                elif command == "Dup()":
-                    await self.dup()
-                elif command == "End()":
-                    await self.end()
-                elif command == "Erase()":
-                    await self.erase()
-                elif command == "EraseEOF()":
-                    await self.erase_eof()
-                elif command == "EraseInput()":
-                    await self.erase_input()
-                elif command == "FieldEnd()":
-                    await self.field_end()
-                elif command == "FieldMark()":
-                    await self.field_mark()
-                elif command == "Flip()":
-                    await self.flip()
-                elif command == "Insert()":
-                    await self.insert()
                 elif command.startswith("MoveCursor("):
-                    # Parse MoveCursor(row, col)
                     args = command[11:-1].split(",")
                     if len(args) == 2:
                         row = int(args[0].strip())
@@ -1097,48 +956,12 @@ class AsyncSession:
                         await self.move_cursor1(row, col)
                     else:
                         raise MacroError("Invalid MoveCursor1 format")
-                elif command == "NextWord()":
-                    await self.next_word()
-                elif command == "PreviousWord()":
-                    await self.previous_word()
-                elif command == "RestoreInput()":
-                    await self.restore_input()
-                elif command == "SaveInput()":
-                    await self.save_input()
-                elif command == "Tab()":
-                    await self.tab()
-                elif command == "ToggleInsert()":
-                    await self.toggle_insert()
-                elif command == "ToggleReverse()":
-                    await self.toggle_reverse()
-                elif command == "Clear()":
-                    await self.clear()
-                elif command == "Close()":
-                    await self.close_session()
-                elif command == "CloseScript()":
-                    await self.close_script()
-                elif command == "Disconnect()":
-                    await self.disconnect()
-                elif command == "Exit()":
-                    await self.exit()
-                elif command == "Info()":
-                    await self.info()
-                elif command == "Quit()":
-                    await self.quit()
-                elif command == "Newline()":
-                    await self.newline()
-                elif command == "PageDown()":
-                    await self.page_down()
-                elif command == "PageUp()":
-                    await self.page_up()
                 elif command.startswith("PasteString("):
                     text = command[12:-1]
                     await self.paste_string(text)
                 elif command.startswith("Script("):
                     script = command[7:-1]
                     await self.script(script)
-                elif command == "Bell()":
-                    await self.bell()
                 elif command.startswith("Pause("):
                     secs = float(command[6:-1])
                     await self.pause(secs)
@@ -1150,16 +973,6 @@ class AsyncSession:
                     hex_str = command[10:-1]
                     result = await self.hex_string(hex_str)
                     print(result)
-                elif command == "Show()":
-                    await self.show()
-                elif command == "Snap()":
-                    await self.snap()
-                elif command == "Left2()":
-                    await self.left2()
-                elif command == "Right2()":
-                    await self.right2()
-                elif command == "MonoCase()":
-                    await self.mono_case()
                 elif command.startswith("NvtText("):
                     text = command[8:-1]
                     await self.nvt_text(text)
@@ -1654,9 +1467,6 @@ class AsyncSession:
             f"Connected: {self._connected}, TN3270 mode: {self.tn3270_mode}, LU: {self._lu_name}"
         )
 
-    async def quit(self) -> None:
-        """Quit the session (s3270 Quit() action)."""
-        await self.close()
 
     async def newline(self) -> None:
         """Move to next line (s3270 Newline() action)."""

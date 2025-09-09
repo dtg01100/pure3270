@@ -24,7 +24,8 @@ def send_iac(writer, data: bytes) -> None:
     """
     if writer:
         writer.write(bytes([IAC]) + data)
-        writer.drain()
+        # drain() should be awaited in async context
+        # The caller is responsible for awaiting drain() if needed
 
 
 def send_subnegotiation(writer, opt: bytes, data: bytes) -> None:
@@ -39,7 +40,8 @@ def send_subnegotiation(writer, opt: bytes, data: bytes) -> None:
     if writer:
         sub = bytes([IAC, SB]) + opt + data + bytes([IAC, SE])
         writer.write(sub)
-        writer.drain()
+        # drain() should be awaited in async context
+        # The caller is responsible for awaiting drain() if needed
 
 
 def strip_telnet_iac(

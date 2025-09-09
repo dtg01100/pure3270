@@ -4,13 +4,13 @@ from pure3270.protocol.utils import send_iac, send_subnegotiation, strip_telnet_
 
 @pytest.fixture
 def mock_writer():
-    return AsyncMock()
+    return MagicMock()  # Use MagicMock instead of AsyncMock for sync functions
 
 def test_send_iac(mock_writer):
     data = b'\xFB\x01'  # WILL ECHO
     send_iac(mock_writer, data)
     mock_writer.write.assert_called_once_with(b'\xFF' + data)
-    mock_writer.drain.assert_called_once()
+    # drain() is not called automatically, caller should await it if needed
 
 def test_send_subnegotiation(mock_writer):
     opt = b'\x27'
@@ -18,7 +18,7 @@ def test_send_subnegotiation(mock_writer):
     send_subnegotiation(mock_writer, opt, data)
     expected = b'\xFF\xFA' + opt + data + b'\xFF\xF0'
     mock_writer.write.assert_called_once_with(expected)
-    mock_writer.drain.assert_called_once()
+    # drain() is not called automatically, caller should await it if needed
 
 def test_strip_telnet_iac_basic():
     data = b'Hello\xFF\xFB\x01World'

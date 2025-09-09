@@ -11,6 +11,7 @@ from .data_stream import DataStreamParser
 from ..emulation.screen_buffer import ScreenBuffer
 from .utils import send_iac, send_subnegotiation
 from .exceptions import NegotiationError, ProtocolError, ParseError
+from .negotiator import Negotiator
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +57,12 @@ class TN3270Handler:
             self.writer = writer
             self._connected = True
 
+            # Update negotiator with writer
+            self.negotiator.writer = self.writer
+
             # Perform negotiation
-            await self._negotiate_tn3270()
+            await self.negotiator.negotiate()
+            await self.negotiator._negotiate_tn3270()
         except Exception as e:
             logger.error(f"Connection failed: {e}")
             raise ConnectionError(f"Failed to connect: {e}")
@@ -90,73 +95,24 @@ class TN3270Handler:
         self.port = port
         self.screen_buffer = ScreenBuffer()
         self.parser = DataStreamParser(self.screen_buffer)
-        self._ascii_mode = False
-        self._connected = False  # Start as not connected
-        self.negotiated_tn3270e = False
-        self.lu_name = None
-        self.screen_rows = 24
-        self.screen_cols = 80
-        self.is_printer_session = False
+        self._connected = False
+        self.negotiator = Negotiator(self.writer, self.parser, self.screen_buffer, self)
 
     async def negotiate(self) -> None:
         """
         Perform initial Telnet negotiation.
 
-        Sends DO TERMINAL-TYPE and waits for responses.
-
-        Raises:
-            NegotiationError: If negotiation fails.
+        Delegates to negotiator.
         """
-        if self.writer is None:
-            raise ProtocolError("Writer is None; cannot negotiate.")
-        send_iac(self.writer, b"\xff\xfd\x27")  # DO TERMINAL-TYPE
-        await self.writer.drain()
-        # Handle response (simplified)
-        data = await self._read_iac()
-        if not data:
-            raise NegotiationError("No response to DO TERMINAL-TYPE")
+        await self.negotiator.negotiate()
 
     async def _negotiate_tn3270(self) -> None:
         """
         Negotiate TN3270E subnegotiation.
 
-        Sends TN3270E request and handles BIND, etc.
-
-        Raises:
-            NegotiationError: On subnegotiation failure.
+        Delegates to negotiator.
         """
-        if self.writer is None:
-            raise ProtocolError("Writer is None; cannot negotiate TN3270.")
-        # Send TN3270E subnegotiation
-        tn3270e_request = b"\x00\x00\x01\x00\x00\x18\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
-        send_subnegotiation(self.writer, b"\x19", tn3270e_request)
-        await self.writer.drain()
-        # Parse response
-        try:
-            response = await self.receive_data(10.0)
-            if (
-                b"\x28" in response or b"\xff\xfb\x24" in response
-            ):  # TN3270E positive response
-                self.negotiated_tn3270e = True
-                self.parser.parse(response)
-                logger.info("TN3270E negotiation successful")
-
-                # Check if this is a printer session based on LU name or BIND response
-                if self.lu_name and ("LTR" in self.lu_name or "PTR" in self.lu_name):
-                    self.is_printer_session = True
-                    logger.info(f"Printer session detected for LU: {self.lu_name}")
-            else:
-                self.negotiated_tn3270e = False
-                self.set_ascii_mode()
-                logger.info("TN3270E negotiation failed, fallback to ASCII")
-        except (ParseError, ProtocolError, asyncio.TimeoutError) as e:
-            logger.warning(f"TN3270E negotiation failed with specific error: {e}")
-            self.negotiated_tn3270e = False
-            self.set_ascii_mode()
-        except Exception as e:
-            logger.error(f"Unexpected error during TN3270E negotiation: {e}")
-            self.negotiated_tn3270e = False
-            self.set_ascii_mode()
+        await self.negotiator._negotiate_tn3270()
 
     def set_ascii_mode(self) -> None:
         """
@@ -164,7 +120,7 @@ class TN3270Handler:
 
         Disables EBCDIC processing.
         """
-        self._ascii_mode = True
+        self.negotiator.set_ascii_mode()
 
     async def send_data(self, data: bytes) -> None:
         """
@@ -203,7 +159,7 @@ class TN3270Handler:
             data = await asyncio.wait_for(self.reader.read(4096), timeout=timeout)
         except asyncio.TimeoutError:
             raise
-        if self._ascii_mode:
+        if self.negotiator._ascii_mode:
             return data
         # Parse and update screen buffer (simplified)
         try:
@@ -229,7 +185,7 @@ class TN3270Handler:
         if not self._connected:
             raise ProtocolError("Not connected")
 
-        if not self.is_printer_session:
+        if not self.negotiator.is_printer_session:
             raise ProtocolError("Not a printer session")
 
         if self.writer is None:
@@ -250,7 +206,7 @@ class TN3270Handler:
         if not self._connected:
             raise ProtocolError("Not connected")
 
-        if not self.is_printer_session:
+        if not self.negotiator.is_printer_session:
             raise ProtocolError("Not a printer session")
 
         from .data_stream import DataStreamSender
@@ -314,4 +270,29 @@ class TN3270Handler:
         Returns:
             bool: True if this is a printer session
         """
-        return self.is_printer_session
+        return self.negotiator.is_printer_session
+
+    @property
+    def negotiated_tn3270e(self) -> bool:
+        """Get TN3270E negotiation status."""
+        return self.negotiator.negotiated_tn3270e
+
+    @property
+    def lu_name(self) -> Optional[str]:
+        """Get the LU name."""
+        return self.negotiator.lu_name
+
+    @lu_name.setter
+    def lu_name(self, value: Optional[str]) -> None:
+        """Set the LU name."""
+        self.negotiator.lu_name = value
+
+    @property
+    def screen_rows(self) -> int:
+        """Get screen rows."""
+        return self.negotiator.screen_rows
+
+    @property
+    def screen_cols(self) -> int:
+        """Get screen columns."""
+        return self.negotiator.screen_cols

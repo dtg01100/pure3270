@@ -68,8 +68,8 @@ class ScreenBuffer:
         self.rows = rows
         self.cols = cols
         self.size = rows * cols
-        # EBCDIC character buffer
-        self.buffer = bytearray(self.size)
+        # EBCDIC character buffer - initialize to spaces
+        self.buffer = bytearray(b'\x40' * self.size)
         # Attributes buffer: 3 bytes per position (protection, foreground, background/highlight)
         self.attributes = bytearray(self.size * 3)
         # List of fields
