@@ -775,6 +775,95 @@ class AsyncSession:
                     await self.toggle_insert()
                 elif command == "ToggleReverse()":
                     await self.toggle_reverse()
+                elif command == "Clear()":
+                    await self.clear()
+                elif command == "Close()":
+                    await self.close_session()
+                elif command == "Disconnect()":
+                    await self.disconnect()
+                elif command == "Info()":
+                    await self.info()
+                elif command == "Quit()":
+                    await self.quit()
+                elif command == "Newline()":
+                    await self.newline()
+                elif command == "PageDown()":
+                    await self.page_down()
+                elif command == "PageUp()":
+                    await self.page_up()
+                elif command.startswith("PasteString("):
+                    text = command[12:-1]
+                    await self.paste_string(text)
+                elif command.startswith("Script("):
+                    script = command[7:-1]
+                    await self.script(script)
+                elif command.startswith("Set("):
+                    args = command[4:-1].split(',')
+                    if len(args) == 2:
+                        option = args[0].strip()
+                        value = args[1].strip()
+                        await self.set_option(option, value)
+                    else:
+                        raise MacroError("Invalid Set format")
+                elif command == "Bell()":
+                    await self.bell()
+                elif command.startswith("Pause("):
+                    secs = float(command[6:-1])
+                    await self.pause(secs)
+                elif command.startswith("AnsiText("):
+                    data = command[9:-1].encode()
+                    result = await self.ansi_text(data)
+                    print(result)
+                elif command.startswith("HexString("):
+                    hex_str = command[10:-1]
+                    result = await self.hex_string(hex_str)
+                    print(result)
+                elif command == "Show()":
+                    await self.show()
+                elif command == "Snap()":
+                    await self.snap()
+                elif command == "Left2()":
+                    await self.left2()
+                elif command == "Right2()":
+                    await self.right2()
+                elif command == "MonoCase()":
+                    await self.mono_case()
+                elif command.startswith("NvtText("):
+                    text = command[8:-1]
+                    await self.nvt_text(text)
+                elif command.startswith("PrintText("):
+                    text = command[10:-1]
+                    await self.print_text(text)
+                elif command.startswith("Prompt("):
+                    message = command[7:-1]
+                    result = await self.prompt(message)
+                    print(result)
+                elif command == "ReadBuffer()":
+                    buffer = await self.read_buffer()
+                    print(buffer)
+                elif command == "Reconnect()":
+                    await self.reconnect()
+                elif command == "ScreenTrace()":
+                    await self.screen_trace()
+                elif command.startswith("Source("):
+                    file = command[7:-1]
+                    await self.source(file)
+                elif command == "SubjectNames()":
+                    await self.subject_names()
+                elif command == "SysReq()":
+                    await self.sys_req()
+                elif command.startswith("Toggle("):
+                    option = command[7:-1]
+                    await self.toggle_option(option)
+                elif command.startswith("Trace("):
+                    on = command[6:-1].lower() == 'on'
+                    await self.trace(on)
+                elif command.startswith("Transfer("):
+                    file = command[9:-1]
+                    await self.transfer(file)
+                elif command.startswith("Wait("):
+                    condition = command[5:-1]
+                    await self.wait_condition(condition)
                 else:
                     raise MacroError(f"Unsupported command format: {command}")
             except Exception as e:
@@ -1187,3 +1276,184 @@ class AsyncSession:
         """Select field at cursor (s3270 CursorSelect() action)."""
         # Placeholder
         pass
+
+    async def clear(self) -> None:
+        """Clear the screen (s3270 Clear() action)."""
+        self.screen_buffer.clear()
+
+    async def close_session(self) -> None:
+        """Close the session (s3270 Close() action)."""
+        await self.close()
+
+    async def disconnect(self) -> None:
+        """Disconnect from host (s3270 Disconnect() action)."""
+        await self.close()
+
+    async def info(self) -> None:
+        """Display session information (s3270 Info() action)."""
+        print(f"Connected: {self._connected}, TN3270 mode: {self.tn3270_mode}, LU: {self._lu_name}")
+
+    async def quit(self) -> None:
+        """Quit the session (s3270 Quit() action)."""
+        await self.close()
+
+    async def newline(self) -> None:
+        """Move to next line (s3270 Newline() action)."""
+        await self.down()
+        # Move to start of line
+        row, col = self.screen_buffer.get_position()
+        self.screen_buffer.set_position(row, 0)
+
+    async def page_down(self) -> None:
+        """Page down (s3270 PageDown() action)."""
+        for _ in range(self.screen_buffer.rows):
+            await self.down()
+
+    async def page_up(self) -> None:
+        """Page up (s3270 PageUp() action)."""
+        for _ in range(self.screen_buffer.rows):
+            await self.up()
+
+    async def paste_string(self, text: str) -> None:
+        """Paste string (s3270 PasteString() action)."""
+        await self.insert_text(text)
+
+    async def script(self, commands: str) -> None:
+        """Execute script (s3270 Script() action)."""
+        # Placeholder: could parse and execute
+        pass
+
+    async def set_option(self, option: str, value: str) -> None:
+        """Set option (s3270 Set() action)."""
+        # Placeholder
+        pass
+
+    async def bell(self) -> None:
+        """Ring bell (s3270 Bell() action)."""
+        print("\a", end="")  # Bell character
+
+    async def pause(self, seconds: float = 1.0) -> None:
+        """Pause for seconds (s3270 Pause() action)."""
+        import asyncio
+        await asyncio.sleep(seconds)
+
+    async def ansi_text(self, data: bytes) -> str:
+        """Convert EBCDIC to ANSI text (s3270 AnsiText() action)."""
+        return self.ascii(data)
+
+    async def hex_string(self, hex_str: str) -> bytes:
+        """Convert hex string to bytes (s3270 HexString() action)."""
+        return bytes.fromhex(hex_str)
+
+    async def show(self) -> None:
+        """Show screen content (s3270 Show() action)."""
+        print(self.screen_buffer.to_text())
+
+    async def snap(self) -> None:
+        """Save screen snapshot (s3270 Snap() action)."""
+        # Placeholder
+        pass
+
+    async def left2(self) -> None:
+        """Move cursor left by 2 positions (s3270 Left2() action)."""
+        await self.left()
+        await self.left()
+
+    async def right2(self) -> None:
+        """Move cursor right by 2 positions (s3270 Right2() action)."""
+        await self.right()
+        await self.right()
+
+    async def mono_case(self) -> None:
+        """Toggle monocase mode (s3270 MonoCase() action)."""
+        # Placeholder: toggle case sensitivity
+        pass
+
+    async def nvt_text(self, text: str) -> None:
+        """Send NVT text (s3270 NvtText() action)."""
+        # Send as ASCII
+        data = text.encode('ascii')
+        await self.send(data)
+
+    async def print_text(self, text: str) -> None:
+        """Print text (s3270 PrintText() action)."""
+        print(text)
+
+    async def prompt(self, message: str) -> str:
+        """Prompt for input (s3270 Prompt() action)."""
+        return input(message)
+
+    async def read_buffer(self) -> bytes:
+        """Read buffer (s3270 ReadBuffer() action)."""
+        return bytes(self.screen_buffer.buffer)
+
+    async def reconnect(self) -> None:
+        """Reconnect to host (s3270 Reconnect() action)."""
+        await self.close()
+        await self.connect()
+
+    async def screen_trace(self) -> None:
+        """Trace screen (s3270 ScreenTrace() action)."""
+        # Placeholder
+        pass
+
+    async def source(self, file: str) -> None:
+        """Source script file (s3270 Source() action)."""
+        # Placeholder
+        pass
+
+    async def subject_names(self) -> None:
+        """Display SSL subject names (s3270 SubjectNames() action)."""
+        # Placeholder
+        pass
+
+    async def sys_req(self) -> None:
+        """Send system request (s3270 SysReq() action)."""
+        # Placeholder
+        pass
+
+    async def toggle_option(self, option: str) -> None:
+        """Toggle option (s3270 Toggle() action)."""
+        # Placeholder
+        pass
+
+    async def trace(self, on: bool) -> None:
+        """Enable/disable tracing (s3270 Trace() action)."""
+        # Placeholder
+        pass
+
+    async def transfer(self, file: str) -> None:
+        """Transfer file (s3270 Transfer() action)."""
+        # Placeholder
+        pass
+
+    async def wait_condition(self, condition: str) -> None:
+        """Wait for condition (s3270 Wait() action)."""
+        # Placeholder
+        pass
+
+    async def load_resource_definitions(self, file_path: str) -> None:
+        """Load resource definitions from xrdb format file (s3270 resource support)."""
+        # Placeholder: parse xrdb file and set options
+        pass
+
+    def set_field_attribute(self, field_index: int, attr: str, value: int) -> None:
+        """Set field attribute (extended beyond basic protection/numeric)."""
+        if 0 <= field_index < len(self.screen_buffer.fields):
+            field = self.screen_buffer.fields[field_index]
+            if attr == "color":
+                # Set color in attributes
+                for row in range(field.start[0], field.end[0] + 1):
+                    for col in range(field.start[1], field.end[1] + 1):
+                        pos = row * self.screen_buffer.cols + col
+                        attr_offset = pos * 3 + 1  # Foreground
+                        if attr_offset < len(self.screen_buffer.attributes):
+                            self.screen_buffer.attributes[attr_offset] = value
+            elif attr == "highlight":
+                for row in range(field.start[0], field.end[0] + 1):
+                    for col in range(field.start[1], field.end[1] + 1):
+                        pos = row * self.screen_buffer.cols + col
+                        attr_offset = pos * 3 + 2  # Background/highlight
+                        if attr_offset < len(self.screen_buffer.attributes):
+                            self.screen_buffer.attributes[attr_offset] = value
+            # Add more as needed
