@@ -223,3 +223,6 @@ class ScreenBuffer:
             attr_offset = pos * 3 + 2
             return bool(self.attributes[attr_offset])
         return False
+
+    def __repr__(self) -> str:
+        return f"ScreenBuffer({self.rows}x{self.cols}, fields={len(self.fields)})"

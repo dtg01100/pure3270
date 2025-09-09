@@ -50,6 +50,6 @@ class TestIntegration:
         # Assert final buffer matches expected EBCDIC pattern
         assert async_session.screen.buffer == expected_pattern
 
-        # Verify sends: two calls for macro, one for read? But macro only sends
-        assert mock_handler.send_data.call_count == 2
+        # Verify sends: one call for macro (key Enter sends input stream)
+        assert mock_handler.send_data.call_count == 1
         mock_handler.receive_data.assert_called_once()

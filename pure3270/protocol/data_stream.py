@@ -47,6 +47,10 @@ class DataStreamParser:
         self.wcc = None  # Write Control Character
         self.aid = None  # Attention ID
 
+    def get_aid(self) -> Optional[int]:
+        """Get the current AID value."""
+        return self.aid
+
     def parse(self, data: bytes) -> None:
         """
         Parse 3270 data stream.
