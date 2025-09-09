@@ -80,7 +80,7 @@ class ScreenBuffer:
 
     def clear(self):
         """Clear the screen buffer and reset fields."""
-        self.buffer = bytearray(self.size)
+        self.buffer = bytearray(b'\x40' * self.size)
         self.attributes = bytearray(self.size * 3)
         self.fields = []
         self.cursor_row = 0
@@ -181,8 +181,8 @@ class ScreenBuffer:
         lines = []
         for row in range(self.rows):
             line_bytes = bytes(self.buffer[row * self.cols : (row + 1) * self.cols])
-            line_text = codec.decode(line_bytes)
-            lines.append(line_text)
+        line_text, _ = codec.decode(line_bytes)
+        lines.append(line_text)
         return "\n".join(lines)
 
     def get_field_content(self, field_index: int) -> str:

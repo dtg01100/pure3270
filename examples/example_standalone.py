@@ -21,17 +21,13 @@ setup_logging(level="INFO")
 print("Starting standalone pure3270 session demonstration.")
 
 # Create a standalone Session (configurable screen size)
-session = Session(rows=24, cols=80)
+session = Session(host="mock-tn3270-host.example.com", port=23)
 print("pure3270.Session created successfully.")
-
-# Mock connection parameters (replace for real)
-host = "mock-tn3270-host.example.com"  # e.g., 'your-mainframe.example.com'
-port = 23  # 992 for SSL
-ssl = False  # Set True for TLS/SSL connections
 
 try:
     # Connect to the host
-    session.connect(host, port=port, ssl=ssl)
+    session.connect()
+    print(f"Connected to mock host (in reality, would handle TN3270 negotiation).")
     print(
         f"Connected to {host}:{port} (mock - in reality, would handle TN3270 negotiation)."
     )

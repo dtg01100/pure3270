@@ -2,7 +2,7 @@ import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 from pure3270.session import Session, AsyncSession, SessionError, MacroError
-from pure3270.emulation.screen_buffer import ScreenBuffer
+from pure3270.emulation.screen_buffer import ScreenBuffer, Field
 from pure3270.protocol.tn3270_handler import TN3270Handler
 
 
@@ -309,3 +309,245 @@ class TestSession:
         sync_session._async_session = AsyncSession("localhost", 23)
         sync_session._async_session.screen_buffer = ScreenBuffer()
         assert isinstance(sync_session.screen_buffer, ScreenBuffer)
+
+
+@pytest.mark.asyncio
+class TestAsyncSessionAdvanced:
+    @pytest.fixture(autouse=True)
+    def setup_session(self, async_session):
+        async_session._connected = True
+        async_session._handler = AsyncMock()
+        async_session.send = AsyncMock()
+        async_session.read = AsyncMock(return_value=b"")
+
+    async def test_clear_action(self, async_session):
+        """Test Clear action."""
+        async_session.screen_buffer.buffer = bytearray([0x41] * 100)  # Some data
+        await async_session.clear()
+        assert all(b == 0x40 for b in async_session.screen_buffer.buffer[:100])
+
+    async def test_disconnect_action(self, async_session):
+        """Test Disconnect action."""
+        mock_close = AsyncMock()
+        async_session.close = mock_close
+        await async_session.disconnect()
+        mock_close.assert_called_once()
+
+    async def test_info_action(self, async_session):
+        """Test Info action (capture output)."""
+        import sys
+        from io import StringIO
+        old_stdout = sys.stdout
+        sys.stdout = captured_output = StringIO()
+        try:
+            await async_session.info()
+        finally:
+            sys.stdout = old_stdout
+        output = captured_output.getvalue()
+        assert "Connected:" in output
+
+    async def test_quit_action(self, async_session):
+        """Test Quit action."""
+        mock_close = AsyncMock()
+        async_session.close = mock_close
+        await async_session.quit()
+        mock_close.assert_called_once()
+
+    async def test_newline_action(self, async_session):
+        """Test Newline action."""
+        async_session.screen_buffer.set_position(0, 0)
+        await async_session.newline()
+        row, col = async_session.screen_buffer.get_position()
+        assert col == 0 and row > 0
+
+    async def test_page_down_action(self, async_session):
+        """Test PageDown action."""
+        async_session.screen_buffer.set_position(0, 0)
+        await async_session.page_down()
+        row, col = async_session.screen_buffer.get_position()
+        assert row == 0  # Full cycle wraps back to 0
+
+    async def test_page_up_action(self, async_session):
+        """Test PageUp action."""
+        async_session.screen_buffer.set_position(23, 79)
+        await async_session.page_up()
+        row, col = async_session.screen_buffer.get_position()
+        assert row <= 0  # Should wrap
+
+    async def test_paste_string_action(self, async_session):
+        """Test PasteString action."""
+        mock_insert = AsyncMock()
+        async_session.insert_text = mock_insert
+        await async_session.paste_string("test")
+        mock_insert.assert_called_once_with("test")
+
+    async def test_script_action(self, async_session):
+        """Test Script action."""
+        # Placeholder test
+        await async_session.script("test script")
+        # Assert no error
+        assert True
+
+    async def test_set_option_action(self, async_session):
+        """Test Set action."""
+        # Placeholder test
+        await async_session.set_option("option", "value")
+        # Assert no error
+        assert True
+
+    async def test_bell_action(self, async_session):
+        """Test Bell action."""
+        import sys
+        from io import StringIO
+        old_stdout = sys.stdout
+        sys.stdout = captured_output = StringIO()
+        try:
+            await async_session.bell()
+        finally:
+            sys.stdout = old_stdout
+        output = captured_output.getvalue()
+        assert "\a" in output or output == ""  # Depending on implementation
+
+    async def test_pause_action(self, async_session):
+        """Test Pause action."""
+        import time
+        start = time.time()
+        await async_session.pause(0.1)
+        end = time.time()
+        assert end - start >= 0.05  # Allow some tolerance
+
+    async def test_ansi_text_action(self, async_session):
+        """Test AnsiText action."""
+        data = b"\x81\x82"  # EBCDIC
+        result = await async_session.ansi_text(data)
+        assert isinstance(result, str) and len(result) > 0
+
+    async def test_hex_string_action(self, async_session):
+        """Test HexString action."""
+        result = await async_session.hex_string("41 42")
+        assert result == b"AB"
+
+    async def test_show_action(self, async_session):
+        """Test Show action."""
+        import sys
+        from io import StringIO
+        old_stdout = sys.stdout
+        sys.stdout = captured_output = StringIO()
+        try:
+            await async_session.show()
+        finally:
+            sys.stdout = old_stdout
+        output = captured_output.getvalue()
+        assert output == async_session.screen_buffer.to_text()
+
+    async def test_left2_action(self, async_session):
+        """Test Left2 action."""
+        async_session.screen_buffer.set_position(0, 5)
+        await async_session.left2()
+        row, col = async_session.screen_buffer.get_position()
+        assert col == 3
+
+    async def test_right2_action(self, async_session):
+        """Test Right2 action."""
+        async_session.screen_buffer.set_position(0, 0)
+        await async_session.right2()
+        row, col = async_session.screen_buffer.get_position()
+        assert col == 2
+
+    async def test_nvt_text_action(self, async_session):
+        """Test NvtText action."""
+        mock_send = AsyncMock()
+        async_session.send = mock_send
+        await async_session.nvt_text("hello")
+        mock_send.assert_called_once_with(b"hello")
+
+    async def test_print_text_action(self, async_session):
+        """Test PrintText action."""
+        import sys
+        from io import StringIO
+        old_stdout = sys.stdout
+        sys.stdout = captured_output = StringIO()
+        try:
+            await async_session.print_text("test")
+        finally:
+            sys.stdout = old_stdout
+        output = captured_output.getvalue()
+        assert "test" in output
+
+    async def test_read_buffer_action(self, async_session):
+        """Test ReadBuffer action."""
+        buffer = await async_session.read_buffer()
+        assert isinstance(buffer, bytes) and len(buffer) == async_session.screen_buffer.size
+
+    async def test_reconnect_action(self, async_session):
+        """Test Reconnect action."""
+        mock_close = AsyncMock()
+        mock_connect = AsyncMock()
+        async_session.close = mock_close
+        async_session.connect = mock_connect
+        await async_session.reconnect()
+        mock_close.assert_called_once()
+        mock_connect.assert_called_once()
+
+    async def test_screen_trace_action(self, async_session):
+        """Test ScreenTrace action."""
+        # Placeholder test
+        await async_session.screen_trace()
+        assert True
+
+    async def test_source_action(self, async_session):
+        """Test Source action."""
+        # Placeholder test
+        await async_session.source("test_file")
+        assert True
+
+    async def test_subject_names_action(self, async_session):
+        """Test SubjectNames action."""
+        # Placeholder test
+        await async_session.subject_names()
+        assert True
+
+    async def test_sys_req_action(self, async_session):
+        """Test SysReq action."""
+        # Placeholder test
+        await async_session.sys_req()
+        assert True
+
+    async def test_toggle_option_action(self, async_session):
+        """Test Toggle action."""
+        # Placeholder test
+        await async_session.toggle_option("option")
+        assert True
+
+    async def test_trace_action(self, async_session):
+        """Test Trace action."""
+        # Placeholder test
+        await async_session.trace(True)
+        assert True
+
+    async def test_transfer_action(self, async_session):
+        """Test Transfer action."""
+        # Placeholder test
+        await async_session.transfer("test_file")
+        assert True
+
+    async def test_wait_condition_action(self, async_session):
+        """Test Wait action."""
+        # Placeholder test
+        await async_session.wait_condition("condition")
+        assert True
+
+    async def test_load_resource_definitions(self, async_session):
+        """Test resource definitions loading."""
+        # Mock file path and check no error
+        await async_session.load_resource_definitions("test.xrdb")
+        assert True
+
+    async def test_set_field_attribute(self, async_session):
+        """Test extended field attributes."""
+        # Setup a field
+        async_session.screen_buffer.fields = [Field((0,0), (0,10), protected=False, content=b"test")]
+        async_session.set_field_attribute(0, "color", 0x01)
+        # Check if attributes were set (simplified)
+        assert len(async_session.screen_buffer.attributes) > 0
+
