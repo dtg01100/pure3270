@@ -299,30 +299,7 @@ class DataStreamSender:
         stream = bytearray([aid])
         return bytes(stream)
 
-    def build_read_modified_fields(self) -> bytes:
-        """Build Read Modified Fields (RMF) command."""
-        stream = bytearray([0x7D, 0xF6, 0xF0])  # AID Enter, Read Modified, all fields
-        return bytes(stream)
 
-    def build_scs_ctl_codes(self, scs_code: int) -> bytes:
-        """
-        Build SCS Control Codes for printer sessions.
-
-        :param scs_code: SCS control code to send
-        """
-        return bytes([SCS_CTL_CODES, scs_code])
-
-    def build_data_stream_ctl(self, ctl_code: int) -> bytes:
-        """
-        Build Data Stream Control command.
-
-        :param ctl_code: Data stream control code
-        """
-        return bytes([DATA_STREAM_CTL, ctl_code])
-
-    def get_aid(self) -> Optional[int]:
-        """Get the current AID value."""
-        return self.aid
 
     def build_input_stream(
         self,
@@ -338,11 +315,12 @@ class DataStreamSender:
         :param cols: Number of columns for SBA calculation.
         :return: Complete input data stream bytes.
         """
+        self.screen.cols = cols  # Set cols for SBA calculation
         stream = bytearray()
         for start_pos, content in modified_fields:
             row, col = start_pos
             # SBA to field start
-            sba = self.build_sba(row, col, cols)
+            sba = self.build_sba(row, col)
             stream.extend(sba)
             # Field data
             stream.extend(content)

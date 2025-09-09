@@ -394,6 +394,7 @@ class AsyncSession:
         self.tn3270_mode = False
         self.tn3270e_mode = False
         self._lu_name: Optional[str] = None
+        self.insert_mode = False
 
     async def connect(self) -> None:
         """
@@ -691,9 +692,9 @@ class AsyncSession:
             "pf19": 0xC7,
             "pf20": 0xC8,
             "pf21": 0xC9,
-            "pf22": 0x4A,
-            "pf23": 0x4B,
-            "pf24": 0x4C,
+            "pf22": 0xCA,
+            "pf23": 0xCB,
+            "pf24": 0xCC,
             "pa1": 0x6C,
             "pa2": 0x6E,
             "pa3": 0x6B,
@@ -717,6 +718,63 @@ class AsyncSession:
                         await self.submit(aid)
                     else:
                         raise MacroError(f"Unsupported key: {key_name}")
+                elif command == "CircumNot()":
+                    await self.circum_not()
+                elif command == "CursorSelect()":
+                    await self.cursor_select()
+                elif command == "Delete()":
+                    await self.delete()
+                elif command == "DeleteField()":
+                    await self.delete_field()
+                elif command == "Dup()":
+                    await self.dup()
+                elif command == "End()":
+                    await self.end()
+                elif command == "Erase()":
+                    await self.erase()
+                elif command == "EraseEOF()":
+                    await self.erase_eof()
+                elif command == "EraseInput()":
+                    await self.erase_input()
+                elif command == "FieldEnd()":
+                    await self.field_end()
+                elif command == "FieldMark()":
+                    await self.field_mark()
+                elif command == "Flip()":
+                    await self.flip()
+                elif command == "Insert()":
+                    await self.insert()
+                elif command.startswith("MoveCursor("):
+                    # Parse MoveCursor(row, col)
+                    args = command[11:-1].split(',')
+                    if len(args) == 2:
+                        row = int(args[0].strip())
+                        col = int(args[1].strip())
+                        await self.move_cursor(row, col)
+                    else:
+                        raise MacroError("Invalid MoveCursor format")
+                elif command.startswith("MoveCursor1("):
+                    args = command[12:-1].split(',')
+                    if len(args) == 2:
+                        row = int(args[0].strip())
+                        col = int(args[1].strip())
+                        await self.move_cursor1(row, col)
+                    else:
+                        raise MacroError("Invalid MoveCursor1 format")
+                elif command == "NextWord()":
+                    await self.next_word()
+                elif command == "PreviousWord()":
+                    await self.previous_word()
+                elif command == "RestoreInput()":
+                    await self.restore_input()
+                elif command == "SaveInput()":
+                    await self.save_input()
+                elif command == "Tab()":
+                    await self.tab()
+                elif command == "ToggleInsert()":
+                    await self.toggle_insert()
+                elif command == "ToggleReverse()":
+                    await self.toggle_reverse()
                 else:
                     raise MacroError(f"Unsupported command format: {command}")
             except Exception as e:
@@ -742,26 +800,25 @@ class AsyncSession:
         else:
             # PF13-24 map to other AIDs (simplified mapping)
             aid_map = {
-                13: 0x7C1,
-                14: 0x7C2,
-                15: 0x7C3,
-                16: 0x7C4,
-                17: 0x7C5,
-                18: 0x7C6,
-                19: 0x7C7,
-                20: 0x7C8,
-                21: 0x7C9,
+                13: 0xC1,
+                14: 0xC2,
+                15: 0xC3,
+                16: 0xC4,
+                17: 0xC5,
+                18: 0xC6,
+                19: 0xC7,
+                20: 0xC8,
+                21: 0xC9,
                 22: 0xCA,
-                23: 0x4B,
-                24: 0x4C,
+                23: 0xCB,
+                24: 0xCC,
             }
             aid = aid_map.get(n, 0xF1)  # Default to PF1
 
         if not self._connected or not self.handler:
             raise SessionError("Session not connected.")
 
-        key_data = bytes([aid])
-        await self.send(key_data)
+        await self.submit(aid)
 
     async def pa(self, n: int) -> None:
         """
@@ -783,8 +840,128 @@ class AsyncSession:
         if not self._connected or not self.handler:
             raise SessionError("Session not connected.")
 
-        key_data = bytes([aid])
-        await self.send(key_data)
+        await self.submit(aid)
+
+    async def submit(self, aid: int) -> None:
+        """
+        Submit modified fields with the given AID.
+
+        Args:
+            aid: Attention ID byte.
+
+        Raises:
+            SessionError: If not connected.
+        """
+        if not self._connected or not self.handler:
+            raise SessionError("Session not connected.")
+
+        from .protocol.data_stream import DataStreamSender
+
+        sender = DataStreamSender()
+        modified_fields = self.screen_buffer.read_modified_fields()
+        # Convert to bytes
+        modified_bytes = []
+        for pos, content in modified_fields:
+            ebcdic_bytes = self.ebcdic(content)  # Assuming ebcdic method exists
+            modified_bytes.append((pos, ebcdic_bytes))
+
+        input_stream = sender.build_input_stream(modified_bytes, aid, self.screen_buffer.cols)
+        await self.send(input_stream)
+        # Reset modified flags for sent fields
+        for field in self.screen_buffer.fields:
+            if field.modified:
+                field.modified = False
+
+    def ascii(self, data: bytes) -> str:
+        """
+        Convert EBCDIC data to ASCII text.
+
+        Args:
+            data: EBCDIC bytes.
+
+        Returns:
+            ASCII string.
+        """
+        from .emulation.ebcdic import translate_ebcdic_to_ascii
+        return translate_ebcdic_to_ascii(data)
+
+    def ebcdic(self, text: str) -> bytes:
+        """
+        Convert ASCII text to EBCDIC data.
+
+        Args:
+            text: ASCII text.
+
+        Returns:
+            EBCDIC bytes.
+        """
+        from .emulation.ebcdic import translate_ascii_to_ebcdic
+        return translate_ascii_to_ebcdic(text)
+
+    def ascii1(self, byte_val: int) -> str:
+        """
+        Convert a single EBCDIC byte to ASCII character.
+
+        Args:
+            byte_val: EBCDIC byte value.
+
+        Returns:
+            ASCII character.
+        """
+        from .emulation.ebcdic import translate_ebcdic_to_ascii
+        return translate_ebcdic_to_ascii(bytes([byte_val]))
+
+    def ebcdic1(self, char: str) -> int:
+        """
+        Convert a single ASCII character to EBCDIC byte.
+
+        Args:
+            char: ASCII character.
+
+        Returns:
+            EBCDIC byte value.
+        """
+        from .emulation.ebcdic import translate_ascii_to_ebcdic
+        ebcdic_bytes = translate_ascii_to_ebcdic(char)
+        return ebcdic_bytes[0] if ebcdic_bytes else 0
+
+    def ascii_field(self, field_index: int) -> str:
+        """
+        Convert field content to ASCII text.
+
+        Args:
+            field_index: Index of field.
+
+        Returns:
+            ASCII string.
+        """
+        return self.screen_buffer.get_field_content(field_index)
+
+    async def insert_text(self, text: str) -> None:
+        """
+        Insert text at current cursor position.
+
+        Args:
+            text: Text to insert.
+        """
+        ebcdic_bytes = self.ebcdic(text)
+        for byte in ebcdic_bytes:
+            row, col = self.screen_buffer.get_position()
+            self.screen_buffer.write_char(byte, row, col)
+            await self.right()
+
+    async def backtab(self) -> None:
+        """
+        Move cursor to previous field or left (s3270 BackTab() action).
+
+        Raises:
+            SessionError: If not connected.
+        """
+        if not self._connected or not self.handler:
+            raise SessionError("Session not connected.")
+
+        # Simple implementation: move left
+        await self.left()
 
     async def home(self) -> None:
         """
@@ -891,3 +1068,122 @@ class AsyncSession:
     async def enter(self) -> None:
         """Send Enter key (s3270 Enter() action)."""
         await self.submit(0x7D)
+
+    async def toggle_insert(self) -> None:
+        """Toggle insert mode (s3270 ToggleInsert() action)."""
+        self.insert_mode = not self.insert_mode
+
+    async def insert(self) -> None:
+        """Insert character at cursor (s3270 Insert() action)."""
+        # For now, just toggle insert mode or something; full implementation needs input
+        pass  # Placeholder
+
+    async def delete(self) -> None:
+        """Delete character at cursor (s3270 Delete() action)."""
+        row, col = self.screen_buffer.get_position()
+        # Shift characters left in the field
+        # Simplified: assume unprotected
+        for c in range(col, self.screen_buffer.cols - 1):
+            pos = row * self.screen_buffer.cols + c
+            next_pos = pos + 1
+            if next_pos < self.screen_buffer.size:
+                self.screen_buffer.buffer[pos] = self.screen_buffer.buffer[next_pos]
+        # Clear last position
+        last_pos = row * self.screen_buffer.cols + self.screen_buffer.cols - 1
+        if last_pos < self.screen_buffer.size:
+            self.screen_buffer.buffer[last_pos] = 0x40  # Space in EBCDIC
+
+    async def erase(self) -> None:
+        """Erase character at cursor (s3270 Erase() action)."""
+        row, col = self.screen_buffer.get_position()
+        pos = row * self.screen_buffer.cols + col
+        if pos < self.screen_buffer.size:
+            self.screen_buffer.buffer[pos] = 0x40  # Space
+
+    async def erase_eof(self) -> None:
+        """Erase from cursor to end of field (s3270 EraseEOF() action)."""
+        row, col = self.screen_buffer.get_position()
+        # Find end of field
+        end_col = self.screen_buffer.cols - 1
+        for c in range(col, self.screen_buffer.cols):
+            pos = row * self.screen_buffer.cols + c
+            if pos < self.screen_buffer.size:
+                self.screen_buffer.buffer[pos] = 0x40
+
+    async def end(self) -> None:
+        """Move cursor to end of field (s3270 End() action)."""
+        row, col = self.screen_buffer.get_position()
+        # Move to end of row for simplicity
+        self.screen_buffer.set_position(row, self.screen_buffer.cols - 1)
+
+    async def field_end(self) -> None:
+        """Move cursor to end of field (s3270 FieldEnd() action)."""
+        await self.end()  # Alias
+
+    async def erase_input(self) -> None:
+        """Erase all input fields (s3270 EraseInput() action)."""
+        for field in self.screen_buffer.fields:
+            if not field.protected:
+                field.content = b'\x40' * len(field.content)  # Space
+                field.modified = True
+
+    async def delete_field(self) -> None:
+        """Delete field at cursor (s3270 DeleteField() action)."""
+        # Placeholder
+        pass
+
+    async def dup(self) -> None:
+        """Duplicate field (s3270 Dup() action)."""
+        # Placeholder
+        pass
+
+    async def field_mark(self) -> None:
+        """Mark field (s3270 FieldMark() action)."""
+        # Placeholder
+        pass
+
+    async def flip(self) -> None:
+        """Flip between insert and overstrike mode (s3270 Flip() action)."""
+        await self.toggle_insert()
+
+    async def move_cursor(self, row: int, col: int) -> None:
+        """Move cursor to specified position (s3270 MoveCursor() action)."""
+        self.screen_buffer.set_position(row, col)
+
+    async def move_cursor1(self, row: int, col: int) -> None:
+        """Move cursor to specified position (1-based) (s3270 MoveCursor1() action)."""
+        self.screen_buffer.set_position(row - 1, col - 1)
+
+    async def next_word(self) -> None:
+        """Move cursor to next word (s3270 NextWord() action)."""
+        # Simple: move right
+        await self.right()
+
+    async def previous_word(self) -> None:
+        """Move cursor to previous word (s3270 PreviousWord() action)."""
+        await self.left()
+
+    async def restore_input(self) -> None:
+        """Restore input from saved (s3270 RestoreInput() action)."""
+        # Placeholder
+        pass
+
+    async def save_input(self) -> None:
+        """Save current input (s3270 SaveInput() action)."""
+        # Placeholder
+        pass
+
+    async def toggle_reverse(self) -> None:
+        """Toggle reverse video (s3270 ToggleReverse() action)."""
+        # Placeholder
+        pass
+
+    async def circum_not(self) -> None:
+        """Toggle circumvention of field protection (s3270 CircumNot() action)."""
+        # Placeholder
+        pass
+
+    async def cursor_select(self) -> None:
+        """Select field at cursor (s3270 CursorSelect() action)."""
+        # Placeholder
+        pass
