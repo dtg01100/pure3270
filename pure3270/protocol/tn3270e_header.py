@@ -4,13 +4,10 @@ import struct
 import logging
 from typing import Optional
 from .utils import (
-    TN3270E_DEVICE_TYPE, TN3270E_FUNCTIONS, TN3270E_IS, TN3270E_REQUEST,
-    TN3270E_SEND, TN3270E_BIND_IMAGE, TN3270E_DATA_STREAM_CTL,
-    TN3270E_RESPONSES, TN3270E_SCS_CTL_CODES, TN3270E_SYSREQ,
-    TN3270E_RSF_NO_RESPONSE, TN3270E_RSF_ERROR_RESPONSE,
+    TN3270_DATA, SCS_DATA, RESPONSE, BIND_IMAGE, UNBIND, NVT_DATA, REQUEST,
+    SSCP_LU_DATA, PRINT_EOJ, TN3270E_RSF_NO_RESPONSE, TN3270E_RSF_ERROR_RESPONSE,
     TN3270E_RSF_ALWAYS_RESPONSE, TN3270E_RSF_POSITIVE_RESPONSE,
-    TN3270E_RSF_NEGATIVE_RESPONSE, TN3270E_IBM_DYNAMIC,
-    TN3270E_RQF_ERR_COND_CLEARED
+    TN3270E_RSF_NEGATIVE_RESPONSE
 )
 
 logger = logging.getLogger(__name__)
@@ -30,7 +27,7 @@ class TN3270EHeader:
 
     def __init__(
         self,
-        data_type: int = TN3270E_DEVICE_TYPE,
+        data_type: int = TN3270_DATA,
         request_flag: int = 0,
         response_flag: int = TN3270E_RSF_NO_RESPONSE,
         seq_number: int = 0
@@ -39,7 +36,7 @@ class TN3270EHeader:
         Initialize a TN3270E header.
         
         Args:
-            data_type: Type of data (TN3270_DEVICE_TYPE, TN3270_FUNCTIONS, etc.)
+            data_type: Type of data (TN3270_DATA, SCS_DATA, etc.)
             request_flag: Request flags
             response_flag: Response flags
             seq_number: Sequence number (0-65535)
@@ -92,17 +89,15 @@ class TN3270EHeader:
     def __repr__(self) -> str:
         """String representation of the header."""
         type_names = {
-            TN3270E_DEVICE_TYPE: 'DEVICE_TYPE',
-            TN3270E_FUNCTIONS: 'FUNCTIONS',
-            TN3270E_IS: 'IS',
-            TN3270E_REQUEST: 'REQUEST',
-            TN3270E_SEND: 'SEND',
-            TN3270E_BIND_IMAGE: 'BIND_IMAGE',
-            TN3270E_DATA_STREAM_CTL: 'DATA_STREAM_CTL',
-            TN3270E_RESPONSES: 'RESPONSES',
-            TN3270E_SCS_CTL_CODES: 'SCS_CTL_CODES',
-            TN3270E_SYSREQ: 'SYSREQ',
-            TN3270E_IBM_DYNAMIC: 'IBM_DYNAMIC'
+            TN3270_DATA: 'TN3270_DATA',
+            SCS_DATA: 'SCS_DATA',
+            RESPONSE: 'RESPONSE',
+            BIND_IMAGE: 'BIND_IMAGE',
+            UNBIND: 'UNBIND',
+            NVT_DATA: 'NVT_DATA',
+            REQUEST: 'REQUEST',
+            SSCP_LU_DATA: 'SSCP_LU_DATA',
+            PRINT_EOJ: 'PRINT_EOJ'
         }
         
         response_names = {
@@ -125,15 +120,15 @@ class TN3270EHeader:
 
     def is_tn3270_data(self) -> bool:
         """Check if this is TN3270_DATA type."""
-        return self.data_type == TN3270E_DEVICE_TYPE
+        return self.data_type == TN3270_DATA
 
     def is_scs_data(self) -> bool:
         """Check if this is SCS_DATA type."""
-        return self.data_type == TN3270E_SCS_CTL_CODES
+        return self.data_type == SCS_DATA
 
     def is_response(self) -> bool:
         """Check if this is RESPONSE type."""
-        return self.data_type == TN3270E_RESPONSES
+        return self.data_type == RESPONSE
 
     def is_error_response(self) -> bool:
         """Check if this is an error response."""
@@ -154,17 +149,15 @@ class TN3270EHeader:
     def get_data_type_name(self) -> str:
         """Get the name of the data type."""
         type_names = {
-            TN3270E_DEVICE_TYPE: 'DEVICE_TYPE',
-            TN3270E_FUNCTIONS: 'FUNCTIONS',
-            TN3270E_IS: 'IS',
-            TN3270E_REQUEST: 'REQUEST',
-            TN3270E_SEND: 'SEND',
-            TN3270E_BIND_IMAGE: 'BIND_IMAGE',
-            TN3270E_DATA_STREAM_CTL: 'DATA_STREAM_CTL',
-            TN3270E_RESPONSES: 'RESPONSES',
-            TN3270E_SCS_CTL_CODES: 'SCS_CTL_CODES',
-            TN3270E_SYSREQ: 'SYSREQ',
-            TN3270E_IBM_DYNAMIC: 'IBM_DYNAMIC'
+            TN3270_DATA: 'TN3270_DATA',
+            SCS_DATA: 'SCS_DATA',
+            RESPONSE: 'RESPONSE',
+            BIND_IMAGE: 'BIND_IMAGE',
+            UNBIND: 'UNBIND',
+            NVT_DATA: 'NVT_DATA',
+            REQUEST: 'REQUEST',
+            SSCP_LU_DATA: 'SSCP_LU_DATA',
+            PRINT_EOJ: 'PRINT_EOJ'
         }
         return type_names.get(self.data_type, f'UNKNOWN(0x{self.data_type:02x})')
 
