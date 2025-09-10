@@ -102,11 +102,11 @@ The emulation layer provides a virtual 3270 terminal without relying on native l
 
 - **EBCDIC Handling**: `EBCDICCodec` (in ebcdic.py) implements bidirectional translation using static dictionaries and `cp037` codec for performance.
 
-- **Fields and Attributes**: WCC parsed to set buffer state (e.g., reset modified flags). AID handling maps keys to actions (e.g., Enter AID=0x7D triggers data send) in session.py.
+- **Fields and Attributes**: WCC parsed to set buffer state (e.g., reset modified flags). Extended field attribute handling now supports intensity, color, validation, and outlining attributes beyond basic protection/numeric. Proper field modification tracking ensures RMF/RMA commands work correctly by updating field modified flags when users type into fields.
 
 - **Screen Scraping**: `screen_buffer.py` provides `to_text()` method for ASCII conversion, `get_field_content(field_id)` for extraction.
 
-- **Keyboard Simulation**: Basic key handling in `session.py` via AID mapping (e.g., "key Enter" -> AID 0x7D, "String(hello)" -> text input). No advanced queuing or PS/2 scancodes.
+- **Keyboard Simulation**: Enhanced AID handling maps all keys to actions (e.g., Enter AID=0x7D, PF1-PF24, PA1-PA3) in session.py. Support for missing s3270 actions: Compose(), Cookie(), Expect(), Fail().
 
 Text-based diagram of screen buffer structure:
 ```

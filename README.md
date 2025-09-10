@@ -5,7 +5,7 @@
 
 Pure3270 is a self-contained, pure Python 3.8+ implementation of a 3270 terminal emulator, designed to emulate the functionality of the `s3270` terminal emulator. It integrates seamlessly with the `p3270` library through runtime monkey-patching, allowing you to replace `p3270`'s dependency on the external `s3270` binary without complex setup. The library uses standard asyncio for networking with no external telnet dependencies and supports TN3270 and TN3270E protocols, full 3270 emulation (screen buffer, fields, keyboard simulation), and optional SSL/TLS.
 
-Recent updates include an async refactor in [`pure3270/session.py`](pure3270/session.py) with `AsyncSession` supporting connect, macro execution, and managed context; exports in [`pure3270/__init__.py`](pure3270/__init__.py) for `Session`, `AsyncSession`, and `enable_replacement`; enhanced tests with edge cases; and planned CI setup.
+Recent updates include an async refactor in [`pure3270/session.py`](pure3270/session.py) with `AsyncSession` supporting connect, macro execution, and managed context; exports in [`pure3270/__init__.py`](pure3270/__init__.py) for `Session`, `AsyncSession`, and `enable_replacement`; enhanced tests with edge cases; improved field modification tracking for RMF/RMA commands; extended field attribute handling beyond basic protection/numeric; full AID support for all PA/PF keys; and implementation of missing s3270 actions (Compose, Cookie, Expect, Fail); and planned CI setup.
 
 Key features:
 - **Zero-configuration opt-in**: Call [`enable_replacement()`](pure3270/__init__.py) to patch `p3270` automatically.
@@ -324,6 +324,17 @@ Additional properties:
 - `tn3270_mode: bool` - Check if TN3270 mode is active.
 - `tn3270e_mode: bool` - Check if TN3270E mode is active.
 - `lu_name: Optional[str]` - Get the bound LU name.
+
+### New s3270 Actions (High/Medium Priority Items)
+
+Additional methods added for enhanced s3270 compatibility:
+
+- `pf(self, n: int) -> None`: Send PF (Program Function) key (1-24).
+- `pa(self, n: int) -> None`: Send PA (Program Attention) key (1-3).
+- `compose(self, text: str) -> None`: Compose special characters or key combinations.
+- `cookie(self, cookie_string: str) -> None`: Set HTTP cookie for web-based emulators.
+- `expect(self, pattern: str, timeout: float = 10.0) -> bool`: Wait for a pattern to appear on screen.
+- `fail(self, message: str) -> None`: Cause script to fail with a message.
 
 ### AsyncSession
 

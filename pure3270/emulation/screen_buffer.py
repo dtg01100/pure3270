@@ -15,6 +15,11 @@ class Field:
         numeric: bool = False,
         modified: bool = False,
         selected: bool = False,
+        intensity: int = 0,  # 0=normal, 1=highlighted, 2=non-display, 3=blink
+        color: int = 0,  # 0=neutral/default, 1=blue, 2=red, 3=pink, etc.
+        background: int = 0,  # 0=neutral/default, 1=blue, 2=red, 3=pink, etc.
+        validation: int = 0,  # 0=no validation, 1=mandatory fill, 2=trigger
+        outlining: int = 0,  # 0=no outline, 1=underscore, 2=rightline, 3=overline
         content: Optional[bytes] = None,
     ):
         """
@@ -26,6 +31,11 @@ class Field:
         :param numeric: Whether the field accepts only numeric input.
         :param modified: Whether the field has been modified.
         :param selected: Whether the field is selected.
+        :param intensity: Field intensity (0=normal, 1=highlighted, 2=non-display, 3=blink).
+        :param color: Foreground color (0=default, 1=blue, 2=red, etc.).
+        :param background: Background color/highlight (0=default, 1=blue, 2=red, etc.).
+        :param validation: Validation attribute (0=none, 1=mandatory, 2=trigger).
+        :param outlining: Outlining attribute (0=none, 1=underscore, 2=rightline, 3=overline).
         :param content: Initial EBCDIC content bytes.
         """
         self.start = start
@@ -34,6 +44,11 @@ class Field:
         self.numeric = numeric
         self.modified = modified
         self.selected = selected
+        self.intensity = intensity
+        self.color = color
+        self.background = background
+        self.validation = validation
+        self.outlining = outlining
         self.content = content or b""
 
     def get_content(self) -> str:
@@ -52,7 +67,7 @@ class Field:
         self.modified = True
 
     def __repr__(self) -> str:
-        return f"Field(start={self.start}, end={self.end}, protected={self.protected})"
+        return f"Field(start={self.start}, end={self.end}, protected={self.protected}, intensity={self.intensity})"
 
 
 class ScreenBuffer:
@@ -118,12 +133,41 @@ class ScreenBuffer:
         if 0 <= row < self.rows and 0 <= col < self.cols:
             pos = row * self.cols + col
             attr_offset = pos * 3
-            is_protected = bool(self.attributes[attr_offset] & 0x02)
+            is_protected = bool(self.attributes[attr_offset] & 0x40)  # Bit 6: protected
             if is_protected and not circumvent_protection:
                 return  # Skip writing to protected field
             self.buffer[pos] = ebcdic_byte
-            # Set protection bit (simplified: byte 0 bit 1)
-            self.attributes[attr_offset] = 0x02 if protected else 0x00
+            # Set protection bit (bit 6)
+            self.attributes[attr_offset] = (self.attributes[attr_offset] & 0xBF) | (
+                0x40 if protected else 0x00
+            )
+
+            # Update field content and mark as modified if this position belongs to a field
+            self._update_field_content(row, col, ebcdic_byte)
+
+    def _update_field_content(self, row: int, col: int, ebcdic_byte: int):
+        """
+        Update the field content when a character is written to a position.
+
+        :param row: Row position.
+        :param col: Column position.
+        :param ebcdic_byte: EBCDIC byte value written.
+        """
+        # Find the field that contains this position
+        for field in self.fields:
+            start_row, start_col = field.start
+            end_row, end_col = field.end
+
+            # Check if the position is within this field
+            if start_row <= row <= end_row and (
+                start_row != end_row or (start_col <= col <= end_col)
+            ):
+                # Position is within this field, mark as modified
+                field.modified = True
+
+                # For now, we'll just mark the field as modified
+                # A more complete implementation would update the field's content buffer
+                break
 
     def update_from_stream(self, data: bytes):
         """
@@ -169,7 +213,9 @@ class ScreenBuffer:
             for col in range(self.cols):
                 pos = row * self.cols + col
                 attr_offset = pos * 3
-                protected = bool(self.attributes[attr_offset] & 0x02)
+                protected = bool(
+                    self.attributes[attr_offset] & 0x40
+                )  # Bit 6: protected
                 if not in_field and not protected:
                     in_field = True
                     start = (row, col)
@@ -180,9 +226,29 @@ class ScreenBuffer:
                     start_pos = start[0] * self.cols + start[1]
                     end_pos = row * self.cols + (col - 1)
                     content = bytes(self.buffer[start_pos : end_pos + 1])
+
+                    # Extract extended attributes
+                    intensity = (
+                        self.attributes[attr_offset + 1]
+                        if attr_offset + 1 < len(self.attributes)
+                        else 0
+                    )
+                    validation = (
+                        self.attributes[attr_offset + 2]
+                        if attr_offset + 2 < len(self.attributes)
+                        else 0
+                    )
+
                     # Input fields are not protected (protected=False)
                     self.fields.append(
-                        Field(start, end, protected=False, content=content)
+                        Field(
+                            start,
+                            end,
+                            protected=False,
+                            content=content,
+                            intensity=intensity,
+                            validation=validation,
+                        )
                     )
         if in_field:
             end = (self.rows - 1, self.cols - 1)
@@ -192,9 +258,31 @@ class ScreenBuffer:
             content = bytes(self.buffer[start_pos : end_pos + 1])
             # Determine protection status of the final field
             end_pos_attr = end_pos * 3
-            is_protected = bool(self.attributes[end_pos_attr] & 0x02)
+            is_protected = bool(
+                self.attributes[end_pos_attr] & 0x40
+            )  # Bit 6: protected
+
+            # Extract extended attributes
+            intensity = (
+                self.attributes[end_pos_attr + 1]
+                if end_pos_attr + 1 < len(self.attributes)
+                else 0
+            )
+            validation = (
+                self.attributes[end_pos_attr + 2]
+                if end_pos_attr + 2 < len(self.attributes)
+                else 0
+            )
+
             self.fields.append(
-                Field(start, end, protected=is_protected, content=content)
+                Field(
+                    start,
+                    end,
+                    protected=is_protected,
+                    content=content,
+                    intensity=intensity,
+                    validation=validation,
+                )
             )
 
     def to_text(self) -> str:

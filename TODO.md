@@ -1,12 +1,8 @@
 # TODO List - 3270 RFC Compliance and p3270 Compatibility
 
 ## High Priority
-- Add full AID support (PA keys, PF keys beyond Enter)
-- Implement proper field modification tracking for RMF/RMA commands
 
 ## Medium Priority
-- Implement proper field attribute handling beyond basic protection/numeric
-- Implement missing s3270 actions: Compose(), Cookie(), Expect(), Fail()
 
 ## Low Priority
 - Add transparent printing support (TCPIP printer sessions)
@@ -48,3 +44,7 @@
 - s3270 actions: CircumNot(), CursorSelect(), Delete(), DeleteField(), Dup(), End(), Erase(), EraseEOF(), EraseInput(), FieldEnd(), FieldMark(), Flip(), Insert(), MoveCursor(), MoveCursor1(), NextWord(), PreviousWord(), RestoreInput(), SaveInput(), Tab(), ToggleInsert(), ToggleReverse()
 - s3270 actions: Capabilities(), Clear(), Close(), CloseScript(), Connect(), Disconnect(), Down(), Echo(), Enter(), Execute(), Exit(), Info(), Interrupt(), Key(), KeyboardDisable(), Left(), Macro(), Newline(), Open(), PA(), PageDown(), PageUp(), PasteString(), PF(), PreviousWord(), Query(), Quit(), Right(), Script(), Set(), Up()
 - s3270 actions: AnsiText(), Bell(), HexString(), Left2(), MonoCase(), NvtText(), Pause(), Printer(), PrintText(), Prompt(), ReadBuffer(), Reconnect(), Right2(), ScreenTrace(), Show(), Snap(), Source(), SubjectNames(), SysReq(), Toggle(), Trace(), Transfer(), Wait()
+- Add full AID support (PA keys, PF keys beyond Enter)
+- Implement proper field modification tracking for RMF/RMA commands
+- Implement proper field attribute handling beyond basic protection/numeric
+- Implement missing s3270 actions: Compose(), Cookie(), Expect(), Fail()

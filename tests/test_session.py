@@ -508,7 +508,7 @@ class TestAsyncSessionAdvanced:
         async_session.handler = AsyncMock()
 
         # Setup protected field
-        async_session.screen_buffer.attributes[0] = 0x02  # Protected
+        async_session.screen_buffer.attributes[0] = 0x40  # Protected (bit 6)
         async_session.circumvent_protection = True
         async_session.screen_buffer.set_position(0, 0)
         await async_session.insert_text("A")
@@ -521,7 +521,7 @@ class TestAsyncSessionAdvanced:
         async_session.handler = AsyncMock()
 
         # Setup protected field
-        async_session.screen_buffer.attributes[0] = 0x02  # Protected
+        async_session.screen_buffer.attributes[0] = 0x40  # Protected (bit 6)
         async_session.circumvent_protection = False
         async_session.screen_buffer.set_position(0, 0)
         await async_session.insert_text("A")

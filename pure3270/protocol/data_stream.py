@@ -185,14 +185,34 @@ class DataStreamParser:
         if self._pos < len(self._data):
             attr = self._data[self._pos]
             self._pos += 1
+
+            # Parse extended field attributes according to IBM 3270 specification
             protected = bool(attr & 0x40)  # Bit 6: protected
             numeric = bool(attr & 0x20)  # Bit 5: numeric
+            intensity = (attr >> 3) & 0x03  # Bits 4-3: intensity
+            modified = bool(attr & 0x04)  # Bit 2: modified data tag
+            validation = attr & 0x03  # Bits 1-0: validation
+
             # Update field attributes at current position
             row, col = self.screen.get_position()
             self.screen.write_char(
                 0x40, row, col, protected=protected
             )  # Space with attr
-            logger.debug(f"SF: protected={protected}, numeric={numeric}")
+
+            # Store extended attributes in the screen buffer's attribute storage
+            if 0 <= row < self.screen.rows and 0 <= col < self.screen.cols:
+                pos = row * self.screen.cols + col
+                attr_offset = pos * 3
+                # Byte 0: Protection and basic attributes
+                self.screen.attributes[attr_offset] = attr
+                # For now, we'll store intensity in byte 1 and validation in byte 2
+                # A more complete implementation would map these properly
+                self.screen.attributes[attr_offset + 1] = intensity
+                self.screen.attributes[attr_offset + 2] = validation
+
+            logger.debug(
+                f"SF: protected={protected}, numeric={numeric}, intensity={intensity}, modified={modified}, validation={validation}"
+            )
         else:
             logger.error("Unexpected end of data stream")
             raise ParseError("Unexpected end of data stream")

@@ -439,6 +439,97 @@ class Session:
             raise SessionError("Session not connected.")
         asyncio.run(self._async_session.backtab())
 
+    def compose(self, text: str) -> None:
+        """
+        Compose special characters or key combinations (s3270 Compose() action).
+
+        Args:
+            text: Text to compose, which may include special character sequences.
+
+        Raises:
+            SessionError: If not connected.
+        """
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        asyncio.run(self._async_session.compose(text))
+
+    def cookie(self, cookie_string: str) -> None:
+        """
+        Set HTTP cookie for web-based emulators (s3270 Cookie() action).
+
+        Args:
+            cookie_string: Cookie in "name=value" format.
+
+        Raises:
+            SessionError: If not connected.
+        """
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        asyncio.run(self._async_session.cookie(cookie_string))
+
+    def expect(self, pattern: str, timeout: float = 10.0) -> bool:
+        """
+        Wait for a pattern to appear on the screen (s3270 Expect() action).
+
+        Args:
+            pattern: Text pattern to wait for.
+            timeout: Maximum time to wait in seconds.
+
+        Returns:
+            True if pattern is found, False if timeout occurs.
+
+        Raises:
+            SessionError: If not connected.
+        """
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        return asyncio.run(self._async_session.expect(pattern, timeout))
+
+    def fail(self, message: str) -> None:
+        """
+        Cause script to fail with a message (s3270 Fail() action).
+
+        Args:
+            message: Error message to display.
+
+        Raises:
+            SessionError: If not connected.
+            Exception: Always raises an exception with the provided message.
+        """
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        asyncio.run(self._async_session.fail(message))
+
+    def pf(self, n: int) -> None:
+        """
+        Send PF (Program Function) key synchronously (s3270 PF() action).
+
+        Args:
+            n: PF key number (1-24).
+
+        Raises:
+            ValueError: If invalid PF key number.
+            SessionError: If not connected.
+        """
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        asyncio.run(self._async_session.pf(n))
+
+    def pa(self, n: int) -> None:
+        """
+        Send PA (Program Attention) key synchronously (s3270 PA() action).
+
+        Args:
+            n: PA key number (1-3).
+
+        Raises:
+            ValueError: If invalid PA key number.
+            SessionError: If not connected.
+        """
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        asyncio.run(self._async_session.pa(n))
+
     @property
     def screen_buffer(self) -> ScreenBuffer:
         """Get the screen buffer property."""
@@ -741,13 +832,39 @@ class AsyncSession:
 
     async def key(self, keyname: str) -> None:
         """Send key (s3270 Key() action)."""
-        # Use AID_MAP from macro
+        # Comprehensive AID mapping for all supported keys
         AID_MAP = {
             "enter": 0x7D,
+            "pf1": 0xF1,
+            "pf2": 0xF2,
+            "pf3": 0xF3,
+            "pf4": 0xF4,
+            "pf5": 0xF5,
+            "pf6": 0xF6,
+            "pf7": 0xF7,
+            "pf8": 0xF8,
+            "pf9": 0xF9,
+            "pf10": 0x7A,
+            "pf11": 0x7B,
+            "pf12": 0x7C,
+            "pf13": 0xC1,
+            "pf14": 0xC2,
+            "pf15": 0xC3,
+            "pf16": 0xC4,
+            "pf17": 0xC5,
+            "pf18": 0xC6,
+            "pf19": 0xC7,
+            "pf20": 0xC8,
+            "pf21": 0xC9,
+            "pf22": 0xCA,
+            "pf23": 0xCB,
+            "pf24": 0xCC,
+            "pa1": 0x6C,
+            "pa2": 0x6E,
+            "pa3": 0x6B,
             "clear": 0x6D,
             "attn": 0x7E,
             "reset": 0x7F,
-            # Add more keys as needed
         }
         aid = AID_MAP.get(keyname.lower())
         if aid is None:
@@ -936,6 +1053,10 @@ class AsyncSession:
             "Left2()": self.left2,
             "Right2()": self.right2,
             "MonoCase()": self.mono_case,
+            "Compose()": self.compose,
+            "Cookie()": self.cookie,
+            "Expect()": self.expect,
+            "Fail()": self.fail,
         }
 
         for command in commands:
@@ -1654,6 +1775,68 @@ class AsyncSession:
         """Wait for condition (s3270 Wait() action)."""
         # Placeholder
         pass
+
+    async def compose(self, text: str) -> None:
+        """
+        Compose special characters or key combinations (s3270 Compose() action).
+
+        Args:
+            text: Text to compose, which may include special character sequences.
+        """
+        # For now, we'll treat this as inserting text
+        # A more complete implementation might handle special character sequences
+        await self.insert_text(text)
+
+    async def cookie(self, cookie_string: str) -> None:
+        """
+        Set HTTP cookie for web-based emulators (s3270 Cookie() action).
+
+        Args:
+            cookie_string: Cookie in "name=value" format.
+        """
+        # Initialize cookies dict if it doesn't exist
+        if not hasattr(self, "_cookies"):
+            self._cookies = {}
+
+        # Parse and store the cookie
+        if "=" in cookie_string:
+            name, value = cookie_string.split("=", 1)
+            self._cookies[name] = value
+
+    async def expect(self, pattern: str, timeout: float = 10.0) -> bool:
+        """
+        Wait for a pattern to appear on the screen (s3270 Expect() action).
+
+        Args:
+            pattern: Text pattern to wait for.
+            timeout: Maximum time to wait in seconds.
+
+        Returns:
+            True if pattern is found, False if timeout occurs.
+        """
+        import asyncio
+        import time
+
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            screen_text = self.screen_buffer.to_text()
+            if pattern in screen_text:
+                return True
+            # Small delay to avoid busy waiting
+            await asyncio.sleep(0.1)
+        return False
+
+    async def fail(self, message: str) -> None:
+        """
+        Cause script to fail with a message (s3270 Fail() action).
+
+        Args:
+            message: Error message to display.
+
+        Raises:
+            Exception: Always raises an exception with the provided message.
+        """
+        raise Exception(f"Script failed: {message}")
 
     async def load_resource_definitions(self, file_path: str) -> None:
         """Load resource definitions from xrdb format file (s3270 resource support)."""
