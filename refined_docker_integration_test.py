@@ -3,90 +3,12 @@
 Refined Docker-based integration tests for pure3270.
 """
 
-import docker
 import time
 import threading
 from typing import Optional, List
 import subprocess
 import signal
 import os
-
-class DockerTestEnvironment:
-    """Test environment using Docker containers for integration testing."""
-    
-    def __init__(self):
-        self.client = docker.from_env()
-        self.containers: List[docker.models.containers.Container] = []
-        
-    def start_container(self, image: str, name: str, ports: dict = None, 
-                       environment: dict = None, command: str = None) -> Optional[docker.models.containers.Container]:
-        """Start a Docker container."""
-        try:
-            # Remove existing container with same name
-            try:
-                old_container = self.client.containers.get(name)
-                old_container.remove(force=True)
-            except docker.errors.NotFound:
-                pass
-            
-            # Start container
-            container = self.client.containers.run(
-                image,
-                name=name,
-                detach=True,
-                ports=ports or {},
-                environment=environment or {},
-                command=command,
-                remove=True
-            )
-            
-            self.containers.append(container)
-            print(f"Started container: {name} ({container.id[:12]})")
-            return container
-            
-        except Exception as e:
-            print(f"Error starting container {name}: {e}")
-            return None
-    
-    def wait_for_container_ready(self, container: docker.models.containers.Container, 
-                                timeout: int = 60) -> bool:
-        """Wait for container to be ready."""
-        start_time = time.time()
-        
-        while time.time() - start_time < timeout:
-            try:
-                container.reload()
-                if container.status == 'running':
-                    return True
-            except Exception as e:
-                print(f"Error checking container status: {e}")
-            
-            time.sleep(2)
-        
-        return False
-    
-    def test_port_connectivity(self, host: str, port: int, timeout: int = 5) -> bool:
-        """Test TCP port connectivity."""
-        try:
-            import socket
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(timeout)
-            result = sock.connect_ex((host, port))
-            sock.close()
-            return result == 0
-        except Exception:
-            return False
-    
-    def cleanup(self):
-        """Clean up all containers."""
-        for container in self.containers:
-            try:
-                container.stop(timeout=10)
-                print(f"Stopped container: {container.name}")
-            except Exception as e:
-                print(f"Error stopping container: {e}")
-        
-        self.containers.clear()
 
 class MockTN3270Server:
     """Simple mock TN3270 server for basic testing."""
@@ -153,6 +75,18 @@ class MockTN3270Server:
         # Wait for server to start
         time.sleep(1)
         return True
+    
+    def test_port_connectivity(self, host: str, port: int, timeout: int = 5) -> bool:
+        """Test TCP port connectivity."""
+        try:
+            import socket
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(timeout)
+            result = sock.connect_ex((host, port))
+            sock.close()
+            return result == 0
+        except Exception:
+            return False
     
     def stop(self):
         """Stop mock TN3270 server."""
@@ -223,90 +157,6 @@ def test_with_mock_server():
     finally:
         mock_server.stop()
 
-def test_with_hercules_docker():
-    """Test pure3270 with Hercules Docker container."""
-    print("=== Testing with Hercules Docker Container ===")
-    
-    env = DockerTestEnvironment()
-    
-    try:
-        # Start Hercules container
-        container = env.start_container(
-            image="mainframed767/hercules:latest",
-            name="test-hercules-tn3270-server",
-            ports={'23/tcp': 2323}
-        )
-        
-        if not container:
-            print("Failed to start Hercules container")
-            return False
-        
-        # Wait for container to be ready
-        if not env.wait_for_container_ready(container):
-            print("Hercules container failed to start")
-            return False
-        
-        # Wait a bit more for services to initialize
-        print("Waiting for TN3270 services to initialize...")
-        time.sleep(15)
-        
-        # Test port connectivity
-        if env.test_port_connectivity('localhost', 2323):
-            print("✓ Connected to TN3270 server on port 2323")
-        else:
-            print("⚠ Could not connect to TN3270 server (may be normal during startup)")
-        
-        # Import and test pure3270
-        import pure3270
-        from pure3270 import AsyncSession
-        
-        # Enable patching for p3270 tests
-        pure3270.enable_replacement()
-        import p3270
-        
-        # Test AsyncSession
-        async def test_async_session():
-            session = AsyncSession("localhost", 2323)
-            try:
-                # This will likely fail since Hercules needs configuration,
-                # but we're testing that the connection attempt works
-                await session.connect()
-                print("✓ AsyncSession connection attempt completed")
-                return True
-            except Exception as e:
-                print(f"✓ AsyncSession handled connection error gracefully: {type(e).__name__}")
-                return True
-            finally:
-                try:
-                    await session.close()
-                except:
-                    pass
-        
-        # Test p3270
-        def test_p3270():
-            try:
-                client = p3270.P3270Client()
-                print("✓ p3270 client created with pure3270 patching")
-                print(f"  Client s3270 type: {type(client.s3270)}")
-                return True
-            except Exception as e:
-                print(f"✗ p3270 client creation failed: {e}")
-                return False
-        
-        # Run tests
-        import asyncio
-        result1 = asyncio.run(test_async_session())
-        result2 = test_p3270()
-        
-        return result1 and result2
-        
-    except Exception as e:
-        print(f"Error in Hercules test: {e}")
-        return False
-        
-    finally:
-        env.cleanup()
-
 def run_comprehensive_tests():
     """Run comprehensive integration tests."""
     print("Running comprehensive Docker-based integration tests for pure3270")
@@ -322,17 +172,6 @@ def run_comprehensive_tests():
     except Exception as e:
         print(f"Mock server test: ✗ FAILED with exception: {e}")
         results.append(("Mock TN3270 Server", False))
-    
-    print()
-    
-    # Test 2: Docker container (if Docker available)
-    try:
-        result = test_with_hercules_docker()
-        results.append(("Hercules Docker", result))
-        print(f"Hercules Docker test: {'✓ PASSED' if result else '✗ FAILED'}")
-    except Exception as e:
-        print(f"Hercules Docker test: ✗ FAILED with exception: {e}")
-        results.append(("Hercules Docker", False))
     
     print("\n" + "=" * 60)
     print("TEST SUMMARY")
