@@ -30,9 +30,11 @@ test = [
     "black >= 24.0",
     "pytest-cov >= 5.0",
     "p3270 >= 0.1.6",
+    "docker >= 7.0",
 ]
 
 [tool.pytest.ini_options]
 markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')"
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests requiring external services (deselect with '-m \"not integration\"')",
 ]
