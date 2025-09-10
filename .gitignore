@@ -45,8 +45,9 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 
-# Coverage reports directories (allow these for CI artifacts)
-!htmlcov/
+# Coverage reports directories and linting reports
+htmlcov/
+*-report.txt
 
 # Translations
 *.mo

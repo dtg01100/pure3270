@@ -7,9 +7,23 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+# Permissions needed for GitHub Pages deployment
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
 jobs:
   generate-reports:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
     - uses: actions/checkout@v4
     
@@ -54,6 +68,15 @@ jobs:
         
         echo "Coverage: ${coverage_percent}%"
         
+        # Create coverage badge markdown file
+        cat > coverage-badge.md << EOF
+        # Coverage Badge
+        
+        ![Coverage](https://img.shields.io/badge/coverage-${coverage_percent}%25-${color})
+        
+        Current coverage: **${coverage_percent}%**
+        EOF
+        
     - name: Generate linting report
       run: |
         flake8 . > flake8-report.txt || true
@@ -83,7 +106,7 @@ jobs:
       
     - name: Upload coverage report to GitHub Pages
       if: github.ref == 'refs/heads/main'
-      uses: actions/upload-pages-artifact@v3
+      uses: actions/upload-pages-artifact@v4
       with:
         path: htmlcov/
         
