@@ -4,7 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from pure3270.protocol.printer import PrinterSession, PrinterJob
 from pure3270.protocol.tn3270e_header import TN3270EHeader
 from pure3270.protocol.utils import (
-    SCS_DATA, TN3270E_RSF_ERROR_RESPONSE, TN3270E_RSF_NEGATIVE_RESPONSE
+    SCS_DATA, TN3270E_RSF_ERROR_RESPONSE, TN3270E_RSF_NEGATIVE_RESPONSE,
+    TN3270E_RESPONSES, TN3270E_SCS_CTL_CODES, PRINT_EOJ
 )
 
 
@@ -256,8 +257,8 @@ class TestPrinterSession:
         job = session.start_new_job("test")
         job.add_data(b"Test data")
         
-        # Handle PRINT_EOJ (0x01)
-        session.handle_scs_control_code(0x01)  # PRINT_EOJ
+        # Handle PRINT_EOJ (0x08)
+        session.handle_scs_control_code(PRINT_EOJ)  # PRINT_EOJ
         
         # Job should be completed
         assert session.current_job is None
@@ -276,7 +277,7 @@ class TestPrinterSession:
         session = PrinterSession()
         session.activate()
         
-        header = TN3270EHeader(data_type=SCS_DATA)
+        header = TN3270EHeader(data_type=TN3270E_SCS_CTL_CODES)
         data = b"Test SCS data"
         
         session.process_tn3270e_message(header, data)
@@ -294,7 +295,7 @@ class TestPrinterSession:
         job = session.start_new_job("test")
         
         header = TN3270EHeader(
-            data_type=0x02,  # RESPONSE
+            data_type=TN3270E_RESPONSES,  # RESPONSE
             response_flag=TN3270E_RSF_ERROR_RESPONSE,
             seq_number=123
         )
