@@ -14,8 +14,22 @@ setup(
     include_package_data=True,
     install_requires=[],
     extras_require={
-        "dev": ["pytest >= 7.0", "pytest-asyncio >= 0.21", "pytest-benchmark >= 4.0", "pytest-cov >= 5.0", "flake8 >= 7.0", "black >= 24.0"],
-        "test": ["pytest >= 7.0", "pytest-asyncio >= 0.21", "pytest-benchmark >= 4.0", "pytest-cov >= 5.0", "flake8 >= 7.0", "black >= 24.0"],
+        "dev": [
+            "pytest >= 7.0",
+            "pytest-asyncio >= 0.21",
+            "pytest-benchmark >= 4.0",
+            "pytest-cov >= 5.0",
+            "flake8 >= 7.0",
+            "black >= 24.0",
+        ],
+        "test": [
+            "pytest >= 7.0",
+            "pytest-asyncio >= 0.21",
+            "pytest-benchmark >= 4.0",
+            "pytest-cov >= 5.0",
+            "flake8 >= 7.0",
+            "black >= 24.0",
+        ],
     },
     python_requires=">=3.8",
     classifiers=[
