@@ -1,9 +1,5 @@
 # TODO List - 3270 RFC Compliance and p3270 Compatibility
 
-## High Priority
-
-## Medium Priority
-
 ## Low Priority
 - Add transparent printing support (TCPIP printer sessions)
 - Implement 3270 extended attributes beyond basic field properties
@@ -22,7 +18,7 @@
 - Implement Device End/Intervention Required status handling
 - Implement SOH % R S1 S2 IAC EOR status message formats
 
-## Completed
+## Completed Features in v0.2.0
 - Basic 3270 data stream parsing (W, SBA, SF, etc.)
 - Screen buffer management with EBCDIC support
 - Basic field detection and content handling
