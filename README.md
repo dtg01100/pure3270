@@ -84,7 +84,7 @@ from pure3270 import Session
 
 with Session() as session:
     session.connect('your-host.example.com', port=23, ssl=False)
-    session.send('key Enter')
+    session.send(b'key Enter')
     print(session.read())
 ```
 
@@ -96,7 +96,7 @@ from pure3270 import AsyncSession
 async def main():
     async with AsyncSession() as session:
         await session.connect('your-host.example.com', port=23, ssl=False)
-        await session.send('key Enter')
+        await session.send(b'key Enter')
         print(await session.read())
 
 asyncio.run(main())
@@ -118,7 +118,7 @@ pure3270.enable_replacement()  # Applies global patches to p3270
 import p3270
 session = p3270.P3270Client()  # Now uses pure3270 under the hood
 session.connect('your-host.example.com', port=23, ssl=False)
-session.send('key Enter')
+session.send(b'key Enter')
 screen_text = session.read()
 print(screen_text)
 session.close()
@@ -139,7 +139,7 @@ from pure3270 import Session
 session = Session()
 try:
     session.connect('your-host.example.com', port=23, ssl=False)
-    session.send('key Enter')
+    session.send(b'key Enter')
     print(session.read())
 finally:
     session.close()
@@ -147,7 +147,7 @@ finally:
 
 Supports macros:
 ```python
-session.macro(['String(hello)', 'key Enter'])
+session.execute_macro('String(hello);key Enter')
 ```
 
 #### Asynchronous Usage
@@ -162,7 +162,7 @@ from pure3270 import AsyncSession
 async def main():
     async with AsyncSession() as session:
         await session.connect('your-host.example.com', port=23, ssl=False)
-        await session.send('key Enter')
+        await session.send(b'key Enter')
         print(await session.read())
 
 asyncio.run(main())
@@ -176,7 +176,7 @@ from pure3270 import AsyncSession
 async def main():
     async with AsyncSession() as session:
         await session.connect('your-host.example.com', port=23, ssl=False)
-        await session.macro(['String(hello)', 'key Enter'])
+        await session.execute_macro('String(hello);key Enter')
         print(await session.read())
 
 asyncio.run(main())
@@ -192,7 +192,7 @@ async def main():
     session = AsyncSession()
     async with session.managed():
         await session.connect('your-host.example.com', port=23, ssl=False)
-        await session.send('key Enter')
+        await session.send(b'key Enter')
         print(await session.read())
     # Session is automatically closed here
 
@@ -209,7 +209,7 @@ async def main():
     try:
         async with AsyncSession() as session:
             await session.connect('your-host.example.com', port=23, ssl=False)
-            await session.send('key Enter')
+            await session.send(b'key Enter')
             print(await session.read())
     except SessionError as e:
         print(f"Session error: {e}")
@@ -261,46 +261,49 @@ class Session:
     Synchronous 3270 session handler (wraps AsyncSession).
     """
     
-    def __init__(self, rows: int = 24, cols: int = 80, force_3270: bool = False):
+    def __init__(self, host: Optional[str] = None, port: int = 23, ssl_context: Optional[Any] = None):
         """
         Initialize the Session.
         
-        :param rows: Screen rows (default 24).
-        :param cols: Screen columns (default 80).
-        :param force_3270: Force TN3270 mode without negotiation (for testing).
+        :param host: Hostname or IP.
+        :param port: Port (default 23).
+        :param ssl_context: SSL context for secure connections.
         """
 
-    def connect(self, host: str, port: int = 23, ssl: bool = False) -> None:
+    def connect(self, host: Optional[str] = None, port: Optional[int] = None, ssl_context: Optional[Any] = None) -> None:
         """
         Connect to the TN3270 host (sync).
         
         :param host: Hostname or IP.
         :param port: Port (default 23).
-        :param ssl: Use SSL/TLS if True.
+        :param ssl_context: SSL context for secure connections.
         :raises SessionError: If connection fails.
         """
 
-    def send(self, command: str) -> None:
+    def send(self, data: bytes) -> None:
         """
-        Send a command or key (sync).
+        Send data to the host (sync).
         
-        :param command: Command or key (e.g., "key Enter", "String(hello)").
+        :param data: Data to send.
         :raises SessionError: If send fails.
         """
 
-    def read(self) -> str:
+    def read(self, timeout: float = 5.0) -> bytes:
         """
-        Read the current screen content (sync).
+        Read data from the host (sync).
         
-        :return: Screen text as string.
+        :param timeout: Read timeout in seconds.
+        :return: Data received from host.
         :raises SessionError: If read fails.
         """
 
-    def macro(self, sequence: Sequence[str]) -> None:
+    def execute_macro(self, macro: str, vars: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """
-        Execute a macro sequence (sync).
+        Execute a macro (sync).
         
-        :param sequence: List of commands.
+        :param macro: Macro to execute.
+        :param vars: Variables for macro execution.
+        :return: Macro execution results.
         """
 
     def close(self) -> None:
@@ -332,49 +335,52 @@ class AsyncSession:
     """Asynchronous 3270 session handler."""
 
     def __init__(
-        self, rows: int = 24, cols: int = 80, force_3270: bool = False
+        self, host: Optional[str] = None, port: int = 23, ssl_context: Optional[Any] = None
     ):
         """
         Initialize the AsyncSession.
 
-        :param rows: Screen rows (default 24).
-        :param cols: Screen columns (default 80).
-        :param force_3270: Force TN3270 mode without negotiation (for testing).
+        :param host: Hostname or IP.
+        :param port: Port (default 23).
+        :param ssl_context: SSL context for secure connections.
         """
 
     async def connect(
-        self, host: str, port: int = 23, ssl: bool = False
+        self, host: Optional[str] = None, port: Optional[int] = None, ssl_context: Optional[Any] = None
     ) -> None:
         """
         Connect to the TN3270 host.
 
         :param host: Hostname or IP.
         :param port: Port (default 23).
-        :param ssl: Use SSL/TLS if True.
+        :param ssl_context: SSL context for secure connections.
         :raises SessionError: If connection fails.
         """
 
-    async def send(self, command: str) -> None:
+    async def send(self, data: bytes) -> None:
         """
-        Send a command or key to the host.
+        Send data to the host.
         
-        :param command: Command or key (e.g., "key Enter", "String(hello)").
+        :param data: Data to send.
         :raises SessionError: If send fails.
         """
 
-    async def read(self) -> str:
+    async def read(self, timeout: float = 5.0) -> bytes:
         """
-        Read the current screen content.
+        Read data from the host.
         
-        :return: Screen text as string.
+        :param timeout: Read timeout in seconds.
+        :return: Data received from host.
         :raises SessionError: If read fails.
         """
 
-    async def macro(self, sequence: Sequence[str]) -> None:
+    async def execute_macro(self, macro: str, vars: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """
-        Execute a macro sequence of commands.
+        Execute a macro.
         
-        :param sequence: List of commands.
+        :param macro: Macro to execute.
+        :param vars: Variables for macro execution.
+        :return: Macro execution results.
         """
 
     async def close(self) -> None:

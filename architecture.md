@@ -30,7 +30,11 @@ pure3270/
 │   ├── __init__.py
 │   ├── data_stream.py   # DataStreamParser/Sender for 3270 orders and BIND
 │   ├── ssl_wrapper.py   # SSL/TLS integration using stdlib ssl module
-│   └── tn3270_handler.py # TN3270Handler for connection, negotiation, data stream handling
+│   ├── tn3270_handler.py # TN3270Handler for connection, negotiation, data stream handling
+│   ├── negotiator.py    # TN3270/TN3270E negotiation logic
+│   ├── printer.py       # Printer session support
+│   ├── tn3270e_header.py # TN3270E header processing
+│   └── utils.py         # Telnet command utilities
 └── patching/            # Monkey-patching mechanisms for p3270 integration
     ├── __init__.py
     └── patching.py      # MonkeyPatchManager for dynamic overrides and enable_replacement()
@@ -63,6 +67,16 @@ Key modules and classes:
   - `TN3270Handler`: Handles asyncio-based TCP connections, negotiations (TN3270/TN3270E including EOR, BIND), and subnegotiation. Implements raw telnet commands (IAC/SB) for 3270-specific data stream sending/receiving.
   - Exceptions: `ProtocolError` (base), `NegotiationError`.
 
+- **`protocol/negotiator.py`**:
+  - `Negotiator`: Handles TN3270/TN3270E negotiation logic, including device type and function negotiation.
+
+- **`protocol/printer.py`**:
+  - `PrinterSession`: Handles printer session support for TN3270E protocol.
+  - `PrinterJob`: Represents a printer job in a TN3270E printer session.
+
+- **`protocol/tn3270e_header.py`**:
+  - `TN3270EHeader`: Processes TN3270E message headers.
+
 - **`protocol/data_stream.py`**:
   - `DataStreamParser`: Parses incoming 3270 data streams (orders like SBA, SF, RA, GE, W), updates screen buffer.
   - `DataStreamSender`: Constructs outgoing streams for commands (e.g., Read Modified Fields, key press with AID).
@@ -71,6 +85,9 @@ Key modules and classes:
 - **`protocol/ssl_wrapper.py`**:
   - `SSLWrapper`: Creates `ssl.SSLContext` for TLS 1.2+ secure connections, with optional certificate verification.
   - Exception: `SSLError`.
+
+- **`protocol/utils.py`**:
+  - Utility functions for telnet commands and IAC sequence processing.
 
 - **`patching/patching.py`**:
   - `MonkeyPatchManager`: Core class for applying patches. Uses `sys.modules` manipulation and `types.MethodType` for method overrides on `p3270` (e.g., Session init/connect/send/read).
@@ -103,6 +120,24 @@ Attributes: byte 0: protected (bit 1), modified (bit 7)
             byte 2: background color, highlighting
 Fields: List of {start: (row,col), end: (row,col), type: 'input/output'}
 ```
+
+## Protocol
+
+Supports TN3270 (RFC 1576) and enhanced TN3270E (RFC 2355) for better reliability.
+
+- **Connection**: `TN3270Handler` (in tn3270_handler.py) uses `asyncio.open_connection` for TCP connections, sends raw DO TN3270E via IAC, handles WILL/WONT for TN3270/TN3270E. For SSL, applies `SSLWrapper` context to the asyncio transport if `secure=True`.
+
+- **Negotiation**: `Negotiator` (in negotiator.py) handles TN3270/TN3270E negotiation, including device type and function negotiation.
+
+- **Data Stream**: Incoming: Receives via asyncio reader, then `DataStreamParser` (in data_stream.py) decodes 3270 orders (e.g., W (Write), EWA (Erase Write Alternate), SBA, SF). Outgoing: `DataStreamSender` builds 3270 packets, sends via asyncio writer. BIND image parsed for terminal type negotiation and screen sizing.
+
+- **BIND Handling**: Parses BIND command to extract USABLE AREA size, configures `ScreenBuffer` accordingly (e.g., 24x80 or 32x80).
+
+- **Printer Support**: `PrinterSession` (in printer.py) handles printer session support for TN3270E protocol, including SCS character data processing and PRINT-EOJ handling.
+
+- **TN3270E Header Processing**: `TN3270EHeader` (in tn3270e_header.py) processes TN3270E message headers with DATA-TYPE, REQUEST-FLAG, RESPONSE-FLAG, SEQ-NUMBER.
+
+- **Error Handling**: Timeouts via `asyncio.wait_for()`, protocol errors raise `ProtocolError` or `NegotiationError`.
 
 ## Development Setup
 
@@ -202,7 +237,7 @@ If mismatch: Log & Proceed (or raise if strict) --> Partial/Original
 
 The API remains fully compatible with existing p3270 and s3270 interfaces. Asyncio integration is handled transparently under the hood in `TN3270Handler` and `AsyncSession`, with no changes to public methods like `connect()`, `send()`, or `read_screen()`. Developers using the library or patched p3270 sessions will not notice the switch to pure Python emulation.
 
-- **Mirroring s3270**: `Session` class with `connect(host, port=23)`, `send('key Enter')`, `read()` (returns text), `disconnect()` via `close()`. Supports scripting commands like `s3270` (e.g., `String("field")`).
+- **Mirroring s3270**: `Session` class with `connect(host, port=23)`, `send(b'key Enter')`, `read()` (returns bytes), `disconnect()` via `close()`. Supports scripting commands like `s3270` (e.g., `String("field")`).
 
 - **Pythonic Features**:
   - Context manager: `with Session() as sess: sess.connect(...)`
@@ -210,6 +245,10 @@ The API remains fully compatible with existing p3270 and s3270 interfaces. Async
   - Properties: Access via `read()` for scraping.
 
 - **Standalone Usage**: Can be used independently without patching, e.g., `sess = Session(); sess.connect('host')`.
+
+- **Macro Support**: Supports macro execution with `execute_macro()` method for both `Session` and `AsyncSession`.
+
+- **Resource Definition Support**: Supports loading resource definitions from xrdb format files.
 
 ## Extensibility
 

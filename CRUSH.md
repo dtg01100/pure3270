@@ -31,3 +31,15 @@
 - Private methods start with underscore
 - Unit tests in tests/ matching source structure
 - Mock external dependencies in tests
+
+## Additional Development Practices
+- Use pytest-asyncio for async tests
+- Use parametrized tests for testing multiple scenarios
+- Use fixtures for test setup/teardown
+- Write comprehensive tests for new features
+- Maintain 80%+ test coverage
+- Document public APIs with docstrings
+- Follow semantic versioning for releases
+- Use GitHub Actions for CI/CD
+- Maintain compatibility with p3270 library
+- Follow RFC specifications for protocol implementation
