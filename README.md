@@ -1,7 +1,9 @@
 # Pure3270: Pure Python 3270 Terminal Emulation Library
 
-[![Coverage Status](https://coveralls.io/repos/github/dlafreniere/pure3270/badge.svg?branch=main)](https://coveralls.io/github/dlafreniere/pure3270?branch=main)
-[![Linting](https://img.shields.io/badge/linting-pass-brightgreen)](https://img.shields.io/badge/linting-pass-brightgreen)
+[![Python Package](https://github.com/dtg01100/pure3270/actions/workflows/python-package.yml/badge.svg)](https://github.com/dtg01100/pure3270/actions/workflows/python-package.yml)
+[![Reports](https://github.com/dtg01100/pure3270/actions/workflows/reports.yml/badge.svg)](https://github.com/dtg01100/pure3270/actions/workflows/reports.yml)
+[![Linting](https://github.com/dtg01100/pure3270/actions/workflows/linting.yml/badge.svg)](https://github.com/dtg01100/pure3270/actions/workflows/linting.yml)
+[![GitHub Pages](https://img.shields.io/badge/coverage-reports-blue)](https://dtg01100.github.io/pure3270/)
 
 Pure3270 is a self-contained, pure Python 3.8+ implementation of a 3270 terminal emulator, designed to emulate the functionality of the `s3270` terminal emulator. It integrates seamlessly with the `p3270` library through runtime monkey-patching, allowing you to replace `p3270`'s dependency on the external `s3270` binary without complex setup. The library uses standard asyncio for networking with no external telnet dependencies and supports TN3270 and TN3270E protocols, full 3270 emulation (screen buffer, fields, keyboard simulation), and optional SSL/TLS.
 
@@ -439,9 +441,31 @@ Pure3270 includes comprehensive tests in the `tests/` directory, enhanced with e
 
 Install dev dependencies (see Installation). Then:
 ```
-pytest tests/ --cov=pure3270 --cov-report=html
+pytest tests/
 ```
-This generates coverage reports and HTML output in `htmlcov/`.
+
+### Coverage Reports
+
+You can generate local coverage reports without using external services:
+
+```bash
+# Terminal report
+pytest --cov=pure3270
+
+# HTML report (creates interactive report in htmlcov/ directory)
+pytest --cov=pure3270 --cov-report=html
+
+# Detailed terminal report showing line numbers missing coverage
+pytest --cov=pure3270 --cov-report=term-missing
+
+# XML report (useful for CI/CD integration)
+pytest --cov=pure3270 --cov-report=xml
+```
+
+You can also combine multiple report formats:
+```bash
+pytest --cov=pure3270 --cov-report=html --cov-report=term-missing
+```
 
 For linting:
 ```
@@ -451,7 +475,13 @@ flake8 .
 
 ### CI Setup
 
-To automate testing and linting, set up GitHub Actions. Create `.github/workflows/ci.yml`:
+This project uses GitHub Actions for continuous integration. The workflows are defined in `.github/workflows/`:
+
+1. `python-package.yml` - Runs tests and linting across multiple Python versions
+2. `reports.yml` - Generates and publishes coverage and linting reports
+3. `python-publish.yml` - Publishes releases to PyPI
+
+Reports are automatically generated on each push and pull request. Coverage reports are published to [GitHub Pages](https://dlafreniere.github.io/pure3270/) for easy access.
 
 ```yaml
 name: CI
@@ -471,17 +501,20 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -e .[dev]
-    - name: Run tests
-      run: pytest tests/ --cov=pure3270 --cov-report=xml
+    - name: Run tests with coverage
+      run: pytest tests/ --cov=pure3270 --cov-report=xml --cov-report=html
     - name: Lint
       run: |
         black . --check
         flake8 .
-    - name: Upload coverage
-      uses: codecov/codecov-action@v1
+    - name: Archive code coverage results
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: htmlcov/
 ```
 
-This runs tests, coverage, and linting on push/PR. Badges can be generated via services like Shields.io or Codecov for integration into the README.
+This runs tests, coverage, and linting on push/PR without requiring external coverage services. Coverage reports are uploaded as artifacts and published to GitHub Pages for the main branch.
 
 ## Contribution Guidelines
 

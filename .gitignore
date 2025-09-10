@@ -35,7 +35,6 @@ pip-log.txt
 pip-delete-this-directory.txt
 
 # Unit test / coverage reports
-htmlcov/
 .tox/
 .coverage
 .coverage.*
@@ -45,6 +44,9 @@ coverage.xml
 *.cover
 .hypothesis/
 .pytest_cache/
+
+# Coverage reports directories (allow these for CI artifacts)
+!htmlcov/
 
 # Translations
 *.mo
@@ -73,12 +75,6 @@ target/
 
 # pyenv
 .python-version
-
-# celery beat schedule file
-celerybeat-schedule
-
-# SageMath parsed files
-*.sage.py
 
 # dotenv
 .env
