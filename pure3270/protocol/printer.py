@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import time
 from typing import Optional, List, Tuple
 from .tn3270e_header import TN3270EHeader
 from .utils import (
@@ -36,13 +37,11 @@ class PrinterJob:
         """Initialize a printer job."""
         if not job_id:
             # Generate a default ID if none provided
-            import time
-
             job_id = f"job_{int(time.time() * 1000) % 100000}"
         self.job_id = job_id
         self.data = bytearray()
         self.status = "active"  # active, completed, error
-        self.start_time = asyncio.get_event_loop().time()
+        self.start_time = time.time()
         self.end_time: Optional[float] = None
         self.pages: List[bytes] = []
 
@@ -54,20 +53,20 @@ class PrinterJob:
     def complete_job(self) -> None:
         """Mark the job as completed."""
         self.status = "completed"
-        self.end_time = asyncio.get_event_loop().time()
+        self.end_time = time.time()
         logger.info(f"Printer job {self.job_id} completed")
 
     def set_error(self, error_msg: str) -> None:
         """Mark the job as having an error."""
         self.status = "error"
-        self.end_time = asyncio.get_event_loop().time()
+        self.end_time = time.time()
         logger.error(f"Printer job {self.job_id} error: {error_msg}")
 
     def get_duration(self) -> float:
         """Get the job duration in seconds."""
         if self.end_time is not None:
             return self.end_time - self.start_time
-        return asyncio.get_event_loop().time() - self.start_time
+        return time.time() - self.start_time
 
     def get_page_count(self) -> int:
         """Get the number of pages in the job."""
