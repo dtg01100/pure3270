@@ -266,8 +266,6 @@ class DataStreamParser:
             row += 1
         self.screen.set_position(row, col)
 
-
-
     def _handle_structured_field(self):
         """Handle Structured Field command."""
         logger.debug("Structured Field command received")
@@ -282,8 +280,19 @@ class DataStreamParser:
         while self._pos < len(self._data):
             # Look for next 3270 command
             if self._data[self._pos] in [
-                WCC, AID, READ_PARTITION, SBA, SF, RA, GE, BIND, 
-                WRITE, EOA, SCS_CTL_CODES, DATA_STREAM_CTL, STRUCTURED_FIELD
+                WCC,
+                AID,
+                READ_PARTITION,
+                SBA,
+                SF,
+                RA,
+                GE,
+                BIND,
+                WRITE,
+                EOA,
+                SCS_CTL_CODES,
+                DATA_STREAM_CTL,
+                STRUCTURED_FIELD,
             ]:
                 break
             self._pos += 1
@@ -298,7 +307,7 @@ class DataStreamParser:
     def build_query_reply_sf(self, query_type: int, data: bytes = b"") -> bytes:
         """
         Build Query Reply Structured Field.
-        
+
         :param query_type: Query reply type
         :param data: Query reply data
         :return: Query Reply Structured Field bytes
@@ -311,18 +320,18 @@ class DataStreamParser:
         sf.append(QUERY_REPLY_SF)  # Query Reply SF type
         sf.append(query_type)  # Query reply type
         sf.extend(data)  # Query reply data
-        
+
         # Fill in length
         length = len(sf) - 1  # Exclude the SF identifier
         sf[length_pos] = (length >> 8) & 0xFF
         sf[length_pos + 1] = length & 0xFF
-        
+
         return bytes(sf)
 
     def build_device_type_query_reply(self) -> bytes:
         """
         Build Device Type Query Reply Structured Field.
-        
+
         :return: Device Type Query Reply SF bytes
         """
         # For simplicity, we'll report our device type
@@ -332,7 +341,7 @@ class DataStreamParser:
     def build_characteristics_query_reply(self) -> bytes:
         """
         Build Characteristics Query Reply Structured Field.
-        
+
         :return: Characteristics Query Reply SF bytes
         """
         # Report basic characteristics
@@ -342,6 +351,7 @@ class DataStreamParser:
         characteristics.append(0x00)  # Flags byte 3
 
         return self.build_query_reply_sf(QUERY_REPLY_CHARACTERISTICS, characteristics)
+
 
 class DataStreamSender:
     """Constructs outgoing 3270 data streams."""

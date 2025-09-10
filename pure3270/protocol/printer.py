@@ -5,13 +5,24 @@ import logging
 from typing import Optional, List, Tuple
 from .tn3270e_header import TN3270EHeader
 from .utils import (
-    SCS_DATA, TN3270E_RSF_NO_RESPONSE, TN3270E_RSF_ERROR_RESPONSE,
-    TN3270E_RSF_ALWAYS_RESPONSE, TN3270E_RSF_POSITIVE_RESPONSE,
-    TN3270E_RSF_NEGATIVE_RESPONSE, PRINT_EOJ,
-    TN3270E_DEVICE_TYPE, TN3270E_FUNCTIONS, TN3270E_IS, TN3270E_REQUEST,
-    TN3270E_SEND, TN3270E_BIND_IMAGE, TN3270E_DATA_STREAM_CTL,
-    TN3270E_RESPONSES, TN3270E_SCS_CTL_CODES, TN3270E_SYSREQ,
-    TN3270E_IBM_DYNAMIC
+    SCS_DATA,
+    TN3270E_RSF_NO_RESPONSE,
+    TN3270E_RSF_ERROR_RESPONSE,
+    TN3270E_RSF_ALWAYS_RESPONSE,
+    TN3270E_RSF_POSITIVE_RESPONSE,
+    TN3270E_RSF_NEGATIVE_RESPONSE,
+    PRINT_EOJ,
+    TN3270E_DEVICE_TYPE,
+    TN3270E_FUNCTIONS,
+    TN3270E_IS,
+    TN3270E_REQUEST,
+    TN3270E_SEND,
+    TN3270E_BIND_IMAGE,
+    TN3270E_DATA_STREAM_CTL,
+    TN3270E_RESPONSES,
+    TN3270E_SCS_CTL_CODES,
+    TN3270E_SYSREQ,
+    TN3270E_IBM_DYNAMIC,
 )
 from .exceptions import ProtocolError, ParseError
 
@@ -26,6 +37,7 @@ class PrinterJob:
         if not job_id:
             # Generate a default ID if none provided
             import time
+
             job_id = f"job_{int(time.time() * 1000) % 100000}"
         self.job_id = job_id
         self.data = bytearray()
@@ -150,12 +162,12 @@ class PrinterSession:
         if self.current_job:
             # Add to completed jobs
             self.completed_jobs.append(self.current_job)
-            
+
             # Limit the number of stored jobs
             if len(self.completed_jobs) > self.max_jobs:
                 # Remove oldest jobs
-                self.completed_jobs = self.completed_jobs[-self.max_jobs:]
-            
+                self.completed_jobs = self.completed_jobs[-self.max_jobs :]
+
             # Clear current job
             self.current_job = None
             logger.info("Current printer job finished and stored")
@@ -174,14 +186,14 @@ class PrinterSession:
         completed_count = len(self.completed_jobs)
         total_pages = sum(job.get_page_count() for job in self.completed_jobs)
         total_bytes = sum(job.get_data_size() for job in self.completed_jobs)
-        
+
         return {
             "active_jobs": active_job,
             "completed_jobs": completed_count,
             "total_pages": total_pages,
             "total_bytes": total_bytes,
             "average_pages_per_job": total_pages / max(completed_count, 1),
-            "average_bytes_per_job": total_bytes / max(completed_count, 1)
+            "average_bytes_per_job": total_bytes / max(completed_count, 1),
         }
 
     def clear_completed_jobs(self) -> None:
@@ -212,13 +224,21 @@ class PrinterSession:
         elif header.data_type == TN3270E_RESPONSES:
             # Handle response messages
             if header.response_flag == TN3270E_RSF_ERROR_RESPONSE:
-                logger.error(f"Received error response for sequence {header.seq_number}")
+                logger.error(
+                    f"Received error response for sequence {header.seq_number}"
+                )
                 if self.current_job:
-                    self.current_job.set_error(f"Error response received for sequence {header.seq_number}")
+                    self.current_job.set_error(
+                        f"Error response received for sequence {header.seq_number}"
+                    )
             elif header.response_flag == TN3270E_RSF_NEGATIVE_RESPONSE:
-                logger.warning(f"Received negative response for sequence {header.seq_number}")
+                logger.warning(
+                    f"Received negative response for sequence {header.seq_number}"
+                )
         else:
-            logger.warning(f"Unhandled TN3270E data type: {header.get_data_type_name()}")
+            logger.warning(
+                f"Unhandled TN3270E data type: {header.get_data_type_name()}"
+            )
 
     def __repr__(self) -> str:
         """String representation of the printer session."""

@@ -15,7 +15,7 @@ DONT = 0xFE
 
 # TN3270E constants
 TN3270E = 0x28  # TN3270E Telnet option
-EOR = 0x19      # End of Record
+EOR = 0x19  # End of Record
 
 # TN3270E Data Types
 TN3270_DATA = 0x00

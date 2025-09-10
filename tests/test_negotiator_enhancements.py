@@ -11,14 +11,14 @@ class TestNegotiatorEnhancements:
         parser = DataStreamParser(ScreenBuffer())
         screen_buffer = ScreenBuffer()
         negotiator = Negotiator(None, parser, screen_buffer)
-        
+
         # Check that device type support is initialized
-        assert hasattr(negotiator, 'supported_device_types')
-        assert hasattr(negotiator, 'requested_device_type')
-        assert hasattr(negotiator, 'negotiated_device_type')
-        assert hasattr(negotiator, 'supported_functions')
-        assert hasattr(negotiator, 'negotiated_functions')
-        
+        assert hasattr(negotiator, "supported_device_types")
+        assert hasattr(negotiator, "requested_device_type")
+        assert hasattr(negotiator, "negotiated_device_type")
+        assert hasattr(negotiator, "supported_functions")
+        assert hasattr(negotiator, "negotiated_functions")
+
         # Check default values
         assert negotiator.negotiated_device_type is None
         assert negotiator.supported_device_types is not None
@@ -29,13 +29,13 @@ class TestNegotiatorEnhancements:
         parser = DataStreamParser(ScreenBuffer())
         screen_buffer = ScreenBuffer()
         negotiator = Negotiator(None, parser, screen_buffer)
-        
+
         # Test with too short data
-        negotiator._parse_tn3270e_subnegotiation(b'\x01\x02')
+        negotiator._parse_tn3270e_subnegotiation(b"\x01\x02")
         # Should not raise exception, just log warning
-        
+
         # Test with invalid TN3270E option
-        negotiator._parse_tn3270e_subnegotiation(b'\x01\x02\x03')
+        negotiator._parse_tn3270e_subnegotiation(b"\x01\x02\x03")
         # Should not raise exception, just log warning
 
     def test_handle_device_type_subnegotiation(self):
@@ -43,17 +43,17 @@ class TestNegotiatorEnhancements:
         parser = DataStreamParser(ScreenBuffer())
         screen_buffer = ScreenBuffer()
         negotiator = Negotiator(None, parser, screen_buffer)
-        
+
         # Test with invalid data
-        negotiator._handle_device_type_subnegotiation(b'\x01')
+        negotiator._handle_device_type_subnegotiation(b"\x01")
         # Should not raise exception, just log warning
-        
+
         # Test with valid IS message but no device type
-        negotiator._handle_device_type_subnegotiation(b'\x02')
+        negotiator._handle_device_type_subnegotiation(b"\x02")
         # Should not raise exception
-        
+
         # Test with IBM-DYNAMIC device type
-        negotiator._handle_device_type_subnegotiation(b'\x02IBM-DYNAMIC\x00')
+        negotiator._handle_device_type_subnegotiation(b"\x02IBM-DYNAMIC\x00")
         # Should set negotiated_device_type to IBM-DYNAMIC
         assert negotiator.negotiated_device_type == "IBM-DYNAMIC"
 
@@ -62,13 +62,13 @@ class TestNegotiatorEnhancements:
         parser = DataStreamParser(ScreenBuffer())
         screen_buffer = ScreenBuffer()
         negotiator = Negotiator(None, parser, screen_buffer)
-        
+
         # Test with invalid data
-        negotiator._handle_functions_subnegotiation(b'\x01')
+        negotiator._handle_functions_subnegotiation(b"\x01")
         # Should not raise exception, just log warning
-        
+
         # Test with valid IS message but no functions
-        negotiator._handle_functions_subnegotiation(b'\x02')
+        negotiator._handle_functions_subnegotiation(b"\x02")
         # Should not raise exception
 
     def test_send_supported_device_types_no_writer(self):
@@ -76,7 +76,7 @@ class TestNegotiatorEnhancements:
         parser = DataStreamParser(ScreenBuffer())
         screen_buffer = ScreenBuffer()
         negotiator = Negotiator(None, parser, screen_buffer)
-        
+
         # Should log error but not raise exception
         negotiator._send_supported_device_types()
 
@@ -85,6 +85,6 @@ class TestNegotiatorEnhancements:
         parser = DataStreamParser(ScreenBuffer())
         screen_buffer = ScreenBuffer()
         negotiator = Negotiator(None, parser, screen_buffer)
-        
+
         # Should log error but not raise exception
         negotiator._send_supported_functions()

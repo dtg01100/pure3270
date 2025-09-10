@@ -1,7 +1,10 @@
 import pytest
 from pure3270.protocol.tn3270e_header import TN3270EHeader
 from pure3270.protocol.utils import (
-    TN3270_DATA, SCS_DATA, TN3270E_RSF_NO_RESPONSE, TN3270E_RSF_ERROR_RESPONSE
+    TN3270_DATA,
+    SCS_DATA,
+    TN3270E_RSF_NO_RESPONSE,
+    TN3270E_RSF_ERROR_RESPONSE,
 )
 
 
@@ -20,7 +23,7 @@ class TestTN3270EHeader:
             data_type=SCS_DATA,
             request_flag=0x01,
             response_flag=TN3270E_RSF_ERROR_RESPONSE,
-            seq_number=1234
+            seq_number=1234,
         )
         assert header.data_type == SCS_DATA
         assert header.request_flag == 0x01
@@ -33,15 +36,15 @@ class TestTN3270EHeader:
             data_type=SCS_DATA,
             request_flag=0x01,
             response_flag=TN3270E_RSF_ERROR_RESPONSE,
-            seq_number=1234
+            seq_number=1234,
         )
         bytes_data = header.to_bytes()
         assert len(bytes_data) == 5
-        assert bytes_data == b'\x01\x01\x01\x04\xd2'
+        assert bytes_data == b"\x01\x01\x01\x04\xd2"
 
     def test_from_bytes(self):
         """Test parsing from bytes."""
-        bytes_data = b'\x01\x01\x01\x04\xd2'
+        bytes_data = b"\x01\x01\x01\x04\xd2"
         header = TN3270EHeader.from_bytes(bytes_data)
         assert header is not None
         assert header.data_type == SCS_DATA
@@ -52,11 +55,11 @@ class TestTN3270EHeader:
     def test_from_bytes_invalid(self):
         """Test parsing invalid bytes."""
         # Too short
-        header = TN3270EHeader.from_bytes(b'\x01\x01')
+        header = TN3270EHeader.from_bytes(b"\x01\x01")
         assert header is None
 
         # Invalid struct
-        header = TN3270EHeader.from_bytes(b'\x01\x01\x01\x01\xff')
+        header = TN3270EHeader.from_bytes(b"\x01\x01\x01\x01\xff")
         assert header is not None  # This should still work
 
     def test_repr(self):
@@ -65,12 +68,12 @@ class TestTN3270EHeader:
             data_type=SCS_DATA,
             request_flag=0x01,
             response_flag=TN3270E_RSF_ERROR_RESPONSE,
-            seq_number=1234
+            seq_number=1234,
         )
         repr_str = repr(header)
-        assert 'SCS_DATA' in repr_str
-        assert 'ERROR_RESPONSE' in repr_str  # Should show ERROR_RESPONSE now
-        assert 'seq_number=1234' in repr_str
+        assert "SCS_DATA" in repr_str
+        assert "ERROR_RESPONSE" in repr_str  # Should show ERROR_RESPONSE now
+        assert "seq_number=1234" in repr_str
 
     def test_type_checks(self):
         """Test type checking methods."""
@@ -88,8 +91,7 @@ class TestTN3270EHeader:
 
         # RESPONSE header with error
         response_header = TN3270EHeader(
-            data_type=0x02,  # RESPONSE
-            response_flag=TN3270E_RSF_ERROR_RESPONSE
+            data_type=0x02, response_flag=TN3270E_RSF_ERROR_RESPONSE  # RESPONSE
         )
         assert not response_header.is_tn3270_data()
         assert not response_header.is_scs_data()
@@ -99,11 +101,11 @@ class TestTN3270EHeader:
     def test_get_data_type_name(self):
         """Test getting data type names."""
         header = TN3270EHeader(data_type=TN3270_DATA)
-        assert header.get_data_type_name() == 'TN3270_DATA'
+        assert header.get_data_type_name() == "TN3270_DATA"
 
         header = TN3270EHeader(data_type=SCS_DATA)
-        assert header.get_data_type_name() == 'SCS_DATA'
+        assert header.get_data_type_name() == "SCS_DATA"
 
         # Unknown type
         header = TN3270EHeader(data_type=0xFF)
-        assert header.get_data_type_name() == 'UNKNOWN(0xff)'
+        assert header.get_data_type_name() == "UNKNOWN(0xff)"
