@@ -1,0 +1,16 @@
+FROM python:3.9-slim
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    netcat \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy mock server script
+COPY mock_tn3270_server.py /app/
+WORKDIR /app
+
+# Expose TN3270 port
+EXPOSE 23
+
+# Simple entrypoint
+CMD ["python", "mock_tn3270_server.py"]

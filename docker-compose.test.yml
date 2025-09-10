@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  # Simple mock TN3270 server for basic testing
+  mock-tn3270-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.mock-tn3270
+    ports:
+      - "2323:23"
+    networks:
+      - tn3270-network
+
+  # Hercules-based mainframe emulator (TN3270 server)
+  hercules-tn3270-server:
+    image: mainframed767/hercules:latest
+    ports:
+      - "2324:23"
+      - "8080:80"
+    networks:
+      - tn3270-network
+    # Note: Hercules may need additional configuration files
+
+networks:
+  tn3270-network:
+    driver: bridge
