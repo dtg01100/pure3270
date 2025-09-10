@@ -9,7 +9,7 @@ class TestMissingS3270Actions:
         """Test Compose() action."""
         session = AsyncSession()
         # Compose is typically used for special characters, but we'll just test it doesn't crash
-        with patch.object(session, 'insert_text') as mock_insert:
+        with patch.object(session, "insert_text") as mock_insert:
             await session.compose("test")
             # For now, we'll just treat it as inserting text
             mock_insert.assert_called_once_with("test")
@@ -20,7 +20,7 @@ class TestMissingS3270Actions:
         session = AsyncSession()
         # Cookie action for web-based emulators - we'll store it in a simple dict
         await session.cookie("name=value")
-        assert hasattr(session, '_cookies')
+        assert hasattr(session, "_cookies")
         assert session._cookies.get("name") == "value"
 
     @pytest.mark.asyncio
@@ -28,7 +28,7 @@ class TestMissingS3270Actions:
         """Test Expect() action."""
         session = AsyncSession()
         # Expect action for scripting - we'll implement a simple version
-        with patch.object(session.screen_buffer, 'to_text', return_value="Hello World"):
+        with patch.object(session.screen_buffer, "to_text", return_value="Hello World"):
             result = await session.expect("World", timeout=1.0)
             assert result is True
 
