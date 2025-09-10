@@ -17,7 +17,7 @@ def test_enable_replacement_basic():
 def test_enable_replacement_strict_version_fail():
     """Test strict_version raises error on mismatch."""
     with patch("pure3270.emulation.ebcdic.get_p3270_version") as mock_version:
-        mock_version.return_value = "0.2.0"
+        mock_version.return_value = "0.1.0"
         with pytest.raises(Pure3270PatchError):
             enable_replacement(strict_version=True)
 

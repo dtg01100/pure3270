@@ -537,7 +537,7 @@ Pure3270 replaces the binary `s3270` dependency in `p3270` setups, eliminating t
 - **Binary Replacement via Patching**: Call `pure3270.enable_replacement()` before importing `p3270`. This monkey-patches `p3270.P3270Client` to delegate to pure3270's `Session`, handling connections, sends, and reads internally using standard asyncio instead of spawning `s3270` processes.
 - **Zero-Config Opt-In**: No changes to your `p3270` code required. The patching is global by default but reversible.
 - **Handling Mismatches**: 
-  - If `p3270` version doesn't match (e.g., !=0.3.0, as checked in patches), logs a warning and skips patches gracefully (no error unless `strict_version=True`).
+  - If `p3270` version doesn't match (e.g., !=0.1.6, as checked in patches), logs a warning and skips patches gracefully (no error unless `strict_version=True`).
   - If `p3270` is not installed, patching simulates with mocks and logs a warning; use standalone `pure3270.Session` instead.
   - Protocol differences: Pure3270 uses pure Python telnet/SSL, so ensure hosts support TN3270/TN3270E (RFC 1576/2355). SSL uses Python's `ssl` module.
 
@@ -565,7 +565,7 @@ Run them in your activated venv: `python examples/example_patching.py`. Replace 
 ## Troubleshooting
 
 - **Venv Activation Issues**: Ensure the venv is activated (prompt shows `(.venv)`). On Windows, use `Scripts\activate.bat`. If `pip` installs globally, recreate the venv.
-- **Patching Fails**: Check logs for version mismatches (e.g., `p3270` !=0.3.0). Set `strict_version=True` to raise errors. If `p3270` absent, use standalone mode.
+- **Patching Fails**: Check logs for version mismatches (e.g., `p3270` !=0.1.6). Set `strict_version=True` to raise errors. If `p3270` absent, use standalone mode.
 - **Connection/Protocol Errors**: Verify host/port (default 23/992 for SSL). Enable DEBUG logging: `pure3270.setup_logging('DEBUG')`. Common: Host doesn't support TN3270; test with tools like `tn3270` client.
 - **Screen Read Issues**: Ensure `read()` is called after `send()`. For empty screens, check if BIND negotiation succeeded (logs show).
 - **Async/Sync Mix**: Use `Session` for sync code; `AsyncSession` for async. Don't mix in the same script without `asyncio.run()`.

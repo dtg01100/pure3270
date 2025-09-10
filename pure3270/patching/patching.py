@@ -10,7 +10,7 @@ from typing import Optional, Dict, Any
 import types
 from contextlib import contextmanager
 
-from pure3270.session import AsyncSession as PureSession
+from pure3270.patching.s3270_wrapper import Pure3270S3270Wrapper
 
 logger = logging.getLogger(__name__)
 
@@ -101,8 +101,11 @@ class MonkeyPatchManager:
     def _check_version_compatibility(
         self, module: Any, expected_version: str = "0.3.0"
     ) -> bool:
-        actual_version = getattr(module, "__version__", None)
-        if actual_version != expected_version:
+        # Get the actual version of p3270
+        from pure3270.emulation.ebcdic import get_p3270_version
+        actual_version = get_p3270_version()
+        
+        if expected_version and actual_version != expected_version:
             logger.warning(
                 f"Version mismatch: expected {expected_version}, got {actual_version}"
             )
@@ -115,7 +118,7 @@ class MonkeyPatchManager:
         patch_sessions: bool = True,
         patch_commands: bool = True,
         strict_version: bool = False,
-        expected_version: str = "0.3.0",
+        expected_version: str = "0.1.6",
     ) -> None:
         try:
             import p3270
@@ -124,18 +127,33 @@ class MonkeyPatchManager:
                 p3270, expected_version
             )
             if strict_version and not version_compatible:
+                from pure3270.emulation.ebcdic import get_p3270_version
+                actual_version = get_p3270_version()
                 raise Pure3270PatchError(
-                    f"Version incompatible: {getattr(p3270, '__version__', 'unknown')}"
+                    f"Version incompatible: {actual_version or 'unknown'}"
                 )
             if not version_compatible and not strict_version:
                 logger.info(
                     "Graceful degradation: Version mismatch but continuing with patching"
                 )
             if patch_sessions:
+                # Patch the S3270 class at module level
                 original = getattr(p3270, "S3270", None)
                 self._store_original("p3270.S3270", original)
-                setattr(p3270, "S3270", PureSession)
+                from pure3270.patching.s3270_wrapper import Pure3270S3270Wrapper
+                setattr(p3270, "S3270", Pure3270S3270Wrapper)
                 logger.info("Patched Session")
+                
+                # Also patch the S3270 reference in the p3270 module's global namespace
+                # This ensures that any code that references S3270 directly gets our wrapper
+                if hasattr(p3270, 'p3270'):
+                    # Patch the S3270 in the actual p3270.p3270 module as well
+                    p3270_module = sys.modules.get('p3270.p3270')
+                    if p3270_module and hasattr(p3270_module, 'S3270'):
+                        original_inner = getattr(p3270_module, "S3270", None)
+                        self._store_original("p3270.p3270.S3270", original_inner)
+                        setattr(p3270_module, "S3270", Pure3270S3270Wrapper)
+                        logger.info("Patched inner S3270 class")
             logger.info("Patches applied")
         except ImportError as e:
             logger.warning(f"p3270 not installed: {e}")
@@ -202,7 +220,7 @@ def enable_replacement(
     patch_sessions: bool = True,
     patch_commands: bool = True,
     strict_version: bool = False,
-    expected_version: str = "0.3.0",
+    expected_version: str = "0.1.6",
 ) -> MonkeyPatchManager:
     """
     Enable replacement patching with version check.
@@ -211,7 +229,7 @@ def enable_replacement(
         patch_sessions: Whether to patch sessions.
         patch_commands: Whether to patch commands.
         strict_version: Whether to enforce strict version check.
-        expected_version: The expected version for compatibility (default "0.3.0").
+        expected_version: The expected version for compatibility (default "0.1.6").
 
     Raises:
         ValueError: If version or replacement fails.

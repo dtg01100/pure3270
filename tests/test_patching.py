@@ -1,5 +1,6 @@
 import pytest
 import builtins
+import sys
 from unittest.mock import MagicMock, Mock, patch as mock_patch
 from pure3270.patching.patching import (
     MonkeyPatchManager,
@@ -21,7 +22,7 @@ def mock_p3270():
     mock_session = MagicMock()
     mock_session_module.Session = mock_session
     mock_module.session = mock_session_module
-    mock_module.__version__ = "0.3.0"
+    mock_module.__version__ = "0.1.6"
     return mock_module
 
 
@@ -47,27 +48,34 @@ class TestMonkeyPatchManager:
         assert "MagicMock.test_method" in monkey_patch_manager.patched
 
     def test_check_version_compatibility(self, monkey_patch_manager, mock_p3270):
-        assert (
-            monkey_patch_manager._check_version_compatibility(mock_p3270, "0.3.0")
-            is True
-        )
-        mock_p3270.__version__ = "0.2.0"
-        assert (
-            monkey_patch_manager._check_version_compatibility(mock_p3270, "0.3.0")
-            is False
-        )
+        with mock_patch("pure3270.emulation.ebcdic.get_p3270_version") as mock_version:
+            mock_version.return_value = "0.1.6"
+            assert (
+                monkey_patch_manager._check_version_compatibility(mock_p3270, "0.1.6")
+                is True
+            )
+            mock_version.return_value = "0.1.0"
+            assert (
+                monkey_patch_manager._check_version_compatibility(mock_p3270, "0.1.6")
+                is False
+            )
 
     @mock_patch("builtins.__import__")
     def test_apply_patches_success(self, mock_import, monkey_patch_manager, mock_p3270):
         def import_side_effect(name, *args, **kwargs):
             if name == "p3270":
                 return mock_p3270
+            # Avoid recursion by using the actual import for other modules
+            if name in sys.modules:
+                return sys.modules[name]
             return __import__(name, *args, **kwargs)
 
         mock_import.side_effect = import_side_effect
-        monkey_patch_manager.apply_patches(
-            patch_sessions=True, patch_commands=True, strict_version=False
-        )
+        with mock_patch("pure3270.emulation.ebcdic.get_p3270_version") as mock_version:
+            mock_version.return_value = "0.1.6"
+            monkey_patch_manager.apply_patches(
+                patch_sessions=True, patch_commands=True, strict_version=False
+            )
         assert "p3270.S3270" in monkey_patch_manager.originals
 
     @mock_patch("builtins.__import__")
@@ -80,10 +88,11 @@ class TestMonkeyPatchManager:
             return __import__(name, *args, **kwargs)
 
         mock_import.side_effect = import_side_effect
-        mock_p3270.__version__ = "0.2.0"
-        # Should raise if strict
-        with pytest.raises(Pure3270PatchError):
-            monkey_patch_manager.apply_patches(strict_version=True)
+        with mock_patch("pure3270.emulation.ebcdic.get_p3270_version") as mock_version:
+            mock_version.return_value = "0.1.0"
+            # Should raise if strict
+            with pytest.raises(Pure3270PatchError):
+                monkey_patch_manager.apply_patches(strict_version=True)
 
     @mock_patch("builtins.__import__")
     def test_apply_patches_no_p3270(self, mock_import, monkey_patch_manager):
@@ -207,8 +216,11 @@ def test_performance_patching(benchmark):
 def test_patching_fallback(mock_import, caplog):
     def import_side_effect(name, *args, **kwargs):
         if name == "p3270":
-            mock_p3270 = MagicMock(__version__="0.2.0")
+            mock_p3270 = MagicMock(__version__="0.1.0")
             return mock_p3270
+        # Avoid recursion by using sys.modules for already imported modules
+        if name in sys.modules:
+            return sys.modules[name]
         return __import__(name, *args, **kwargs)
 
     mock_import.side_effect = import_side_effect
@@ -309,17 +321,19 @@ def test_apply_method_patch_instance_logging(caplog, monkey_patch_manager):
 
 
 def test_check_version_compatibility_no_expected(monkey_patch_manager):
-    module = MagicMock()
-    assert (
-        monkey_patch_manager._check_version_compatibility(module, expected_version=None)
-        is True
-    )
+    with mock_patch("pure3270.emulation.ebcdic.get_p3270_version") as mock_version:
+        mock_version.return_value = "0.1.6"
+        assert (
+            monkey_patch_manager._check_version_compatibility(module=MagicMock(), expected_version=None)
+            is True
+        )
 
 
 def test_check_version_compatibility_mismatch_warning(caplog, monkey_patch_manager):
-    module = MagicMock(__name__="test", __version__="0.2.0")
-    with caplog.at_level("WARNING"):
-        assert (
-            monkey_patch_manager._check_version_compatibility(module, "0.3.0") is False
-        )
+    with mock_patch("pure3270.emulation.ebcdic.get_p3270_version") as mock_version:
+        mock_version.return_value = "0.1.0"
+        with caplog.at_level("WARNING"):
+            assert (
+                monkey_patch_manager._check_version_compatibility(MagicMock(), "0.1.6") is False
+            )
     assert "Version mismatch" in caplog.text
