@@ -56,12 +56,12 @@ python refined_docker_integration_test.py
 docker rm -f mock-test
 ```
 
-### Option 4: Full Navigation Testing
-Run comprehensive navigation tests with mock servers:
+### Option 4: Navigation Unit Testing
+Test navigation functionality without requiring a real server:
 
 ```bash
-# Run full navigation tests
-python full_navigation_test.py
+# Run navigation unit tests
+python navigation_unit_tests.py
 ```
 
 ## Test Implementation Details
@@ -70,7 +70,7 @@ The refined testing approach includes:
 
 1. **Mock Server Testing**: Basic connectivity and error handling tests
 2. **Docker Container Testing**: Realistic testing with actual TN3270 server implementations
-3. **Full Navigation Testing**: Comprehensive tests of all TN3270 navigation commands
+3. **Navigation Unit Testing**: Tests that verify navigation methods exist and can be called
 4. **Graceful Error Handling**: Tests verify that pure3270 handles connection errors properly
 5. **Resource Cleanup**: Automatic cleanup of Docker containers and network resources
 
@@ -81,18 +81,15 @@ The refined testing approach includes:
 python refined_docker_integration_test.py
 ```
 
-### Full Navigation Tests
+### Navigation Unit Tests
 ```bash
-python full_navigation_test.py
+python navigation_unit_tests.py
 ```
 
-The full navigation tests include:
-- Connection and disconnection tests
-- Cursor movement (move_cursor, page_up, page_down, newline)
-- Text insertion and modification
-- Field navigation (field_end, etc.)
-- AID functions (PF keys, PA keys)
-- Screen operations (clear, erase, etc.)
+The navigation unit tests verify:
+- All navigation methods exist on both pure3270 AsyncSession and patched p3270 clients
+- Methods can be called without errors (though they may fail gracefully when not connected)
+- Proper method naming conventions between pure3270 and p3270 interfaces
 
 ## Continuous Integration
 
@@ -104,7 +101,7 @@ The Docker-based tests can be easily integrated into CI/CD pipelines:
   run: |
     docker-compose -f docker-compose.test.yml up -d
     python refined_docker_integration_test.py
-    python full_navigation_test.py
+    python navigation_unit_tests.py
     docker-compose -f docker-compose.test.yml down
 ```
 
