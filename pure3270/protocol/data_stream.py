@@ -27,9 +27,56 @@ WRITE = 0x05
 EOA = 0x0D
 SCS_CTL_CODES = 0x04
 DATA_STREAM_CTL = 0x40
+STRUCTURED_FIELD = 0x3C  # '<'
 
 # SCS Control Codes
 PRINT_EOJ = 0x01
+
+# TN3270E Subnegotiation Message Types
+TN3270E_DEVICE_TYPE = 0x00
+TN3270E_FUNCTIONS = 0x01
+TN3270E_IS = 0x02
+TN3270E_REQUEST = 0x03
+TN3270E_SEND = 0x04
+
+# TN3270E Device Types
+TN3270E_IBM_DYNAMIC = "IBM-DYNAMIC"
+TN3270E_IBM_3278_2 = "IBM-3278-2"
+TN3270E_IBM_3278_3 = "IBM-3278-3"
+TN3270E_IBM_3278_4 = "IBM-3278-4"
+TN3270E_IBM_3278_5 = "IBM-3278-5"
+TN3270E_IBM_3279_2 = "IBM-3279-2"
+TN3270E_IBM_3279_3 = "IBM-3279-3"
+TN3270E_IBM_3279_4 = "IBM-3279-4"
+TN3270E_IBM_3279_5 = "IBM-3279-5"
+
+# TN3270E Functions
+TN3270E_BIND_IMAGE = 0x01
+TN3270E_DATA_STREAM_CTL = 0x02
+TN3270E_RESPONSES = 0x04
+TN3270E_SCS_CTL_CODES = 0x08
+TN3270E_SYSREQ = 0x10
+
+# TN3270E Query Reply Types
+QUERY_REPLY_SF = 0x88
+QUERY_REPLY_DEVICE_TYPE = 0x01
+QUERY_REPLY_CHARACTERISTICS = 0x02
+QUERY_REPLY_HIGHLIGHTING = 0x03
+QUERY_REPLY_COLOR = 0x04
+QUERY_REPLY_EXTENDED_ATTRIBUTES = 0x05
+QUERY_REPLY_GRAPHICS = 0x06
+QUERY_REPLY_DBCS_ASIA = 0x07
+QUERY_REPLY_DBCS_EUROPE = 0x08
+QUERY_REPLY_DBCS_MIDDLE_EAST = 0x09
+QUERY_REPLY_LINE_TYPE = 0x0A
+QUERY_REPLY_OEM_AUXILIARY_DEVICE = 0x0B
+QUERY_REPLY_TRANSPARENCY = 0x0C
+QUERY_REPLY_FORMAT_STORAGE = 0x0D
+QUERY_REPLY_DDM = 0x0E
+QUERY_REPLY_RPQ_NAMES = 0x0F
+QUERY_REPLY_SEGMENT = 0x10
+QUERY_REPLY_PROCEDURE = 0x11
+QUERY_REPLY_GRID = 0x12
 
 
 class DataStreamParser:
@@ -219,6 +266,82 @@ class DataStreamParser:
             row += 1
         self.screen.set_position(row, col)
 
+
+
+    def _handle_structured_field(self):
+        """Handle Structured Field command."""
+        logger.debug("Structured Field command received")
+        # Skip structured field for now (advanced feature)
+        # In a full implementation, this would parse the structured field
+        # and handle queries, replies, etc.
+        self._skip_structured_field()
+
+    def _skip_structured_field(self):
+        """Skip structured field data."""
+        # Find end of structured field (next command or end of data)
+        while self._pos < len(self._data):
+            # Look for next 3270 command
+            if self._data[self._pos] in [
+                WCC, AID, READ_PARTITION, SBA, SF, RA, GE, BIND, 
+                WRITE, EOA, SCS_CTL_CODES, DATA_STREAM_CTL, STRUCTURED_FIELD
+            ]:
+                break
+            self._pos += 1
+        logger.debug("Skipped structured field")
+
+    def _handle_read_partition_query(self):
+        """Handle Read Partition Query command."""
+        logger.debug("Read Partition Query command received")
+        # In a full implementation, this would trigger sending Query Reply SFs
+        # to inform the host about our capabilities
+
+    def build_query_reply_sf(self, query_type: int, data: bytes = b"") -> bytes:
+        """
+        Build Query Reply Structured Field.
+        
+        :param query_type: Query reply type
+        :param data: Query reply data
+        :return: Query Reply Structured Field bytes
+        """
+        sf = bytearray()
+        sf.append(STRUCTURED_FIELD)  # SF identifier
+        # Add length (will be filled in later)
+        length_pos = len(sf)
+        sf.extend([0x00, 0x00])  # Placeholder for length
+        sf.append(QUERY_REPLY_SF)  # Query Reply SF type
+        sf.append(query_type)  # Query reply type
+        sf.extend(data)  # Query reply data
+        
+        # Fill in length
+        length = len(sf) - 1  # Exclude the SF identifier
+        sf[length_pos] = (length >> 8) & 0xFF
+        sf[length_pos + 1] = length & 0xFF
+        
+        return bytes(sf)
+
+    def build_device_type_query_reply(self) -> bytes:
+        """
+        Build Device Type Query Reply Structured Field.
+        
+        :return: Device Type Query Reply SF bytes
+        """
+        # For simplicity, we'll report our device type
+        device_type = b"IBM-3278-4-E"  # Example device type
+        return self.build_query_reply_sf(QUERY_REPLY_DEVICE_TYPE, device_type)
+
+    def build_characteristics_query_reply(self) -> bytes:
+        """
+        Build Characteristics Query Reply Structured Field.
+        
+        :return: Characteristics Query Reply SF bytes
+        """
+        # Report basic characteristics
+        characteristics = bytearray()
+        characteristics.append(0x01)  # Flags byte 1
+        characteristics.append(0x00)  # Flags byte 2
+        characteristics.append(0x00)  # Flags byte 3
+
+        return self.build_query_reply_sf(QUERY_REPLY_CHARACTERISTICS, characteristics)
 
 class DataStreamSender:
     """Constructs outgoing 3270 data streams."""
