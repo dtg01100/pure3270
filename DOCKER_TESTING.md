@@ -56,27 +56,43 @@ python refined_docker_integration_test.py
 docker rm -f mock-test
 ```
 
+### Option 4: Full Navigation Testing
+Run comprehensive navigation tests with mock servers:
+
+```bash
+# Run full navigation tests
+python full_navigation_test.py
+```
+
 ## Test Implementation Details
 
 The refined testing approach includes:
 
 1. **Mock Server Testing**: Basic connectivity and error handling tests
 2. **Docker Container Testing**: Realistic testing with actual TN3270 server implementations
-3. **Graceful Error Handling**: Tests verify that pure3270 handles connection errors properly
-4. **Resource Cleanup**: Automatic cleanup of Docker containers and network resources
+3. **Full Navigation Testing**: Comprehensive tests of all TN3270 navigation commands
+4. **Graceful Error Handling**: Tests verify that pure3270 handles connection errors properly
+5. **Resource Cleanup**: Automatic cleanup of Docker containers and network resources
 
 ## Running Tests
 
-To run the comprehensive integration tests:
-
+### Basic Integration Tests
 ```bash
 python refined_docker_integration_test.py
 ```
 
-This will:
-- Test with a mock TN3270 server (always available)
-- Test with Hercules Docker container (if Docker is available)
-- Provide detailed results for each test scenario
+### Full Navigation Tests
+```bash
+python full_navigation_test.py
+```
+
+The full navigation tests include:
+- Connection and disconnection tests
+- Cursor movement (move_cursor, page_up, page_down, newline)
+- Text insertion and modification
+- Field navigation (field_end, etc.)
+- AID functions (PF keys, PA keys)
+- Screen operations (clear, erase, etc.)
 
 ## Continuous Integration
 
@@ -88,6 +104,7 @@ The Docker-based tests can be easily integrated into CI/CD pipelines:
   run: |
     docker-compose -f docker-compose.test.yml up -d
     python refined_docker_integration_test.py
+    python full_navigation_test.py
     docker-compose -f docker-compose.test.yml down
 ```
 

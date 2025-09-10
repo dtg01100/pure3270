@@ -1,0 +1,23 @@
+# Hercules Configuration for TN3270 Testing
+# Basic configuration to enable TN3270 server
+
+# CPU configuration
+ARCHMODE ESAME
+CPU 0000  CPUSERIAL 0000000000000027 CPUMODEL 2097
+
+# Storage configuration
+MAINSIZE 2048
+
+# Console configuration
+CONSOLE 001F 3215 CTC
+
+# Device configuration
+0100 3390 dasd.img
+
+# TN3270 server configuration
+0700 3270 3270
+
+# Network configuration
+0A00 1403 syslog.out
+
+# Enable TN3270 server on port 23
