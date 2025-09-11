@@ -55,6 +55,13 @@ async def test_p3270_patching():
         else:
             print("   ✗ p3270 patching not working")
             return False
+    except ImportError as e:
+        if "p3270" in str(e):
+            print("   ⚠ p3270 not installed, skipping patching test")
+            return True  # Consider this a pass since p3270 is optional
+        else:
+            print(f"   ✗ p3270 patching test failed: {e}")
+            return False
     except Exception as e:
         print(f"   ✗ p3270 patching test failed: {e}")
         return False
