@@ -170,6 +170,40 @@ All development and usage must occur within a Python virtual environment to mana
 
 Deactivate with `deactivate` when done.
 
+## Testing
+
+Pure3270 includes a comprehensive test suite that runs entirely in Python without external dependencies:
+
+### Test Scripts
+- **Quick Smoke Test** (`quick_test.py`): Fast test (<10 seconds) for basic functionality
+- **Integration Test** (`integration_test.py`): Comprehensive test (~30 seconds) covering all core functionality
+- **CI/CD Test** (`ci_test.py`): Lightweight tests for CI/CD pipelines
+- **Comprehensive Test** (`comprehensive_test.py`): Thorough testing including navigation method verification
+- **Navigation Method Test** (`navigation_method_test.py`): Specific test for navigation method availability
+- **Release Validation Test** (`release_test.py`): Comprehensive test suite for release validation
+
+### Running Tests
+All tests can be run without Docker or external services:
+
+```bash
+# Run unit tests
+python -m pytest tests/
+
+# Run integration tests
+python integration_test.py
+
+# Run all tests
+python run_all_tests.py
+```
+
+### GitHub Actions
+The project uses GitHub Actions for continuous integration:
+- **Quick CI** (`quick-ci.yml`): Runs on PRs to non-main branches
+- **Full CI** (`ci.yml`): Runs on PRs to main/develop and pushes to those branches
+- **Release Validation** (`release.yml`): Runs on release publication
+
+All workflows run tests across multiple Python versions without requiring Docker.
+
 ## Protocol
 
 Supports TN3270 (RFC 1576) and enhanced TN3270E (RFC 2355) for better reliability.

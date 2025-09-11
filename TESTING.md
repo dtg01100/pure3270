@@ -11,7 +11,7 @@ python quick_test.py
 ```
 
 ### 2. Integration Test (`integration_test.py`)
-Comprehensive integration test:
+Comprehensive integration test that doesn't require Docker:
 ```bash
 python integration_test.py
 ```
@@ -95,6 +95,7 @@ The test suite verifies:
 The project includes GitHub Actions workflows for automated testing:
 
 - `.github/workflows/ci.yml` - Comprehensive CI with multiple Python versions
+- `.github/workflows/quick-ci.yml` - Fast CI for pull requests
 - `.github/workflows/release.yml` - Release workflow with validation
 
 These workflows automatically run:
@@ -103,3 +104,5 @@ These workflows automatically run:
 - Code formatting checks (black)
 - Integration tests
 - Release validation tests
+
+All tests run without Docker dependencies, making them reliable and fast.

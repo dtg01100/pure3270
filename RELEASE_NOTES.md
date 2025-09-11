@@ -1,73 +1,79 @@
-# Pure3270 v0.2.0 Release Notes
+# Pure3270 v0.2.1 Release Notes
 
 ## Overview
 
-This release marks a significant milestone in the development of Pure3270, with the completion of all high and medium priority features. The library now provides comprehensive 3270 terminal emulation with full compatibility with the s3270 terminal emulator.
+This release focuses on improving the testing infrastructure and removing external dependencies. The library now provides a comprehensive pure-Python test suite that doesn't require Docker, making it easier to run tests in CI/CD environments and development machines without Docker installed.
 
-## Major Features
+## Major Improvements
 
-### Complete s3270 Compatibility
-- Implemented all missing s3270 actions: Compose(), Cookie(), Expect(), Fail()
-- Added full AID support for all PA (1-3) and PF (1-24) keys
-- Enhanced field attribute handling beyond basic protection/numeric
-- Improved field modification tracking for RMF/RMA commands
+### Removed Docker Dependencies
+- Completely removed all Docker-based testing infrastructure
+- Eliminated dependency on external TN3270 server containers
+- Simplified testing setup and reduced external dependencies
 
-### Async Refactor
-- Complete async refactor with AsyncSession supporting connect, macro execution, and managed context
-- Exports in pure3270/__init__.py for Session, AsyncSession, and enable_replacement
-- Enhanced tests with edge cases for async operations
+### Enhanced Test Suite
+- Added comprehensive pure-Python test suite with multiple test scripts:
+  - Quick smoke test for fast feedback
+  - Integration test for comprehensive functionality verification
+  - CI/CD test for pipeline environments
+  - Release validation test for pre-release checking
+- All tests run without requiring Docker or external services
+- Tests verify all navigation methods and p3270 compatibility
 
-### Protocol Enhancements
-- Complete TN3270E protocol enhancements with printer session support
-- SCS-CTL-CODES support for printer sessions
-- PRINT-EOJ handling for printer jobs
-- Resource definition support (xrdb format)
+### GitHub Actions Workflows
+- Added streamlined CI/CD workflows:
+  - Quick CI for PR validation on feature branches
+  - Full CI for main/develop branches with comprehensive testing
+  - Release validation with automated PyPI publishing
+- Tests run across multiple Python versions (3.8-3.12)
+- Automated release validation prevents broken releases
 
-### Macro Execution
-- Advanced macro execution with conditional branching and variable substitution
-- Implementation of all s3270 actions including navigation, text conversion, and session control
-- Support for LoadResource commands in macro execution
+### Improved Documentation
+- Updated testing documentation with clear instructions
+- Added CI/CD process documentation
+- Improved examples and usage guidelines
 
 ## Technical Improvements
 
-### Architecture
-- Improved code quality with comprehensive documentation updates
-- Fixed field detection logic in screen_buffer.py to properly handle field boundaries
-- Added missing is_printer_session property to TN3270Handler for printer session detection
-- All 328 tests now passing with comprehensive coverage
+### Code Quality
+- Improved code formatting with Black
+- Enhanced linting with Flake8
+- Better organized test files and directories
 
 ### Performance
-- Code formatted with black and passes flake8 checks
-- Performance benchmarking with pytest-benchmark
-- Efficient byte handling using bytearray and struct for EBCDIC and protocol streams
+- Faster test execution without Docker overhead
+- Reduced external dependencies
+- More reliable test execution
 
 ## API Changes
 
 ### Breaking Changes
-- None
+- Removed Docker-based testing infrastructure and related files
+- Removed dependency on external TN3270 server containers
 
 ### New Features
-- AsyncSession class for non-blocking operations
-- enable_replacement() function for zero-configuration opt-in patching
-- Comprehensive s3270-compatible CLI interface
-- Standalone usage without p3270 dependency
+- Comprehensive pure-Python test suite
+- GitHub Actions workflows for CI/CD
+- Release validation tests
+- Improved documentation
 
 ### Improvements
-- Enhanced error handling with custom inline exceptions
-- Structured logging with configurable levels
-- Better context manager support for session lifecycle management
+- Simplified testing setup
+- Faster test execution
+- More reliable test results
+- Better error handling in tests
 
 ## Testing
-- 328 tests passing with comprehensive coverage
-- Edge case testing for async operations
-- Protocol handling verification
-- Patching mechanism validation
+- 379 unit tests still passing
+- Enhanced test coverage with new integration tests
+- Pure-Python test suite with no external dependencies
+- Comprehensive release validation tests
 
 ## Documentation
-- Comprehensive API documentation
-- Updated architecture documentation
-- New examples for patching, standalone usage, and end-to-end scenarios
-- Migration guide from s3270/p3270
+- Updated testing documentation
+- Added CI/CD process documentation
+- Improved examples and usage guidelines
+- Better organization of documentation files
 
 ## Contributors
 Thanks to all contributors who helped make this release possible.
