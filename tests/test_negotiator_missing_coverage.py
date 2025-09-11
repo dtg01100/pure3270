@@ -35,7 +35,7 @@ class TestNegotiatorMissingCoverage:
         negotiator._parse_tn3270e_subnegotiation(b"")
         negotiator._parse_tn3270e_subnegotiation(b"\x00")
         negotiator._parse_tn3270e_subnegotiation(b"\xff\xff\xff")
-        
+
         # Test with invalid TN3270E option
         negotiator._parse_tn3270e_subnegotiation(b"\x99\x01\x02")  # Invalid option 0x99
 
@@ -44,7 +44,9 @@ class TestNegotiatorMissingCoverage:
         # Test with data that doesn't match expected format
         negotiator._handle_device_type_subnegotiation(b"")
         negotiator._handle_device_type_subnegotiation(b"\x01")  # Missing sub-type
-        negotiator._handle_device_type_subnegotiation(b"\x03\x01")  # REJECT with no reason
+        negotiator._handle_device_type_subnegotiation(
+            b"\x03\x01"
+        )  # REJECT with no reason
 
     def test_handle_functions_subnegotiation_invalid_data(self, negotiator):
         """Test handling of invalid functions subnegotiation data."""
@@ -67,11 +69,11 @@ class TestNegotiatorMissingCoverage:
         """Test LU name property getter and setter."""
         # Test getter when None
         assert negotiator.lu_name is None
-        
+
         # Test setter and getter
         negotiator.lu_name = "TEST-LU"
         assert negotiator.lu_name == "TEST-LU"
-        
+
         # Test setting to None
         negotiator.lu_name = None
         assert negotiator.lu_name is None
@@ -80,7 +82,7 @@ class TestNegotiatorMissingCoverage:
         """Test printer session detection."""
         # Initially should be False
         assert negotiator.is_printer_session_active() is False
-        
+
         # Set printer session flag
         negotiator.is_printer_session = True
         assert negotiator.is_printer_session_active() is True
@@ -105,7 +107,9 @@ class TestNegotiatorMissingCoverage:
         """Test DEVICE-TYPE IS handling with invalid device type data."""
         # Test with malformed device type string
         negotiator._handle_device_type_subnegotiation(bytes([TN3270E_IS]) + b"")
-        negotiator._handle_device_type_subnegotiation(bytes([TN3270E_IS]) + b"incomplete\x00")
+        negotiator._handle_device_type_subnegotiation(
+            bytes([TN3270E_IS]) + b"incomplete\x00"
+        )
 
     def test_handle_device_type_request_with_no_supported_types(self, negotiator):
         """Test DEVICE-TYPE REQUEST handling when no supported types."""

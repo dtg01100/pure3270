@@ -12,83 +12,86 @@ from pure3270.protocol.tn3270_handler import TN3270Handler
 from pure3270.protocol.data_stream import DataStreamParser, DataStreamSender
 from pure3270.emulation.screen_buffer import ScreenBuffer
 
+
 class TestProtocolIntegration:
     """Test TN3270 protocol integration."""
-    
+
     @pytest.mark.asyncio
     async def test_negotiation_sequence(self):
         """Test TN3270 negotiation sequence."""
         reader = AsyncMock()
         writer = AsyncMock()
-        
+
         # Mock negotiation responses
         reader.read.side_effect = [
-            b'\xff\xfb\x24',  # WILL TN3270E
-            b'\xff\xfa\x18\x00\x02IBM-3279-4-E\xff\xf0',  # DEVICE_TYPE IS
-            b'\xff\xfa\x18\x01\x02\x15\xff\xf0',  # FUNCTIONS IS
-            b'\xff\xfb\x19',  # WILL EOR
+            b"\xff\xfb\x24",  # WILL TN3270E
+            b"\xff\xfa\x18\x00\x02IBM-3279-4-E\xff\xf0",  # DEVICE_TYPE IS
+            b"\xff\xfa\x18\x01\x02\x15\xff\xf0",  # FUNCTIONS IS
+            b"\xff\xfb\x19",  # WILL EOR
         ]
-        
+
         handler = TN3270Handler(reader, writer, host="localhost", port=23)
         writer.drain = AsyncMock()
-        
+
         # Test negotiation
         await handler._negotiate_tn3270()
-        
+
         # Verify negotiation results
         assert handler.negotiated_tn3270e is True
-        
+
     @pytest.mark.asyncio
     async def test_data_stream_parsing(self):
         """Test data stream parsing."""
         screen = ScreenBuffer()
         parser = DataStreamParser(screen)
-        
+
         # Sample 3270 data stream
-        sample_data = b'\x05\xf5\xc1\x10\x00\x00\xc1\xc2\xc3\x0d'  # Write, WCC, SBA(0,0), ABC, EOA
-        
+        sample_data = b"\x05\xf5\xc1\x10\x00\x00\xc1\xc2\xc3\x0d"  # Write, WCC, SBA(0,0), ABC, EOA
+
         # Parse the data
         parser.parse(sample_data)
-        
+
         # Verify results
-        assert screen.buffer[0:3] == b'\xc1\xc2\xc3'  # ABC in EBCDIC
-        
+        assert screen.buffer[0:3] == b"\xc1\xc2\xc3"  # ABC in EBCDIC
+
     def test_data_stream_building(self):
         """Test data stream building."""
         sender = DataStreamSender()
-        
+
         # Build a key press command
         key_data = sender.build_key_press(0x7D)  # Enter key
-        assert key_data == b'\x7d'
-        
+        assert key_data == b"\x7d"
+
         # Build a write command
-        write_data = sender.build_write(b'\xc1\xc2\xc3')  # ABC in EBCDIC
-        assert b'\xc1\xc2\xc3' in write_data
+        write_data = sender.build_write(b"\xc1\xc2\xc3")  # ABC in EBCDIC
+        assert b"\xc1\xc2\xc3" in write_data
+
 
 @pytest.mark.asyncio
 async def test_full_session_flow():
     """Test a full session flow with mocked connections."""
     # Enable patching
     pure3270.enable_replacement()
-    
-    with patch('asyncio.open_connection') as mock_open:
+
+    with patch("asyncio.open_connection") as mock_open:
         # Mock connection
         reader = AsyncMock()
         writer = AsyncMock()
         mock_open.return_value = (reader, writer)
-        
+
         # Mock data responses
-        reader.readexactly.return_value = b'\xff\xfb\x27'  # WILL EOR
-        reader.read.return_value = b'\x28\x00\x01\x00'  # BIND response
-        
+        reader.readexactly.return_value = b"\xff\xfb\x27"  # WILL EOR
+        reader.read.return_value = b"\x28\x00\x01\x00"  # BIND response
+
         writer.drain = AsyncMock()
-        
+
         # Test session
         session = pure3270.AsyncSession("localhost", 2323)
         await session.connect()
-        
+
         assert session.connected
         assert session._handler is not None
+
 
 if __name__ == "__main__":
     # Run a simple test

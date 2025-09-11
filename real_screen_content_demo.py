@@ -16,16 +16,17 @@ from typing import Optional
 import pure3270
 from pure3270 import AsyncSession
 
+
 class RealScreenContentTester:
     """Test real screen content reading with actual TN3270 connection."""
-    
+
     def __init__(self):
         self.session: Optional[AsyncSession] = None
-    
+
     async def connect_to_demo_server(self):
         """Connect to a known TN3270 demo server."""
         print("=== Connecting to TN3270 Demo Server ===")
-        
+
         # Try to connect to a demo server
         # Note: This may fail if no demo server is available
         try:
@@ -35,19 +36,19 @@ class RealScreenContentTester:
             return True
         except Exception as e:
             print(f"⚠ Local connection failed: {e}")
-            
+
             # Try a public demo server if available
             # This is often not available, so we'll simulate
             print("ℹ Using simulated screen content for demonstration")
             return False
-    
+
     async def demonstrate_real_screen_reading(self):
         """Demonstrate reading real screen content."""
         print("\n=== Real Screen Content Reading Demonstration ===")
-        
+
         # Since we may not have access to a real TN3270 server,
         # let's show how the API would be used with real content
-        
+
         demonstration_examples = [
             {
                 "title": "Screen Text Retrieval",
@@ -73,7 +74,7 @@ print(repr(screen_text))
                 "expected_output": """
 Full screen content (example):
 'MAIN MENU\\n\\n1. Customer Inquiry\\n2. Order Processing\\n3. Report Generation\\n4. System Utilities\\n\\nEnter your selection ==> _\\n\\nF1=Help  F3=Exit  F4=Logout'
-"""
+""",
             },
             {
                 "title": "Field Content Extraction",
@@ -106,7 +107,7 @@ Field 0:
   Numeric: False
   Modified: False
 First field content: ''
-"""
+""",
             },
             {
                 "title": "Text Search and Pattern Matching",
@@ -144,7 +145,7 @@ Menu option found at line 4: 3. Report Generation
 Menu option found at line 5: 4. System Utilities
 Function keys line: F1=Help  F3=Exit  F4=Logout
 Input prompt at line 7: Enter your selection ==> _
-"""
+""",
             },
             {
                 "title": "Screen Analysis and Structure",
@@ -189,22 +190,22 @@ Protected fields: 3
 Unprotected fields: 2
 Numeric fields: 1
 Modified fields: 0
-"""
-            }
+""",
+            },
         ]
-        
+
         for example in demonstration_examples:
             print(f"\n{example['title']}: {example['description']}")
             print("-" * 60)
             print("Code Example:")
-            print(example['code_example'].strip())
+            print(example["code_example"].strip())
             print("\nExpected Output:")
-            print(example['expected_output'].strip())
-    
+            print(example["expected_output"].strip())
+
     async def demonstrate_navigation_with_feedback(self):
         """Demonstrate navigation commands that provide screen feedback."""
         print("\n=== Navigation with Screen Feedback ===")
-        
+
         navigation_examples = [
             {
                 "command": "Move Cursor and Read Screen",
@@ -225,7 +226,7 @@ for field in fields:
     if field.start <= cursor_row * 80 + cursor_col <= field.end:
         print(f"Field at cursor: Protected={field.protected}, Numeric={field.numeric}")
         break
-"""
+""",
             },
             {
                 "command": "Enter Key with Response Reading",
@@ -247,7 +248,7 @@ elif "INVALID" in response_screen.upper():
     print("⚠ Invalid input detected")
 else:
     print("✓ Valid response received")
-"""
+""",
             },
             {
                 "command": "PF Key Navigation",
@@ -270,15 +271,15 @@ await session.pf(1)
 help_screen = session.screen_buffer.to_text()
 if "HELP" in help_screen.upper() or "INSTRUCTIONS" in help_screen.upper():
     print("✓ Help screen displayed")
-"""
-            }
+""",
+            },
         ]
-        
+
         for example in navigation_examples:
             print(f"\n{example['command']}: {example['description']}")
             print("-" * 50)
-            print(example['example'].strip())
-    
+            print(example["example"].strip())
+
     async def run_complete_demo(self):
         """Run complete screen content reading demonstration."""
         print("PURE3270 REAL SCREEN CONTENT READING DEMONSTRATION")
@@ -286,21 +287,21 @@ if "HELP" in help_screen.upper() or "INSTRUCTIONS" in help_screen.upper():
         print("This demonstration shows how pure3270 reads and analyzes")
         print("actual TN3270 screen content during navigation operations.")
         print("=" * 70)
-        
+
         try:
             # Connect to server (this may fail - that's OK for demo)
             connected = await self.connect_to_demo_server()
-            
+
             # Demonstrate screen reading capabilities
             await self.demonstrate_real_screen_reading()
-            
+
             # Demonstrate navigation with feedback
             await self.demonstrate_navigation_with_feedback()
-            
+
             print("\n" + "=" * 70)
             print("SCREEN CONTENT READING CAPABILITIES DEMONSTRATED")
             print("=" * 70)
-            
+
             capabilities_shown = [
                 "✓ Full screen text retrieval and analysis",
                 "✓ Field content extraction by position and attributes",
@@ -310,18 +311,18 @@ if "HELP" in help_screen.upper() or "INSTRUCTIONS" in help_screen.upper():
                 "✓ Modified field detection",
                 "✓ Function key response reading",
                 "✓ Menu navigation with content feedback",
-                "✓ Form submission and response analysis"
+                "✓ Form submission and response analysis",
             ]
-            
+
             for capability in capabilities_shown:
                 print(capability)
-            
+
             print("\nNote: This demonstration shows the API usage patterns.")
             print("In a real environment with an available TN3270 server,")
             print("these operations would return actual screen content.")
-            
+
             return True
-            
+
         except Exception as e:
             print(f"❌ Demonstration encountered error: {e}")
             return False
@@ -332,10 +333,11 @@ if "HELP" in help_screen.upper() or "INSTRUCTIONS" in help_screen.upper():
                 except:
                     pass
 
+
 def show_practical_usage_examples():
     """Show practical examples of screen content reading in real applications."""
     print("\n=== Practical Usage Examples ===")
-    
+
     practical_examples = [
         {
             "scenario": "Automated Data Entry Bot",
@@ -378,7 +380,7 @@ async def automated_data_entry_bot(session, customer_data):
         # Log error for debugging
         print(f"Entry failed. Server response: {response[:100]}")
         return False
-"""
+""",
         },
         {
             "scenario": "Menu Navigation System",
@@ -412,7 +414,7 @@ async def intelligent_menu_navigator(session, target_menu_path):
         await asyncio.sleep(0.5)
     
     return True
-"""
+""",
         },
         {
             "scenario": "Error Detection and Recovery",
@@ -467,30 +469,32 @@ async def handle_invalid_input(session):
     await session.field_end()
     await session.erase_eof()
     # Then retry with corrected input
-"""
-        }
+""",
+        },
     ]
-    
+
     for example in practical_examples:
         print(f"\n{example['scenario']}: {example['description']}")
         print("-" * 60)
-        print(example['code'].strip())
+        print(example["code"].strip())
+
 
 async def main():
     """Main demonstration function."""
     tester = RealScreenContentTester()
     success = await tester.run_complete_demo()
-    
+
     # Show practical usage examples
     show_practical_usage_examples()
-    
+
     print("\n" + "=" * 70)
     print("PURE3270 SCREEN CONTENT READING DEMONSTRATION COMPLETE")
     print("=" * 70)
     print("Key takeaway: pure3270 provides comprehensive APIs for reading,")
     print("analyzing, and acting on TN3270 screen content during automation.")
-    
+
     return success
+
 
 if __name__ == "__main__":
     success = asyncio.run(main())

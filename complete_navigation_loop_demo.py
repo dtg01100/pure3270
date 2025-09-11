@@ -18,71 +18,82 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pure3270
 from pure3270 import AsyncSession
 
+
 class NavigationWithContentReadingDemo:
     """Demonstrate complete navigation loop with screen content reading."""
-    
+
     def __init__(self):
         self.session: Optional[AsyncSession] = None
         self.navigation_log: List[str] = []
-    
-    @patch('pure3270.session.TN3270Handler')
-    @patch('pure3270.session.asyncio.open_connection')
+
+    @patch("pure3270.session.TN3270Handler")
+    @patch("pure3270.session.asyncio.open_connection")
     async def run_complete_navigation_loop(self, mock_open, mock_handler):
         """Run complete navigation loop with screen content reading."""
         print("=== COMPLETE NAVIGATION LOOP WITH SCREEN CONTENT READING ===")
-        
+
         # Mock connection
         mock_reader = AsyncMock()
         mock_writer = AsyncMock()
         mock_open.return_value = (mock_reader, mock_writer)
-        
+
         # Mock handler with screen buffer
         handler_instance = AsyncMock()
         mock_handler.return_value = handler_instance
-        
+
         # Create session
         self.session = AsyncSession("localhost", 23)
         await self.session.connect()
         self.log_action("Connected to TN3270 server")
-        
+
         try:
             # Phase 1: Initial screen analysis
             print("\n--- PHASE 1: INITIAL SCREEN ANALYSIS ---")
             initial_analysis = await self.analyze_current_screen("Initial Login Screen")
             self.log_action(f"Analyzed initial screen: {initial_analysis['title']}")
-            
+
             # Phase 2: Login sequence with content-based decisions
             print("\n--- PHASE 2: LOGIN SEQUENCE ---")
             login_success = await self.perform_login_sequence()
-            self.log_action(f"Login sequence completed: {'Success' if login_success else 'Failed'}")
-            
+            self.log_action(
+                f"Login sequence completed: {'Success' if login_success else 'Failed'}"
+            )
+
             # Phase 3: Menu navigation with content reading
             print("\n--- PHASE 3: MENU NAVIGATION ---")
             menu_navigation_success = await self.navigate_application_menus()
-            self.log_action(f"Menu navigation completed: {'Success' if menu_navigation_success else 'Failed'}")
-            
+            self.log_action(
+                f"Menu navigation completed: {'Success' if menu_navigation_success else 'Failed'}"
+            )
+
             # Phase 4: Data entry with field content reading
             print("\n--- PHASE 4: DATA ENTRY ---")
             data_entry_success = await self.perform_data_entry()
-            self.log_action(f"Data entry completed: {'Success' if data_entry_success else 'Failed'}")
-            
+            self.log_action(
+                f"Data entry completed: {'Success' if data_entry_success else 'Failed'}"
+            )
+
             # Phase 5: Form submission and response analysis
             print("\n--- PHASE 5: FORM SUBMISSION AND RESPONSE ---")
             submission_success = await self.submit_form_and_analyze_response()
-            self.log_action(f"Form submission completed: {'Success' if submission_success else 'Failed'}")
-            
+            self.log_action(
+                f"Form submission completed: {'Success' if submission_success else 'Failed'}"
+            )
+
             # Phase 6: Navigation completion and logout
             print("\n--- PHASE 6: LOGOUT AND CLEANUP ---")
             logout_success = await self.perform_logout()
-            self.log_action(f"Logout completed: {'Success' if logout_success else 'Failed'}")
-            
+            self.log_action(
+                f"Logout completed: {'Success' if logout_success else 'Failed'}"
+            )
+
             # Show complete navigation log
             print("\n--- COMPLETE NAVIGATION LOG ---")
             for i, log_entry in enumerate(self.navigation_log, 1):
                 print(f"{i:2d}. {log_entry}")
-            
+
             return True
-            
+
         except Exception as e:
             self.log_action(f"Navigation loop failed: {type(e).__name__}: {e}")
             return False
@@ -92,39 +103,42 @@ class NavigationWithContentReadingDemo:
                 self.log_action("Disconnected from TN3270 server")
             except:
                 pass
-    
+
     async def analyze_current_screen(self, screen_title: str) -> dict:
         """Analyze current screen content and return structured information."""
         self.log_action(f"Analyzing screen: {screen_title}")
-        
+
         # Get screen content
         screen_text = self.session.screen_buffer.to_text()
         fields = self.session.screen_buffer.fields
         rows = self.session.screen_buffer.rows
         cols = self.session.screen_buffer.cols
         cursor_row, cursor_col = self.session.screen_buffer.get_position()
-        
+
         # Get screen lines
-        lines = screen_text.split('\n') if screen_text else []
-        
+        lines = screen_text.split("\n") if screen_text else []
+
         # Analyze screen structure
         analysis = {
-            'title': screen_title,
-            'dimensions': f"{rows}×{cols}",
-            'cursor_position': f"({cursor_row}, {cursor_col})",
-            'total_lines': len(lines),
-            'total_fields': len(fields),
-            'screen_length': len(screen_text),
-            'first_line': lines[0].strip() if lines else "",
-            'last_line': lines[-1].strip() if lines else "",
-            'contains_menu': 'MENU' in screen_text.upper(),
-            'contains_error': 'ERROR' in screen_text.upper(),
-            'contains_help': 'HELP' in screen_text.upper(),
-            'contains_exit': 'EXIT' in screen_text.upper() or 'QUIT' in screen_text.upper(),
-            'input_prompt_detected': any('=>' in line or ':' in line for line in lines),
-            'function_keys_present': any('F1=' in line or 'F3=' in line for line in lines)
+            "title": screen_title,
+            "dimensions": f"{rows}×{cols}",
+            "cursor_position": f"({cursor_row}, {cursor_col})",
+            "total_lines": len(lines),
+            "total_fields": len(fields),
+            "screen_length": len(screen_text),
+            "first_line": lines[0].strip() if lines else "",
+            "last_line": lines[-1].strip() if lines else "",
+            "contains_menu": "MENU" in screen_text.upper(),
+            "contains_error": "ERROR" in screen_text.upper(),
+            "contains_help": "HELP" in screen_text.upper(),
+            "contains_exit": "EXIT" in screen_text.upper()
+            or "QUIT" in screen_text.upper(),
+            "input_prompt_detected": any("=>" in line or ":" in line for line in lines),
+            "function_keys_present": any(
+                "F1=" in line or "F3=" in line for line in lines
+            ),
         }
-        
+
         # Log detailed analysis
         self.log_action(f"  Dimensions: {analysis['dimensions']}")
         self.log_action(f"  Cursor: {analysis['cursor_position']}")
@@ -133,69 +147,69 @@ class NavigationWithContentReadingDemo:
         self.log_action(f"  First line: {repr(analysis['first_line'][:30])}")
         self.log_action(f"  Contains menu: {analysis['contains_menu']}")
         self.log_action(f"  Input prompt: {analysis['input_prompt_detected']}")
-        
+
         return analysis
-    
+
     async def perform_login_sequence(self) -> bool:
         """Perform login sequence with screen content reading."""
         self.log_action("Starting login sequence")
-        
+
         # Read initial login screen
         screen_analysis = await self.analyze_current_screen("Login Screen")
-        
+
         # Look for username field
         screen_text = self.session.screen_buffer.to_text()
-        if 'USERNAME' in screen_text.upper() or 'USER' in screen_text.upper():
+        if "USERNAME" in screen_text.upper() or "USER" in screen_text.upper():
             self.log_action("Username field detected")
             await self.session.move_cursor(4, 16)  # Typical username position
             await self.session.insert_text("TESTUSER")
             self.log_action("Entered username")
-        
+
         # Look for password field
-        if 'PASSWORD' in screen_text.upper() or 'PASS' in screen_text.upper():
+        if "PASSWORD" in screen_text.upper() or "PASS" in screen_text.upper():
             self.log_action("Password field detected")
             await self.session.move_cursor(5, 16)  # Typical password position
             await self.session.insert_text("TESTPASS")
             self.log_action("Entered password")
-        
+
         # Submit login
         await self.session.enter()
         self.log_action("Submitted login form")
-        
+
         # Read response screen
         response_analysis = await self.analyze_current_screen("Login Response")
-        
+
         # Check for success/failure
         response_text = self.session.screen_buffer.to_text().upper()
-        if 'INVALID' in response_text or 'ERROR' in response_text:
+        if "INVALID" in response_text or "ERROR" in response_text:
             self.log_action("Login failed - invalid credentials")
             return False
-        elif 'WELCOME' in response_text or 'MAIN MENU' in response_text:
+        elif "WELCOME" in response_text or "MAIN MENU" in response_text:
             self.log_action("Login successful")
             return True
         else:
             self.log_action("Login response unclear, assuming success")
             return True
-    
+
     async def navigate_application_menus(self) -> bool:
         """Navigate application menus based on screen content."""
         self.log_action("Starting menu navigation")
-        
+
         # Read main menu
         menu_analysis = await self.analyze_current_screen("Main Menu")
-        
+
         # Look for menu options in screen text
         screen_text = self.session.screen_buffer.to_text()
-        lines = screen_text.split('\n')
-        
+        lines = screen_text.split("\n")
+
         # Find report generation option
         report_option = None
         for i, line in enumerate(lines):
-            if 'REPORT' in line.upper() and 'GENERAT' in line.upper():
+            if "REPORT" in line.upper() and "GENERAT" in line.upper():
                 report_option = i
                 self.log_action(f"Report generation option found at line {i}")
                 break
-        
+
         if report_option is not None:
             # Select report option (typically by entering line number)
             await self.session.insert_text("3")  # Assuming it's option 3
@@ -208,15 +222,17 @@ class NavigationWithContentReadingDemo:
                 await self.session.insert_text(option)
                 await self.session.enter()
                 self.log_action(f"Tried menu option {option}")
-                
+
                 # Check response
-                response_analysis = await self.analyze_current_screen(f"Menu Response {option}")
+                response_analysis = await self.analyze_current_screen(
+                    f"Menu Response {option}"
+                )
                 response_text = self.session.screen_buffer.to_text().upper()
-                
-                if 'REPORT' in response_text or 'GENERAT' in response_text:
+
+                if "REPORT" in response_text or "GENERAT" in response_text:
                     self.log_action(f"Menu option {option} led to correct screen")
                     break
-                elif 'INVALID' in response_text or 'ERROR' in response_text:
+                elif "INVALID" in response_text or "ERROR" in response_text:
                     self.log_action(f"Menu option {option} was invalid, trying next")
                     # Go back to menu (PF3 is common for "back")
                     await self.session.pf(3)
@@ -225,55 +241,55 @@ class NavigationWithContentReadingDemo:
                 else:
                     self.log_action(f"Menu option {option} response unclear")
                     break
-        
+
         return True
-    
+
     async def perform_data_entry(self) -> bool:
         """Perform data entry with field content reading."""
         self.log_action("Starting data entry")
-        
+
         # Read data entry screen
         data_screen_analysis = await self.analyze_current_screen("Data Entry Screen")
-        
+
         # Get fields
         fields = self.session.screen_buffer.fields
         self.log_action(f"Found {len(fields)} input fields")
-        
+
         # Enter data in fields
         field_data = [
             ("CUSTOMER_ID", "CUST12345"),
             ("ORDER_DATE", "2023-12-01"),
             ("QUANTITY", "10"),
-            ("DESCRIPTION", "TEST ITEM")
+            ("DESCRIPTION", "TEST ITEM"),
         ]
-        
+
         for i, (field_name, field_value) in enumerate(field_data):
             if i < len(fields):
                 self.log_action(f"Entering {field_name}: {field_value}")
                 # Move to field (simplified - in reality would use field navigation)
                 await self.session.move_cursor(6 + i, 24)  # Approximate positions
                 await self.session.insert_text(field_value)
-        
+
         return True
-    
+
     async def submit_form_and_analyze_response(self) -> bool:
         """Submit form and analyze server response."""
         self.log_action("Submitting form")
-        
+
         # Submit form
         await self.session.enter()
         self.log_action("Form submitted")
-        
+
         # Read response
         response_analysis = await self.analyze_current_screen("Form Response")
         response_text = self.session.screen_buffer.to_text().upper()
-        
+
         # Analyze response content
-        if 'SUCCESS' in response_text or 'CONFIRM' in response_text:
+        if "SUCCESS" in response_text or "CONFIRM" in response_text:
             self.log_action("Form submission successful")
             success_details = self.extract_success_details()
             self.log_action(f"Success details: {success_details}")
-        elif 'ERROR' in response_text or 'INVALID' in response_text:
+        elif "ERROR" in response_text or "INVALID" in response_text:
             self.log_action("Form submission failed")
             error_details = self.extract_error_details()
             self.log_action(f"Error details: {error_details}")
@@ -282,34 +298,45 @@ class NavigationWithContentReadingDemo:
             # Try to extract any relevant information
             key_info = self.extract_key_information()
             self.log_action(f"Key information: {key_info}")
-        
+
         return True
-    
+
     async def perform_logout(self) -> bool:
         """Perform logout sequence."""
         self.log_action("Starting logout sequence")
-        
+
         # Look for logout option
         screen_text = self.session.screen_buffer.to_text()
-        lines = screen_text.split('\n')
-        
+        lines = screen_text.split("\n")
+
         # Find logout option
         logout_found = False
         for line in lines:
-            if 'LOGOUT' in line.upper() or 'QUIT' in line.upper() or 'EXIT' in line.upper():
+            if (
+                "LOGOUT" in line.upper()
+                or "QUIT" in line.upper()
+                or "EXIT" in line.upper()
+            ):
                 logout_found = True
                 self.log_action("Logout option detected")
                 break
-        
+
         if logout_found:
             # Use common logout methods
             logout_methods = [
                 ("PF4", lambda: self.session.pf(4)),
                 ("QUIT command", lambda: self.session.insert_text("QUIT")),
                 ("EXIT command", lambda: self.session.insert_text("EXIT")),
-                ("F3 then QUIT", lambda: asyncio.gather(self.session.pf(3), asyncio.sleep(0.1), self.session.insert_text("QUIT")))
+                (
+                    "F3 then QUIT",
+                    lambda: asyncio.gather(
+                        self.session.pf(3),
+                        asyncio.sleep(0.1),
+                        self.session.insert_text("QUIT"),
+                    ),
+                ),
             ]
-            
+
             for method_name, method_func in logout_methods:
                 try:
                     self.log_action(f"Trying logout method: {method_name}")
@@ -323,63 +350,64 @@ class NavigationWithContentReadingDemo:
         else:
             # Force disconnect
             self.log_action("No explicit logout found, forcing disconnect")
-        
+
         return True
-    
+
     def extract_success_details(self) -> dict:
         """Extract success details from screen."""
         screen_text = self.session.screen_buffer.to_text()
-        lines = screen_text.split('\n')
-        
+        lines = screen_text.split("\n")
+
         details = {}
         for line in lines:
-            if 'TRANSACTION' in line.upper():
-                details['transaction'] = line.strip()
-            elif 'REFERENCE' in line.upper():
-                details['reference'] = line.strip()
-            elif 'CONFIRMATION' in line.upper():
-                details['confirmation'] = line.strip()
-        
+            if "TRANSACTION" in line.upper():
+                details["transaction"] = line.strip()
+            elif "REFERENCE" in line.upper():
+                details["reference"] = line.strip()
+            elif "CONFIRMATION" in line.upper():
+                details["confirmation"] = line.strip()
+
         return details
-    
+
     def extract_error_details(self) -> dict:
         """Extract error details from screen."""
         screen_text = self.session.screen_buffer.to_text()
-        lines = screen_text.split('\n')
-        
+        lines = screen_text.split("\n")
+
         details = {}
         for line in lines:
-            if 'ERROR' in line.upper():
-                details['error_message'] = line.strip()
-            elif 'CODE' in line.upper():
-                details['error_code'] = line.strip()
-            elif 'REASON' in line.upper():
-                details['error_reason'] = line.strip()
-        
+            if "ERROR" in line.upper():
+                details["error_message"] = line.strip()
+            elif "CODE" in line.upper():
+                details["error_code"] = line.strip()
+            elif "REASON" in line.upper():
+                details["error_reason"] = line.strip()
+
         return details
-    
+
     def extract_key_information(self) -> dict:
         """Extract key information from screen regardless of type."""
         screen_text = self.session.screen_buffer.to_text()
-        lines = screen_text.split('\n')
-        
+        lines = screen_text.split("\n")
+
         info = {}
         for line in lines[:10]:  # Check first 10 lines
-            if ':' in line:
-                key, value = line.split(':', 1)
+            if ":" in line:
+                key, value = line.split(":", 1)
                 info[key.strip()] = value.strip()
-        
+
         return info
-    
+
     def log_action(self, action: str):
         """Log navigation action."""
         self.navigation_log.append(action)
         print(f"  ✓ {action}")
 
+
 async def demonstrate_content_driven_navigation():
     """Demonstrate navigation driven by screen content reading."""
     print("\n=== CONTENT-DRIVEN NAVIGATION DEMONSTRATION ===")
-    
+
     examples = [
         {
             "title": "Adaptive Menu Navigation",
@@ -423,7 +451,7 @@ async def adaptive_menu_navigation(session):
         return True
     
     return False
-'''
+''',
         },
         {
             "title": "Intelligent Field Filling",
@@ -477,7 +505,7 @@ async def intelligent_field_filling(session, data_dict):
             print(f"Filled {data_key}: {field_info['data_value']}")
     
     return len(field_mapping) > 0
-'''
+''',
         },
         {
             "title": "Error Detection and Recovery",
@@ -568,14 +596,15 @@ async def error_detective_navigation(session, operation_func):
             return result
     
     raise RuntimeError(f"Operation failed after {max_attempts} attempts")
-'''
-        }
+''',
+        },
     ]
-    
+
     for example in examples:
         print(f"\n{example['title']}: {example['description']}")
         print("-" * 60)
-        print(example['code'].strip())
+        print(example["code"].strip())
+
 
 async def main():
     """Main demonstration function."""
@@ -583,28 +612,28 @@ async def main():
     print("=" * 80)
     print("Demonstrating how pure3270 reads screen content to drive navigation:")
     print("  1. Connect to TN3270 server")
-    print("  2. Read and analyze initial screen content") 
+    print("  2. Read and analyze initial screen content")
     print("  3. Navigate based on content analysis")
     print("  4. Read updated screen content")
     print("  5. Make decisions based on new content")
     print("  6. Continue navigation loop until completion")
     print("  7. Logout and disconnect properly")
     print("=" * 80)
-    
+
     try:
         # Run complete navigation loop demonstration
         demo = NavigationWithContentReadingDemo()
         success = await demo.run_complete_navigation_loop()
-        
+
         # Show content-driven navigation examples
         await demonstrate_content_driven_navigation()
-        
+
         print("\n" + "=" * 80)
         if success:
             print("🎉 COMPLETE NAVIGATION LOOP DEMONSTRATION SUCCESSFUL!")
             print("Pure3270 successfully demonstrated:")
             print("  ✓ Full screen content reading and analysis")
-            print("  ✓ Content-driven navigation decisions") 
+            print("  ✓ Content-driven navigation decisions")
             print("  ✓ Field content extraction and filling")
             print("  ✓ Error detection and recovery")
             print("  ✓ Form submission and response analysis")
@@ -612,23 +641,25 @@ async def main():
         else:
             print("❌ NAVIGATION LOOP DEMONSTRATION HAD ISSUES!")
             print("Note: This is expected in mock environment without real server.")
-        
+
         print("\nKey Features Demonstrated:")
         print("  ✓ Read screen text and analyze structure")
-        print("  ✓ Extract field information and content") 
+        print("  ✓ Extract field information and content")
         print("  ✓ Search for specific text patterns")
         print("  ✓ Navigate based on screen content")
         print("  ✓ Handle errors by reading screen messages")
         print("  ✓ Make decisions from screen analysis")
         print("  ✓ Complete navigation loop with feedback")
-        
+
         return success
-        
+
     except Exception as e:
         print(f"❌ Demonstration failed: {e}")
         import traceback
+
         traceback.print_exc()
         return False
+
 
 if __name__ == "__main__":
     success = asyncio.run(main())

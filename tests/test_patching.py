@@ -324,7 +324,9 @@ def test_check_version_compatibility_no_expected(monkey_patch_manager):
     with mock_patch("pure3270.emulation.ebcdic.get_p3270_version") as mock_version:
         mock_version.return_value = "0.1.6"
         assert (
-            monkey_patch_manager._check_version_compatibility(module=MagicMock(), expected_version=None)
+            monkey_patch_manager._check_version_compatibility(
+                module=MagicMock(), expected_version=None
+            )
             is True
         )
 
@@ -334,6 +336,7 @@ def test_check_version_compatibility_mismatch_warning(caplog, monkey_patch_manag
         mock_version.return_value = "0.1.0"
         with caplog.at_level("WARNING"):
             assert (
-                monkey_patch_manager._check_version_compatibility(MagicMock(), "0.1.6") is False
+                monkey_patch_manager._check_version_compatibility(MagicMock(), "0.1.6")
+                is False
             )
     assert "Version mismatch" in caplog.text

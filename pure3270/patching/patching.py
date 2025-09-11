@@ -103,8 +103,9 @@ class MonkeyPatchManager:
     ) -> bool:
         # Get the actual version of p3270
         from pure3270.emulation.ebcdic import get_p3270_version
+
         actual_version = get_p3270_version()
-        
+
         if expected_version and actual_version != expected_version:
             logger.warning(
                 f"Version mismatch: expected {expected_version}, got {actual_version}"
@@ -128,6 +129,7 @@ class MonkeyPatchManager:
             )
             if strict_version and not version_compatible:
                 from pure3270.emulation.ebcdic import get_p3270_version
+
                 actual_version = get_p3270_version()
                 raise Pure3270PatchError(
                     f"Version incompatible: {actual_version or 'unknown'}"
@@ -141,15 +143,16 @@ class MonkeyPatchManager:
                 original = getattr(p3270, "S3270", None)
                 self._store_original("p3270.S3270", original)
                 from pure3270.patching.s3270_wrapper import Pure3270S3270Wrapper
+
                 setattr(p3270, "S3270", Pure3270S3270Wrapper)
                 logger.info("Patched Session")
-                
+
                 # Also patch the S3270 reference in the p3270 module's global namespace
                 # This ensures that any code that references S3270 directly gets our wrapper
-                if hasattr(p3270, 'p3270'):
+                if hasattr(p3270, "p3270"):
                     # Patch the S3270 in the actual p3270.p3270 module as well
-                    p3270_module = sys.modules.get('p3270.p3270')
-                    if p3270_module and hasattr(p3270_module, 'S3270'):
+                    p3270_module = sys.modules.get("p3270.p3270")
+                    if p3270_module and hasattr(p3270_module, "S3270"):
                         original_inner = getattr(p3270_module, "S3270", None)
                         self._store_original("p3270.p3270.S3270", original_inner)
                         setattr(p3270_module, "S3270", Pure3270S3270Wrapper)

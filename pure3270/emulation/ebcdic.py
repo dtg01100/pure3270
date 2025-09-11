@@ -203,18 +203,20 @@ class EBCDICCodec(codecs.Codec):
 
 def get_p3270_version():
     """Get p3270 version for patching.
-    
+
     Returns the actual version of the installed p3270 package,
     or None if it cannot be determined.
     """
     try:
         import importlib.metadata
-        return importlib.metadata.version('p3270')
+
+        return importlib.metadata.version("p3270")
     except (ImportError, Exception):
         # Fallback for older Python versions or if metadata is not available
         try:
             import p3270
-            return getattr(p3270, '__version__', None)
+
+            return getattr(p3270, "__version__", None)
         except ImportError:
             return None
 
