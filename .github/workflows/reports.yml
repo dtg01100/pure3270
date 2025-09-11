@@ -30,30 +30,36 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v6
       with:
-        python-version: "3.11"
+        python-version: "3.13"
         
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install .[test]
+        pip install .[test,testing]
         
     - name: Generate coverage report
       run: |
-        pytest --cov=pure3270 --cov-report=html --cov-report=xml --cov-report=term
+        pytest tests/ --cov=pure3270 --cov-report=html --cov-report=xml --cov-report=term
         
     - name: Generate coverage badge
       run: |
-        # Check if coverage.xml exists
+        # Extract coverage percentage from XML report
         if [ -f coverage.xml ]; then
-          # Extract coverage percentage from the XML
-          coverage_percent=$(grep -o 'line-rate="[0-9.]*"' coverage.xml | head -1 | sed 's/line-rate="//' | sed 's/"//' | awk '{print int($1*100)}')
+          coverage_percent=$(python -c "
+          import xml.etree.ElementTree as ET
+          try:
+              tree = ET.parse('coverage.xml')
+              line_rate = float(tree.getroot().get('line-rate', 0.0))
+              print(int(line_rate * 100))
+          except Exception:
+              print(0)
+          ")
         else
           coverage_percent=0
         fi
         
-        # If we couldn't extract from XML, try to get from terminal output
-        if [ "$coverage_percent" -eq 0 ] || [ -z "$coverage_percent" ]; then
-          # This would require capturing the pytest output in a file
+        # Ensure coverage_percent is a valid number
+        if ! [[ "$coverage_percent" =~ ^[0-9]+$ ]]; then
           coverage_percent=0
         fi
         
@@ -69,17 +75,21 @@ jobs:
         echo "Coverage: ${coverage_percent}%"
         
         # Create coverage badge markdown file
-        cat > coverage-badge.md << EOF
-        # Coverage Badge
-        
-        ![Coverage](https://img.shields.io/badge/coverage-${coverage_percent}%25-${color})
-        
-        Current coverage: **${coverage_percent}%**
-        EOF
+        echo "# Coverage Badge" > coverage-badge.md
+        echo "" >> coverage-badge.md
+        echo "![Coverage](https://img.shields.io/badge/coverage-${coverage_percent}%25-${color})" >> coverage-badge.md
+        echo "" >> coverage-badge.md
+        echo "Current coverage: **${coverage_percent}%**" >> coverage-badge.md
         
     - name: Generate linting report
       run: |
-        flake8 . > flake8-report.txt || true
+        # Install linting tools if not already installed
+        pip install flake8 black
+        
+        # Generate flake8 report
+        flake8 . > flake8-report.txt 2>&1 || true
+        
+        # Generate black report
         black --check . > black-report.txt 2>&1 || true
         
     - name: Archive coverage report
@@ -90,6 +100,7 @@ jobs:
           htmlcov/
           coverage.xml
           coverage-badge.md
+        if-no-files-found: ignore
         
     - name: Archive linting reports
       uses: actions/upload-artifact@v4
