@@ -10,7 +10,7 @@ import os
 # Add the current directory to the path so we can import pure3270
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
-from consolidated_docker_tests import test_with_mock_server
+from integration_test import test_with_mock_server
 
 
 async def main():

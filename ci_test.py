@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 CI/CD test script for pure3270.
-This script runs a comprehensive set of tests that don't require full Docker setup.
+This script runs a comprehensive set of tests that don't require full setup.
 """
 
 import asyncio
@@ -53,7 +53,7 @@ async def test_mock_connectivity():
     print("Testing mock server connectivity...")
     try:
         # Import the mock test function
-        from consolidated_docker_tests import test_with_mock_server
+        from integration_test import test_with_mock_server
 
         result = await test_with_mock_server()
         print(f"  Mock server test: {'✓ PASSED' if result else '✗ FAILED'}")
