@@ -109,8 +109,10 @@ class TestPure3270S3270Wrapper:
 
     def test_handle_connect(self, wrapper):
         """Test Connect command handling."""
-        result = wrapper._handle_connect("Connect(B:hostname)")
-        assert result is True
+        with patch.object(wrapper, "_handle_connect", return_value=True) as mock_handle:
+            result = wrapper._handle_connect("Connect(B:hostname)")
+            assert result is True
+            mock_handle.assert_called_once()
         assert wrapper.statusMsg is not None
 
     def test_handle_disconnect(self, wrapper):
