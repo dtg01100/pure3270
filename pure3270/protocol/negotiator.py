@@ -151,9 +151,13 @@ class Negotiator:
 
         Disables EBCDIC processing and enables ASCII/VT100 terminal emulation.
         """
-        logger.debug(f"BEFORE set_ascii_mode: _ascii_mode = {self._ascii_mode} on negotiator object {id(self)}")
+        logger.debug(
+            f"BEFORE set_ascii_mode: _ascii_mode = {self._ascii_mode} on negotiator object {id(self)}"
+        )
         self._ascii_mode = True
-        logger.debug(f"AFTER set_ascii_mode: _ascii_mode = {self._ascii_mode} on negotiator object {id(self)}")
+        logger.debug(
+            f"AFTER set_ascii_mode: _ascii_mode = {self._ascii_mode} on negotiator object {id(self)}"
+        )
         logger.info("Switched to ASCII/VT100 mode (s3270 compatibility)")
 
     async def _receive_data(self, timeout: float = 5.0) -> bytes:

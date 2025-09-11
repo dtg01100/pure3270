@@ -167,33 +167,39 @@ class TN3270Handler:
         except Exception as e:
             logger.error(f"Error reading data: {e}")
             raise
-            
+
         # Check if we're in ASCII mode
         ascii_mode = self.negotiator._ascii_mode
-        logger.debug(f"Checking ASCII mode: negotiator._ascii_mode = {ascii_mode} on negotiator object {id(self.negotiator)}")
-        
+        logger.debug(
+            f"Checking ASCII mode: negotiator._ascii_mode = {ascii_mode} on negotiator object {id(self.negotiator)}"
+        )
+
         # Auto-detect ASCII mode based on data content for s3270 compatibility
         # s3270 automatically switches to ASCII mode when it detects VT100 sequences
         if not ascii_mode and len(data) > 0:
             # Check for common VT100 escape sequences that indicate ASCII mode
             if self._detect_vt100_sequences(data):
-                logger.info("Detected VT100 sequences, enabling ASCII mode (s3270 compatibility)")
+                logger.info(
+                    "Detected VT100 sequences, enabling ASCII mode (s3270 compatibility)"
+                )
                 ascii_mode = True
                 # In s3270 compatibility mode, also set the negotiator ASCII mode
                 self.negotiator._ascii_mode = True
-        
+
         if ascii_mode:
             logger.debug("In ASCII mode, parsing VT100 data")
             # In ASCII mode, parse VT100 escape sequences and update screen buffer
             try:
                 logger.debug(f"Parsing VT100 data ({len(data)} bytes)")
                 from .vt100_parser import VT100Parser
+
                 vt100_parser = VT100Parser(self.screen_buffer)
                 vt100_parser.parse(data)
                 logger.debug("VT100 parsing completed successfully")
             except Exception as e:
                 logger.warning(f"Error parsing VT100 data: {e}")
                 import traceback
+
                 logger.warning(f"Traceback: {traceback.format_exc()}")
             return data
         # Parse and update screen buffer (simplified)
@@ -207,23 +213,23 @@ class TN3270Handler:
         if b"\xff\x19" in data:
             data = data.split(b"\xff\x19")[0]
         return data
-        
+
     def _detect_vt100_sequences(self, data: bytes) -> bool:
         """
         Detect VT100 escape sequences in data for s3270 compatibility.
-        
+
         Args:
             data: Raw data to check for VT100 sequences
-            
+
         Returns:
             True if VT100 sequences detected, False otherwise
         """
         if len(data) < 2:
             return False
-            
+
         # Check for ESC character followed by common VT100 sequences
         for i in range(len(data) - 1):
-            if data[i] == 0x1b:  # ESC character
+            if data[i] == 0x1B:  # ESC character
                 # Common VT100 sequences:
                 # ESC [ - CSI (Control Sequence Introducer)
                 # ESC ( - Character set designation
@@ -233,49 +239,69 @@ class TN3270Handler:
                 # ESC 8 - Restore cursor
                 if i + 1 < len(data):
                     next_char = data[i + 1]
-                    if next_char in [ord('['), ord('('), ord(')'), ord('#'), ord('7'), ord('8')]:
-                        logger.debug(f"Detected VT100 escape sequence: ESC {chr(next_char) if chr(next_char).isprintable() else f'0x{next_char:02x}'}")
+                    if next_char in [
+                        ord("["),
+                        ord("("),
+                        ord(")"),
+                        ord("#"),
+                        ord("7"),
+                        ord("8"),
+                    ]:
+                        logger.debug(
+                            f"Detected VT100 escape sequence: ESC {chr(next_char) if chr(next_char).isprintable() else f'0x{next_char:02x}'}"
+                        )
                         return True
                     # Check for other common sequences
-                    elif next_char in [ord('D'), ord('M'), ord('c')]:  # IND, RI, RIS
-                        logger.debug(f"Detected VT100 control sequence: ESC {chr(next_char)}")
+                    elif next_char in [ord("D"), ord("M"), ord("c")]:  # IND, RI, RIS
+                        logger.debug(
+                            f"Detected VT100 control sequence: ESC {chr(next_char)}"
+                        )
                         return True
-                        
+
         # Check for other VT100 indicators
         # Look for escape sequences that are more specific than just printable ASCII
         # VT100 data often contains control characters mixed with printable ASCII
-        printable_ascii_count = sum(1 for b in data if 0x20 <= b <= 0x7e)
-        control_char_count = sum(1 for b in data if b in [0x0a, 0x0d, 0x09, 0x08, 0x1b])
+        printable_ascii_count = sum(1 for b in data if 0x20 <= b <= 0x7E)
+        control_char_count = sum(1 for b in data if b in [0x0A, 0x0D, 0x09, 0x08, 0x1B])
         total_chars = len(data)
-        
+
         # Only suggest ASCII mode if we have a mix of printable and control characters
         # and a reasonable amount of printable text
         if total_chars > 0:
             printable_ratio = printable_ascii_count / total_chars
             control_ratio = control_char_count / total_chars
-            
+
             # Require both printable text and some control characters for VT100 detection
             # Also require a minimum amount of printable text
-            if (printable_ratio > 0.5 and control_ratio > 0.05 and 
-                printable_ascii_count > 10):
-                logger.debug(f"Mixed ASCII/control character pattern suggests ASCII mode: "
-                           f"printable={printable_ratio:.2f}, control={control_ratio:.2f}")
+            if (
+                printable_ratio > 0.5
+                and control_ratio > 0.05
+                and printable_ascii_count > 10
+            ):
+                logger.debug(
+                    f"Mixed ASCII/control character pattern suggests ASCII mode: "
+                    f"printable={printable_ratio:.2f}, control={control_ratio:.2f}"
+                )
                 return True
-            
+
             # Or if we have high density of printable ASCII with ESC characters
-            esc_count = data.count(0x1b)
+            esc_count = data.count(0x1B)
             if esc_count > 0 and printable_ratio > 0.6:
-                logger.debug(f"ESC characters with high ASCII density ({esc_count} ESC chars, "
-                           f"printable={printable_ratio:.2f}) suggests ASCII mode")
+                logger.debug(
+                    f"ESC characters with high ASCII density ({esc_count} ESC chars, "
+                    f"printable={printable_ratio:.2f}) suggests ASCII mode"
+                )
                 return True
-                
+
             # Or if we have very high density of printable ASCII characters (indicates ASCII terminal)
             # This is for systems that deliver their interface as plain ASCII text
             if printable_ratio > 0.8 and printable_ascii_count > 50:
-                logger.debug(f"Very high ASCII character density ({printable_ratio:.2f}) "
-                           f"suggests ASCII terminal mode")
+                logger.debug(
+                    f"Very high ASCII character density ({printable_ratio:.2f}) "
+                    f"suggests ASCII terminal mode"
+                )
                 return True
-        
+
         return False
 
     async def send_scs_data(self, scs_data: bytes) -> None:
