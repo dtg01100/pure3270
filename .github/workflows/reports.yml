@@ -45,7 +45,7 @@ jobs:
       run: |
         # Extract coverage percentage from XML report
         if [ -f coverage.xml ]; then
-          coverage_percent=$(python -c 'import xml.etree.ElementTree as ET; try: tree = ET.parse(\"coverage.xml\"); line_rate = float(tree.getroot().get(\"line-rate\", 0.0)); print(int(line_rate * 100)); except Exception: print(0)')
+          coverage_percent=$(python -c "import xml.etree.ElementTree as ET; tree = ET.parse('coverage.xml'); line_rate = float(tree.getroot().get('line-rate', 0.0)); print(int(line_rate * 100))")
         else
           coverage_percent=0
         fi
