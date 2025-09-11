@@ -152,6 +152,42 @@ async def test_mock_connectivity():
         return False
 
 
+async def test_with_mock_server():
+    """Test pure3270 connectivity with a mock TN3270 server."""
+    print("Testing with mock server...")
+    try:
+        mock_server = MockServer(2323)
+        if not await mock_server.start():
+            print("   ✗ Failed to start mock server")
+            return False
+
+        try:
+            from pure3270 import AsyncSession
+
+            session = AsyncSession("127.0.0.1", 2323)
+            await session.connect()
+            print("   ✓ Connection successful")
+
+            # Basic send/receive test
+            test_data = b"Hello, TN3270!"
+            await session.send(test_data)
+            # Await and verify echo response if MockServer supports it
+            response = await session.read(timeout=1.0)
+            if response == test_data:
+                print("   ✓ Data echo successful")
+            else:
+                print("   ✗ Data echo mismatch")
+                return False
+
+            await session.close()
+            return True
+        finally:
+            await mock_server.stop()
+    except Exception as e:
+        print(f"   ✗ Mock server test failed: {e}")
+        return False
+
+
 def test_navigation_methods():
     """Test that all navigation methods exist."""
     print("3. Testing navigation method availability...")
