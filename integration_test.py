@@ -173,10 +173,11 @@ async def test_with_mock_server():
             await session.send(test_data)
             # Await and verify echo response if MockServer supports it
             response = await session.read(timeout=1.0)
-            if response == test_data:
+            # Note: pure3270 wraps data in TN3270 protocol headers, so we check if our data is contained in the response
+            if test_data in response:
                 print("   ✓ Data echo successful")
             else:
-                print("   ✗ Data echo mismatch")
+                print(f"   ✗ Data echo mismatch: sent {test_data!r}, received {response!r}")
                 return False
 
             await session.close()
