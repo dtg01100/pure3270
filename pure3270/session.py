@@ -621,12 +621,20 @@ class AsyncSession:
         reader, writer = await asyncio.open_connection(
             self.host, self.port, ssl=self.ssl_context
         )
+        logger.debug(f"Creating new TN3270Handler")
+        if self._handler:
+            logger.debug(f"Replacing existing handler with object ID: {id(self._handler)}")
         self._handler = TN3270Handler(reader, writer)
+        logger.debug(f"New handler created with object ID: {id(self._handler)}")
+        logger.debug(f"About to call negotiate on handler {id(self._handler)}")
         await self._handler.negotiate()
+        logger.debug(f"Negotiate completed on handler {id(self._handler)}")
         self._connected = True
         # Fallback to ASCII if negotiation fails
         try:
+            logger.debug(f"About to call _negotiate_tn3270 on handler {id(self._handler)}")
             await self._handler._negotiate_tn3270()
+            logger.debug(f"_negotiate_tn3270 completed on handler {id(self._handler)}")
             self.tn3270_mode = True
             self.tn3270e_mode = self._handler.negotiated_tn3270e
             self._lu_name = self._handler.lu_name
@@ -637,7 +645,10 @@ class AsyncSession:
                 f"TN3270 negotiation failed, falling back to ASCII mode: {e}"
             )
             if self._handler:
+                logger.debug(f"Setting ASCII mode on handler {id(self._handler)} with negotiator {id(self._handler.negotiator)}")
                 self._handler.set_ascii_mode()
+                logger.debug(f"ASCII mode set. Handler {id(self._handler)} negotiator {id(self._handler.negotiator)} _ascii_mode = {self._handler.negotiator._ascii_mode}")
+                logger.info("Session switched to ASCII/VT100 mode (s3270 compatibility)")
 
     async def send(self, data: bytes) -> None:
         """

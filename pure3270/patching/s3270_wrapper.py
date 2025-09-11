@@ -140,10 +140,47 @@ class Pure3270S3270Wrapper:
         """Handle Connect command."""
         # Parse connection parameters from command
         # Examples: Connect(B:hostname), Connect(L:lu@hostname)
-        # For now, we'll just set status and return success
         logger.info(f"Handling connect command: {cmd}")
-        self.statusMsg = self._create_status(connection_state="C(hostname)")
-        return True
+        
+        # Parse the hostname from the command
+        # Format is Connect(B:hostname) or Connect(L:lu@hostname)
+        hostname = "localhost"  # Default
+        port = 23  # Default
+        
+        try:
+            # Extract the parameter from inside the parentheses
+            if "(" in cmd and ")" in cmd:
+                param = cmd.split("(", 1)[1].split(")", 1)[0]
+                # Handle B:hostname format
+                if param.startswith("B:"):
+                    hostname = param[2:]  # Remove "B:"
+                # Handle L:lu@hostname format
+                elif param.startswith("L:") and "@" in param:
+                    hostname = param.split("@", 1)[1]
+                # Handle plain hostname
+                else:
+                    hostname = param
+                    
+                # Check if hostname includes port
+                if ":" in hostname:
+                    host_parts = hostname.split(":")
+                    hostname = host_parts[0]
+                    port = int(host_parts[1])
+                    
+        except Exception as e:
+            logger.warning(f"Error parsing hostname from connect command: {e}")
+        
+        logger.info(f"Connecting to hostname: {hostname}, port: {port}")
+        
+        # Actually connect to the host
+        try:
+            self._session.connect(host=hostname, port=port)
+            self.statusMsg = self._create_status(connection_state=f"C({hostname})")
+            return True
+        except Exception as e:
+            logger.error(f"Error connecting to {hostname}:{port}: {e}")
+            self.statusMsg = self._create_error_status()
+            return False
 
     def _handle_disconnect(self) -> bool:
         """Handle Disconnect command."""

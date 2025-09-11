@@ -52,11 +52,13 @@ class Negotiator:
             screen_buffer: ScreenBuffer to update during negotiation.
             handler: TN3270Handler instance for accessing reader methods.
         """
+        logger.debug("Negotiator.__init__ called")
         self.writer = writer
         self.parser = parser
         self.screen_buffer = screen_buffer
         self.handler = handler
         self._ascii_mode = False
+        logger.debug(f"Negotiator._ascii_mode initialized to {self._ascii_mode}")
         self.negotiated_tn3270e = False
         self._lu_name: Optional[str] = None
         self.screen_rows = 24
@@ -145,11 +147,14 @@ class Negotiator:
 
     def set_ascii_mode(self) -> None:
         """
-        Set to ASCII mode fallback.
+        Set to ASCII mode fallback, matching s3270 behavior.
 
-        Disables EBCDIC processing.
+        Disables EBCDIC processing and enables ASCII/VT100 terminal emulation.
         """
+        logger.debug(f"BEFORE set_ascii_mode: _ascii_mode = {self._ascii_mode} on negotiator object {id(self)}")
         self._ascii_mode = True
+        logger.debug(f"AFTER set_ascii_mode: _ascii_mode = {self._ascii_mode} on negotiator object {id(self)}")
+        logger.info("Switched to ASCII/VT100 mode (s3270 compatibility)")
 
     async def _receive_data(self, timeout: float = 5.0) -> bytes:
         """

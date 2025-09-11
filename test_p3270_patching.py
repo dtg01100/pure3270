@@ -53,32 +53,27 @@ def main():
         # Create session
         client = p3270.P3270Client()
         
-        # Try different ways to connect
+        # For p3270, we need to construct the connection string properly
+        # Format: Connect(B:host) or Connect(B:host:port)
+        connection_string = host
+        if args.port != 23:
+            connection_string = f"{host}:{args.port}"
+            
+        # Connect to the host using the proper s3270 command format
         connected = False
         try:
-            # Try with port and ssl parameters
-            connected = client.connect(host, port=args.port, secure=args.ssl)
-        except TypeError as e:
-            print(f"First connect attempt failed: {e}")
+            # Try the direct connection method first
+            client.s3270.Run(f"Connect(B:{connection_string})")
+            connected = True
+        except Exception as e:
+            print(f"Direct connection failed: {e}")
+            # Fall back to setting properties and connecting
             try:
-                # Try with just host
-                connected = client.connect(host)
-            except TypeError as e2:
-                print(f"Second connect attempt failed: {e2}")
-                try:
-                    # Try with host and port as positional arguments
-                    connected = client.connect(host, args.port)
-                except TypeError as e3:
-                    print(f"Third connect attempt failed: {e3}")
-                    # Try without any parameters (just to see what happens)
-                    try:
-                        connected = client.connect()
-                    except Exception as e4:
-                        print(f"All connect attempts failed: {e4}")
-                        print("Trying direct connection string approach...")
-                        # Try a connection string approach
-                        connection_string = f"{host}:{args.port}" if args.port != 23 else host
-                        connected = client.connect(connection_string)
+                client.hostName = host
+                client.hostPort = args.port
+                connected = client.connect()
+            except Exception as e2:
+                print(f"Fallback connection failed: {e2}")
         
         if not connected:
             print("Failed to connect to the host")
@@ -88,27 +83,27 @@ def main():
         
         # Read initial screen
         print("\n--- Initial Screen ---")
-        screen_text = client.read()
+        screen_text = client.getScreen()
         print(screen_text)
         
         # If user and password provided, attempt login
         if user and password:
             print(f"\n--- Attempting login with {user} ---")
             # Send username
-            client.send_string(user)
-            client.send_enter()
+            client.sendText(user)
+            client.sendEnter()
             time.sleep(1)
             
             # Send password
-            client.send_string(password)
-            client.send_enter()
+            client.sendText(password)
+            client.sendEnter()
             
             # Wait a moment for response
             time.sleep(2)
             
             # Read post-login screen
             print("\n--- Post-Login Screen ---")
-            screen_text = client.read()
+            screen_text = client.getScreen()
             print(screen_text)
         
         # Wait for user input before closing
@@ -122,7 +117,7 @@ def main():
     finally:
         # Always close the session
         try:
-            client.close()
+            client.disconnect()
             print("Session closed.")
         except:
             pass

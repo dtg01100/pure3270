@@ -105,4 +105,22 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+# Test scripts (not tracked by git)
+test_real_system.py
+run_test.sh
+TESTING_README.md
+test_p3270_patching.py
+debug_*.py
+test_*.py
+*_test.py
+demo_*.py
+final_*.py
+advanced_*.py
+ci_cd_*.py
+s3270_*.py
+VT100_*.md
+CONNECTION_TEST_RESULTS.md
+TESTING_*.md
+CI_CD_*.md
+
 # End of .gitignore
