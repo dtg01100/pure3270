@@ -79,6 +79,7 @@ class Negotiator:
         parser: DataStreamParser,
         screen_buffer: ScreenBuffer,
         handler: Optional["TN3270Handler"] = None,
+        is_printer_session: bool = False,
     ):
         """
         Initialize the Negotiator.
@@ -88,6 +89,7 @@ class Negotiator:
             parser: DataStreamParser for parsing responses.
             screen_buffer: ScreenBuffer to update during negotiation.
             handler: TN3270Handler instance for accessing reader methods.
+            is_printer_session: True if this is a printer session.
         """
         logger.debug("Negotiator.__init__ called")
         self.writer = writer
@@ -100,7 +102,7 @@ class Negotiator:
         self._lu_name: Optional[str] = None
         self.screen_rows = 24
         self.screen_cols = 80
-        self.is_printer_session = False
+        self.is_printer_session = is_printer_session
         self.printer_status: Optional[int] = None # New attribute for printer status
         self._sna_session_state: SnaSessionState = SnaSessionState.NORMAL # Initial SNA session state
         self.supported_device_types: List[str] = [
