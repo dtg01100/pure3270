@@ -84,6 +84,8 @@ python quick_test.py
 ```
 
 3. **Test standalone example** (0.08 seconds):
+> **NOTE:** This command may fail with a connection error due to firewall rules blocking access to `mock-tn3270-host.example.com`. This is expected in most environments.
+> For offline validation, use the quick smoke test (`python quick_test.py`) instead.
 ```bash
 python examples/example_standalone.py
 ```
