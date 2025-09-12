@@ -1,7 +1,10 @@
 """Screen buffer management for 3270 emulation."""
 
 from typing import List, Tuple, Optional
+import logging
 from .ebcdic import EBCDICCodec
+
+logger = logging.getLogger(__name__)
 
 
 class Field:
@@ -20,6 +23,8 @@ class Field:
         background: int = 0,  # 0=neutral/default, 1=blue, 2=red, 3=pink, etc.
         validation: int = 0,  # 0=no validation, 1=mandatory fill, 2=trigger
         outlining: int = 0,  # 0=no outline, 1=underscore, 2=rightline, 3=overline
+        character_set: int = 0, # Character set (e.g., Katakana)
+        sfe_highlight: int = 0, # Raw SFE highlight value
         content: Optional[bytes] = None,
     ):
         """
@@ -49,6 +54,8 @@ class Field:
         self.background = background
         self.validation = validation
         self.outlining = outlining
+        self.character_set = character_set
+        self.sfe_highlight = sfe_highlight
         self.content = content or b""
 
     def get_content(self) -> str:
@@ -87,6 +94,8 @@ class ScreenBuffer:
         self.buffer = bytearray(b"\x40" * self.size)
         # Attributes buffer: 3 bytes per position (protection, foreground, background/highlight)
         self.attributes = bytearray(self.size * 3)
+        # Extended attributes: dictionary mapping (row, col) to another dictionary of ext_attr_type: value
+        self._extended_attributes = {}
         # List of fields
         self.fields: List[Field] = []
         # Cursor position
@@ -100,6 +109,7 @@ class ScreenBuffer:
         """Clear the screen buffer and reset fields."""
         self.buffer = bytearray(b"\x40" * self.size)
         self.attributes = bytearray(self.size * 3)
+        self._extended_attributes = {}
         self.fields = []
         self.cursor_row = 0
         self.cursor_col = 0
@@ -205,85 +215,111 @@ class ScreenBuffer:
         self._detect_fields()
 
     def _detect_fields(self):
-        """Detect field boundaries based on attribute changes (simplified)."""
+        logger.debug("Starting _detect_fields")
         self.fields = []
-        in_field = False
-        start = (0, 0)
-        for row in range(self.rows):
-            for col in range(self.cols):
-                pos = row * self.cols + col
-                attr_offset = pos * 3
-                protected = bool(
-                    self.attributes[attr_offset] & 0x40
-                )  # Bit 6: protected
-                if not in_field and not protected:
-                    in_field = True
-                    start = (row, col)
-                elif in_field and protected:
-                    in_field = False
-                    end = (row, col - 1) if col > 0 else (row, self.cols - 1)
-                    # Calculate content from start to end
-                    start_pos = start[0] * self.cols + start[1]
-                    end_pos = row * self.cols + (col - 1)
-                    content = bytes(self.buffer[start_pos : end_pos + 1])
+        field_start_idx = -1
 
-                    # Extract extended attributes
-                    intensity = (
-                        self.attributes[attr_offset + 1]
-                        if attr_offset + 1 < len(self.attributes)
-                        else 0
-                    )
-                    validation = (
-                        self.attributes[attr_offset + 2]
-                        if attr_offset + 2 < len(self.attributes)
-                        else 0
-                    )
+        for i in range(self.size):
+            row, col = self._calculate_coords(i)
+            attr_offset = i * 3
 
-                    # Input fields are not protected (protected=False)
-                    self.fields.append(
-                        Field(
-                            start,
-                            end,
-                            protected=False,
-                            content=content,
-                            intensity=intensity,
-                            validation=validation,
-                        )
-                    )
-        if in_field:
-            end = (self.rows - 1, self.cols - 1)
-            # Calculate content from start to end
-            start_pos = start[0] * self.cols + start[1]
-            end_pos = end[0] * self.cols + end[1]
-            content = bytes(self.buffer[start_pos : end_pos + 1])
-            # Determine protection status of the final field
-            end_pos_attr = end_pos * 3
-            is_protected = bool(
-                self.attributes[end_pos_attr] & 0x40
-            )  # Bit 6: protected
+            has_basic_attribute = (attr_offset < len(self.attributes) and self.attributes[attr_offset] != 0x00)
+            has_extended_attribute = (self._extended_attributes.get((row, col)) is not None)
 
-            # Extract extended attributes
-            intensity = (
-                self.attributes[end_pos_attr + 1]
-                if end_pos_attr + 1 < len(self.attributes)
-                else 0
-            )
-            validation = (
-                self.attributes[end_pos_attr + 2]
-                if end_pos_attr + 2 < len(self.attributes)
-                else 0
-            )
+            is_attribute_position = has_basic_attribute or has_extended_attribute
+            logger.debug(f"Pos ({row},{col}) (idx {i}): basic_attr={has_basic_attribute}, ext_attr={has_extended_attribute}, is_attr_pos={is_attribute_position}, field_start_idx={field_start_idx}")
 
-            self.fields.append(
-                Field(
-                    start,
-                    end,
-                    protected=is_protected,
-                    content=content,
-                    intensity=intensity,
-                    validation=validation,
-                )
-            )
+            if is_attribute_position:
+                if field_start_idx != -1:
+                    logger.debug(f"Ending previous field from {field_start_idx} to {i-1}")
+                    self._create_field_from_range(field_start_idx, i - 1)
+                logger.debug(f"Starting new field at {i}")
+                field_start_idx = i
+            elif field_start_idx != -1 and i == self.size - 1:
+                logger.debug(f"Ending current field at end of screen from {field_start_idx} to {i}")
+                self._create_field_from_range(field_start_idx, i)
+
+        # Handle any remaining open field at the end of the buffer
+        if field_start_idx != -1:
+            logger.debug(f"Ending final field from {field_start_idx} to {self.size - 1} after loop")
+            self._create_field_from_range(field_start_idx, self.size - 1)
+        logger.debug(f"Finished _detect_fields. Total fields: {len(self.fields)}")
+
+    def _create_field_from_range(self, start_idx: int, end_idx: int):
+        """Helper to create a Field object from a range of buffer indices."""
+        start_row, start_col = self._calculate_coords(start_idx)
+        end_row, end_col = self._calculate_coords(end_idx)
+
+        # Get the attribute byte for the start of the field
+        attr_offset = start_idx * 3
+        if attr_offset >= len(self.attributes):
+            logger.warning(f"Attribute offset {attr_offset} out of bounds for buffer size {len(self.attributes)}. Skipping field creation.")
+            return
+
+        attr_byte = self.attributes[attr_offset]
+
+        # Extract basic 3270 attributes
+        protected = bool(attr_byte & 0x40)  # Bit 6: protected
+        numeric = bool(attr_byte & 0x20)  # Bit 5: numeric
+        modified = bool(attr_byte & 0x04)  # Bit 2: modified data tag
+
+        # Get extended attributes from the _extended_attributes dictionary
+        ext_attrs = self._extended_attributes.get((start_row, start_col), {})
+        logger.debug(f"Extended attributes for ({start_row}, {start_col}): {ext_attrs}")
+
+        # Map SFE highlight to basic intensity
+        sfe_highlight_val = ext_attrs.get('highlight', 0)
+        intensity_val = 0
+        if sfe_highlight_val == 0xF0: # HIGHLIGHT_NONE
+            intensity_val = 0 # Normal
+        elif sfe_highlight_val == 0xF1: # HIGHLIGHT_BLINK
+            intensity_val = 3 # Blink
+        elif sfe_highlight_val == 0xF2: # HIGHLIGHT_REVERSE_VIDEO
+            intensity_val = 1 # Highlighted (reverse video)
+        elif sfe_highlight_val == 0xF4: # HIGHLIGHT_UNDERSCORE
+            intensity_val = 1 # Highlighted (underscore)
+        elif sfe_highlight_val == 0xF8: # HIGHLIGHT_INTENSIFIED
+            intensity_val = 1 # Highlighted (intensified)
+        else:
+            # Fallback to basic 3270 intensity if no SFE highlight or unknown SFE highlight
+            intensity_val = (attr_byte >> 3) & 0x03 # Basic 3270 intensity
+
+        # Extract other extended attributes
+        color_val = ext_attrs.get('color', 0)
+        background_val = ext_attrs.get('background', 0)
+        validation_val = ext_attrs.get('validation', attr_byte & 0x03) # Fallback to basic validation
+        outlining_val = ext_attrs.get('outlining', 0)
+        character_set_val = ext_attrs.get('character_set', 0)
+
+        # Get content for the field.
+        # For SFE, the content of the field starts at the attribute's position.
+        content = bytes(self.buffer[start_idx : end_idx + 1])
+
+
+        field = Field(
+            start=(start_row, start_col),
+            end=(end_row, end_col),
+            protected=protected,
+            numeric=numeric,
+            modified=modified,
+            selected=False, # Not directly determined by SF byte, assuming false for now
+            intensity=intensity_val,
+            color=color_val,
+            background=background_val,
+            validation=validation_val,
+            outlining=outlining_val,
+            character_set=character_set_val,
+            sfe_highlight=sfe_highlight_val,
+            content=content
+        )
+        self.fields.append(field)
+        logger.debug(f"Created field: {field}")
+
+    def _calculate_coords(self, index: int) -> Tuple[int, int]:
+        """Helper to calculate row, col from a linear index."""
+        row = index // self.cols
+        col = index % self.cols
+        return row, col
 
     def to_text(self) -> str:
         """
@@ -371,3 +407,75 @@ class ScreenBuffer:
     def update_fields(self) -> None:
         """Update field detection and attributes."""
         self._detect_fields()
+
+    def set_extended_attribute(self, row: int, col: int, attr_type: str, value: int):
+        """
+        Set an extended attribute for a specific position.
+
+        :param row: Row position.
+        :param col: Column position.
+        :param attr_type: Type of extended attribute (e.g., 'color', 'highlight').
+        :param value: The value of the extended attribute.
+        """
+        if 0 <= row < self.rows and 0 <= col < self.cols:
+            pos_tuple = (row, col)
+            if pos_tuple not in self._extended_attributes:
+                self._extended_attributes[pos_tuple] = {}
+            self._extended_attributes[pos_tuple][attr_type] = value
+            # Removed self.update_fields() here, will be called once after data stream parsing
+
+    def move_cursor_to_first_input_field(self):
+        """
+        Moves the cursor to the beginning of the first unprotected, non-skipped, non-autoskip field.
+        """
+        first_input_field = None
+        for field in self.fields:
+            # An input field is unprotected and not autoskip (auto-skip is usually indicated by a specific attribute bit,
+            # but for simplicity, we'll consider any protected field as non-input for now).
+            # Also, ensure it's not a skipped field (often numeric and protected, or just protected with no data entry)
+            # For now, we'll just check for 'protected' status.
+            if not field.protected: # Assuming unprotected means input field
+                first_input_field = field
+                break
+
+        if first_input_field:
+            self.cursor_row, self.cursor_col = first_input_field.start
+            logger.debug(f"Cursor moved to first input field at {self.cursor_row},{self.cursor_col}")
+        else:
+            # If no input fields are found, move to (0,0) or keep current position.
+            # For now, we'll just log and keep the current position.
+            logger.debug("No input fields found for IC order.")
+
+    def move_cursor_to_next_input_field(self):
+        """
+        Moves the cursor to the beginning of the next unprotected, non-skipped, non-autoskip field.
+        Wraps around to the first field if no next field is found.
+        """
+        current_pos_linear = self.cursor_row * self.cols + self.cursor_col
+        next_input_field = None
+        
+        # Sort fields by their linear start position to ensure correct traversal
+        sorted_fields = sorted(self.fields, key=lambda f: f.start[0] * self.cols + f.start[1])
+
+        # Find the next input field after the current cursor position
+        for field in sorted_fields:
+            field_start_linear = field.start[0] * self.cols + field.start[1]
+            if field_start_linear > current_pos_linear and not field.protected:
+                next_input_field = field
+                break
+        
+        if next_input_field:
+            self.cursor_row, self.cursor_col = next_input_field.start
+            logger.debug(f"Cursor moved to next input field at {self.cursor_row},{self.cursor_col}")
+        else:
+            # If no next input field is found, wrap around to the first input field
+            for field in sorted_fields:
+                if not field.protected:
+                    next_input_field = field
+                    break
+            
+            if next_input_field:
+                self.cursor_row, self.cursor_col = next_input_field.start
+                logger.debug(f"Cursor wrapped around to first input field at {self.cursor_row},{self.cursor_col}")
+            else:
+                logger.debug("No input fields found for PT order, or no next field after wrap-around.")
