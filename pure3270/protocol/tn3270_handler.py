@@ -7,11 +7,13 @@ import asyncio
 import ssl
 import logging
 from typing import Optional
-from .data_stream import DataStreamParser
+from .data_stream import DataStreamParser, SnaResponse # Import SnaResponse
 from ..emulation.screen_buffer import ScreenBuffer
-from .utils import send_iac, send_subnegotiation
+from ..emulation.printer_buffer import PrinterBuffer # Import PrinterBuffer
+from .utils import send_iac, send_subnegotiation, TN3270_DATA, TN3270E_SYSREQ, TN3270E_SYSREQ_MESSAGE_TYPE, TN3270E_SYSREQ_ATTN, TN3270E_SYSREQ_BREAK, TN3270E_SYSREQ_CANCEL, TN3270E_SYSREQ_RESTART, TN3270E_SYSREQ_PRINT, TN3270E_SYSREQ_LOGOFF
 from .exceptions import NegotiationError, ProtocolError, ParseError
 from .negotiator import Negotiator
+from .tn3270e_header import TN3270EHeader
 
 logger = logging.getLogger(__name__)
 
@@ -62,9 +64,9 @@ class TN3270Handler:
 
             # Perform negotiation
             await self.negotiator.negotiate()
-            await self.negotiator._negotiate_tn3270()
+            await self.negotiator._negotiate_tn3270(timeout=10.0) # Increased timeout for negotiation
         except Exception as e:
-            logger.error(f"Connection failed: {e}")
+            logger.error(f"Connection failed: {e}", exc_info=True)
             raise ConnectionError(f"Failed to connect: {e}")
 
     def __init__(
@@ -74,6 +76,7 @@ class TN3270Handler:
         ssl_context: Optional[ssl.SSLContext] = None,
         host: str = "localhost",
         port: int = 23,
+        is_printer_session: bool = False, # New parameter for printer session
     ):
         """
         Initialize the TN3270 handler.
@@ -84,6 +87,7 @@ class TN3270Handler:
             ssl_context: Optional SSL context for secure connections.
             host: Target host for connection.
             port: Target port for connection.
+            is_printer_session: True if this handler is for a printer session.
 
         Raises:
             ValueError: If reader or writer is None (when not in test mode).
@@ -94,9 +98,15 @@ class TN3270Handler:
         self.host = host
         self.port = port
         self.screen_buffer = ScreenBuffer()
-        self.parser = DataStreamParser(self.screen_buffer)
+        self.printer_buffer = PrinterBuffer() if is_printer_session else None # Initialize PrinterBuffer if it's a printer session
+
+        # Initialize negotiator first, then pass it to the parser
+        self.negotiator = Negotiator(self.writer, None, self.screen_buffer, self, is_printer_session) # Pass None for parser initially
+        self.parser = DataStreamParser(self.screen_buffer, self.printer_buffer, self.negotiator) # Pass printer_buffer
+        # Now update the negotiator with the parser instance
+        self.negotiator.parser = self.parser
         self._connected = False
-        self.negotiator = Negotiator(self.writer, self.parser, self.screen_buffer, self)
+        self._telnet_buffer = b"" # Buffer for incomplete Telnet sequences
 
     async def negotiate(self) -> None:
         """
@@ -135,7 +145,18 @@ class TN3270Handler:
         if self.writer is None:
             logger.error("Not connected")
             raise ProtocolError("Writer is None; cannot send data.")
-        self.writer.write(data)
+
+        # If DATA-STREAM-CTL is active, prepend TN3270EHeader
+        if self.negotiator.is_data_stream_ctl_active:
+            # For now, default to TN3270_DATA for outgoing messages
+            # In a more complex scenario, this data_type might be passed as an argument
+            header = self.negotiator._outgoing_request("CLIENT_DATA", data_type=TN3270_DATA)
+            data_to_send = header.to_bytes() + data
+            logger.debug(f"Prepending TN3270E header for outgoing data. Header: {header}")
+        else:
+            data_to_send = data
+
+        self.writer.write(data_to_send)
         await self.writer.drain()
 
     async def receive_data(self, timeout: float = 5.0) -> bytes:
@@ -160,13 +181,20 @@ class TN3270Handler:
         try:
             logger.debug(f"Attempting to read data with timeout {timeout}")
             data = await asyncio.wait_for(self.reader.read(4096), timeout=timeout)
-            logger.debug(f"Received {len(data)} bytes of data")
+            logger.debug(f"Received {len(data)} bytes of data: {data.hex()}")
         except asyncio.TimeoutError:
             logger.debug("Timeout while reading data")
             raise
         except Exception as e:
-            logger.error(f"Error reading data: {e}")
+            logger.error(f"Error reading data: {e}", exc_info=True)
             raise
+
+        # Process incoming data, handling IAC sequences and extracting 3270 data
+        processed_data, ascii_mode_detected = await self._process_telnet_stream(data)
+
+        # If ASCII mode was detected by the stream processor, update negotiator
+        if ascii_mode_detected:
+            self.negotiator.set_ascii_mode()
 
         # Check if we're in ASCII mode
         ascii_mode = self.negotiator._ascii_mode
@@ -174,135 +202,145 @@ class TN3270Handler:
             f"Checking ASCII mode: negotiator._ascii_mode = {ascii_mode} on negotiator object {id(self.negotiator)}"
         )
 
-        # Auto-detect ASCII mode based on data content for s3270 compatibility
-        # s3270 automatically switches to ASCII mode when it detects VT100 sequences
-        if not ascii_mode and len(data) > 0:
-            # Check for common VT100 escape sequences that indicate ASCII mode
-            if self._detect_vt100_sequences(data):
-                logger.info(
-                    "Detected VT100 sequences, enabling ASCII mode (s3270 compatibility)"
-                )
-                ascii_mode = True
-                # In s3270 compatibility mode, also set the negotiator ASCII mode
-                self.negotiator._ascii_mode = True
-
         if ascii_mode:
             logger.debug("In ASCII mode, parsing VT100 data")
             # In ASCII mode, parse VT100 escape sequences and update screen buffer
             try:
-                logger.debug(f"Parsing VT100 data ({len(data)} bytes)")
+                logger.debug(f"Parsing VT100 data ({len(processed_data)} bytes)")
                 from .vt100_parser import VT100Parser
 
                 vt100_parser = VT100Parser(self.screen_buffer)
-                vt100_parser.parse(data)
+                vt100_parser.parse(processed_data)
                 logger.debug("VT100 parsing completed successfully")
             except Exception as e:
                 logger.warning(f"Error parsing VT100 data: {e}")
                 import traceback
 
                 logger.warning(f"Traceback: {traceback.format_exc()}")
-            return data
+            return processed_data
         # Parse and update screen buffer (simplified)
         logger.debug("In TN3270 mode, parsing 3270 data")
+        # Extract TN3270E header for data type and sequence number
+        from .tn3270e_header import TN3270EHeader
+        from .utils import TN3270_DATA, SCS_DATA, PRINTER_STATUS_DATA_TYPE
+
+        data_type = TN3270_DATA # Default to TN3270_DATA
+        header_len = 0
+        if len(processed_data) >= 5:
+            tn3270e_header = TN3270EHeader.from_bytes(processed_data[:5])
+            if tn3270e_header:
+                data_type = tn3270e_header.data_type
+                header_len = 5
+                # Log header details if present
+                logger.debug(f"Received TN3270E header: {tn3270e_header}")
+                # Pass the header to the negotiator for correlation
+                self.negotiator._handle_tn3270e_response(tn3270e_header)
+
+                # If it's SCS data, ensure it's routed to the printer buffer
+                if data_type == SCS_DATA and self.printer_buffer:
+                    logger.debug(f"Routing SCS_DATA to printer buffer.")
+                    self.parser.parse(processed_data[header_len:], data_type=data_type)
+                    return processed_data # SCS data doesn't update screen
+                elif data_type == PRINTER_STATUS_DATA_TYPE and self.printer_buffer:
+                    logger.debug(f"Routing PRINTER_STATUS_DATA_TYPE to printer buffer handler.")
+                    self.parser.parse(processed_data[header_len:], data_type=data_type)
+                    return processed_data # Printer status data doesn't update screen
+
+
+        # Pass data type to parser for appropriate handling (e.g., SCS data)
         try:
-            self.parser.parse(data)
+            self.parser.parse(processed_data[header_len:], data_type=data_type)
         except ParseError as e:
             logger.warning(f"Failed to parse received data: {e}")
             # Continue with raw data if parsing fails
-        # Strip EOR if present
-        if b"\xff\x19" in data:
-            data = data.split(b"\xff\x19")[0]
-        return data
+        return processed_data
 
-    def _detect_vt100_sequences(self, data: bytes) -> bool:
+    async def _process_telnet_stream(self, raw_data: bytes) -> (bytes, bool):
         """
-        Detect VT100 escape sequences in data for s3270 compatibility.
+        Process raw Telnet stream, handle IAC sequences, and return 3270 data.
+        This also detects VT100 sequences for s3270 compatibility.
 
         Args:
-            data: Raw data to check for VT100 sequences
+            raw_data: Raw bytes received from the connection.
 
         Returns:
-            True if VT100 sequences detected, False otherwise
+            Tuple of (cleaned_3270_data, ascii_mode_detected).
         """
-        if len(data) < 2:
-            return False
+        from .utils import IAC, SB, SE, WILL, WONT, DO, DONT, EOR, TN3270E, BRK
 
-        # Check for ESC character followed by common VT100 sequences
-        for i in range(len(data) - 1):
-            if data[i] == 0x1B:  # ESC character
-                # Common VT100 sequences:
-                # ESC [ - CSI (Control Sequence Introducer)
-                # ESC ( - Character set designation
-                # ESC ) - Character set designation
-                # ESC # - DEC commands
-                # ESC 7 - Save cursor
-                # ESC 8 - Restore cursor
-                if i + 1 < len(data):
-                    next_char = data[i + 1]
-                    if next_char in [
-                        ord("["),
-                        ord("("),
-                        ord(")"),
-                        ord("#"),
-                        ord("7"),
-                        ord("8"),
-                    ]:
-                        logger.debug(
-                            f"Detected VT100 escape sequence: ESC {chr(next_char) if chr(next_char).isprintable() else f'0x{next_char:02x}'}"
-                        )
-                        return True
-                    # Check for other common sequences
-                    elif next_char in [ord("D"), ord("M"), ord("c")]:  # IND, RI, RIS
-                        logger.debug(
-                            f"Detected VT100 control sequence: ESC {chr(next_char)}"
-                        )
-                        return True
+        cleaned_data = bytearray()
+        i = 0
+        ascii_mode_detected = False
 
-        # Check for other VT100 indicators
-        # Look for escape sequences that are more specific than just printable ASCII
-        # VT100 data often contains control characters mixed with printable ASCII
-        printable_ascii_count = sum(1 for b in data if 0x20 <= b <= 0x7E)
-        control_char_count = sum(1 for b in data if b in [0x0A, 0x0D, 0x09, 0x08, 0x1B])
-        total_chars = len(data)
+        # Add any previously incomplete data to the beginning of the current raw_data
+        full_data = self._telnet_buffer + raw_data
+        self._telnet_buffer = b"" # Clear the buffer
 
-        # Only suggest ASCII mode if we have a mix of printable and control characters
-        # and a reasonable amount of printable text
-        if total_chars > 0:
-            printable_ratio = printable_ascii_count / total_chars
-            control_ratio = control_char_count / total_chars
+        while i < len(full_data):
+            if full_data[i] == IAC:
+                if i + 1 < len(full_data):
+                    command = full_data[i + 1]
+                    if command == IAC:  # Escaped IAC
+                        cleaned_data.append(IAC)
+                        i += 2
+                    elif command == SB:  # Subnegotiation
+                        j = i + 2
+                        # Find IAC SE
+                        while j < len(full_data) and not (
+                            full_data[j] == IAC and j + 1 < len(full_data) and full_data[j + 1] == SE
+                        ):
+                            j += 1
+                        if j + 1 < len(full_data) and full_data[j + 1] == SE:
+                            # Found IAC SE
+                            sub_option = full_data[i + 2] if i + 2 < j else None
+                            sub_data = full_data[i + 3 : j]
 
-            # Require both printable text and some control characters for VT100 detection
-            # Also require a minimum amount of printable text
-            if (
-                printable_ratio > 0.5
-                and control_ratio > 0.05
-                and printable_ascii_count > 10
-            ):
-                logger.debug(
-                    f"Mixed ASCII/control character pattern suggests ASCII mode: "
-                    f"printable={printable_ratio:.2f}, control={control_ratio:.2f}"
-                )
-                return True
+                            # Pass all subnegotiations to the negotiator for handling
+                            await self.negotiator.handle_subnegotiation(sub_option, sub_data)
+                            i = j + 2
+                        else:
+                            # Incomplete subnegotiation, buffer remaining data
+                            self._telnet_buffer = full_data[i:]
+                            break
+                    elif command in (DO, DONT, WILL, WONT):
+                        if i + 2 < len(full_data):
+                            option = full_data[i + 2]
+                            await self.negotiator.handle_iac_command(command, option) # Await this call
+                            i += 3
+                        else:
+                            # Incomplete command, buffer remaining data
+                            self._telnet_buffer = full_data[i:]
+                            break
+                    elif command == EOR: # End of Record
+                        logger.debug("Received IAC EOR")
+                        i += 2
+                    elif command == TN3270E: # TN3270E option (should be handled by subnegotiation)
+                        logger.debug("Received TN3270E option")
+                        i += 2
+                    elif command == BRK: # Break command
+                        logger.debug("Received IAC BRK")
+                        # Handle BREAK command - for now, just log it
+                        # In a more complete implementation, this might trigger some specific behavior
+                        i += 2
+                    else:
+                        logger.debug(f"Unhandled IAC command: 0x{command:02x}")
+                        i += 2
+                else:
+                    # Incomplete IAC sequence, buffer remaining data
+                    self._telnet_buffer = full_data[i:]
+                    break
+            else:
+                cleaned_data.append(full_data[i])
+                i += 1
 
-            # Or if we have high density of printable ASCII with ESC characters
-            esc_count = data.count(0x1B)
-            if esc_count > 0 and printable_ratio > 0.6:
-                logger.debug(
-                    f"ESC characters with high ASCII density ({esc_count} ESC chars, "
-                    f"printable={printable_ratio:.2f}) suggests ASCII mode"
-                )
-                return True
+        # Detect VT100 sequences in the *original* raw data for s3270 compatibility
+        # This method is not implemented here but is a placeholder for future
+        # compatibility with s3270's VT100 detection.
+        # if not ascii_mode_detected and self._detect_vt100_sequences(raw_data):
+        #     ascii_mode_detected = True
 
-            # Or if we have very high density of printable ASCII characters (indicates ASCII terminal)
-            # This is for systems that deliver their interface as plain ASCII text
-            if printable_ratio > 0.8 and printable_ascii_count > 50:
-                logger.debug(
-                    f"Very high ASCII character density ({printable_ratio:.2f}) "
-                    f"suggests ASCII terminal mode"
-                )
-                return True
+        return bytes(cleaned_data), ascii_mode_detected
 
-        return False
 
     async def send_scs_data(self, scs_data: bytes) -> None:
         """
@@ -328,6 +366,98 @@ class TN3270Handler:
         await self.writer.drain()
         logger.debug(f"Sent {len(scs_data)} bytes of SCS data")
 
+    async def send_printer_status_sf(self, status_code: int) -> None:
+        """
+        Send a Printer Status Structured Field to the host.
+
+        Args:
+            status_code: The status code to send (e.g., DEVICE_END, INTERVENTION_REQUIRED).
+
+        Raises:
+            ProtocolError: If not connected or writer is None.
+        """
+        if not self._connected:
+            raise ProtocolError("Not connected")
+        if self.writer is None:
+            raise ProtocolError("Writer is None; cannot send printer status SF.")
+
+        from .data_stream import DataStreamSender
+        sender = DataStreamSender()
+        status_sf = sender.build_printer_status_sf(status_code)
+        self.writer.write(status_sf)
+        await self.writer.drain()
+        logger.debug(f"Sent Printer Status SF: 0x{status_code:02x}")
+
+    async def send_sysreq_command(self, command_code: int) -> None:
+        """
+        Send a SYSREQ command to the host.
+
+        Args:
+            command_code: The byte code representing the SYSREQ command.
+        """
+        if not self._connected:
+            raise ProtocolError("Not connected")
+        if self.writer is None:
+            raise ProtocolError("Writer is None; cannot send SYSREQ command.")
+
+        if not (self.negotiator.negotiated_functions & TN3270E_SYSREQ):
+            logger.warning(f"SYSREQ function not negotiated. Cannot send command 0x{command_code:02x}")
+            # Fallback to Telnet ATTN if the command is ATTN and SYSREQ is not negotiated
+            if command_code == TN3270E_SYSREQ_ATTN:
+                logger.info("Falling back to Telnet ATTN (IAC IP).")
+                send_iac(self.writer, b"\xf7") # IAC IP
+                await self.writer.drain()
+                return
+            else:
+                raise ProtocolError(f"SYSREQ function not negotiated for command 0x{command_code:02x}")
+
+        # Construct TN3270E SYSREQ subnegotiation
+        # IAC SB TN3270E SYSREQ_MESSAGE_TYPE SYSREQ_COMMAND_CODE IAC SE
+        sub_data = bytes([TN3270E_SYSREQ_MESSAGE_TYPE, command_code])
+        send_subnegotiation(self.writer, bytes([0x28]), sub_data) # 0x28 is TN3270E option
+        await self.writer.drain()
+        logger.debug(f"Sent TN3270E SYSREQ command: 0x{command_code:02x}")
+
+
+    async def send_break(self) -> None:
+        """
+        Send a Telnet BREAK command (IAC BRK) to the host.
+
+        Raises:
+            ProtocolError: If not connected or writer is None.
+        """
+        if not self._connected:
+            raise ProtocolError("Not connected")
+        if self.writer is None:
+            raise ProtocolError("Writer is None; cannot send BREAK command.")
+
+        from .utils import IAC, BRK
+        send_iac(self.writer, bytes([BRK]))
+        await self.writer.drain()
+        logger.debug("Sent Telnet BREAK command (IAC BRK)")
+
+    async def send_soh_message(self, status_code: int) -> None:
+        """
+        Send an SOH (Start of Header) message for printer status to the host.
+
+        Args:
+            status_code: The status code to send (e.g., SOH_SUCCESS, SOH_DEVICE_END).
+
+        Raises:
+            ProtocolError: If not connected or writer is None.
+        """
+        if not self._connected:
+            raise ProtocolError("Not connected")
+        if self.writer is None:
+            raise ProtocolError("Writer is None; cannot send SOH message.")
+
+        from .data_stream import DataStreamSender
+        sender = DataStreamSender()
+        soh_message = sender.build_soh_message(status_code)
+        self.writer.write(soh_message)
+        await self.writer.drain()
+        logger.debug(f"Sent SOH message with status: 0x{status_code:02x}")
+
     async def send_print_eoj(self) -> None:
         """
         Send PRINT-EOJ (End of Job) command for printer sessions.
@@ -352,23 +482,6 @@ class TN3270Handler:
         self.writer.write(eoj_command)
         await self.writer.drain()
         logger.debug("Sent PRINT-EOJ command")
-
-    async def _read_iac(self) -> bytes:
-        """
-        Read IAC (Interpret As Command) sequence.
-
-        Returns:
-            IAC response bytes.
-
-        Raises:
-            ParseError: If IAC parsing fails.
-        """
-        if self.reader is None:
-            raise ProtocolError("Reader is None; cannot read IAC.")
-        iac = await self.reader.readexactly(3)
-        if iac[0] != 0xFF:
-            raise ParseError("Invalid IAC sequence")
-        return iac
 
     async def close(self) -> None:
         """Close the connection."""
@@ -438,3 +551,13 @@ class TN3270Handler:
     def is_printer_session(self, value: bool) -> None:
         """Set printer session status."""
         self.negotiator.is_printer_session = value
+
+    @property
+    def printer_status(self) -> Optional[int]:
+        """Get the current printer status."""
+        return self.negotiator.printer_status
+
+    @property
+    def sna_session_state(self) -> str:
+        """Get the current SNA session state."""
+        return self.negotiator.current_sna_session_state.value
