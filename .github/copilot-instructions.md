@@ -13,7 +13,7 @@ Set up the development environment:
 # Create and activate virtual environment
 python -m venv .venv
 source .venv/bin/activate  # Unix/macOS
-# .venv\Scripts\activate   # Windows
+# .venv/Scripts/activate   # Windows
 
 # Install package in editable mode (takes ~3 seconds)
 pip install -e .
