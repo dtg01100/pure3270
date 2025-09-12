@@ -272,3 +272,82 @@ def test_read_modified_fields_after_change(screen_buffer, ebcdic_codec):
         screen_buffer.write_char(0xC1 + i, 0, i)
     assert screen_buffer.buffer[pos : pos + 5] == b"\xc1\xc2\xc3\xc4\xc5"
     assert field.modified is True
+
+# Tests for IC and PT orders
+def test_move_cursor_to_first_input_field(screen_buffer):
+    # Set up fields
+    screen_buffer.fields = [
+        Field((0, 0), (0, 5), protected=True), # Protected field
+        Field((1, 0), (1, 5), protected=False), # Input field 1
+        Field((2, 0), (2, 5), protected=True), # Protected field
+        Field((3, 0), (3, 5), protected=False)  # Input field 2
+    ]
+    
+    screen_buffer.move_cursor_to_first_input_field()
+    assert screen_buffer.cursor_row == 1
+    assert screen_buffer.cursor_col == 0
+
+def test_move_cursor_to_first_input_field_no_input_fields(screen_buffer):
+    # Set up only protected fields
+    screen_buffer.fields = [
+        Field((0, 0), (0, 5), protected=True),
+        Field((1, 0), (1, 5), protected=True)
+    ]
+    
+    # Cursor should remain at its current position (default 0,0) or not change
+    screen_buffer.move_cursor_to_first_input_field()
+    assert screen_buffer.cursor_row == 0
+    assert screen_buffer.cursor_col == 0
+
+def test_move_cursor_to_next_input_field(screen_buffer):
+    # Set up fields
+    screen_buffer.fields = [
+        Field((0, 0), (0, 5), protected=True),
+        Field((1, 0), (1, 5), protected=False), # Input field 1
+        Field((2, 0), (2, 5), protected=True),
+        Field((3, 0), (3, 5), protected=False)  # Input field 2
+    ]
+    
+    # Set initial cursor position before the first input field
+    screen_buffer.set_position(0, 0)
+    screen_buffer.move_cursor_to_next_input_field()
+    assert screen_buffer.cursor_row == 1
+    assert screen_buffer.cursor_col == 0
+
+    # Move from input field 1 to input field 2
+    screen_buffer.set_position(1, 0)
+    screen_buffer.move_cursor_to_next_input_field()
+    assert screen_buffer.cursor_row == 3
+    assert screen_buffer.cursor_col == 0
+
+    # Move from input field 2, should wrap around to input field 1
+    screen_buffer.set_position(3, 0)
+    screen_buffer.move_cursor_to_next_input_field()
+    assert screen_buffer.cursor_row == 1
+    assert screen_buffer.cursor_col == 0
+
+def test_move_cursor_to_next_input_field_no_input_fields(screen_buffer):
+    # Set up only protected fields
+    screen_buffer.fields = [
+        Field((0, 0), (0, 5), protected=True),
+        Field((1, 0), (1, 5), protected=True)
+    ]
+    
+    # Cursor should remain at its current position (default 0,0) or not change
+    screen_buffer.move_cursor_to_next_input_field()
+    assert screen_buffer.cursor_row == 0
+    assert screen_buffer.cursor_col == 0
+
+def test_move_cursor_to_next_input_field_single_input_field_wraps_around(screen_buffer):
+    # Set up a single input field
+    screen_buffer.fields = [
+        Field((0, 0), (0, 5), protected=True),
+        Field((1, 0), (1, 5), protected=False), # Only input field
+        Field((2, 0), (2, 5), protected=True)
+    ]
+    
+    # Set cursor to the single input field
+    screen_buffer.set_position(1, 0)
+    screen_buffer.move_cursor_to_next_input_field()
+    assert screen_buffer.cursor_row == 1
+    assert screen_buffer.cursor_col == 0
