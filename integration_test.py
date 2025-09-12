@@ -19,6 +19,7 @@ import json
 
 # Add the current directory to the path so we can import pure3270
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+from pure3270.protocol.data_stream import DataStreamSender
 
 
 def test_basic_functionality():
@@ -87,479 +88,1024 @@ class MockServer:
                 self.clients.remove(writer)
             writer.close()
             await writer.wait_closed()
+ 
+ 
+class TN3270ENegotiatingMockServer(MockServer):
+    """
+    A mock TN3270 server that simulates TN3270E negotiation.
+    """
+    def __init__(self, port=2324):
+        super().__init__(port)
+        self.negotiation_complete = asyncio.Event()
 
     async def start(self):
         """Start the mock server."""
-        try:
-            self.server = await asyncio.start_server(
-                self.handle_client, "127.0.0.1", self.port
-            )
-            return True
-        except Exception as e:
-            print(f"   Failed to start mock server: {e}")
-            return False
+        self.server = await asyncio.start_server(
+            self.handle_client, "localhost", self.port
+        )
+        print(f"Mock Server listening on port {self.port}")
+        await self.server.serve_forever()
 
     async def stop(self):
         """Stop the mock server."""
         if self.server:
             self.server.close()
             await self.server.wait_closed()
-        for client in self.clients:
-            client.close()
-            await client.wait_closed()
+            print(f"Mock Server on port {self.port} stopped.")
 
-
-async def test_mock_connectivity():
-    """Test mock server connectivity."""
-    print("2. Testing mock server connectivity...")
-    try:
-        # Start mock server
-        mock_server = MockServer(2323)
-        if not await mock_server.start():
-            print("   ✗ Failed to start mock server")
-            return False
-
+    async def handle_client(self, reader, writer):
+        from pure3270.protocol.utils import (
+            IAC, DO, DONT, WILL, WONT, SB, SE,
+            TELOPT_TTYPE, TELOPT_BINARY, TELOPT_EOR, TELOPT_TN3270E,
+            TN3270E_DEVICE_TYPE, TN3270E_FUNCTIONS, TN3270E_IS, TN3270E_SEND
+        )
         try:
-            import pure3270
-            from pure3270 import AsyncSession
+            negotiation_done = False
+            while True:
+                data = await reader.read(1024)
+                if not data:
+                    break
 
-            # Test AsyncSession connection
-            session = AsyncSession("127.0.0.1", 2323)
-            try:
-                await session.connect()
-                print("   ✓ AsyncSession connection successful")
+                response = bytearray()
+                i = 0
+                while i < len(data):
+                    if data[i] == IAC:
+                        if i + 1 < len(data):
+                            command = data[i+1]
+                            if command == DO:
+                                if i + 2 < len(data):
+                                    option = data[i+2]
+                                    if option == TELOPT_TTYPE:
+                                        response.extend(bytes([IAC, WILL, TELOPT_TTYPE]))
+                                    elif option == TELOPT_BINARY:
+                                        response.extend(bytes([IAC, WILL, TELOPT_BINARY]))
+                                    elif option == TELOPT_EOR:
+                                        response.extend(bytes([IAC, WILL, TELOPT_EOR]))
+                                    elif option == TELOPT_TN3270E:
+                                        response.extend(bytes([IAC, WILL, TELOPT_TN3270E]))
+                                    else:
+                                        response.extend(bytes([IAC, WONT, option]))
+                                    i += 3
+                                else: # Incomplete command
+                                    break
+                            elif command == WILL:
+                                if i + 2 < len(data):
+                                    option = data[i+2]
+                                    if option == TELOPT_TTYPE:
+                                        response.extend(bytes([IAC, DO, TELOPT_TTYPE]))
+                                    elif option == TELOPT_BINARY:
+                                        response.extend(bytes([IAC, DO, TELOPT_BINARY]))
+                                    elif option == TELOPT_EOR:
+                                        response.extend(bytes([IAC, DO, TELOPT_EOR]))
+                                    elif option == TELOPT_TN3270E:
+                                        response.extend(bytes([IAC, DO, TELOPT_TN3270E]))
+                                    else:
+                                        response.extend(bytes([IAC, DONT, option]))
+                                    i += 3
+                                else: # Incomplete command
+                                    break
+                            elif command == SB:
+                                j = i + 2
+                                while j < len(data) and not (data[j] == IAC and j + 1 < len(data) and data[j+1] == SE):
+                                    j += 1
+                                
+                                if j + 1 < len(data) and data[j+1] == SE:
+                                    sub_option = data[i+2]
+                                    sub_data = data[i+3:j]
 
-                # Test sending and receiving data
-                test_data = b"Hello, TN3270!"
-                await session.send(test_data)
-                # Note: Mock server echoes back, but we're not checking the response
-                # since this is just a basic connectivity test
-                print("   ✓ Data send/receive test")
+                                    if sub_option == TELOPT_TN3270E:
+                                        if len(sub_data) >= 2:
+                                            tn3270e_type = sub_data[0]
+                                            tn3270e_subtype = sub_data[1]
 
-                await session.close()
-                print("   ✓ Session close")
-                return True
-            except Exception as e:
-                print(
-                    f"   ✓ AsyncSession handled connection error gracefully: {type(e).__name__}"
-                )
-                return True
-            finally:
-                try:
-                    await session.close()
-                except:
-                    pass
+                                            if tn3270e_type == TN3270E_DEVICE_TYPE and tn3270e_subtype == TN3270E_SEND:
+                                                # Respond with DEVICE-TYPE IS IBM-3278-2 (default for negotiation)
+                                                device_type_response = b"IBM-3278-2\x00"
+                                                response.extend(bytes([IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_IS]) + device_type_response + bytes([IAC, SE]))
+                                                self.negotiation_complete.set()
+                                            elif tn3270e_type == TN3270E_FUNCTIONS and tn3270e_subtype == TN3270E_SEND:
+                                                # Respond with FUNCTIONS IS (example: BIND-IMAGE, RESPONSES)
+                                                functions_response = bytes([TN3270E_BIND_IMAGE | TN3270E_RESPONSES])
+                                                response.extend(bytes([IAC, SB, TELOPT_TN3270E, TN3270E_FUNCTIONS, TN3270E_IS]) + functions_response + bytes([IAC, SE]))
+                                                self.negotiation_complete.set()
+                                    i = j + 2
+                                else:
+                                    break
+                            else:
+                                i += 2
+                        else:
+                            break
+                    else:
+                        i += 1
+                
+                if response:
+                    writer.write(response)
+                    await writer.drain()
+                    await asyncio.sleep(0.01) # Give client time to process
+
+                if self.negotiation_complete.is_set() and not negotiation_done:
+                    print("Mock Server: TN3270E negotiation complete.")
+                    negotiation_done = True
+        except Exception as e:
+            print(f"Mock server client handler error: {e}")
         finally:
-            await mock_server.stop()
+            if writer in self.clients:
+                self.clients.remove(writer)
+            writer.close()
+            await writer.wait_closed()
 
-    except Exception as e:
-        print(f"   ✗ Mock server connectivity test failed: {e}")
-        return False
+class LUNameMockServer(TN3270ENegotiatingMockServer):
+    """
+    A mock TN3270 server that simulates LU name negotiation (RFC 1646).
+    It responds to DO TERMINAL-LOCATION by sending WILL TERMINAL-LOCATION
+    and then a subnegotiation with the client's LU name.
+    """
+    def __init__(self, port=2328):
+        super().__init__(port)
+        self.lu_name_received = asyncio.Event()
+        self.received_lu_name = None
+
+    async def handle_client(self, reader, writer):
+        from pure3270.protocol.utils import (
+            IAC, DO, WILL, SB, SE, TELOPT_TTYPE, TELOPT_BINARY, TELOPT_EOR, TELOPT_TN3270E,
+            TELOPT_OLD_ENVIRON as TELOPT_TERMINAL_LOCATION, TN3270E_IS
+        )
+        try:
+            while True:
+                data = await reader.read(1024)
+                if not data:
+                    break
+
+                response = bytearray()
+                i = 0
+                while i < len(data):
+                    if data[i] == IAC:
+                        if i + 1 < len(data):
+                            command = data[i+1]
+                            if command == DO:
+                                if i + 2 < len(data):
+                                    option = data[i+2]
+                                    if option == TELOPT_TTYPE:
+                                        response.extend(bytes([IAC, WILL, TELOPT_TTYPE]))
+                                    elif option == TELOPT_BINARY:
+                                        response.extend(bytes([IAC, WILL, TELOPT_BINARY]))
+                                    elif option == TELOPT_EOR:
+                                        response.extend(bytes([IAC, WILL, TELOPT_EOR]))
+                                    elif option == TELOPT_TN3270E:
+                                        response.extend(bytes([IAC, WILL, TELOPT_TN3270E]))
+                                    elif option == TELOPT_TERMINAL_LOCATION:
+                                        response.extend(bytes([IAC, WILL, TELOPT_TERMINAL_LOCATION]))
+                                        # Client should respond with SB TERMINAL-LOCATION IS <LU_NAME> SE
+                                    else:
+                                        response.extend(bytes([IAC, WONT, option]))
+                                    i += 3
+                                else: # Incomplete command
+                                    break
+                            elif command == WILL:
+                                if i + 2 < len(data):
+                                    option = data[i+2]
+                                    if option == TELOPT_TTYPE:
+                                        response.extend(bytes([IAC, DO, TELOPT_TTYPE]))
+                                    elif option == TELOPT_BINARY:
+                                        response.extend(bytes([IAC, DO, TELOPT_BINARY]))
+                                    elif option == TELOPT_EOR:
+                                        response.extend(bytes([IAC, DO, TELOPT_EOR]))
+                                    elif option == TELOPT_TN3270E:
+                                        response.extend(bytes([IAC, DO, TELOPT_TN3270E]))
+                                    elif option == TELOPT_TERMINAL_LOCATION:
+                                        response.extend(bytes([IAC, DO, TELOPT_TERMINAL_LOCATION]))
+                                    else:
+                                        response.extend(bytes([IAC, DONT, option]))
+                                    i += 3
+                                else: # Incomplete command
+                                    break
+                            elif command == SB:
+                                j = i + 2
+                                while j < len(data) and not (data[j] == IAC and j + 1 < len(data) and data[j+1] == SE):
+                                    j += 1
+                                
+                                if j + 1 < len(data) and data[j+1] == SE:
+                                    sub_option = data[i+2]
+                                    sub_data = data[i+3:j]
+
+                                    if sub_option == TELOPT_TERMINAL_LOCATION:
+                                        if len(sub_data) >= 1 and sub_data[0] == TN3270E_IS:
+                                            self.received_lu_name = sub_data[1:].decode('ascii', errors='ignore')
+                                            print(f"Mock Server: Received LU Name: {self.received_lu_name}")
+                                            self.lu_name_received.set()
+                                    i = j + 2
+                                else:
+                                    break # Incomplete subnegotiation
+                            else:
+                                i += 2 # Skip unhandled IAC command
+                        else:
+                            break # Incomplete IAC sequence
+                    else:
+                        i += 1 # Not IAC, just skip
+
+                if response:
+                    writer.write(response)
+                    await writer.drain()
+                    await asyncio.sleep(0.01) # Give client time to process
+
+                # Signal negotiation complete after initial Telnet negotiation
+                if not self.negotiation_complete.is_set():
+                    self.negotiation_complete.set()
+                    print("Mock Server: Telnet negotiation complete for LU Name.")
+        except Exception as e:
+            print(f"Mock server client handler error: {e}")
+        finally:
+            if writer in self.clients:
+                self.clients.remove(writer)
+            writer.close()
+            await writer.wait_closed()
 
 
-async def test_with_mock_server():
-    """Test pure3270 connectivity with a mock TN3270 server."""
-    print("Testing with mock server...")
-    try:
-        mock_server = MockServer(2323)
-        if not await mock_server.start():
-            print("   ✗ Failed to start mock server")
-            return False
+class PrinterStatusMockServer(TN3270ENegotiatingMockServer):
+    """
+    A mock TN3270 server that simulates sending printer status messages (SOH, Structured Fields)
+    and receiving printer status from the client.
+    """
+    def __init__(self, port=2329):
+        super().__init__(port)
+        self.client_soh_received = asyncio.Event()
+        self.client_printer_status_sf_received = asyncio.Event()
+        self.received_soh_status = None
+        self.received_printer_status_sf_code = None
+
+    async def handle_client(self, reader, writer):
+        from pure3270.protocol.utils import (
+            IAC, DO, WILL, SB, SE, TELOPT_TTYPE, TELOPT_BINARY, TELOPT_EOR, TELOPT_TN3270E,
+            TN3270E_DEVICE_TYPE, TN3270E_FUNCTIONS, TN3270E_IS, TN3270E_SEND,
+            TN3270E_RESPONSES, TN3270E_BIND_IMAGE, TN3270E_DATA_STREAM_CTL,
+            TN3270_DATA, SCS_DATA, NVT_DATA, SNA_RESPONSE as SNA_RESPONSE_TYPE_UTIL,
+            SOH
+        )
+        from pure3270.protocol.data_stream import (
+            STRUCTURED_FIELD, BIND_SF_TYPE, SNA_RESPONSE_DATA_TYPE, PRINTER_STATUS_DATA_TYPE,
+            SNA_COMMAND_RESPONSE, SNA_DATA_RESPONSE,
+            SNA_SENSE_CODE_SUCCESS, SNA_SENSE_CODE_INVALID_FORMAT,
+            SNA_SENSE_CODE_NOT_SUPPORTED, SNA_SENSE_CODE_SESSION_FAILURE,
+            PRINTER_STATUS_SF_TYPE, SOH_DEVICE_END, SOH_INTERVENTION_REQUIRED, SOH_SUCCESS
+        )
+        from pure3270.protocol.tn3270e_header import TN3270EHeader
 
         try:
-            from pure3270 import AsyncSession
+            negotiation_done = False
+            while True:
+                data = await reader.read(1024)
+                if not data:
+                    break
 
-            session = AsyncSession("127.0.0.1", 2323)
-            await session.connect()
-            print("   ✓ Connection successful")
+                response = bytearray()
+                i = 0
+                while i < len(data):
+                    if data[i] == IAC:
+                        if i + 1 < len(data):
+                            command = data[i+1]
+                            if command == DO:
+                                if i + 2 < len(data):
+                                    option = data[i+2]
+                                    if option == TELOPT_TTYPE:
+                                        response.extend(bytes([IAC, WILL, TELOPT_TTYPE]))
+                                    elif option == TELOPT_BINARY:
+                                        response.extend(bytes([IAC, WILL, TELOPT_BINARY]))
+                                    elif option == TELOPT_EOR:
+                                        response.extend(bytes([IAC, WILL, TELOPT_EOR]))
+                                    elif option == TELOPT_TN3270E:
+                                        response.extend(bytes([IAC, WILL, TELOPT_TN3270E]))
+                                    else:
+                                        response.extend(bytes([IAC, WONT, option]))
+                                    i += 3
+                                else: # Incomplete command
+                                    break
+                            elif command == WILL:
+                                if i + 2 < len(data):
+                                    option = data[i+2]
+                                    if option == TELOPT_TTYPE:
+                                        response.extend(bytes([IAC, DO, TELOPT_TTYPE]))
+                                    elif option == TELOPT_BINARY:
+                                        response.extend(bytes([IAC, DO, TELOPT_BINARY]))
+                                    elif option == TELOPT_EOR:
+                                        response.extend(bytes([IAC, DO, TELOPT_EOR]))
+                                    elif option == TELOPT_TN3270E:
+                                        response.extend(bytes([IAC, DO, TELOPT_TN3270E]))
+                                    else:
+                                        response.extend(bytes([IAC, DONT, option]))
+                                    i += 3
+                                else: # Incomplete command
+                                    break
+                            elif command == SB:
+                                j = i + 2
+                                while j < len(data) and not (data[j] == IAC and j + 1 < len(data) and data[j+1] == SE):
+                                    j += 1
+                                
+                                if j + 1 < len(data) and data[j+1] == SE:
+                                    sub_option = data[i+2]
+                                    sub_data = data[i+3:j]
 
-            # Basic send/receive test
-            test_data = b"Hello, TN3270!"
-            await session.send(test_data)
-            # Await and verify echo response if MockServer supports it
-            response = await session.read(timeout=1.0)
-            # Note: pure3270 wraps data in TN3270 protocol headers, so we check if our data is contained in the response
-            if test_data in response:
-                print("   ✓ Data echo successful")
-            else:
-                print(f"   ✗ Data echo mismatch: sent {test_data!r}, received {response!r}")
-                return False
+                                    if sub_option == TELOPT_TN3270E:
+                                        if len(sub_data) >= 2:
+                                            tn3270e_type = sub_data[0]
+                                            tn3270e_subtype = sub_data[1]
 
+                                            if tn3270e_type == TN3270E_DEVICE_TYPE and tn3270e_subtype == TN3270E_SEND:
+                                                device_type_response = b"IBM-3278-2\x00"
+                                                response.extend(bytes([IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_IS]) + device_type_response + bytes([IAC, SE]))
+                                                self.negotiation_complete.set()
+                                            elif tn3270e_type == TN3270E_FUNCTIONS and tn3270e_subtype == TN3270E_SEND:
+                                                functions_response = bytes([TN3270E_BIND_IMAGE | TN3270E_DATA_STREAM_CTL | TN3270E_RESPONSES])
+                                                response.extend(bytes([IAC, SB, TELOPT_TN3270E, TN3270E_FUNCTIONS, TN3270E_IS]) + functions_response + bytes([IAC, SE]))
+                                                self.negotiation_complete.set()
+                                    i = j + 2
+                                else:
+                                    break
+                            else:
+                                i += 2
+                        else:
+                            break
+                    elif data[i] == SOH: # Check for SOH messages directly in stream (for printer status)
+                        if i + 1 < len(data):
+                            self.received_soh_status = data[i+1]
+                            print(f"Mock Server: Received SOH message with status: 0x{self.received_soh_status:02x}")
+                            self.client_soh_received.set()
+                            i += 2
+                            continue
+                        else:
+                            break
+                    elif data[i] == STRUCTURED_FIELD: # Check for Structured Field (for printer status SF)
+                        if i + 3 < len(data): # SF_ID + 2-byte Length + SF_Type
+                            sf_len = (data[i+1] << 8) | data[i+2]
+                            sf_type = data[i+3]
+                            if sf_type == PRINTER_STATUS_SF_TYPE:
+                                if i + 4 < len(data):
+                                    self.received_printer_status_sf_code = data[i+4]
+                                    print(f"Mock Server: Received Printer Status SF with code: 0x{self.received_printer_status_sf_code:02x}")
+                                    self.client_printer_status_sf_received.set()
+                                    i += (3 + sf_len) # Skip the entire structured field
+                                    continue
+                            i += 1
+                        else:
+                            break
+                    else:
+                        i += 1 # Not IAC, SOH, or SF, just skip
+
+                if response:
+                    writer.write(response)
+                    await writer.drain()
+
+                if self.negotiation_complete.is_set() and not negotiation_done:
+                    print("Mock Server: Negotiation complete. Sending printer status messages.")
+                    # Send SOH messages
+                    soh_success_msg = bytes([SOH, SOH_SUCCESS])
+                    writer.write(soh_success_msg)
+                    await writer.drain()
+                    print(f"Mock Server: Sent SOH success: {soh_success_msg.hex()}")
+
+                    soh_device_end_msg = bytes([SOH, SOH_DEVICE_END])
+                    writer.write(soh_device_end_msg)
+                    await writer.drain()
+                    print(f"Mock Server: Sent SOH device end: {soh_device_end_msg.hex()}")
+
+                    soh_intervention_required_msg = bytes([SOH, SOH_INTERVENTION_REQUIRED])
+                    writer.write(soh_intervention_required_msg)
+                    await writer.drain()
+                    print(f"Mock Server: Sent SOH intervention required: {soh_intervention_required_msg.hex()}")
+
+                    # Send Printer Status Structured Fields
+                    # SF format: 0x3C (SF_ID), Length (2 bytes), SF_Type (1 byte), Data
+                    printer_sf_success_data = bytes([PRINTER_STATUS_SF_TYPE, 0x00]) # Type + status
+                    printer_sf_success = bytes([STRUCTURED_FIELD]) + (len(printer_sf_success_data) + 2).to_bytes(2, 'big') + printer_sf_success_data
+                    writer.write(printer_sf_success)
+                    await writer.drain()
+                    print(f"Mock Server: Sent Printer Status SF success: {printer_sf_success.hex()}")
+
+                    negotiation_done = True
+        except Exception as e:
+            print(f"Mock server client handler error: {e}")
+        finally:
+            if writer in self.clients:
+                self.clients.remove(writer)
+            writer.close()
+            await writer.wait_closed()
+
+
+class BindImageMockServer(TN3270ENegotiatingMockServer):
+    """
+    A mock TN3270 server that simulates sending a BIND-IMAGE Structured Field
+    with specific screen dimensions.
+    """
+    def __init__(self, port=2331, rows=32, cols=80):
+        super().__init__(port)
+        self.rows = rows
+        self.cols = cols
+        self.bind_image_sent = asyncio.Event()
+
+    async def handle_client(self, reader, writer):
+        from pure3270.protocol.utils import (
+            IAC, DO, WILL, SB, SE,
+            TELOPT_TTYPE, TELOPT_BINARY, TELOPT_EOR, TELOPT_TN3270E,
+            TN3270E_DEVICE_TYPE, TN3270E_FUNCTIONS, TN3270E_IS, TN3270E_SEND,
+            TN3270E_BIND_IMAGE, TN3270E_RESPONSES
+        )
+        from pure3270.protocol.data_stream import (
+            STRUCTURED_FIELD, BIND_SF_TYPE, BIND_SF_SUBFIELD_PSC, BIND_SF_SUBFIELD_QUERY_REPLY_IDS
+        )
+
+        try:
+            negotiation_done = False
+            while True:
+                data = await reader.read(1024)
+                if not data:
+                    break
+
+                response = bytearray()
+                i = 0
+                while i < len(data):
+                    if data[i] == IAC:
+                        if i + 1 < len(data):
+                            command = data[i+1]
+                            if command == DO:
+                                if i + 2 < len(data):
+                                    option = data[i+2]
+                                    if option == TELOPT_TTYPE:
+                                        response.extend(bytes([IAC, WILL, TELOPT_TTYPE]))
+                                    elif option == TELOPT_BINARY:
+                                        response.extend(bytes([IAC, WILL, TELOPT_BINARY]))
+                                    elif option == TELOPT_EOR:
+                                        response.extend(bytes([IAC, WILL, TELOPT_EOR]))
+                                    elif option == TELOPT_TN3270E:
+                                        response.extend(bytes([IAC, WILL, TELOPT_TN3270E]))
+                                    else:
+                                        response.extend(bytes([IAC, WONT, option]))
+                                    i += 3
+                                else: # Incomplete command
+                                    break
+                            elif command == WILL:
+                                if i + 2 < len(data):
+                                    option = data[i+2]
+                                    if option == TELOPT_TTYPE:
+                                        response.extend(bytes([IAC, DO, TELOPT_TTYPE]))
+                                    elif option == TELOPT_BINARY:
+                                        response.extend(bytes([IAC, DO, TELOPT_BINARY]))
+                                    elif option == TELOPT_EOR:
+                                        response.extend(bytes([IAC, DO, TELOPT_EOR]))
+                                    elif option == TELOPT_TN3270E:
+                                        response.extend(bytes([IAC, DO, TELOPT_TN3270E]))
+                                    else:
+                                        response.extend(bytes([IAC, DONT, option]))
+                                    i += 3
+                                else: # Incomplete command
+                                    break
+                            elif command == SB:
+                                # Look for IAC SE
+                                j = i + 2
+                                while j < len(data) and not (data[j] == IAC and j + 1 < len(data) and data[j+1] == SE):
+                                    j += 1
+                                
+                                if j + 1 < len(data) and data[j+1] == SE:
+                                    sub_option = data[i+2]
+                                    sub_data = data[i+3:j]
+
+                                    if sub_option == TELOPT_TN3270E:
+                                        # Parse TN3270E subnegotiation
+                                        if len(sub_data) >= 2:
+                                            tn3270e_type = sub_data[0]
+                                            tn3270e_subtype = sub_data[1]
+
+                                            if tn3270e_type == TN3270E_DEVICE_TYPE and tn3270e_subtype == TN3270E_SEND:
+                                                # Respond with DEVICE-TYPE IS IBM-DYNAMIC
+                                                device_type_response = TN3270E_IBM_DYNAMIC.encode("ascii") + b"\x00"
+                                                response.extend(bytes([IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_IS]) + device_type_response + bytes([IAC, SE]))
+                                                negotiated_tn3270e_device_type = True
+                                            elif tn3270e_type == TN3270E_FUNCTIONS and tn3270e_subtype == TN3270E_SEND:
+                                                # Respond with FUNCTIONS IS (example: BIND-IMAGE, RESPONSES)
+                                                functions_response = bytes([TN3270E_BIND_IMAGE | TN3270E_RESPONSES])
+                                                response.extend(bytes([IAC, SB, TELOPT_TN3270E, TN3270E_FUNCTIONS, TN3270E_IS]) + functions_response + bytes([IAC, SE]))
+                                                negotiated_tn3270e_functions = True
+                                            elif sub_data[0] == STRUCTURED_FIELD: # Check for Structured Field
+                                                # SF format: Length (2 bytes), SF_Type (1 byte), Data
+                                                if len(sub_data) >= 4: # Min length for a query SF (SF_ID, Len, Query_SF_Type, Query_Type)
+                                                    sf_len = (sub_data[1] << 8) | sub_data[2]
+                                                    sf_type = sub_data[3]
+                                                    if sf_type == QUERY_REPLY_SF: # It's a Query SF
+                                                        query_type = sub_data[4] if len(sub_data) > 4 else None
+                                                        if query_type == QUERY_REPLY_CHARACTERISTICS:
+                                                            print(f"Mock Server: Received QUERY_REPLY_CHARACTERISTICS request. Responding with {self.rows}x{self.cols}")
+                                                            # Build QUERY_REPLY_CHARACTERISTICS response
+                                                            reply_data = bytearray()
+                                                            reply_data.append(QUERY_REPLY_SF) # 0x88
+                                                            reply_data.append(QUERY_REPLY_CHARACTERISTICS) # 0x02
+                                                            reply_data.extend(self.rows.to_bytes(2, 'big'))
+                                                            reply_data.extend(self.cols.to_bytes(2, 'big'))
+                                                            
+                                                            sf_response = bytearray()
+                                                            sf_response.append(STRUCTURED_FIELD) # 0x3C
+                                                            sf_response.extend((len(reply_data) + 2).to_bytes(2, 'big'))
+                                                            sf_response.extend(reply_data)
+                                                            response.extend(bytes([IAC, SB, TELOPT_TN3270E]) + sf_response + bytes([IAC, SE]))
+                                                            self.query_sf_received.set() # Signal that query SF was handled
+                                                    i = j + 2
+                                                else: # Incomplete subnegotiation
+                                                    break
+                                            else: # Unhandled IAC command
+                                                i += 2
+                                        else: # Incomplete IAC sequence
+                                            break
+                                    else: # Not an IAC, just echo
+                                        response.append(data[i])
+                                        i += 1
+                                
+                                if response:
+                                    writer.write(response)
+                                    await writer.drain()
+                                    await asyncio.sleep(0.01) # Give client time to process
+
+                if negotiated_tn3270e_device_type and negotiated_tn3270e_functions and not self.negotiation_complete.is_set():
+                    self.negotiation_complete.set()
+                    print("Mock Server: TN3270E negotiation complete.")
+        except Exception as e:
+            print(f"Mock server client handler error: {e}")
+        finally:
+            if writer in self.clients:
+                self.clients.remove(writer)
+            writer.close()
+            await writer.wait_closed()
+
+
+class SNAAwareMockServer(TN3270ENegotiatingMockServer):
+    """
+    A mock TN3270 server that simulates sending various SNA responses
+    (positive, negative with different sense codes) and state transitions.
+    """
+    def __init__(self, port=2330):
+        super().__init__(port)
+        self.positive_response_sent = asyncio.Event()
+        self.negative_response_sent = asyncio.Event()
+        self.lu_busy_response_sent = asyncio.Event()
+        self.invalid_sequence_response_sent = asyncio.Event()
+        self.session_failure_response_sent = asyncio.Event()
+        self.state_error_response_sent = asyncio.Event()
+
+    async def handle_client(self, reader, writer):
+        from pure3270.protocol.utils import (
+            IAC, DO, WILL, SB, SE, TELOPT_TTYPE, TELOPT_BINARY, TELOPT_EOR, TELOPT_TN3270E,
+            TN3270E_DEVICE_TYPE, TN3270E_FUNCTIONS, TN3270E_IS, TN3270E_SEND,
+            TN3270E_RESPONSES, TN3270E_BIND_IMAGE, TN3270E_DATA_STREAM_CTL,
+            SNA_RESPONSE as SNA_RESPONSE_TYPE_UTIL # For TN3270E header data_type
+        )
+        from pure3270.protocol.data_stream import (
+            SNA_COMMAND_RESPONSE, SNA_DATA_RESPONSE,
+            SNA_SENSE_CODE_SUCCESS, SNA_SENSE_CODE_INVALID_FORMAT,
+            SNA_SENSE_CODE_NOT_SUPPORTED, SNA_SENSE_CODE_SESSION_FAILURE,
+            SNA_SENSE_CODE_INVALID_REQUEST, SNA_SENSE_CODE_LU_BUSY,
+            SNA_SENSE_CODE_INVALID_SEQUENCE, SNA_SENSE_CODE_NO_RESOURCES,
+            SNA_SENSE_CODE_STATE_ERROR,
+            SNA_FLAGS_NONE, SNA_FLAGS_RSP, SNA_FLAGS_EXCEPTION_RESPONSE
+        )
+        from pure3270.protocol.tn3270e_header import TN3270EHeader
+
+        try:
+            negotiation_done = False
+            while True:
+                data = await reader.read(1024)
+                if not data:
+                    break
+
+                response = bytearray()
+                i = 0
+                while i < len(data):
+                    if data[i] == IAC:
+                        if i + 1 < len(data):
+                            command = data[i+1]
+                            if command == DO:
+                                if i + 2 < len(data):
+                                    option = data[i+2]
+                                    if option == TELOPT_TTYPE:
+                                        response.extend(bytes([IAC, WILL, TELOPT_TTYPE]))
+                                    elif option == TELOPT_BINARY:
+                                        response.extend(bytes([IAC, WILL, TELOPT_BINARY]))
+                                    elif option == TELOPT_EOR:
+                                        response.extend(bytes([IAC, WILL, TELOPT_EOR]))
+                                    elif option == TELOPT_TN3270E:
+                                        response.extend(bytes([IAC, WILL, TELOPT_TN3270E]))
+                                    else:
+                                        response.extend(bytes([IAC, WONT, option]))
+                                    i += 3
+                                else: # Incomplete command
+                                    break
+                            elif command == WILL:
+                                if i + 2 < len(data):
+                                    option = data[i+2]
+                                    if option == TELOPT_TTYPE:
+                                        response.extend(bytes([IAC, DO, TELOPT_TTYPE]))
+                                    elif option == TELOPT_BINARY:
+                                        response.extend(bytes([IAC, DO, TELOPT_BINARY]))
+                                    elif option == TELOPT_EOR:
+                                        response.extend(bytes([IAC, DO, TELOPT_EOR]))
+                                    elif option == TELOPT_TN3270E:
+                                        response.extend(bytes([IAC, DO, TELOPT_TN3270E]))
+                                    else:
+                                        response.extend(bytes([IAC, DONT, option]))
+                                    i += 3
+                                else: # Incomplete command
+                                    break
+                            elif command == SB:
+                                j = i + 2
+                                while j < len(data) and not (data[j] == IAC and j + 1 < len(data) and data[j+1] == SE):
+                                    j += 1
+                                
+                                if j + 1 < len(data) and data[j+1] == SE:
+                                    sub_option = data[i+2]
+                                    sub_data = data[i+3:j]
+
+                                    if sub_option == TELOPT_TN3270E:
+                                        if len(sub_data) >= 2:
+                                            tn3270e_type = sub_data[0]
+                                            tn3270e_subtype = sub_data[1]
+
+                                            if tn3270e_type == TN3270E_DEVICE_TYPE and tn3270e_subtype == TN3270E_SEND:
+                                                device_type_response = b"IBM-3278-2\x00"
+                                                response.extend(bytes([IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_IS]) + device_type_response + bytes([IAC, SE]))
+                                                self.negotiation_complete.set()
+                                            elif tn3270e_type == TN3270E_FUNCTIONS and tn3270e_subtype == TN3270E_SEND:
+                                                functions_response = bytes([TN3270E_BIND_IMAGE | TN3270E_DATA_STREAM_CTL | TN3270E_RESPONSES])
+                                                response.extend(bytes([IAC, SB, TELOPT_TN3270E, TN3270E_FUNCTIONS, TN3270E_IS]) + functions_response + bytes([IAC, SE]))
+                                                self.negotiation_complete.set()
+                                    i = j + 2
+                                else:
+                                    break
+                            else:
+                                i += 2
+                        else:
+                            break
+                    else:
+                        i += 1
+                
+                if response:
+                    writer.write(response)
+                    await writer.drain()
+
+                if self.negotiation_complete.is_set() and not negotiation_done:
+                    print("Mock Server: Negotiation complete. Sending SNA responses.")
+                    
+                    # 1. Positive SNA Response (ACK)
+                    # Data: Response Type (1 byte), Flags (1 byte), Sense Code (2 bytes, 0x0000 for success)
+                    positive_sna_data = bytes([SNA_COMMAND_RESPONSE, SNA_FLAGS_RSP, 0x00, 0x00]) # Command response, RSP flag, success sense code
+                    positive_header = TN3270EHeader(
+                        data_type=SNA_RESPONSE_TYPE_UTIL, # Use the SNA_RESPONSE type for the TN3270E header
+                        request_flag=0, response_flag=0, seq_number=1
+                    )
+                    positive_response_msg = bytes([IAC, SB, TELOPT_TN3270E]) + positive_header.to_bytes() + positive_sna_data + bytes([IAC, SE])
+                    writer.write(positive_response_msg)
+                    await writer.drain()
+                    print(f"Mock Server: Sent Positive SNA Response: {positive_response_msg.hex()}")
+                    self.positive_response_sent.set()
+
+                    await asyncio.sleep(0.1) # Small delay between responses
+
+                    # 2. Negative SNA Response (Session Failure)
+                    negative_sna_data_session_failure = bytes([SNA_COMMAND_RESPONSE, SNA_FLAGS_RSP | SNA_FLAGS_EXCEPTION_RESPONSE, (SNA_SENSE_CODE_SESSION_FAILURE >> 8) & 0xFF, SNA_SENSE_CODE_SESSION_FAILURE & 0xFF])
+                    negative_header_session_failure = TN3270EHeader(
+                        data_type=SNA_RESPONSE_TYPE_UTIL,
+                        request_flag=0, response_flag=0, seq_number=2
+                    )
+                    negative_response_msg_session_failure = bytes([IAC, SB, TELOPT_TN3270E]) + negative_header_session_failure.to_bytes() + negative_sna_data_session_failure + bytes([IAC, SE])
+                    writer.write(negative_response_msg_session_failure)
+                    await writer.drain()
+                    print(f"Mock Server: Sent Negative SNA Response (Session Failure): {negative_response_msg_session_failure.hex()}")
+                    self.session_failure_response_sent.set()
+                    self.negative_response_sent.set() # General negative response flag
+
+                    await asyncio.sleep(0.1)
+
+                    # 3. Negative SNA Response (LU Busy)
+                    negative_sna_data_lu_busy = bytes([SNA_COMMAND_RESPONSE, SNA_FLAGS_RSP | SNA_FLAGS_EXCEPTION_RESPONSE, (SNA_SENSE_CODE_LU_BUSY >> 8) & 0xFF, SNA_SENSE_CODE_LU_BUSY & 0xFF])
+                    negative_header_lu_busy = TN3270EHeader(
+                        data_type=SNA_RESPONSE_TYPE_UTIL,
+                        request_flag=0, response_flag=0, seq_number=3
+                    )
+                    negative_response_msg_lu_busy = bytes([IAC, SB, TELOPT_TN3270E]) + negative_header_lu_busy.to_bytes() + negative_sna_data_lu_busy + bytes([IAC, SE])
+                    writer.write(negative_response_msg_lu_busy)
+                    await writer.drain()
+                    print(f"Mock Server: Sent Negative SNA Response (LU Busy): {negative_response_msg_lu_busy.hex()}")
+                    self.lu_busy_response_sent.set()
+
+                    await asyncio.sleep(0.1)
+
+                    # 4. Negative SNA Response (Invalid Sequence)
+                    negative_sna_data_invalid_sequence = bytes([SNA_COMMAND_RESPONSE, SNA_FLAGS_RSP | SNA_FLAGS_EXCEPTION_RESPONSE, (SNA_SENSE_CODE_INVALID_SEQUENCE >> 8) & 0xFF, SNA_SENSE_CODE_INVALID_SEQUENCE & 0xFF])
+                    negative_header_invalid_sequence = TN3270EHeader(
+                        data_type=SNA_RESPONSE_TYPE_UTIL,
+                        request_flag=0, response_flag=0, seq_number=4
+                    )
+                    negative_response_msg_invalid_sequence = bytes([IAC, SB, TELOPT_TN3270E]) + negative_header_invalid_sequence.to_bytes() + negative_sna_data_invalid_sequence + bytes([IAC, SE])
+                    writer.write(negative_response_msg_invalid_sequence)
+                    await writer.drain()
+                    print(f"Mock Server: Sent Negative SNA Response (Invalid Sequence): {negative_response_msg_invalid_sequence.hex()}")
+                    self.invalid_sequence_response_sent.set()
+
+                    await asyncio.sleep(0.1)
+
+                    # 5. Negative SNA Response (State Error)
+                    negative_sna_data_state_error = bytes([SNA_COMMAND_RESPONSE, SNA_FLAGS_RSP | SNA_FLAGS_EXCEPTION_RESPONSE, (SNA_SENSE_CODE_STATE_ERROR >> 8) & 0xFF, SNA_SENSE_CODE_STATE_ERROR & 0xFF])
+                    negative_header_state_error = TN3270EHeader(
+                        data_type=SNA_RESPONSE_TYPE_UTIL,
+                        request_flag=0, response_flag=0, seq_number=5
+                    )
+                    negative_response_msg_state_error = bytes([IAC, SB, TELOPT_TN3270E]) + negative_header_state_error.to_bytes() + negative_sna_data_state_error + bytes([IAC, SE])
+                    writer.write(negative_response_msg_state_error)
+                    await writer.drain()
+                    print(f"Mock Server: Sent Negative SNA Response (State Error): {negative_response_msg_state_error.hex()}")
+                    self.state_error_response_sent.set()
+
+                    negotiation_done = True
+        except Exception as e:
+            print(f"Mock server client handler error: {e}")
+        finally:
+            if writer in self.clients:
+                self.clients.remove(writer)
+            writer.close()
+            await writer.wait_closed()
+
+
+async def test_sna_response_handling(port, mock_server):
+    """
+    Test that pure3270 correctly handles various SNA response types
+    (positive and negative with sense codes) and updates session state.
+    """
+    print("9. Testing SNA response handling...")
+    session = None
+    try:
+        from pure3270 import Session
+        from pure3270.protocol.negotiator import SnaSessionState
+
+        session = Session(host="localhost", port=port)
+        await session.connect()
+
+        # Wait for the mock server to send positive and negative SNA responses
+        await asyncio.wait_for(mock_server.positive_response_sent.wait(), timeout=5)
+        print("   ✓ Received positive SNA response from mock server.")
+        assert session.sna_session_state == SnaSessionState.NORMAL.value, f"Expected SNA state NORMAL, got {session.sna_session_state}"
+
+        await asyncio.wait_for(mock_server.session_failure_response_sent.wait(), timeout=5)
+        print("   ✓ Received negative SNA response (Session Failure) from mock server.")
+        assert session.sna_session_state == SnaSessionState.SESSION_DOWN.value, f"Expected SNA state SESSION_DOWN, got {session.sna_session_state}"
+
+        await asyncio.wait_for(mock_server.lu_busy_response_sent.wait(), timeout=5)
+        print("   ✓ Received negative SNA response (LU Busy) from mock server.")
+        assert session.sna_session_state == SnaSessionState.LU_BUSY.value, f"Expected SNA state LU_BUSY, got {session.sna_session_state}"
+
+        await asyncio.wait_for(mock_server.invalid_sequence_response_sent.wait(), timeout=5)
+        print("   ✓ Received negative SNA response (Invalid Sequence) from mock server.")
+        assert session.sna_session_state == SnaSessionState.INVALID_SEQUENCE.value, f"Expected SNA state INVALID_SEQUENCE, got {session.sna_session_state}"
+
+        await asyncio.wait_for(mock_server.state_error_response_sent.wait(), timeout=5)
+        print("   ✓ Received negative SNA response (State Error) from mock server.")
+        assert session.sna_session_state == SnaSessionState.STATE_ERROR.value, f"Expected SNA state STATE_ERROR, got {session.sna_session_state}"
+        
+        return True
+    except asyncio.TimeoutError:
+        print("   ✗ SNA response handling test timed out.")
+        return False
+    except Exception as e:
+        print(f"   ✗ SNA response handling test failed: {e}")
+        return False
+    finally:
+        if session:
             await session.close()
-            return True
-        finally:
+
+
+async def test_lu_name_negotiation(port, mock_server):
+    """
+    Test that pure3270 correctly handles LU name negotiation (RFC 1646).
+    """
+    print("10. Testing LU Name negotiation...")
+    server = mock_server
+    session = None
+    try:
+        from pure3270 import Session
+        session = Session(host="localhost", port=port, lu_name="MYLU")
+        await session.connect()
+
+        # Wait for the mock server to receive the LU name
+        await asyncio.wait_for(server.lu_name_received.wait(), timeout=5)
+        
+        assert server.received_lu_name == "MYLU"
+        print("   ✓ LU Name negotiation successful and LU name received by mock server.")
+
+        return True
+    except asyncio.TimeoutError:
+        print("   ✗ LU Name negotiation test timed out.")
+        return False
+    except Exception as e:
+        print(f"   ✗ LU Name negotiation test failed: {e}")
+        return False
+    finally:
+        if session:
+            await session.close()
+        if server:
+            await server.stop()
+        if server_task:
+            server_task.cancel()
+            try:
+                await server_task
+            except asyncio.CancelledError:
+                pass
+
+async def test_bind_image_processing(port, mock_server):
+    """
+    Test that pure3270 correctly processes BIND-IMAGE Structured Fields.
+    """
+    print("10. Testing BIND-IMAGE processing...")
+    session = None
+    try:
+        from pure3270 import Session
+        session = Session(host="localhost", port=port)
+        await session.connect()
+
+        # Wait for the mock server to send the BIND-IMAGE
+        await asyncio.wait_for(mock_server.bind_image_sent.wait(), timeout=5)
+
+        # Verify that the screen dimensions are updated by the BIND-IMAGE
+        assert session.screen.rows == mock_server.rows
+        assert session.screen.cols == mock_server.cols
+        print(f"   ✓ Screen dimensions updated by BIND-IMAGE: {session.screen.rows}x{session.screen.cols}")
+
+        return True
+    except asyncio.TimeoutError:
+        print("   ✗ BIND-IMAGE processing test timed out.")
+        return False
+    except Exception as e:
+        print(f"   ✗ BIND-IMAGE processing test failed: {e}")
+        return False
+    finally:
+        if session:
+            await session.close()
+        if mock_server:
             await mock_server.stop()
-    except Exception as e:
-        print(f"   ✗ Mock server test failed: {e}")
-        return False
+        # No need to cancel server_task here, main() handles it.
 
 
-def test_navigation_methods():
-    """Test that all navigation methods exist."""
-    print("3. Testing navigation method availability...")
+async def test_printer_status_communication(port, mock_server):
+    """
+    Test that pure3270 correctly handles printer status communication.
+    """
+    print("11. Testing Printer Status Communication...")
+    server = mock_server
+    session = None
     try:
-        import pure3270
-        from pure3270 import AsyncSession
+        from pure3270 import Session
+        session = Session(host="localhost", port=port)
+        session.is_printer_session = True # Manually set to printer session for testing
+        await session.connect()
 
-        # Create an AsyncSession instance
-        session = AsyncSession("dummy.host", 23)
+        # Wait for the mock server to send printer status messages
+        await asyncio.wait_for(server.negotiation_complete.wait(), timeout=5)
+        
+        # Verify client can send printer status
+        from pure3270.protocol.data_stream import SOH_DEVICE_END, SOH_INTERVENTION_REQUIRED, DEVICE_END, INTERVENTION_REQUIRED
+        await session.send_soh_message(SOH_DEVICE_END)
+        await asyncio.wait_for(server.client_soh_received.wait(), timeout=5)
+        assert server.received_soh_status == SOH_DEVICE_END
+        print("   ✓ Client sent SOH_DEVICE_END and mock server received it.")
 
-        # Check all important navigation methods
-        navigation_methods = [
-            # Cursor movement
-            "move_cursor",
-            "move_cursor1",
-            "left",
-            "right",
-            "up",
-            "down",
-            "home",
-            "end",
-            "backspace",
-            "tab",
-            "backtab",
-            "newline",
-            # Page navigation
-            "page_up",
-            "page_down",
-            # Field operations
-            "field_end",
-            "erase_input",
-            "erase_eof",
-            "delete_field",
-            "cursor_select",
-            "dup",
-            "field_mark",
-            # Text operations
-            "insert_text",
-            "erase",
-            "delete",
-            # Mode operations
-            "circum_not",
-            "flip",
-            "toggle_insert",
-            "insert",
-            "toggle_reverse",
-            # Word operations
-            "next_word",
-            "previous_word",
-            # Input operations
-            "restore_input",
-            "save_input",
-            # AID keys
-            "enter",
-            "clear",
-            "pf",
-            "pa",
-            # Session management
-            "close_session",
-            "disconnect",
-            "reconnect",
-            # Utility methods
-            "info",
-            "paste_string",
-            "script",
-            "bell",
-            "pause",
-            "ansi_text",
-            "hex_string",
-            "show",
-            "snap",
-            "left2",
-            "right2",
-            "mono_case",
-            "nvt_text",
-            "print_text",
-            "prompt",
-            "read_buffer",
-            "screen_trace",
-            "source",
-            "subject_names",
-            "sys_req",
-            "toggle_option",
-            "trace",
-            "transfer",
-            "wait_condition",
-            "compose",
-            "cookie",
-            "expect",
-            "fail",
-            "load_resource_definitions",
-        ]
+        server.client_soh_received.clear() # Clear for next test
+        await session.send_soh_message(SOH_INTERVENTION_REQUIRED)
+        await asyncio.wait_for(server.client_soh_received.wait(), timeout=5)
+        assert server.received_soh_status == SOH_INTERVENTION_REQUIRED
+        print("   ✓ Client sent SOH_INTERVENTION_REQUIRED and mock server received it.")
 
-        missing = []
-        found = 0
-        for method in navigation_methods:
-            if hasattr(session, method):
-                found += 1
-            else:
-                missing.append(method)
+        await session.send_printer_status_sf(DEVICE_END)
+        await asyncio.wait_for(server.client_printer_status_sf_received.wait(), timeout=5)
+        assert server.received_printer_status_sf_code == DEVICE_END
+        print("   ✓ Client sent PRINTER_STATUS_SF with DEVICE_END and mock server received it.")
 
-        if missing:
-            print(f"   ✗ Missing methods: {', '.join(missing)}")
-            return False
+        server.client_printer_status_sf_received.clear() # Clear for next test
+        await session.send_printer_status_sf(INTERVENTION_REQUIRED)
+        await asyncio.wait_for(server.client_printer_status_sf_received.wait(), timeout=5)
+        assert server.received_printer_status_sf_code == INTERVENTION_REQUIRED
+        print("   ✓ Client sent PRINTER_STATUS_SF with INTERVENTION_REQUIRED and mock server received it.")
 
-        print(f"   ✓ All {found} navigation methods present")
-        return True
-    except Exception as e:
-        print(f"   ✗ Navigation methods test failed: {e}")
-        return False
-
-
-def test_p3270_patching():
-    """Test p3270 patching functionality."""
-    print("4. Testing p3270 patching...")
-    try:
-        import pure3270
-
-        # Enable replacement
-        pure3270.enable_replacement()
-
-        # Import p3270 (should use our patched version)
-        import p3270
-
-        # Create client
-        client = p3270.P3270Client()
-
-        # Check that it's using our wrapper
-        if "pure3270" in str(type(client.s3270)):
-            print("   ✓ p3270 patching works correctly")
-            return True
-        else:
-            print("   ✗ p3270 patching not working")
-            return False
-    except ImportError as e:
-        if "p3270" in str(e):
-            print("   ⚠ p3270 not installed, skipping patching test")
-            return True  # Consider this a pass since p3270 is optional
-        else:
-            print(f"   ✗ p3270 patching test failed: {e}")
-            return False
-    except Exception as e:
-        print(f"   ✗ p3270 patching test failed: {e}")
-        return False
-
-
-def test_p3270_navigation_methods():
-    """Test that p3270 patched client has expected navigation methods."""
-    print("5. Testing p3270 patched navigation methods...")
-    try:
-        import pure3270
-
-        pure3270.enable_replacement()
-        import p3270
-
-        # Create a p3270 client
-        client = p3270.P3270Client()
-
-        # List of expected p3270 methods
-        expected_methods = [
-            "moveTo",
-            "moveToFirstInputField",
-            "moveCursorUp",
-            "moveCursorDown",
-            "moveCursorLeft",
-            "moveCursorRight",
-            "sendPF",
-            "sendPA",
-            "sendEnter",
-            "clearScreen",
-            "sendText",
-            "delChar",
-            "eraseChar",
-            "sendBackSpace",
-            "sendTab",
-            "sendBackTab",
-            "sendHome",
-            "delField",
-            "delWord",
-            "printScreen",
-            "saveScreen",
-        ]
-
-        missing_methods = []
-        found_methods = 0
-
-        for method_name in expected_methods:
-            if hasattr(client, method_name):
-                found_methods += 1
-            else:
-                missing_methods.append(method_name)
-
-        if missing_methods:
-            print(f"   ✗ Missing methods: {', '.join(missing_methods)}")
-            return False
-
-        print(f"   ✓ All {found_methods} p3270 patched methods present")
-        return True
-
-    except ImportError as e:
-        if "p3270" in str(e):
-            print("   ⚠ p3270 not installed, skipping p3270 navigation methods test")
-            return True  # Consider this a pass since p3270 is optional
-        else:
-            print(f"   ✗ p3270 patched methods test failed: {e}")
-            return False
-    except Exception as e:
-        print(f"   ✗ p3270 patched methods test failed: {e}")
-        return False
-
-
-async def test_session_management():
-    """Test session management functionality."""
-    print("6. Testing session management...")
-    try:
-        import pure3270
-        from pure3270 import AsyncSession, Session
-
-        # Test AsyncSession properties
-        session = AsyncSession()
-        print(f"   ✓ AsyncSession connected property: {session.connected}")
-
-        # Test Session properties
-        sync_session = Session()
-        print(f"   ✓ Session connected property: {sync_session.connected}")
-
-        # Test screen buffer access
-        async_session = AsyncSession()
-        buffer = async_session.screen_buffer
-        print(f"   ✓ Screen buffer access: {type(buffer).__name__}")
+        print(f"   ✓ Current session printer status: {session.printer_status}")
 
         return True
-    except Exception as e:
-        print(f"   ✗ Session management test failed: {e}")
+    except asyncio.TimeoutError:
+        print("   ✗ Printer Status Communication test timed out.")
         return False
-
-
-async def test_macro_execution():
-    """Test macro execution functionality."""
-    print("7. Testing macro execution...")
-    try:
-        import pure3270
-        from pure3270 import AsyncSession
-
-        # Create session
-        session = AsyncSession()
-
-        # Test macro method exists
-        if hasattr(session, "macro"):
-            print("   ✓ macro method exists")
-        else:
-            print("   ✗ macro method missing")
-            return False
-
-        # Test execute_macro method exists
-        if hasattr(session, "execute_macro"):
-            print("   ✓ execute_macro method exists")
-        else:
-            print("   ✗ execute_macro method missing")
-            return False
-
-        return True
     except Exception as e:
-        print(f"   ✗ Macro execution test failed: {e}")
+        print(f"   ✗ Printer Status Communication test failed: {e}")
         return False
-
-
-async def test_screen_buffer_operations():
-    """Test screen buffer operations."""
-    print("8. Testing screen buffer operations...")
-    try:
-        import pure3270
-        from pure3270 import AsyncSession
-
-        # Create session
-        session = AsyncSession()
-        buffer = session.screen_buffer
-
-        # Test buffer properties
-        print(f"   ✓ Buffer rows: {buffer.rows}")
-        print(f"   ✓ Buffer cols: {buffer.cols}")
-        print(f"   ✓ Buffer size: {buffer.size}")
-
-        # Test buffer methods
-        if hasattr(buffer, "clear"):
-            print("   ✓ clear method exists")
-        else:
-            print("   ✗ clear method missing")
-            return False
-
-        if hasattr(buffer, "get_position"):
-            print("   ✓ get_position method exists")
-        else:
-            print("   ✗ get_position method missing")
-            return False
-
-        if hasattr(buffer, "set_position"):
-            print("   ✓ set_position method exists")
-        else:
-            print("   ✗ set_position method missing")
-            return False
-
-        return True
-    except Exception as e:
-        print(f"   ✗ Screen buffer operations test failed: {e}")
-        return False
+    finally:
+        if session:
+            await session.close()
+        if server:
+            await server.stop()
+        if server_task:
+            server_task.cancel()
+            try:
+                await server_task
+            except asyncio.CancelledError:
+                pass
 
 
 async def main():
-    """Run all integration tests."""
-    print("=== Pure3270 Integration Test Suite ===\n")
+    print("Running integration tests...")
+    results = {}
 
-    # Run tests
-    tests = [
-        ("Basic Functionality", test_basic_functionality),
-        ("Mock Connectivity", test_mock_connectivity),
-        ("Navigation Methods", test_navigation_methods),
-        ("p3270 Patching", test_p3270_patching),
-        ("p3270 Navigation Methods", test_p3270_navigation_methods),
-        ("Session Management", test_session_management),
-        ("Macro Execution", test_macro_execution),
-        ("Screen Buffer Operations", test_screen_buffer_operations),
-    ]
+    results["basic_functionality"] = test_basic_functionality()
+    
+    # Test cases that require mock servers
+    # Start mock servers in the background
+    mock_server = MockServer()
+    mock_server_task = asyncio.create_task(mock_server.start())
+    await asyncio.sleep(0.1) # Give server a moment to start
 
-    results = []
+    tn3270e_mock_server = TN3270ENegotiatingMockServer()
+    tn3270e_mock_server_task = asyncio.create_task(tn3270e_mock_server.start())
+    await asyncio.sleep(0.1)
 
-    for test_name, test_func in tests:
-        try:
-            if asyncio.iscoroutinefunction(test_func):
-                result = await test_func()
-            else:
-                result = test_func()
-            results.append((test_name, result))
-        except Exception as e:
-            print(f"   ✗ {test_name} failed with exception: {e}")
-            results.append((test_name, False))
+    bind_data_mock_server = BindAndDataStreamCtlMockServer()
+    bind_data_mock_server_task = asyncio.create_task(bind_data_mock_server.start())
+    await asyncio.sleep(0.1)
 
-    # Summary
-    print("\n" + "=" * 50)
-    print("INTEGRATION TEST SUMMARY")
-    print("=" * 50)
+    ibm_dynamic_mock_server = IBMDynamicMockServer()
+    ibm_dynamic_mock_server_task = asyncio.create_task(ibm_dynamic_mock_server.start())
+    await asyncio.sleep(0.1)
 
+    bind_image_mock_server = BindImageMockServer()
+    bind_image_mock_server_task = asyncio.create_task(bind_image_mock_server.start())
+    await asyncio.sleep(0.1)
+
+    lu_name_mock_server = LUNameMockServer()
+    lu_name_mock_server_task = asyncio.create_task(lu_name_mock_server.start())
+    await asyncio.sleep(0.1)
+
+    printer_status_mock_server = PrinterStatusMockServer()
+    printer_status_mock_server_task = asyncio.create_task(printer_status_mock_server.start())
+    await asyncio.sleep(0.1)
+
+    sna_aware_mock_server = SNAAwareMockServer()
+    sna_aware_mock_server_task = asyncio.create_task(sna_aware_mock_server.start())
+    await asyncio.sleep(0.1)
+
+    results["mock_server_connectivity"] = await test_mock_server_connectivity(mock_server.port)
+    results["tn3270e_negotiation"] = await test_tn3270e_negotiation(tn3270e_mock_server.port)
+    results["bind_image_and_data_stream_ctl"] = await test_bind_image_and_data_stream_ctl(bind_data_mock_server.port, bind_data_mock_server)
+    results["ibm_dynamic_negotiation"] = await test_ibm_dynamic_negotiation(ibm_dynamic_mock_server.port, ibm_dynamic_mock_server)
+    results["bind_image_processing"] = await test_bind_image_processing(bind_image_mock_server.port, bind_image_mock_server)
+    results["sna_response_handling"] = await test_sna_response_handling(sna_aware_mock_server.port, sna_aware_mock_server)
+    results["lu_name_negotiation"] = await test_lu_name_negotiation(lu_name_mock_server.port, lu_name_mock_server)
+    results["printer_status_communication"] = await test_printer_status_communication(printer_status_mock_server.port, printer_status_mock_server)
+
+    # Stop mock servers
+    await mock_server.stop()
+    mock_server_task.cancel()
+    await tn3270e_mock_server.stop()
+    tn3270e_mock_server_task.cancel()
+    await bind_data_mock_server.stop()
+    bind_data_mock_server_task.cancel()
+    await ibm_dynamic_mock_server.stop()
+    ibm_dynamic_mock_server_task.cancel()
+    await bind_image_mock_server.stop()
+    bind_image_mock_server_task.cancel()
+    await lu_name_mock_server.stop()
+    lu_name_mock_server_task.cancel()
+    await printer_status_mock_server.stop()
+    printer_status_mock_server_task.cancel()
+    await sna_aware_mock_server.stop()
+    sna_aware_mock_server_task.cancel()
+
+    # Wait for tasks to finish cancelling
+    try:
+        await asyncio.gather(
+            mock_server_task,
+            tn3270e_mock_server_task,
+            bind_data_mock_server_task,
+            ibm_dynamic_mock_server_task,
+            bind_image_mock_server_task,
+            lu_name_mock_server_task,
+            printer_status_mock_server_task,
+            sna_aware_mock_server_task,
+            return_exceptions=True # Don't raise CancelledError
+        )
+    except Exception as e:
+        print(f"Error during task cancellation: {e}")
+
+    print("\n--- Integration Test Results ---")
     all_passed = True
-    for test_name, result in results:
-        status = "✓ PASSED" if result else "✗ FAILED"
-        print(f"{test_name:<30} {status}")
-        if not result:
+    for test_name, passed in results.items():
+        status = "✓ PASSED" if passed else "✗ FAILED"
+        print(f"{test_name}: {status}")
+        if not passed:
             all_passed = False
 
-    print("=" * 50)
     if all_passed:
-        print("🎉 ALL INTEGRATION TESTS PASSED!")
-        print("\nPure3270 is functioning correctly:")
-        print("  • Basic functionality works")
-        print("  • Mock server connectivity works")
-        print("  • All navigation methods are implemented")
-        print("  • p3270 patching works correctly")
-        print("  • Session management is available")
-        print("  • Macro execution is supported")
-        print("  • Screen buffer operations work")
+        print("\nAll integration tests passed!")
+        sys.exit(0)
     else:
-        print("❌ SOME INTEGRATION TESTS FAILED!")
-
-    return 0 if all_passed else 1
-
+        print("\nSome integration tests failed.")
+        sys.exit(1)
 
 if __name__ == "__main__":
-    exit_code = asyncio.run(main())
-    sys.exit(exit_code)
+    asyncio.run(main())

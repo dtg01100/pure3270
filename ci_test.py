@@ -7,6 +7,10 @@ This script runs a comprehensive set of tests that don't require full setup.
 import asyncio
 import sys
 import os
+import logging
+
+# Configure logging to show debug messages
+logging.basicConfig(level=logging.DEBUG, format='%(levelname)s:%(name)s:%(message)s')
 
 # Add the current directory to the path so we can import pure3270
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
