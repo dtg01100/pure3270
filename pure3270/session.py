@@ -548,9 +548,14 @@ class Session:
     @property
     def connected(self) -> bool:
         """Check if session is connected."""
-        if self._async_session is None:
-            return False
-        return self._async_session.connected
+        return self._async_session.connected if self._async_session else False
+
+    @property
+    def sna_session_state(self) -> str:
+        """Get the SNA session state."""
+        if self._async_session and self._async_session.handler:
+            return self._async_session.handler.sna_session_state
+        return "UNKNOWN"
 
 
 class AsyncSession:
@@ -980,6 +985,13 @@ class AsyncSession:
     def handler(self, value: Optional[TN3270Handler]) -> None:
         """Set the handler (public interface for compatibility)."""
         self._handler = value
+
+    @property
+    def sna_session_state(self) -> str:
+        """Get the SNA session state."""
+        if self._handler:
+            return self._handler.sna_session_state
+        return "UNKNOWN"
 
     async def macro(self, commands: List[str]) -> None:
         """
@@ -1811,9 +1823,41 @@ class AsyncSession:
         await self.handler.send_sysreq_command(command_code)
         logger.info(f"SYSREQ command sent: {command}")
 
-    async def send_break(self) -> None:
+    def send_break(self) -> None:
         """
         Send a Telnet BREAK command (IAC BRK) to the host.
+
+        Raises:
+            SessionError: If not connected.
+        """
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+
+        asyncio.run(self._async_session.send_break())
+        logger.info("Telnet BREAK command sent")
+
+    def send_soh_message(self, status_code: int) -> None:
+        """
+        Send an SOH (Start of Header) message for printer status to the host.
+
+        Args:
+            status_code: The status code to send (e.g., SOH_SUCCESS, SOH_DEVICE_END).
+
+        Raises:
+            SessionError: If not connected.
+        """
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+
+        asyncio.run(self._async_session.send_soh_message(status_code))
+        logger.info(f"SOH message sent with status code: 0x{status_code:02x}")
+
+    async def send_soh_message(self, status_code: int) -> None:
+        """
+        Send an SOH (Start of Header) message for printer status to the host.
+
+        Args:
+            status_code: The status code to send (e.g., SOH_SUCCESS, SOH_DEVICE_END).
 
         Raises:
             SessionError: If not connected.
@@ -1821,8 +1865,8 @@ class AsyncSession:
         if not self._connected or not self.handler:
             raise SessionError("Session not connected.")
 
-        await self.handler.send_break()
-        logger.info("Telnet BREAK command sent")
+        await self.handler.send_soh_message(status_code)
+        logger.info(f"SOH message sent with status code: 0x{status_code:02x}")
 
     async def toggle_option(self, option: str) -> None:
         """Toggle option (s3270 Toggle() action)."""

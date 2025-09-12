@@ -101,7 +101,8 @@ class TN3270Handler:
         self.printer_buffer = PrinterBuffer() if is_printer_session else None # Initialize PrinterBuffer if it's a printer session
 
         # Initialize negotiator first, then pass it to the parser
-        self.negotiator = Negotiator(self.writer, None, self.screen_buffer, self, is_printer_session) # Pass None for parser initially
+        self.negotiator = Negotiator(self.writer, None, self.screen_buffer, self) # Pass None for parser initially
+        self.negotiator.is_printer_session = is_printer_session # Set printer session after initialization
         self.parser = DataStreamParser(self.screen_buffer, self.printer_buffer, self.negotiator) # Pass printer_buffer
         # Now update the negotiator with the parser instance
         self.negotiator.parser = self.parser
