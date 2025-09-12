@@ -1,0 +1,120 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Triggers on version tags like v1.0.0, v0.3.2, etc.
+
+permissions:
+  contents: write  # Required to create releases
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for changelog generation
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.10"
+
+    - name: Extract version from tag
+      id: version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "tag=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+    - name: Validate version matches pyproject.toml
+      run: |
+        PROJECT_VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+        TAG_VERSION="${{ steps.version.outputs.version }}"
+        if [ "$PROJECT_VERSION" != "$TAG_VERSION" ]; then
+          echo "Error: Version in pyproject.toml ($PROJECT_VERSION) does not match tag version ($TAG_VERSION)"
+          exit 1
+        fi
+        echo "Version validation passed: $PROJECT_VERSION"
+
+    - name: Generate release notes
+      id: release-notes
+      run: |
+        VERSION="${{ steps.version.outputs.version }}"
+        RELEASE_NOTES_FILE=$(mktemp)
+        
+        # Check if RELEASE_NOTES.md exists and extract notes for current version
+        if [ -f "RELEASE_NOTES.md" ]; then
+          # Look for version-specific notes in different formats
+          if grep -q "## \[${VERSION}\]" RELEASE_NOTES.md; then
+            # Extract notes between this version and the next version header (format: ## [1.0.0])
+            sed -n "/## \[${VERSION}\]/,/## \[/p" RELEASE_NOTES.md | sed '$d' > "$RELEASE_NOTES_FILE"
+          elif grep -q "## ${VERSION}" RELEASE_NOTES.md; then
+            # Alternative format without brackets (format: ## 1.0.0)
+            sed -n "/## ${VERSION}/,/## /p" RELEASE_NOTES.md | sed '$d' > "$RELEASE_NOTES_FILE"
+          elif grep -q "# Pure3270 v${VERSION}" RELEASE_NOTES.md; then
+            # Current format: # Pure3270 v0.3.1 Release Notes
+            sed -n "/# Pure3270 v${VERSION}/,/# Pure3270 v/p" RELEASE_NOTES.md | sed '$d' > "$RELEASE_NOTES_FILE"
+          else
+            # Version not found in RELEASE_NOTES.md, use the entire file as base
+            echo "## Release Notes for v${VERSION}" > "$RELEASE_NOTES_FILE"
+            echo "" >> "$RELEASE_NOTES_FILE"
+            echo "*For detailed release notes, see [RELEASE_NOTES.md](RELEASE_NOTES.md)*" >> "$RELEASE_NOTES_FILE"
+            echo "" >> "$RELEASE_NOTES_FILE"
+            
+            # Add git log changes
+            PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+            if [ -n "$PREV_TAG" ]; then
+              echo "### Changes since $PREV_TAG:" >> "$RELEASE_NOTES_FILE"
+              echo "" >> "$RELEASE_NOTES_FILE"
+              git log --oneline --no-merges "$PREV_TAG..HEAD" | sed 's/^/- /' >> "$RELEASE_NOTES_FILE"
+            else
+              echo "### What's New:" >> "$RELEASE_NOTES_FILE"
+              echo "" >> "$RELEASE_NOTES_FILE"
+              echo "- Initial release" >> "$RELEASE_NOTES_FILE"
+            fi
+          fi
+        else
+          # No RELEASE_NOTES.md, generate from git log
+          echo "## What's Changed in v${VERSION}" > "$RELEASE_NOTES_FILE"
+          echo "" >> "$RELEASE_NOTES_FILE"
+          
+          # Get the previous tag for comparison
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            echo "### Changes since $PREV_TAG:" >> "$RELEASE_NOTES_FILE"
+            echo "" >> "$RELEASE_NOTES_FILE"
+            git log --oneline --no-merges "$PREV_TAG..HEAD" | sed 's/^/- /' >> "$RELEASE_NOTES_FILE"
+          else
+            echo "### What's New:" >> "$RELEASE_NOTES_FILE"
+            echo "" >> "$RELEASE_NOTES_FILE"
+            echo "- Initial release" >> "$RELEASE_NOTES_FILE"
+          fi
+        fi
+        
+        # Add footer with links
+        echo "" >> "$RELEASE_NOTES_FILE"
+        echo "---" >> "$RELEASE_NOTES_FILE"
+        echo "" >> "$RELEASE_NOTES_FILE"
+        echo "**Full Changelog**: https://github.com/dtg01100/pure3270/compare/$PREV_TAG...v${VERSION}" >> "$RELEASE_NOTES_FILE"
+        
+        # Set the release notes as output (encode for GitHub Actions)
+        RELEASE_NOTES_CONTENT=$(cat "$RELEASE_NOTES_FILE")
+        echo "release-notes<<EOF" >> $GITHUB_OUTPUT
+        echo "$RELEASE_NOTES_CONTENT" >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+        
+        # Clean up
+        rm "$RELEASE_NOTES_FILE"
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ${{ steps.version.outputs.tag }}
+        name: Release ${{ steps.version.outputs.tag }}
+        body: ${{ steps.release-notes.outputs.release-notes }}
+        draft: false
+        prerelease: ${{ contains(steps.version.outputs.version, '-') }}  # Mark as prerelease if version contains '-' (e.g., v1.0.0-beta)
+        generate_release_notes: false  # We're providing our own release notes
