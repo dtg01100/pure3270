@@ -65,6 +65,27 @@ pip install .
 
 This uses the existing [`setup.py`](setup.py), which specifies no external dependencies. Deactivate the venv with `deactivate` when done.
 
+### Development Container (DevContainer)
+
+For the most seamless development experience, use the included devcontainer configuration. This provides a fully configured development environment with all dependencies pre-installed.
+
+#### Requirements
+- [Visual Studio Code](https://code.visualstudio.com/)
+- [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+
+#### Setup
+1. Open the project in VS Code
+2. When prompted, click "Reopen in Container" or use Command Palette: `Dev Containers: Reopen in Container`
+3. The container will automatically install all dependencies and development tools
+
+The devcontainer includes:
+- Python 3.12 environment
+- All development dependencies (pytest, black, flake8, etc.)
+- Pre-configured linting and formatting tools
+- Ready-to-use development environment
+
+For more information, see [`.devcontainer/devcontainer.json`](.devcontainer/devcontainer.json).
+
 ### Development Dependencies
 
 For testing and linting, install additional tools:
