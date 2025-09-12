@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 from pure3270.protocol.data_stream import DataStreamSender
 from pure3270.protocol.utils import WONT, DONT, TN3270E_BIND_IMAGE, TN3270E_RESPONSES
 from pure3270.protocol.data_stream import QUERY_REPLY_SF, QUERY_REPLY_CHARACTERISTICS
+from pure3270.protocol.tn3270e_header import TN3270EHeader
 
 
 def test_basic_functionality():
@@ -96,7 +97,11 @@ class MockServer:
         self.clients.append(writer)
         try:
             while True:
-                data = await reader.read(1024)
+                try:
+                    data = await asyncio.wait_for(reader.read(1024), timeout=1.0)
+                except asyncio.TimeoutError:
+                    # No data in this interval, continue waiting but avoid blocking forever
+                    continue
                 if not data:
                     break
                 # Echo back for basic testing
@@ -143,7 +148,10 @@ class TN3270ENegotiatingMockServer(MockServer):
         try:
             negotiation_done = False
             while True:
-                data = await reader.read(1024)
+                try:
+                    data = await asyncio.wait_for(reader.read(1024), timeout=1.0)
+                except asyncio.TimeoutError:
+                    continue
                 if not data:
                     break
 
@@ -179,7 +187,9 @@ class TN3270ENegotiatingMockServer(MockServer):
                                     elif option == TELOPT_EOR:
                                         response.extend(bytes([IAC, DO, TELOPT_EOR]))
                                     elif option == TELOPT_TN3270E:
-                                        response.extend(bytes([IAC, DO, TELOPT_TN3270E]))
+                                        # Don\'t respond to WILL TELOPT_TN3270E - negotiation is complete
+                                        # Instead, start TN3270E subnegotiation by sending DEVICE-TYPE SEND
+                                        response.extend(bytes([IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_SEND, IAC, SE]))
                                     else:
                                         response.extend(bytes([IAC, DONT, option]))
                                     i += 3
@@ -253,7 +263,10 @@ class LUNameMockServer(TN3270ENegotiatingMockServer):
         )
         try:
             while True:
-                data = await reader.read(1024)
+                try:
+                    data = await asyncio.wait_for(reader.read(1024), timeout=1.0)
+                except asyncio.TimeoutError:
+                    continue
                 if not data:
                     break
 
@@ -292,7 +305,9 @@ class LUNameMockServer(TN3270ENegotiatingMockServer):
                                     elif option == TELOPT_EOR:
                                         response.extend(bytes([IAC, DO, TELOPT_EOR]))
                                     elif option == TELOPT_TN3270E:
-                                        response.extend(bytes([IAC, DO, TELOPT_TN3270E]))
+                                        # Don\'t respond to WILL TELOPT_TN3270E - negotiation is complete
+                                        # Instead, start TN3270E subnegotiation by sending DEVICE-TYPE SEND
+                                        response.extend(bytes([IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_SEND, IAC, SE]))
                                     elif option == TELOPT_TERMINAL_LOCATION:
                                         response.extend(bytes([IAC, DO, TELOPT_TERMINAL_LOCATION]))
                                         # After sending DO, we should also send a request for the client's LU name
@@ -395,7 +410,10 @@ class PrinterStatusMockServer(TN3270ENegotiatingMockServer):
         try:
             negotiation_done = False
             while True:
-                data = await reader.read(1024)
+                try:
+                    data = await asyncio.wait_for(reader.read(1024), timeout=1.0)
+                except asyncio.TimeoutError:
+                    continue
                 if not data:
                     break
 
@@ -431,7 +449,9 @@ class PrinterStatusMockServer(TN3270ENegotiatingMockServer):
                                     elif option == TELOPT_EOR:
                                         response.extend(bytes([IAC, DO, TELOPT_EOR]))
                                     elif option == TELOPT_TN3270E:
-                                        response.extend(bytes([IAC, DO, TELOPT_TN3270E]))
+                                        # Don\'t respond to WILL TELOPT_TN3270E - negotiation is complete
+                                        # Instead, start TN3270E subnegotiation by sending DEVICE-TYPE SEND
+                                        response.extend(bytes([IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_SEND, IAC, SE]))
                                     else:
                                         response.extend(bytes([IAC, DONT, option]))
                                     i += 3
@@ -544,8 +564,51 @@ class BindImageMockServer(TN3270ENegotiatingMockServer):
         self.bind_image_sent = asyncio.Event()
 
     async def handle_client(self, reader, writer):
+        # Create a task to send BIND-IMAGE after a delay
+        async def send_bind_image_later():
+            await asyncio.sleep(3)  # Wait for client to be ready
+            if not self.bind_image_sent.is_set():
+                print("Mock Server: Sending BIND-IMAGE after delay")
+                # Construct BIND-IMAGE Structured Field
+                psc_data = bytearray()
+                psc_data.append(0x06)
+                psc_data.append(0x01)
+                psc_data.extend(self.rows.to_bytes(2, 'big'))
+                psc_data.extend(self.cols.to_bytes(2, 'big'))
+                
+                query_reply_data = bytearray()
+                query_reply_data.append(0x03)
+                query_reply_data.append(0x02)
+                query_reply_data.append(0x81)
+                
+                bind_data = psc_data + query_reply_data
+                
+                sf = bytearray()
+                sf.append(0x3C)
+                total_length = 1 + len(bind_data)
+                sf.extend(total_length.to_bytes(2, 'big'))
+                sf.append(0x03)
+                sf.extend(bind_data)
+                
+                from pure3270.protocol.tn3270e_header import TN3270EHeader
+                from pure3270.protocol.data_stream import BIND_IMAGE
+                
+                bind_header = TN3270EHeader(
+                    data_type=BIND_IMAGE,
+                    request_flag=0,
+                    response_flag=0,
+                    seq_number=1
+                )
+                bind_message = bind_header.to_bytes() + sf
+                writer.write(bind_message)
+                await writer.drain()
+                print(f"Mock Server: Sent BIND-IMAGE after delay: {bind_message.hex()}")
+                self.bind_image_sent.set()
+        
+        asyncio.create_task(send_bind_image_later())
+        
         from pure3270.protocol.utils import (
-            IAC, DO, WILL, SB, SE,
+            IAC, DO, DONT, WILL, WONT, SB, SE,
             TELOPT_TTYPE, TELOPT_BINARY, TELOPT_EOR, TELOPT_TN3270E,
             TN3270E_DEVICE_TYPE, TN3270E_FUNCTIONS, TN3270E_IS, TN3270E_SEND,
             TN3270E_BIND_IMAGE, TN3270E_RESPONSES,
@@ -561,7 +624,10 @@ class BindImageMockServer(TN3270ENegotiatingMockServer):
             negotiated_tn3270e_functions = False
             self.query_sf_received = asyncio.Event()  # Add missing event
             while True:
-                data = await reader.read(1024)
+                try:
+                    data = await asyncio.wait_for(reader.read(1024), timeout=1.0)
+                except asyncio.TimeoutError:
+                    continue
                 if not data:
                     break
 
@@ -597,7 +663,9 @@ class BindImageMockServer(TN3270ENegotiatingMockServer):
                                     elif option == TELOPT_EOR:
                                         response.extend(bytes([IAC, DO, TELOPT_EOR]))
                                     elif option == TELOPT_TN3270E:
-                                        response.extend(bytes([IAC, DO, TELOPT_TN3270E]))
+                                        # Don\'t respond to WILL TELOPT_TN3270E - negotiation is complete
+                                        # Instead, start TN3270E subnegotiation by sending DEVICE-TYPE SEND
+                                        response.extend(bytes([IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_SEND, IAC, SE]))
                                     else:
                                         response.extend(bytes([IAC, DONT, option]))
                                     i += 3
@@ -620,15 +688,45 @@ class BindImageMockServer(TN3270ENegotiatingMockServer):
                                             tn3270e_subtype = sub_data[1]
 
                                             if tn3270e_type == TN3270E_DEVICE_TYPE and tn3270e_subtype == TN3270E_SEND:
-                                                # Respond with DEVICE-TYPE IS IBM-DYNAMIC
-                                                device_type_response = TN3270E_IBM_DYNAMIC.encode("ascii") + b"\x00"
-                                                response.extend(bytes([IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_IS]) + device_type_response + bytes([IAC, SE]))
-                                                negotiated_tn3270e_device_type = True
+                                                if not negotiated_tn3270e_device_type:
+                                                    # Respond with DEVICE-TYPE IS IBM-DYNAMIC
+                                                    device_type_response = TN3270E_IBM_DYNAMIC.encode("ascii") + b"\x00"
+                                                    immediate_response = bytes([IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_IS]) + device_type_response + bytes([IAC, SE])
+                                                    writer.write(immediate_response)
+                                                    await writer.drain()
+                                                    print("Mock Server: Sent DEVICE-TYPE IS response immediately")
+                                                    negotiated_tn3270e_device_type = True
+
+                                                    # Immediately send QUERY_REPLY_CHARACTERISTICS as a TN3270E subnegotiation
+                                                    try:
+                                                        # Build payload: [QUERY_REPLY_SF, QUERY_REPLY_CHARACTERISTICS, rows(2), cols(2)]
+                                                        reply_payload = bytes([QUERY_REPLY_SF, QUERY_REPLY_CHARACTERISTICS]) + self.rows.to_bytes(2, 'big') + self.cols.to_bytes(2, 'big')
+
+                                                        # Build Structured Field: 0x3C + 2-byte length + payload
+                                                        sf = bytes([STRUCTURED_FIELD]) + len(reply_payload).to_bytes(2, 'big') + reply_payload
+
+                                                        # Build TN3270E header for data-carrying subnegotiation
+                                                        header = TN3270EHeader(data_type=0, request_flag=0, response_flag=0, seq_number=1).to_bytes()
+
+                                                        # Wrap as TN3270E subnegotiation with message type TN3270_DATA so negotiator will parse header
+                                                        # SB payload: [message_type][message_subtype][TN3270EHeader(5)][sf]
+                                                        sb_payload = bytes([0x00, 0x00]) + header + sf
+                                                        sb_msg = bytes([IAC, SB, TELOPT_TN3270E]) + sb_payload + bytes([IAC, SE])
+
+                                                        writer.write(sb_msg)
+                                                        await writer.drain()
+                                                        print(f"Mock Server: Sent QUERY_REPLY_CHARACTERISTICS (SB) immediately: {self.rows}x{self.cols}")
+                                                    except Exception as e:
+                                                        print(f"Mock Server: Failed to send QUERY_REPLY_CHARACTERISTICS SB: {e}")
                                             elif tn3270e_type == TN3270E_FUNCTIONS and tn3270e_subtype == TN3270E_SEND:
-                                                # Respond with FUNCTIONS IS (example: BIND-IMAGE, RESPONSES)
-                                                functions_response = bytes([TN3270E_BIND_IMAGE | TN3270E_RESPONSES])
-                                                response.extend(bytes([IAC, SB, TELOPT_TN3270E, TN3270E_FUNCTIONS, TN3270E_IS]) + functions_response + bytes([IAC, SE]))
-                                                negotiated_tn3270e_functions = True
+                                                if not negotiated_tn3270e_functions:
+                                                    # Respond with FUNCTIONS IS (example: BIND-IMAGE, RESPONSES)
+                                                    functions_response = bytes([TN3270E_BIND_IMAGE | TN3270E_RESPONSES])
+                                                    immediate_response = bytes([IAC, SB, TELOPT_TN3270E, TN3270E_FUNCTIONS, TN3270E_IS]) + functions_response + bytes([IAC, SE])
+                                                    writer.write(immediate_response)
+                                                    await writer.drain()
+                                                    print(f"Mock Server: Sent FUNCTIONS IS response immediately")
+                                                    negotiated_tn3270e_functions = True
                                             elif len(sub_data) >= 1 and sub_data[0] == STRUCTURED_FIELD: # Check for Structured Field
                                                 # SF format: SF_ID, Length (2 bytes), SF_Type (1 byte), Data
                                                 if len(sub_data) >= 4: # Min length for a query SF (SF_ID, Len, Query_SF_Type, Query_Type)
@@ -662,6 +760,7 @@ class BindImageMockServer(TN3270ENegotiatingMockServer):
                                         i += 1
                                 
                                 if response:
+                                    print(f"Mock Server: Sending response: {response.hex()}")
                                     writer.write(response)
                                     await writer.drain()
                                     await asyncio.sleep(0.01) # Give client time to process
@@ -669,16 +768,62 @@ class BindImageMockServer(TN3270ENegotiatingMockServer):
                 if negotiated_tn3270e_device_type and negotiated_tn3270e_functions and not self.negotiation_complete.is_set():
                     self.negotiation_complete.set()
                     print("Mock Server: TN3270E negotiation complete.")
-                    # Send BIND-IMAGE after negotiation is complete
-                    self.bind_image_sent.set()
+
+                    # Send QUERY_REPLY_CHARACTERISTICS response for IBM-DYNAMIC
+                    reply_data = bytearray()
+                    reply_data.append(0x88)  # QUERY_REPLY_SF
+                    reply_data.append(0x02)  # QUERY_REPLY_CHARACTERISTICS
+                    reply_data.extend(self.rows.to_bytes(2, 'big'))
+                    reply_data.extend(self.cols.to_bytes(2, 'big'))
+                    
+                    sf_length = len(reply_data)
+                    sf = bytearray()
+                    sf.append(STRUCTURED_FIELD)  # 0x3C
+                    sf.extend(sf_length.to_bytes(2, 'big'))
+                    sf.extend(reply_data)
+                    
+                    # TN3270E Header
+                    header = TN3270EHeader(
+                        data_type=0,  # TN3270_DATA
+                        request_flag=0,
+                        response_flag=0,
+                        seq_number=1
+                    )
+                    response_message = header.to_bytes() + sf
+                    
+                    writer.write(response_message)
+                    await writer.drain()
+                    print(f"Mock Server: Sent QUERY_REPLY_CHARACTERISTICS {self.rows}x{self.cols}")
+
+                # Handle post-negotiation TN3270E data (QUERY_REPLY_CHARACTERISTICS request)
+                if negotiated_tn3270e_device_type and negotiated_tn3270e_functions and len(data) > 0 and data[0] != IAC:
+                    print("Mock Server: Handling post-negotiation QUERY request")
+                    
+                    # Simple check for structured field query (starts with TN3270E header or SF)
+                    if len(data) >= 4 and data[0:4] == b'\x00\x00\x00\x3c':  # Simplified check for header + SF
+                        # Send QUERY_REPLY_CHARACTERISTICS response
+                        reply_data = bytearray([0x88, 0x02]) + self.rows.to_bytes(2, 'big') + self.cols.to_bytes(2, 'big')
+                        sf = bytearray([STRUCTURED_FIELD]) + len(reply_data).to_bytes(2, 'big') + reply_data
+                        header = TN3270EHeader(data_type=0, request_flag=0, response_flag=0, seq_number=1).to_bytes()
+                        query_resp = header + sf
+                        
+                        writer.write(query_resp)
+                        await writer.drain()
+                        print(f"Mock Server: Responded to QUERY with {self.rows}x{self.cols}")
+                    i = len(data)  # Consume the data
+
+                if response:
+                    writer.write(response)
+                    await writer.drain()
+                    await asyncio.sleep(0.01)
+
         except Exception as e:
-            print(f"Mock server client handler error: {e}")
+            print(f"Mock server error: {e}")
         finally:
             if writer in self.clients:
                 self.clients.remove(writer)
             writer.close()
             await writer.wait_closed()
-
 
 class SNAAwareMockServer(TN3270ENegotiatingMockServer):
     """
@@ -716,7 +861,10 @@ class SNAAwareMockServer(TN3270ENegotiatingMockServer):
         try:
             negotiation_done = False
             while True:
-                data = await reader.read(1024)
+                try:
+                    data = await asyncio.wait_for(reader.read(1024), timeout=1.0)
+                except asyncio.TimeoutError:
+                    continue
                 if not data:
                     break
 
@@ -752,7 +900,9 @@ class SNAAwareMockServer(TN3270ENegotiatingMockServer):
                                     elif option == TELOPT_EOR:
                                         response.extend(bytes([IAC, DO, TELOPT_EOR]))
                                     elif option == TELOPT_TN3270E:
-                                        response.extend(bytes([IAC, DO, TELOPT_TN3270E]))
+                                        # Don\'t respond to WILL TELOPT_TN3270E - negotiation is complete
+                                        # Instead, start TN3270E subnegotiation by sending DEVICE-TYPE SEND
+                                        response.extend(bytes([IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_SEND, IAC, SE]))
                                     else:
                                         response.extend(bytes([IAC, DONT, option]))
                                     i += 3
@@ -899,22 +1049,32 @@ async def test_sna_response_handling(port, mock_server):
         # Wait for the mock server to send positive and negative SNA responses
         await asyncio.wait_for(mock_server.positive_response_sent.wait(), timeout=5)
         print("   ✓ Received positive SNA response from mock server.")
+        # Read the data to process it
+        data = await session.read()
         assert session.sna_session_state == SnaSessionState.NORMAL.value, f"Expected SNA state NORMAL, got {session.sna_session_state}"
 
         await asyncio.wait_for(mock_server.session_failure_response_sent.wait(), timeout=5)
         print("   ✓ Received negative SNA response (Session Failure) from mock server.")
+        # Read the data to process it
+        data = await session.read()
         assert session.sna_session_state == "SESSION_DOWN", f"Expected SNA state SESSION_DOWN, got {session.sna_session_state}"
 
         await asyncio.wait_for(mock_server.lu_busy_response_sent.wait(), timeout=5)
         print("   ✓ Received negative SNA response (LU Busy) from mock server.")
+        # Read the data to process it
+        data = await session.read()
         assert session.sna_session_state == "LU_BUSY", f"Expected SNA state LU_BUSY, got {session.sna_session_state}"
 
         await asyncio.wait_for(mock_server.invalid_sequence_response_sent.wait(), timeout=5)
         print("   ✓ Received negative SNA response (Invalid Sequence) from mock server.")
+        # Read the data to process it
+        data = await session.read()
         assert session.sna_session_state == "INVALID_SEQUENCE", f"Expected SNA state INVALID_SEQUENCE, got {session.sna_session_state}"
 
         await asyncio.wait_for(mock_server.state_error_response_sent.wait(), timeout=5)
         print("   ✓ Received negative SNA response (State Error) from mock server.")
+        # Read the data to process it
+        data = await session.read()
         assert session.sna_session_state == "STATE_ERROR", f"Expected SNA state STATE_ERROR, got {session.sna_session_state}"
         
         return True
@@ -975,10 +1135,19 @@ async def test_bind_image_processing(port, mock_server):
         # Wait for the mock server to send the BIND-IMAGE
         await asyncio.wait_for(mock_server.bind_image_sent.wait(), timeout=5)
 
+        # Small delay to ensure data is available
+        await asyncio.sleep(0.1)
+
+        # Read the BIND-IMAGE data
+        try:
+            await session.read(timeout=1.0)
+        except asyncio.TimeoutError:
+            pass  # Data might have already been processed
+
         # Verify that the screen dimensions are updated by the BIND-IMAGE
-        assert session.screen.rows == mock_server.rows
-        assert session.screen.cols == mock_server.cols
-        print(f"   ✓ Screen dimensions updated by BIND-IMAGE: {session.screen.rows}x{session.screen.cols}")
+        assert session.screen_buffer.rows == mock_server.rows
+        assert session.screen_buffer.cols == mock_server.cols
+        print(f"   ✓ Screen dimensions updated by BIND-IMAGE: {session.screen_buffer.rows}x{session.screen_buffer.cols}")
 
         return True
     except asyncio.TimeoutError:
@@ -1085,6 +1254,22 @@ async def test_mock_server_connectivity(port):
     except Exception as e:
         print(f"   ✗ Mock server connectivity test failed: {e}")
         return False
+
+
+async def test_with_mock_server():
+    """Helper for simple mock tests: start a MockServer, run connectivity test, and clean up."""
+    mock_server = MockServer()
+    server_task = asyncio.create_task(mock_server.start())
+    await asyncio.sleep(0.1)  # Give server time to start
+    try:
+        result = await test_mock_server_connectivity(mock_server.port)
+        return result
+    finally:
+        try:
+            await mock_server.stop()
+        except Exception:
+            pass
+        server_task.cancel()
 
 
 async def main():

@@ -5,6 +5,7 @@ This test quickly verifies that pure3270 is functioning correctly.
 """
 
 import asyncio
+from safe_read import safe_read
 import sys
 import os
 
@@ -98,7 +99,12 @@ async def test_mock_connectivity():
                 async def handle_client(reader, writer):
                     try:
                         while True:
-                            data = await reader.read(1024)
+                            try:
+                                data = await safe_read(reader, 1024, timeout=1.0)
+                            except Exception:
+                                continue
+                            if data is None:
+                                continue
                             if not data:
                                 break
                             writer.write(data)  # Echo back

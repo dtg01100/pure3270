@@ -69,3 +69,12 @@ class PrinterBuffer:
         # internal state variables, e.g., self._status = status_code
         # and potentially trigger events or state transitions.
         logger.debug(f"Printer status updated to: 0x{status_code:02x}")
+
+    def end_job(self):
+        """
+        Ends the current print job.
+        This method can be expanded to handle end-of-job processing.
+        """
+        logger.debug("Print job ended")
+        # For now, just log. In a real scenario, this might flush buffers,
+        # update status, or trigger completion events.

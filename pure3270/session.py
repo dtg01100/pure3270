@@ -639,8 +639,11 @@ class AsyncSession:
             logger.debug(
                 f"Replacing existing handler with object ID: {id(self._handler)}"
             )
-        self._handler = TN3270Handler(reader, writer)
+        self._handler = TN3270Handler(reader, writer, self.screen_buffer)
         logger.debug(f"New handler created with object ID: {id(self._handler)}")
+        # Set the LU name on the handler if configured
+        if self._lu_name:
+            self._handler.lu_name = self._lu_name
         logger.debug(f"About to call negotiate on handler {id(self._handler)}")
         await self._handler.negotiate()
         logger.debug(f"Negotiate completed on handler {id(self._handler)}")
@@ -704,11 +707,6 @@ class AsyncSession:
             raise SessionError("Session not connected.")
 
         data = await self._handler.receive_data(timeout)
-
-        # Parse the received data if in TN3270 mode
-        if self.tn3270_mode and data:
-            parser = DataStreamParser(self.screen_buffer)
-            parser.parse(data)
 
         return data
 
@@ -1463,7 +1461,9 @@ class AsyncSession:
         Raises:
             SessionError: If not connected.
         """
-        # Cursor movement doesn't require connection
+        if not self._connected or not self.handler:
+            raise SessionError("Session not connected.")
+
         row, col = self.screen_buffer.get_position()
         if row > 0:
             row -= 1
@@ -1478,7 +1478,9 @@ class AsyncSession:
         Raises:
             SessionError: If not connected.
         """
-        # Cursor movement doesn't require connection
+        if not self._connected or not self.handler:
+            raise SessionError("Session not connected.")
+
         row, col = self.screen_buffer.get_position()
         row += 1
         if row >= self.screen_buffer.rows:
@@ -1634,12 +1636,11 @@ class AsyncSession:
 
     async def cursor_select(self) -> None:
         """Select field at cursor (s3270 CursorSelect() action)."""
-        row, col = self.screen_buffer.get_position()
-        field = self.screen_buffer.get_field_at_position(row, col)
-        if field:
-            field.selected = True
-            # Update screen buffer to reflect selection if needed
-            self.screen_buffer.update_fields()
+        if self.screen_buffer:
+            field = self.screen_buffer.get_field_at_cursor()
+            if field:
+                field.selected = True
+                logger.debug(f"Selected field at ({field.start_row}, {field.start_col})")
 
     async def clear(self) -> None:
         """Clear the screen (s3270 Clear() action)."""
@@ -1770,7 +1771,12 @@ class AsyncSession:
 
     async def prompt(self, message: str) -> str:
         """Prompt for input (s3270 Prompt() action)."""
-        return input(message)
+        # Run synchronous input() in the default executor so it doesn't block
+        # the asyncio event loop when used within async code paths.
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, input, message)
 
     async def read_buffer(self) -> bytes:
         """Read buffer (s3270 ReadBuffer() action)."""
@@ -1796,32 +1802,21 @@ class AsyncSession:
         # Placeholder
         pass
 
-    async def sys_req(self, command: str) -> None:
-        """
-        Send system request (s3270 SysReq() action).
-
-        Args:
-            command: The SYSREQ command to send (e.g., "ATTN", "BREAK", "CANCEL").
-        """
-        if not self._connected or not self.handler:
-            raise SessionError("Session not connected.")
-
-        # Map command strings to SYSREQ byte codes
-        SYSREQ_COMMAND_MAP = {
-            "attn": TN3270E_SYSREQ_ATTN,
-            "break": TN3270E_SYSREQ_BREAK,
-            "cancel": TN3270E_SYSREQ_CANCEL,
-            "restart": TN3270E_SYSREQ_RESTART,
-            "print": TN3270E_SYSREQ_PRINT,
-            "logoff": TN3270E_SYSREQ_LOGOFF,
-        }
-
-        command_code = SYSREQ_COMMAND_MAP.get(command.lower())
-        if command_code is None:
-            raise ValueError(f"Unknown SYSREQ command: {command}")
-
-        await self.handler.send_sysreq_command(command_code)
-        logger.info(f"SYSREQ command sent: {command}")
+    async def sys_req(self, command: Optional[str] = None) -> None:
+        """Send SysReq (s3270 SysReq() action)."""
+        if command:
+            logger.debug(f"Sending SysReq with command: {command}")
+        else:
+            logger.debug("Sending SysReq")
+        # Send TN3270E SYSREQ subnegotiation or AID
+        if self.handler and self.handler.negotiator.negotiated_tn3270e:
+            # Use TN3270E SYSREQ
+            sysreq_data = bytes([TN3270E_SYSREQ_MESSAGE_TYPE, TN3270E_SYSREQ_ATTN])  # Default to ATTN
+            header = self.handler.negotiator._outgoing_request("SYSREQ", data_type=REQUEST)
+            await self.handler.send_data(header.to_bytes() + sysreq_data)
+        else:
+            # Fallback to AID SysReq (0xF0 or similar)
+            await self.send(b"\xf0")  # SysReq AID
 
     def send_break(self) -> None:
         """

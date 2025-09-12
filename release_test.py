@@ -5,6 +5,7 @@ This test suite provides comprehensive validation for releases.
 """
 
 import asyncio
+from safe_read import safe_read
 import sys
 import os
 import platform
@@ -324,7 +325,12 @@ async def test_network_functionality():
                 self.clients.append(writer)
                 try:
                     while True:
-                        data = await reader.read(1024)
+                        try:
+                            data = await safe_read(reader, 1024, timeout=1.0)
+                        except Exception:
+                            continue
+                        if data is None:
+                            continue
                         if not data:
                             break
                         writer.write(data)  # Echo back

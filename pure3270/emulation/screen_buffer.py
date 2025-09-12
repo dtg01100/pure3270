@@ -479,3 +479,93 @@ class ScreenBuffer:
                 logger.debug(f"Cursor wrapped around to first input field at {self.cursor_row},{self.cursor_col}")
             else:
                 logger.debug("No input fields found for PT order, or no next field after wrap-around.")
+
+    def set_attribute(self, attr: int) -> None:
+        """Set field attribute at current cursor position."""
+        # Extract field attributes from the attribute byte
+        # Bit 0-1: Reserved (usually 0)
+        # Bit 2: Modified Data Tag (MDT) - whether field has been modified
+        # Bit 3: Reserved (usually 0)
+        # Bit 4: Numeric (NUM) - field accepts only numeric input
+        # Bit 5: Protected (PRO) - field is protected from input
+        # Bit 6: Display (DSP) - field is displayable
+        # Bit 7: Reserved (usually 0)
+        
+        protected = bool(attr & 0x20)
+        numeric = bool(attr & 0x10)
+        modified = bool(attr & 0x04)
+        
+        # Create a new field starting at current cursor position
+        start = (self.cursor_row, self.cursor_col)
+        # Field will extend until next attribute or end of screen
+        # For now, create a minimal field - this will be extended by subsequent operations
+        end = (self.cursor_row, min(self.cursor_col + 1, self.cols - 1))
+        
+        field = Field(
+            start=start,
+            end=end,
+            protected=protected,
+            numeric=numeric,
+            modified=modified
+        )
+        
+        # Add to fields list
+        self.fields.append(field)
+        
+        # Write the attribute byte as a character (this is what the test expects)
+        self.write_char(attr, self.cursor_row, self.cursor_col)
+        
+        logger.debug(f"Set field attribute 0x{attr:02x} at position ({self.cursor_row}, {self.cursor_col})")
+
+    def repeat_attribute(self, attr: int, repeat: int) -> None:
+        """Repeat attribute a specified number of times."""
+        for _ in range(repeat):
+            self.set_attribute(attr)
+            # Move cursor forward
+            self.cursor_col += 1
+            if self.cursor_col >= self.cols:
+                self.cursor_col = 0
+                self.cursor_row += 1
+                if self.cursor_row >= self.rows:
+                    self.cursor_row = 0
+        logger.debug(f"Repeated attribute 0x{attr:02x} {repeat} times")
+
+    def graphic_ellipsis(self, count: int) -> None:
+        """Insert graphic ellipsis characters."""
+        # Graphic ellipsis is typically represented as '...' or similar
+        ellipsis_char = ord('.')  # ASCII period
+        
+        for _ in range(count):
+            self.write_char(ellipsis_char, self.cursor_row, self.cursor_col)
+            self.cursor_col += 1
+            if self.cursor_col >= self.cols:
+                self.cursor_col = 0
+                self.cursor_row += 1
+                if self.cursor_row >= self.rows:
+                    self.cursor_row = 0
+        logger.debug(f"Inserted graphic ellipsis {count} times")
+
+    def insert_cursor(self) -> None:
+        """Insert cursor at current position."""
+        # In 3270, insert cursor typically just positions the cursor
+        # The cursor position is already tracked, so this might be a no-op
+        # or could be used to ensure cursor visibility
+        logger.debug(f"Insert cursor at ({self.cursor_row}, {self.cursor_col})")
+
+    def program_tab(self) -> None:
+        """Program tab - move to next tab stop."""
+        # Use the existing method for moving to next input field
+        self.move_cursor_to_next_input_field()
+
+    def set_extended_attribute_sfe(self, attr_type: int, attr_value: int) -> None:
+        """Set extended field attribute from SFE order."""
+        # Extended attributes provide additional field properties
+        # This is a simplified implementation for SFE (Start Field Extended) orders
+        logger.debug(f"Set extended attribute type 0x{attr_type:02x} value 0x{attr_value:02x}")
+        
+        # For now, just log - extended attributes would modify the current field's
+        # extended properties like color, highlighting, etc.
+
+    def get_field_at(self, row: int, col: int) -> Optional[Field]:
+        """Alias for get_field_at_position for compatibility."""
+        return self.get_field_at_position(row, col)

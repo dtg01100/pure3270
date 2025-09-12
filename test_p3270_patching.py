@@ -106,8 +106,11 @@ def main():
             screen_text = client.getScreen()
             print(screen_text)
         
-        # Wait for user input before closing
-        input("\nPress Enter to close the session...")
+        # Wait for user input before closing (only in interactive mode)
+        if sys.stdin.isatty():
+            input("\nPress Enter to close the session...")
+        else:
+            print("Non-interactive environment: closing session without prompt.")
         
     except Exception as e:
         print(f"Error: {e}")

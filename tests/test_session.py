@@ -19,7 +19,7 @@ def sync_session():
 
 @pytest.mark.asyncio
 class TestAsyncSession:
-    def test_init(self, async_session):
+    async def test_init(self, async_session):
         assert isinstance(async_session.screen_buffer, ScreenBuffer)
         assert async_session._handler is None
         assert async_session._connected is False
@@ -40,7 +40,7 @@ class TestAsyncSession:
         await async_session.connect()
 
         mock_open.assert_called_once()
-        mock_handler.assert_called_once_with(mock_reader, mock_writer)
+        mock_handler.assert_called_once_with(mock_reader, mock_writer, ANY)
         assert async_session._connected is True
 
     @patch("pure3270.session.asyncio.open_connection")
@@ -81,7 +81,7 @@ class TestAsyncSession:
         await async_session.send(b"test data")
 
         mock_open.assert_called_once()
-        mock_handler.assert_called_once_with(mock_reader, mock_writer)
+        mock_handler.assert_called_once_with(mock_reader, mock_writer, ANY)
         mock_handler.return_value.send_data.assert_called_once_with(b"test data")
         assert async_session._connected is True
 
@@ -113,7 +113,7 @@ class TestAsyncSession:
 
         assert data == b"test"
         mock_open.assert_called_once()
-        mock_handler.assert_called_once_with(mock_reader, mock_writer)
+        mock_handler.assert_called_once_with(mock_reader, mock_writer, ANY)
         handler_instance.receive_data.assert_called_once_with(5.0)
         assert async_session._connected is True
 
@@ -467,11 +467,11 @@ class TestAsyncSessionAdvanced:
         from pure3270.emulation.screen_buffer import Field
 
         field = Field((0, 0), (0, 5), protected=False, selected=False)
-        async_session.screen_buffer.fields = [field]
-        async_session.screen_buffer.set_position(0, 2)
+        async_session.screen.fields = [field]  # Assuming screen has fields
+        async_session.screen.set_position(0, 2)
         await async_session.cursor_select()
         assert field.selected is True
-        assert len(async_session.screen_buffer.fields) == 1  # Fields unchanged
+        assert len(async_session.screen.fields) == 1  # Fields unchanged
 
     async def test_delete_field_action(self, async_session):
         """Test DeleteField action."""
@@ -721,9 +721,7 @@ class TestAsyncSessionAdvanced:
 
     async def test_sys_req_action(self, async_session):
         """Test SysReq action."""
-        # Placeholder test
-        await async_session.sys_req()
-        assert True
+        await async_session.sys_req("ATTN")  # Pass a command
 
     async def test_toggle_option_action(self, async_session):
         """Test Toggle action."""

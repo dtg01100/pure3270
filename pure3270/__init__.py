@@ -49,17 +49,21 @@ def main():
             print(
                 "Enter commands (e.g., 'String(hello)', 'key Enter'). Type 'quit' to exit."
             )
-            while True:
-                try:
-                    command = input("> ").strip()
-                    if command.lower() in ("quit", "exit"):
+            # Only enter blocking input loop when running interactively
+            if sys.stdin.isatty():
+                while True:
+                    try:
+                        command = input("> ").strip()
+                        if command.lower() in ("quit", "exit"):
+                            break
+                        result = session.execute_macro(command)
+                        print("Result:", result)
+                    except KeyboardInterrupt:
                         break
-                    result = session.execute_macro(command)
-                    print("Result:", result)
-                except KeyboardInterrupt:
-                    break
-                except Exception as e:
-                    print(f"Error: {e}")
+                    except Exception as e:
+                        print(f"Error: {e}")
+            else:
+                print("Non-interactive session: skipping interactive prompt.")
 
     except Exception as e:
         print(f"Connection failed: {e}")

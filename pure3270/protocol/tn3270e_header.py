@@ -13,6 +13,8 @@ from .utils import (
     REQUEST,
     SSCP_LU_DATA,
     PRINT_EOJ,
+    SNA_RESPONSE,
+    PRINTER_STATUS_DATA_TYPE,
     TN3270E_RSF_NO_RESPONSE,
     TN3270E_RSF_ERROR_RESPONSE,
     TN3270E_RSF_ALWAYS_RESPONSE,
@@ -98,37 +100,9 @@ class TN3270EHeader:
 
     def __repr__(self) -> str:
         """String representation of the header."""
-        type_names = {
-            TN3270_DATA: "TN3270_DATA",
-            SCS_DATA: "SCS_DATA",
-            RESPONSE: "RESPONSE",
-            BIND_IMAGE: "BIND_IMAGE",
-            UNBIND: "UNBIND",
-            NVT_DATA: "NVT_DATA",
-            REQUEST: "REQUEST",
-            SSCP_LU_DATA: "SSCP_LU_DATA",
-            PRINT_EOJ: "PRINT_EOJ",
-        }
-
-        response_names = {
-            TN3270E_RSF_NO_RESPONSE: "NO_RESPONSE",
-            TN3270E_RSF_ERROR_RESPONSE: "ERROR_RESPONSE",
-            TN3270E_RSF_ALWAYS_RESPONSE: "ALWAYS_RESPONSE",
-            TN3270E_RSF_POSITIVE_RESPONSE: "POSITIVE_RESPONSE",
-            TN3270E_RSF_NEGATIVE_RESPONSE: "NEGATIVE_RESPONSE",
-        }
-
-        type_name = type_names.get(self.data_type, f"0x{self.data_type:02x}")
-        response_name = response_names.get(
-            self.response_flag, f"0x{self.response_flag:02x}"
-        )
-
-        return (
-            f"TN3270EHeader(data_type={type_name}, "
-            f"request_flag=0x{self.request_flag:02x}, "
-            f"response_flag={response_name}, "
-            f"seq_number={self.seq_number})"
-        )
+        data_type_name = self.get_data_type_name()
+        response_flag_name = self.get_response_flag_name()
+        return f"TN3270EHeader(data_type={data_type_name}, request_flag=0x{self.request_flag:02x}, response_flag={response_flag_name}, seq_number={self.seq_number})"
 
     def is_tn3270_data(self) -> bool:
         """Check if this is TN3270_DATA type."""
@@ -159,8 +133,8 @@ class TN3270EHeader:
         return self.response_flag == TN3270E_RSF_ALWAYS_RESPONSE
 
     def get_data_type_name(self) -> str:
-        """Get the name of the data type."""
-        type_names = {
+        """Get human-readable name for data type."""
+        names = {
             TN3270_DATA: "TN3270_DATA",
             SCS_DATA: "SCS_DATA",
             RESPONSE: "RESPONSE",
@@ -170,18 +144,20 @@ class TN3270EHeader:
             REQUEST: "REQUEST",
             SSCP_LU_DATA: "SSCP_LU_DATA",
             PRINT_EOJ: "PRINT_EOJ",
+            SNA_RESPONSE: "SNA_RESPONSE",
+            PRINTER_STATUS_DATA_TYPE: "PRINTER_STATUS_DATA_TYPE",
         }
-        return type_names.get(self.data_type, f"UNKNOWN(0x{self.data_type:02x})")
+        return names.get(self.data_type, f"UNKNOWN(0x{self.data_type:02x})")
 
     def get_response_flag_name(self) -> str:
-        """Get the name of the response flag."""
-        response_names = {
+        """Get human-readable name for response flag."""
+        names = {
             TN3270E_RSF_NO_RESPONSE: "NO_RESPONSE",
             TN3270E_RSF_ERROR_RESPONSE: "ERROR_RESPONSE",
             TN3270E_RSF_ALWAYS_RESPONSE: "ALWAYS_RESPONSE",
             TN3270E_RSF_POSITIVE_RESPONSE: "POSITIVE_RESPONSE",
             TN3270E_RSF_NEGATIVE_RESPONSE: "NEGATIVE_RESPONSE",
         }
-        return response_names.get(
-            self.response_flag, f"UNKNOWN(0x{self.response_flag:02x})"
+        return names.get(
+            self.response_flag, f"UNKNOWN_RESPONSE_FLAG(0x{self.response_flag:02x})"
         )

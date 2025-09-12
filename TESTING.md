@@ -1,5 +1,20 @@
 # Pure3270 Testing
 
+## Test Harness Best Practices
+
+**Always use timeouts for network reads in test/mock servers.**
+To avoid tests hanging indefinitely, wrap all `reader.read(...)` calls in test harnesses with a timeout (e.g., using `asyncio.wait_for` or the provided `safe_read()` helper). This ensures that if a client or server stalls, the test will fail or continue gracefully instead of blocking forever.
+
+Example:
+
+```python
+from safe_read import safe_read
+data = await safe_read(reader, 1024, timeout=1.0)
+if data is None:
+	# handle timeout
+```
+
+
 This document describes how to run tests for the Pure3270 library.
 
 ## Test Scripts

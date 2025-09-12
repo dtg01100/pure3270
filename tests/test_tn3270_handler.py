@@ -7,7 +7,7 @@ from pure3270.protocol.tn3270_handler import (
     NegotiationError,
 )
 from pure3270.protocol.ssl_wrapper import SSLWrapper
-from pure3270.protocol.exceptions import SnaSessionState
+from pure3270.protocol.negotiator import SnaSessionState
 from pure3270.protocol.tn3270e_header import TN3270EHeader
 
 
@@ -375,12 +375,12 @@ class TestTN3270Handler:
 
     @pytest.mark.asyncio
     async def test_receive_data_incomplete_telnet_sequence_buffering(self, tn3270_handler):
-        from pure3270.protocol.utils import IAC, DO, BINARY
+        from pure3270.protocol.utils import IAC, DO, TELOPT_BINARY
         # First read: incomplete IAC sequence
         tn3270_handler.reader = AsyncMock()
         tn3270_handler.reader.read.side_effect = [
             bytes([IAC, DO]), # Incomplete DO command
-            bytes([BINARY, IAC, 0x19]) # Complete the DO command, and add a WILL EOR
+            bytes([TELOPT_BINARY, IAC, 0x19]) # Complete the DO command, and add a WILL EOR
         ]
 
         # First receive call
@@ -392,7 +392,7 @@ class TestTN3270Handler:
 
             # Second receive call
             received_data_2 = await tn3270_handler.receive_data()
-            mock_handle_iac.assert_called_once_with(DO, BINARY)
+            mock_handle_iac.assert_called_once_with(DO, TELOPT_BINARY)
             assert tn3270_handler._telnet_buffer == b"" # Buffer should be cleared
             assert received_data_2 == b"" # Still no 3270 data, only IAC handling
 

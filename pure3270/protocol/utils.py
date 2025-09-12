@@ -77,7 +77,7 @@ EOR = 0x19  # End of Record (duplicate, but kept for clarity)
 
 # TN3270E Data Types
 TN3270_DATA = 0x00
-SCS_DATA = 0x07
+SCS_DATA = 0x01
 RESPONSE = 0x02
 BIND_IMAGE = 0x03
 UNBIND = 0x04
