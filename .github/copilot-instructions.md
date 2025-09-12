@@ -136,6 +136,20 @@ python -m py_compile pure3270/*.py
 python quick_test.py && python examples/example_standalone.py
 ```
 
+**CRITICAL: Task Completion Requirements**
+- **Linters MUST pass before considering any task finished**
+- **ALWAYS run code formatting and linting checks**:
+  ```bash
+  # Format code first
+  python -m black pure3270/
+  
+  # Then run linter - this MUST pass with no errors
+  python -m flake8 pure3270/
+  ```
+- **Never mark a task as complete if linting fails**
+- **Fix all linting errors before proceeding**
+- **Code quality gates**: Formatting + Linting + Tests = Task Complete
+
 ## Build and Test Timing
 
 - **Package installation**: 3 seconds
@@ -320,8 +334,8 @@ python -m py_compile pure3270/*.py
 # Format and lint
 python -m black pure3270/ && python -m flake8 pure3270/
 
-# Complete pre-commit validation
-python -m black pure3270/ && python quick_test.py && python run_all_tests.py
+# Complete pre-commit validation (ALL MUST PASS)
+python -m black pure3270/ && python -m flake8 pure3270/ && python quick_test.py && python run_all_tests.py
 ```
 
 ## Code Patterns and Conventions
@@ -555,7 +569,8 @@ def test_patching():
 3. **Test**: Run quick_test.py and relevant examples
 4. **Validate**: Run full test suite
 5. **Format**: Apply black formatting
-6. **Commit**: Ensure all tests pass
+6. **Lint**: Run flake8 linting (MUST pass with no errors)
+7. **Commit**: Ensure all tests pass and linting is clean
 
 ### Bug Fix Workflow
 1. **Reproduce**: Create minimal test case
@@ -563,6 +578,7 @@ def test_patching():
 3. **Fix**: Implement fix in appropriate module
 4. **Verify**: Ensure fix works and doesn't break existing functionality
 5. **Test**: Run all validation steps
+6. **Lint**: Run flake8 linting (MUST pass with no errors)
 
 ### Code Review Checklist
 - [ ] Imports work correctly
@@ -573,6 +589,7 @@ def test_patching():
 - [ ] Logging is informative
 - [ ] Tests pass (quick_test.py at minimum)
 - [ ] Code is formatted with black
+- [ ] **Linting passes with no flake8 errors**
 - [ ] Examples still work
 
 ## Common Gotchas
