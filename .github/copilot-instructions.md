@@ -108,7 +108,7 @@ python quick_test.py && python examples/example_standalone.py
 ## Build and Test Timing
 
 - **Package installation**: 3 seconds
-- **Quick smoke test**: 0.07 seconds  
+- **Quick smoke test**: 0.07 seconds
 - **All tests suite**: 0.6 seconds
 - **Standalone example**: 0.08 seconds
 - **Patching example**: 0.08 seconds
