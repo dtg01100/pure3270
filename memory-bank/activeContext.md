@@ -24,9 +24,12 @@ The primary focus is resolving test failures and linting errors to achieve a sta
 3. Resolve test assertion failures (regex patterns, mock expectations)
 4. Complete BIND-IMAGE parsing and structured field support
 5. Validate all tests pass with proper coverage
+6. Update memory bank with the latest status and commit current WIP branch
+7. Run full test suite and iterate on any remaining failures
 
 ## Immediate Priorities
 - Correct syntax errors preventing code execution
 - Implement stub methods to prevent AttributeError
 - Update test expectations to match current implementation
 - Ensure code formatting and linting compliance
+ - Commit WIP branch and push to remote (after lint/tests pass locally)
