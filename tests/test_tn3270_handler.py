@@ -7,6 +7,8 @@ from pure3270.protocol.tn3270_handler import (
     NegotiationError,
 )
 from pure3270.protocol.ssl_wrapper import SSLWrapper
+from pure3270.protocol.exceptions import SnaSessionState
+from pure3270.protocol.tn3270e_header import TN3270EHeader
 
 
 class TestTN3270Handler:

@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+from pure3270.emulation.screen_buffer import Field
 
 
 @pytest.mark.asyncio

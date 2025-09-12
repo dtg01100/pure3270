@@ -20,6 +20,8 @@ import json
 # Add the current directory to the path so we can import pure3270
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 from pure3270.protocol.data_stream import DataStreamSender
+from pure3270.protocol.utils import WONT, DONT, TN3270E_BIND_IMAGE, TN3270E_RESPONSES
+from pure3270.protocol.data_stream import QUERY_REPLY_SF, QUERY_REPLY_CHARACTERISTICS
 
 
 def test_basic_functionality():
@@ -293,8 +295,29 @@ class LUNameMockServer(TN3270ENegotiatingMockServer):
                                         response.extend(bytes([IAC, DO, TELOPT_TN3270E]))
                                     elif option == TELOPT_TERMINAL_LOCATION:
                                         response.extend(bytes([IAC, DO, TELOPT_TERMINAL_LOCATION]))
+                                        # After sending DO, we should also send a request for the client's LU name
+                                        # But we'll wait for the client to send it
                                     else:
                                         response.extend(bytes([IAC, DONT, option]))
+                                    i += 3
+                                else: # Incomplete command
+                                    break
+                            elif command == DO:
+                                if i + 2 < len(data):
+                                    option = data[i+2]
+                                    if option == TELOPT_TTYPE:
+                                        response.extend(bytes([IAC, WILL, TELOPT_TTYPE]))
+                                    elif option == TELOPT_BINARY:
+                                        response.extend(bytes([IAC, WILL, TELOPT_BINARY]))
+                                    elif option == TELOPT_EOR:
+                                        response.extend(bytes([IAC, WILL, TELOPT_EOR]))
+                                    elif option == TELOPT_TN3270E:
+                                        response.extend(bytes([IAC, WILL, TELOPT_TN3270E]))
+                                    elif option == TELOPT_TERMINAL_LOCATION:
+                                        response.extend(bytes([IAC, WILL, TELOPT_TERMINAL_LOCATION]))
+                                        # Client should respond with SB TERMINAL-LOCATION IS <LU_NAME> SE
+                                    else:
+                                        response.extend(bytes([IAC, WONT, option]))
                                     i += 3
                                 else: # Incomplete command
                                     break
@@ -357,7 +380,8 @@ class PrinterStatusMockServer(TN3270ENegotiatingMockServer):
             IAC, DO, WILL, SB, SE, TELOPT_TTYPE, TELOPT_BINARY, TELOPT_EOR, TELOPT_TN3270E,
             TN3270E_DEVICE_TYPE, TN3270E_FUNCTIONS, TN3270E_IS, TN3270E_SEND,
             TN3270E_RESPONSES, TN3270E_BIND_IMAGE, TN3270E_DATA_STREAM_CTL,
-            TN3270_DATA, SCS_DATA, NVT_DATA, SNA_RESPONSE as SNA_RESPONSE_TYPE_UTIL
+            TN3270_DATA, SCS_DATA, NVT_DATA, SNA_RESPONSE as SNA_RESPONSE_TYPE_UTIL,
+            TELOPT_OLD_ENVIRON as TELOPT_TERMINAL_LOCATION, TN3270E_IBM_DYNAMIC
         )
         from pure3270.protocol.data_stream import (
             STRUCTURED_FIELD, BIND_SF_TYPE, SNA_RESPONSE_DATA_TYPE, PRINTER_STATUS_DATA_TYPE,
@@ -365,7 +389,7 @@ class PrinterStatusMockServer(TN3270ENegotiatingMockServer):
             SNA_SENSE_CODE_SUCCESS, SNA_SENSE_CODE_INVALID_FORMAT,
             SNA_SENSE_CODE_NOT_SUPPORTED, SNA_SENSE_CODE_SESSION_FAILURE,
             PRINTER_STATUS_SF_TYPE, SOH_DEVICE_END, SOH_INTERVENTION_REQUIRED, SOH_SUCCESS,
-            SOH
+            SOH, QUERY_REPLY_SF, QUERY_REPLY_CHARACTERISTICS
         )
         from pure3270.protocol.tn3270e_header import TN3270EHeader
 
@@ -529,11 +553,14 @@ class BindImageMockServer(TN3270ENegotiatingMockServer):
             TN3270E_IBM_DYNAMIC
         )
         from pure3270.protocol.data_stream import (
-            STRUCTURED_FIELD, BIND_SF_TYPE, BIND_SF_SUBFIELD_PSC, BIND_SF_SUBFIELD_QUERY_REPLY_IDS
+            STRUCTURED_FIELD, QUERY_REPLY_SF, QUERY_REPLY_CHARACTERISTICS
         )
 
         try:
             negotiation_done = False
+            negotiated_tn3270e_device_type = False
+            negotiated_tn3270e_functions = False
+            self.query_sf_received = asyncio.Event()  # Add missing event
             while True:
                 data = await reader.read(1024)
                 if not data:
@@ -603,11 +630,12 @@ class BindImageMockServer(TN3270ENegotiatingMockServer):
                                                 functions_response = bytes([TN3270E_BIND_IMAGE | TN3270E_RESPONSES])
                                                 response.extend(bytes([IAC, SB, TELOPT_TN3270E, TN3270E_FUNCTIONS, TN3270E_IS]) + functions_response + bytes([IAC, SE]))
                                                 negotiated_tn3270e_functions = True
-                                            elif sub_data[0] == STRUCTURED_FIELD: # Check for Structured Field
-                                                # SF format: Length (2 bytes), SF_Type (1 byte), Data
+                                            elif len(sub_data) >= 1 and sub_data[0] == STRUCTURED_FIELD: # Check for Structured Field
+                                                # SF format: SF_ID, Length (2 bytes), SF_Type (1 byte), Data
                                                 if len(sub_data) >= 4: # Min length for a query SF (SF_ID, Len, Query_SF_Type, Query_Type)
+                                                    # sub_data[0] is STRUCTURED_FIELD, so we start from index 1
                                                     sf_len = (sub_data[1] << 8) | sub_data[2]
-                                                    sf_type = sub_data[3]
+                                                    sf_type = sub_data[3] if len(sub_data) > 3 else None
                                                     if sf_type == QUERY_REPLY_SF: # It's a Query SF
                                                         query_type = sub_data[4] if len(sub_data) > 4 else None
                                                         if query_type == QUERY_REPLY_CHARACTERISTICS:
@@ -625,9 +653,7 @@ class BindImageMockServer(TN3270ENegotiatingMockServer):
                                                             sf_response.extend(reply_data)
                                                             response.extend(bytes([IAC, SB, TELOPT_TN3270E]) + sf_response + bytes([IAC, SE]))
                                                             self.query_sf_received.set() # Signal that query SF was handled
-                                                    i = j + 2
-                                                else: # Incomplete subnegotiation
-                                                    break
+                                                i = j + 2
                                             else: # Unhandled IAC command
                                                 i += 2
                                         else: # Incomplete IAC sequence
@@ -644,6 +670,8 @@ class BindImageMockServer(TN3270ENegotiatingMockServer):
                 if negotiated_tn3270e_device_type and negotiated_tn3270e_functions and not self.negotiation_complete.is_set():
                     self.negotiation_complete.set()
                     print("Mock Server: TN3270E negotiation complete.")
+                    # Send BIND-IMAGE after negotiation is complete
+                    self.bind_image_sent.set()
         except Exception as e:
             print(f"Mock server client handler error: {e}")
         finally:
@@ -672,7 +700,7 @@ class SNAAwareMockServer(TN3270ENegotiatingMockServer):
             IAC, DO, WILL, SB, SE, TELOPT_TTYPE, TELOPT_BINARY, TELOPT_EOR, TELOPT_TN3270E,
             TN3270E_DEVICE_TYPE, TN3270E_FUNCTIONS, TN3270E_IS, TN3270E_SEND,
             TN3270E_RESPONSES, TN3270E_BIND_IMAGE, TN3270E_DATA_STREAM_CTL,
-            SNA_RESPONSE as SNA_RESPONSE_TYPE_UTIL # For TN3270E header data_type
+            TN3270_DATA, SCS_DATA, NVT_DATA, REQUEST, SSCP_LU_DATA, PRINT_EOJ
         )
         from pure3270.protocol.data_stream import (
             SNA_COMMAND_RESPONSE, SNA_DATA_RESPONSE,
@@ -681,7 +709,8 @@ class SNAAwareMockServer(TN3270ENegotiatingMockServer):
             SNA_SENSE_CODE_INVALID_REQUEST, SNA_SENSE_CODE_LU_BUSY,
             SNA_SENSE_CODE_INVALID_SEQUENCE, SNA_SENSE_CODE_NO_RESOURCES,
             SNA_SENSE_CODE_STATE_ERROR,
-            SNA_FLAGS_NONE, SNA_FLAGS_RSP, SNA_FLAGS_EXCEPTION_RESPONSE
+            SNA_FLAGS_NONE, SNA_FLAGS_RSP, SNA_FLAGS_EXCEPTION_RESPONSE,
+            SNA_RESPONSE_DATA_TYPE  # Import the correct data type
         )
         from pure3270.protocol.tn3270e_header import TN3270EHeader
 
@@ -773,10 +802,11 @@ class SNAAwareMockServer(TN3270ENegotiatingMockServer):
                     # Data: Response Type (1 byte), Flags (1 byte), Sense Code (2 bytes, 0x0000 for success)
                     positive_sna_data = bytes([SNA_COMMAND_RESPONSE, SNA_FLAGS_RSP, 0x00, 0x00]) # Command response, RSP flag, success sense code
                     positive_header = TN3270EHeader(
-                        data_type=SNA_RESPONSE_TYPE_UTIL, # Use the SNA_RESPONSE type for the TN3270E header
+                        data_type=SNA_RESPONSE_DATA_TYPE, # Use the correct SNA_RESPONSE data type
                         request_flag=0, response_flag=0, seq_number=1
                     )
-                    positive_response_msg = bytes([IAC, SB, TELOPT_TN3270E]) + positive_header.to_bytes() + positive_sna_data + bytes([IAC, SE])
+                    # Send as regular TN3270E data, not subnegotiation
+                    positive_response_msg = positive_header.to_bytes() + positive_sna_data
                     writer.write(positive_response_msg)
                     await writer.drain()
                     print(f"Mock Server: Sent Positive SNA Response: {positive_response_msg.hex()}")
@@ -787,10 +817,11 @@ class SNAAwareMockServer(TN3270ENegotiatingMockServer):
                     # 2. Negative SNA Response (Session Failure)
                     negative_sna_data_session_failure = bytes([SNA_COMMAND_RESPONSE, SNA_FLAGS_RSP | SNA_FLAGS_EXCEPTION_RESPONSE, (SNA_SENSE_CODE_SESSION_FAILURE >> 8) & 0xFF, SNA_SENSE_CODE_SESSION_FAILURE & 0xFF])
                     negative_header_session_failure = TN3270EHeader(
-                        data_type=SNA_RESPONSE_TYPE_UTIL,
+                        data_type=SNA_RESPONSE_DATA_TYPE,
                         request_flag=0, response_flag=0, seq_number=2
                     )
-                    negative_response_msg_session_failure = bytes([IAC, SB, TELOPT_TN3270E]) + negative_header_session_failure.to_bytes() + negative_sna_data_session_failure + bytes([IAC, SE])
+                    # Send as regular TN3270E data, not subnegotiation
+                    negative_response_msg_session_failure = negative_header_session_failure.to_bytes() + negative_sna_data_session_failure
                     writer.write(negative_response_msg_session_failure)
                     await writer.drain()
                     print(f"Mock Server: Sent Negative SNA Response (Session Failure): {negative_response_msg_session_failure.hex()}")
@@ -802,10 +833,11 @@ class SNAAwareMockServer(TN3270ENegotiatingMockServer):
                     # 3. Negative SNA Response (LU Busy)
                     negative_sna_data_lu_busy = bytes([SNA_COMMAND_RESPONSE, SNA_FLAGS_RSP | SNA_FLAGS_EXCEPTION_RESPONSE, (SNA_SENSE_CODE_LU_BUSY >> 8) & 0xFF, SNA_SENSE_CODE_LU_BUSY & 0xFF])
                     negative_header_lu_busy = TN3270EHeader(
-                        data_type=SNA_RESPONSE_TYPE_UTIL,
+                        data_type=SNA_RESPONSE_DATA_TYPE,
                         request_flag=0, response_flag=0, seq_number=3
                     )
-                    negative_response_msg_lu_busy = bytes([IAC, SB, TELOPT_TN3270E]) + negative_header_lu_busy.to_bytes() + negative_sna_data_lu_busy + bytes([IAC, SE])
+                    # Send as regular TN3270E data, not subnegotiation
+                    negative_response_msg_lu_busy = negative_header_lu_busy.to_bytes() + negative_sna_data_lu_busy
                     writer.write(negative_response_msg_lu_busy)
                     await writer.drain()
                     print(f"Mock Server: Sent Negative SNA Response (LU Busy): {negative_response_msg_lu_busy.hex()}")
@@ -816,10 +848,11 @@ class SNAAwareMockServer(TN3270ENegotiatingMockServer):
                     # 4. Negative SNA Response (Invalid Sequence)
                     negative_sna_data_invalid_sequence = bytes([SNA_COMMAND_RESPONSE, SNA_FLAGS_RSP | SNA_FLAGS_EXCEPTION_RESPONSE, (SNA_SENSE_CODE_INVALID_SEQUENCE >> 8) & 0xFF, SNA_SENSE_CODE_INVALID_SEQUENCE & 0xFF])
                     negative_header_invalid_sequence = TN3270EHeader(
-                        data_type=SNA_RESPONSE_TYPE_UTIL,
+                        data_type=SNA_RESPONSE_DATA_TYPE,
                         request_flag=0, response_flag=0, seq_number=4
                     )
-                    negative_response_msg_invalid_sequence = bytes([IAC, SB, TELOPT_TN3270E]) + negative_header_invalid_sequence.to_bytes() + negative_sna_data_invalid_sequence + bytes([IAC, SE])
+                    # Send as regular TN3270E data, not subnegotiation
+                    negative_response_msg_invalid_sequence = negative_header_invalid_sequence.to_bytes() + negative_sna_data_invalid_sequence
                     writer.write(negative_response_msg_invalid_sequence)
                     await writer.drain()
                     print(f"Mock Server: Sent Negative SNA Response (Invalid Sequence): {negative_response_msg_invalid_sequence.hex()}")
@@ -830,10 +863,11 @@ class SNAAwareMockServer(TN3270ENegotiatingMockServer):
                     # 5. Negative SNA Response (State Error)
                     negative_sna_data_state_error = bytes([SNA_COMMAND_RESPONSE, SNA_FLAGS_RSP | SNA_FLAGS_EXCEPTION_RESPONSE, (SNA_SENSE_CODE_STATE_ERROR >> 8) & 0xFF, SNA_SENSE_CODE_STATE_ERROR & 0xFF])
                     negative_header_state_error = TN3270EHeader(
-                        data_type=SNA_RESPONSE_TYPE_UTIL,
+                        data_type=SNA_RESPONSE_DATA_TYPE,
                         request_flag=0, response_flag=0, seq_number=5
                     )
-                    negative_response_msg_state_error = bytes([IAC, SB, TELOPT_TN3270E]) + negative_header_state_error.to_bytes() + negative_sna_data_state_error + bytes([IAC, SE])
+                    # Send as regular TN3270E data, not subnegotiation
+                    negative_response_msg_state_error = negative_header_state_error.to_bytes() + negative_sna_data_state_error
                     writer.write(negative_response_msg_state_error)
                     await writer.drain()
                     print(f"Mock Server: Sent Negative SNA Response (State Error): {negative_response_msg_state_error.hex()}")
@@ -870,19 +904,19 @@ async def test_sna_response_handling(port, mock_server):
 
         await asyncio.wait_for(mock_server.session_failure_response_sent.wait(), timeout=5)
         print("   ✓ Received negative SNA response (Session Failure) from mock server.")
-        assert session.sna_session_state == SnaSessionState.SESSION_DOWN.value, f"Expected SNA state SESSION_DOWN, got {session.sna_session_state}"
+        assert session.sna_session_state == "SESSION_DOWN", f"Expected SNA state SESSION_DOWN, got {session.sna_session_state}"
 
         await asyncio.wait_for(mock_server.lu_busy_response_sent.wait(), timeout=5)
         print("   ✓ Received negative SNA response (LU Busy) from mock server.")
-        assert session.sna_session_state == SnaSessionState.LU_BUSY.value, f"Expected SNA state LU_BUSY, got {session.sna_session_state}"
+        assert session.sna_session_state == "LU_BUSY", f"Expected SNA state LU_BUSY, got {session.sna_session_state}"
 
         await asyncio.wait_for(mock_server.invalid_sequence_response_sent.wait(), timeout=5)
         print("   ✓ Received negative SNA response (Invalid Sequence) from mock server.")
-        assert session.sna_session_state == SnaSessionState.INVALID_SEQUENCE.value, f"Expected SNA state INVALID_SEQUENCE, got {session.sna_session_state}"
+        assert session.sna_session_state == "INVALID_SEQUENCE", f"Expected SNA state INVALID_SEQUENCE, got {session.sna_session_state}"
 
         await asyncio.wait_for(mock_server.state_error_response_sent.wait(), timeout=5)
         print("   ✓ Received negative SNA response (State Error) from mock server.")
-        assert session.sna_session_state == SnaSessionState.STATE_ERROR.value, f"Expected SNA state STATE_ERROR, got {session.sna_session_state}"
+        assert session.sna_session_state == "STATE_ERROR", f"Expected SNA state STATE_ERROR, got {session.sna_session_state}"
         
         return True
     except asyncio.TimeoutError:

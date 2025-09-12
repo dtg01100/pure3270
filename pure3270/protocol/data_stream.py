@@ -180,9 +180,11 @@ class SnaResponse:
         self.data = data
 
     def __repr__(self):
+        flags_str = f"0x{self.flags:02x}" if self.flags is not None else "None"
+        sense_code_str = f"0x{self.sense_code:04x}" if self.sense_code is not None else "None"
         return (f"SnaResponse(type=0x{self.response_type:02x}, "
-                f"flags=0x{self.flags:02x if self.flags is not None else 'None'}, "
-                f"sense_code=0x{self.sense_code:04x if self.sense_code is not None else 'None'}, "
+                f"flags={flags_str}, "
+                f"sense_code={sense_code_str}, "
                 f"data={self.data.hex() if self.data else 'None'})")
 
     def is_positive(self) -> bool:
