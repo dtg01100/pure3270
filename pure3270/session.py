@@ -10,6 +10,14 @@ from .protocol.tn3270_handler import TN3270Handler
 from .emulation.screen_buffer import ScreenBuffer
 from .protocol.exceptions import NegotiationError
 from .protocol.data_stream import DataStreamParser
+from pure3270.protocol.utils import (
+    TN3270E_SYSREQ_ATTN,
+    TN3270E_SYSREQ_BREAK,
+    TN3270E_SYSREQ_CANCEL,
+    TN3270E_SYSREQ_RESTART,
+    TN3270E_SYSREQ_PRINT,
+    TN3270E_SYSREQ_LOGOFF,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -1078,6 +1086,7 @@ class AsyncSession:
             "Cookie()": self.cookie,
             "Expect()": self.expect,
             "Fail()": self.fail,
+            "SendBreak()": self.send_break,
         }
 
         for command in commands:
@@ -1172,8 +1181,9 @@ class AsyncSession:
                     await self.source(file)
                 elif command == "SubjectNames()":
                     await self.subject_names()
-                elif command == "SysReq()":
-                    await self.sys_req()
+                elif command.startswith("SysReq("):
+                    sysreq_cmd = command[7:-1].strip()
+                    await self.sys_req(sysreq_cmd)
                 elif command.startswith("Toggle("):
                     option = command[7:-1]
                     await self.toggle_option(option)
@@ -1189,6 +1199,8 @@ class AsyncSession:
                 elif command.startswith("Wait("):
                     condition = command[5:-1]
                     await self.wait_condition(condition)
+                elif command == "SendBreak()":
+                    await self.send_break()
                 else:
                     raise MacroError(f"Unsupported command format: {command}")
             except Exception as e:
@@ -1772,10 +1784,45 @@ class AsyncSession:
         # Placeholder
         pass
 
-    async def sys_req(self) -> None:
-        """Send system request (s3270 SysReq() action)."""
-        # Placeholder
-        pass
+    async def sys_req(self, command: str) -> None:
+        """
+        Send system request (s3270 SysReq() action).
+
+        Args:
+            command: The SYSREQ command to send (e.g., "ATTN", "BREAK", "CANCEL").
+        """
+        if not self._connected or not self.handler:
+            raise SessionError("Session not connected.")
+
+        # Map command strings to SYSREQ byte codes
+        SYSREQ_COMMAND_MAP = {
+            "attn": TN3270E_SYSREQ_ATTN,
+            "break": TN3270E_SYSREQ_BREAK,
+            "cancel": TN3270E_SYSREQ_CANCEL,
+            "restart": TN3270E_SYSREQ_RESTART,
+            "print": TN3270E_SYSREQ_PRINT,
+            "logoff": TN3270E_SYSREQ_LOGOFF,
+        }
+
+        command_code = SYSREQ_COMMAND_MAP.get(command.lower())
+        if command_code is None:
+            raise ValueError(f"Unknown SYSREQ command: {command}")
+
+        await self.handler.send_sysreq_command(command_code)
+        logger.info(f"SYSREQ command sent: {command}")
+
+    async def send_break(self) -> None:
+        """
+        Send a Telnet BREAK command (IAC BRK) to the host.
+
+        Raises:
+            SessionError: If not connected.
+        """
+        if not self._connected or not self.handler:
+            raise SessionError("Session not connected.")
+
+        await self.handler.send_break()
+        logger.info("Telnet BREAK command sent")
 
     async def toggle_option(self, option: str) -> None:
         """Toggle option (s3270 Toggle() action)."""
