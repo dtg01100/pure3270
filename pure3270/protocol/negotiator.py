@@ -92,6 +92,7 @@ class Negotiator:
             is_printer_session: True if this is a printer session.
         """
         logger.debug("Negotiator.__init__ called")
+        logger.info(f"Negotiator created: id={id(self)}, writer={writer}, parser={parser}, screen_buffer={screen_buffer}, handler={handler}, is_printer_session={is_printer_session}")
         self.writer = writer
         self.parser = parser
         self.screen_buffer = screen_buffer
@@ -226,11 +227,15 @@ class Negotiator:
         """
         if self.writer is None:
             raise ProtocolError("Writer is None; cannot negotiate.")
-        # Send IAC WILL TERMINAL-TYPE and IAC DO TERMINAL-TYPE
+        logger.info("[NEGOTIATION] Sending IAC WILL TERMINAL-TYPE and IAC DO TERMINAL-TYPE")
         send_iac(self.writer, b"\xfb\x18") # WILL TERMINAL-TYPE
+        logger.debug("[NEGOTIATION] Sent IAC WILL TERMINAL-TYPE (fb 18)")
         send_iac(self.writer, b"\xfd\x18") # DO TERMINAL-TYPE
+        logger.debug("[NEGOTIATION] Sent IAC DO TERMINAL-TYPE (fd 18)")
+        # Per RFC 1091, after TTYPE negotiation, wait for the server to initiate BINARY/EOR/TN3270E negotiation.
         await self.writer.drain()
-        # The response for TERMINAL-TYPE negotiation is handled by handle_iac_command
+        logger.info("[NEGOTIATION] Initial TTYPE negotiation commands sent. Awaiting server response...")
+        # The response for further negotiation is handled by handle_iac_command
 
     async def _negotiate_tn3270(self, timeout: float = 5.0) -> None:
         """
@@ -251,39 +256,49 @@ class Negotiator:
         self._device_type_is_event.clear()
         self._functions_is_event.clear()
 
-        # Send DEVICE-TYPE SEND subnegotiation to propose our supported types
-        logger.info("Sending DEVICE-TYPE SEND for TN3270E negotiation.")
+        logger.info("[NEGOTIATION] Sending DEVICE-TYPE SEND for TN3270E negotiation.")
         self._outgoing_request("DEVICE-TYPE SEND")
-        self._send_supported_device_types()
-        await self.writer.drain()
+        logger.debug(f"[NEGOTIATION] About to send supported device types: {self.supported_device_types}")
+        await self._send_supported_device_types()
+        logger.info("[NEGOTIATION] DEVICE-TYPE SEND sent. Starting background reader and awaiting responses...")
+
+        reader_task = asyncio.create_task(self._background_negotiation_reader())
 
         try:
             # Wait for DEVICE-TYPE IS response
-            logger.debug(f"Waiting for DEVICE-TYPE IS response with timeout {timeout}s...")
+            logger.debug(f"[NEGOTIATION] Waiting for DEVICE-TYPE IS response with timeout {timeout}s...")
             await asyncio.wait_for(self._device_type_is_event.wait(), timeout=timeout)
-            logger.info(f"Received DEVICE-TYPE IS: {self.negotiated_device_type}")
+            logger.info(f"[NEGOTIATION] Received DEVICE-TYPE IS: {self.negotiated_device_type}")
 
             # Wait for FUNCTIONS IS response (if not already received)
             if not self._functions_is_event.is_set():
-                logger.debug(f"Waiting for FUNCTIONS IS response with timeout {timeout}s...")
+                logger.debug(f"[NEGOTIATION] Waiting for FUNCTIONS IS response with timeout {timeout}s...")
                 await asyncio.wait_for(self._functions_is_event.wait(), timeout=timeout)
-                logger.info(f"Received FUNCTIONS IS: 0x{self.negotiated_functions:02x}")
+                logger.info(f"[NEGOTIATION] Received FUNCTIONS IS: 0x{self.negotiated_functions:02x}")
 
             self.negotiated_tn3270e = True
-            logger.info("TN3270E negotiation successful.")
+            logger.info("[NEGOTIATION] TN3270E negotiation successful.")
 
         except asyncio.TimeoutError:
             logger.warning(
-                "TN3270E negotiation timed out. Falling back to ASCII/VT100 mode."
+                "[NEGOTIATION] TN3270E negotiation timed out. Falling back to ASCII/VT100 mode."
             )
             self.set_ascii_mode()
             self.negotiated_tn3270e = False
+            logger.error("[NEGOTIATION] TN3270E negotiation timed out. Raising NegotiationError.")
             raise NegotiationError("TN3270E negotiation timed out.")
         except Exception as e:
-            logger.error(f"Error during TN3270E negotiation: {e}", exc_info=True)
+            logger.error(f"[NEGOTIATION] Error during TN3270E negotiation: {e}", exc_info=True)
             self.set_ascii_mode()
             self.negotiated_tn3270e = False
+            logger.error(f"[NEGOTIATION] TN3270E negotiation failed: {e}")
             raise NegotiationError(f"TN3270E negotiation failed: {e}")
+        finally:
+            reader_task.cancel()
+            try:
+                await reader_task
+            except asyncio.CancelledError:
+                pass
 
     def set_ascii_mode(self) -> None:
         """
@@ -332,6 +347,8 @@ class Negotiator:
         raise NotImplementedError("Handler required for reading IAC")
 
     async def handle_iac_command(self, command: int, option: int) -> None:
+        # Log the raw IAC command and option
+        print(f"Negotiator: handle_iac_command called with command=0x{command:02x}, option=0x{option:02x}")
         """
         Handle incoming Telnet IAC commands (DO, DONT, WILL, WONT).
 
@@ -342,49 +359,64 @@ class Negotiator:
         # Removed the local import, as it's now imported at the top of the file
         # from .utils import DO, DONT, WILL, WONT, TELOPT_TTYPE, TELOPT_BINARY, TELOPT_EOR, TELOPT_TN3270E
 
+        logger.info(f"[NEGOTIATION] Received IAC command: {command:#x}, option: {option:#x}")
         if command == DO:
-            logger.debug(f"Received IAC DO {option:#x}")
+            logger.debug(f"[NEGOTIATION] Received IAC DO {option:#x}")
             if option == TELOPT_TTYPE: # Terminal Type
+                logger.info("[NEGOTIATION] Sending IAC WILL TTYPE in response to DO TTYPE")
                 send_iac(self.writer, bytes([WILL, TELOPT_TTYPE]))
             elif option == TELOPT_BINARY: # Binary Transmission
+                logger.info("[NEGOTIATION] Sending IAC WILL BINARY in response to DO BINARY")
                 send_iac(self.writer, bytes([WILL, TELOPT_BINARY]))
             elif option == TELOPT_EOR: # End of Record
+                logger.info("[NEGOTIATION] Sending IAC WILL EOR in response to DO EOR")
                 send_iac(self.writer, bytes([WILL, TELOPT_EOR]))
             elif option == TELOPT_TN3270E: # TN3270E
+                logger.info("[NEGOTIATION] Sending IAC WILL TN3270E in response to DO TN3270E")
                 send_iac(self.writer, bytes([WILL, TELOPT_TN3270E]))
             elif option == TELOPT_TERMINAL_LOCATION: # TERMINAL-LOCATION (RFC 1646)
+                logger.info("[NEGOTIATION] Sending IAC WILL TERMINAL-LOCATION in response to DO TERMINAL-LOCATION")
                 send_iac(self.writer, bytes([WILL, TELOPT_TERMINAL_LOCATION]))
                 # If the server requests TERMINAL-LOCATION, we respond with our LU name
                 await self._send_lu_name_is() # Await this call
             elif option == TELOPT_BIND_UNIT: # BIND-UNIT
+                logger.info("[NEGOTIATION] Sending IAC WILL BIND-UNIT in response to DO BIND-UNIT")
                 send_iac(self.writer, bytes([WILL, TELOPT_BIND_UNIT]))
             else:
+                logger.info(f"[NEGOTIATION] Sending IAC WONT {option:#x} in response to DO {option:#x}")
                 send_iac(self.writer, bytes([WONT, option]))
             await self.writer.drain() # Drain after sending IAC response
         elif command == DONT:
-            logger.debug(f"Received IAC DONT {option:#x}")
+            logger.info(f"[NEGOTIATION] Received IAC DONT {option:#x}")
             send_iac(self.writer, bytes([WONT, option]))
             await self.writer.drain()
         elif command == WILL:
-            logger.debug(f"Received IAC WILL {option:#x}")
+            logger.info(f"[NEGOTIATION] Received IAC WILL {option:#x}")
             if option == TELOPT_TTYPE:
+                logger.info("[NEGOTIATION] Sending IAC DO TTYPE in response to WILL TTYPE")
                 send_iac(self.writer, bytes([DO, TELOPT_TTYPE]))
             elif option == TELOPT_BINARY:
+                logger.info("[NEGOTIATION] Sending IAC DO BINARY in response to WILL BINARY")
                 send_iac(self.writer, bytes([DO, TELOPT_BINARY]))
             elif option == TELOPT_EOR:
+                logger.info("[NEGOTIATION] Sending IAC DO EOR in response to WILL EOR")
                 send_iac(self.writer, bytes([DO, TELOPT_EOR]))
             elif option == TELOPT_TN3270E:
+                logger.info("[NEGOTIATION] Sending IAC DO TN3270E in response to WILL TN3270E")
                 send_iac(self.writer, bytes([DO, TELOPT_TN3270E]))
             elif option == TELOPT_TERMINAL_LOCATION: # TERMINAL-LOCATION (RFC 1646)
+                logger.info("[NEGOTIATION] Sending IAC DO TERMINAL-LOCATION in response to WILL TERMINAL-LOCATION")
                 send_iac(self.writer, bytes([DO, TELOPT_TERMINAL_LOCATION]))
                 # The host is telling us it WILL use TERMINAL-LOCATION, no action needed from client other than DO.
             elif option == TELOPT_BIND_UNIT: # BIND-UNIT
+                logger.info("[NEGOTIATION] Sending IAC DO BIND-UNIT in response to WILL BIND-UNIT")
                 send_iac(self.writer, bytes([DO, TELOPT_BIND_UNIT]))
             else:
+                logger.info(f"[NEGOTIATION] Sending IAC DONT {option:#x} in response to WILL {option:#x}")
                 send_iac(self.writer, bytes([DONT, option]))
             await self.writer.drain()
         elif command == WONT:
-            logger.debug(f"Received IAC WONT {option:#x}")
+            logger.info(f"[NEGOTIATION] Received IAC WONT {option:#x}")
             send_iac(self.writer, bytes([DONT, option]))
             await self.writer.drain()
 
@@ -431,20 +463,11 @@ class Negotiator:
         return bool(self.negotiated_functions & TN3270E_DATA_STREAM_CTL)
 
     async def handle_subnegotiation(self, option: int, data: bytes) -> None:
-        """
-        Handles incoming Telnet subnegotiation sequences.
-        Dispatches to specific handlers based on the option.
-
-        Args:
-            option: The Telnet option for the subnegotiation.
-            data: The subnegotiation data.
-        """
+        print(f"Negotiator: handle_subnegotiation called with option=0x{option:02x}, data={data.hex()}")
         logger.debug(f"Received subnegotiation: Option=0x{option:02x}, Data={data.hex()}")
 
         if option == TELOPT_TN3270E:
-            # Call the synchronous entry point which will schedule the async
-            # parser as needed. Do not await the result here.
-            self._parse_tn3270e_subnegotiation(data)
+            await self._parse_tn3270e_subnegotiation(data)
         elif option == TELOPT_TERMINAL_LOCATION:
             await self._handle_terminal_location_subnegotiation(data)
         elif option == TN3270E_SYSREQ_MESSAGE_TYPE:
@@ -452,30 +475,14 @@ class Negotiator:
         else:
             logger.debug(f"Unhandled subnegotiation option: 0x{option:02x} with data: {data.hex()}")
 
-    def _parse_tn3270e_subnegotiation(self, data: bytes) -> None:
+    async def _parse_tn3270e_subnegotiation(self, data: bytes) -> None:
         """
-        Synchronous entry point for TN3270E subnegotiation parsing.
-
-        Tests call this method synchronously; internally we schedule the
-        async implementation so existing async flows still work.
+        Async entry point for TN3270E subnegotiation parsing.
         """
-        # Validate minimal length quickly
         if len(data) < 2:
             logger.warning(f"Invalid TN3270E subnegotiation data: {data.hex()}")
             return
-
-        # Schedule the async parser to run in the background if needed
-        try:
-            coro = self._parse_tn3270e_subnegotiation_async(data)
-            self._maybe_schedule_coro(coro)
-        except Exception:
-            # Fallback to calling the async function directly if scheduling fails
-            try:
-                import asyncio
-
-                asyncio.run(self._parse_tn3270e_subnegotiation_async(data))
-            except Exception:
-                logger.exception("Failed to run TN3270E subnegotiation parser")
+        await self._parse_tn3270e_subnegotiation_async(data)
 
     async def _parse_tn3270e_subnegotiation_async(self, data: bytes) -> None:
         """
@@ -497,7 +504,7 @@ class Negotiator:
                 logger.warning(f"Could not parse TN3270EHeader from subnegotiation data: {data.hex()}")
 
         if message_type == TN3270E_DEVICE_TYPE:
-            await self._handle_device_type_subnegotiation_async(data[1:])
+            self._handle_device_type_subnegotiation(data[1:])
             self._device_type_is_event.set()
         elif message_type == TN3270E_FUNCTIONS:
             # FUNCTIONS handling can be synchronous for observers
@@ -510,14 +517,14 @@ class Negotiator:
         else:
             logger.debug(f"Unhandled TN3270E subnegotiation type: 0x{message_type:02x}")
 
-    def _handle_device_type_subnegotiation(self, data: bytes) -> None:
+    async def _handle_device_type_subnegotiation(self, data: bytes) -> None:
         """
         Handle DEVICE-TYPE subnegotiation message.
 
         Args:
             data: DEVICE-TYPE subnegotiation data (message type already stripped)
         """
-        # Quick validation
+        # Per RFC 2355 section 7.2, after receiving DEVICE-TYPE IS, the client MUST immediately send FUNCTIONS SEND.
         if not data:
             logger.warning("Empty DEVICE-TYPE subnegotiation data")
             return
@@ -540,19 +547,24 @@ class Negotiator:
                     # Schedule query for device characteristics; may run async
                     try:
                         coro = self._send_query_sf(self.writer, 0x02)
-                        # _send_query_sf is synchronous, but it may call async drains internally
-                        # so we schedule it conservatively
                         self._maybe_schedule_coro(coro)
                     except Exception:
-                        # Fallback: call directly if scheduling fails
                         try:
                             import asyncio
-
                             asyncio.run(self._send_query_sf(self.writer, 0x02))
                         except Exception:
                             logger.exception("Failed to send QUERY SF for IBM-DYNAMIC")
                 else:
                     self.negotiated_device_type = device_type
+            # After receiving DEVICE-TYPE IS, immediately send FUNCTIONS SEND (RFC 2355 section 7.2)
+            logger.info("[RFC 2355] Immediately sending FUNCTIONS SEND after DEVICE-TYPE IS.")
+            print("[DEBUG] About to call await self._send_supported_functions() after DEVICE-TYPE IS")
+            try:
+                await self._send_supported_functions()
+                print("[DEBUG] Returned from await self._send_supported_functions() after DEVICE-TYPE IS")
+                # No sleep needed; background reader handles processing
+            except Exception as e:
+                logger.error(f"Error sending FUNCTIONS SEND after DEVICE-TYPE IS: {e}")
         elif sub_type == TN3270E_REQUEST:
             logger.info("Server requested supported device types")
             self._send_supported_device_types()
@@ -601,7 +613,9 @@ class Negotiator:
         else:
             logger.warning(f"Unhandled FUNCTIONS subnegotiation subtype: 0x{sub_type:02x}")
 
-    def _send_supported_device_types(self) -> None:
+    async def _send_supported_device_types(self) -> None:
+        # Log the outgoing supported device types
+        print(f"Negotiator: _send_supported_device_types called. Supported types: {self.supported_device_types}")
         """Send our supported device types to the server."""
         if self.writer is None:
             logger.error("Cannot send device types: writer is None")
@@ -615,9 +629,14 @@ class Negotiator:
 
         sub_data = bytes([TN3270E_DEVICE_TYPE, TN3270E_SEND]) + device_type_bytes
         send_subnegotiation(self.writer, bytes([0x28]), sub_data)
+        await self.writer.drain()
+        await asyncio.sleep(0.01)  # Yield to allow server to process and respond
         logger.debug(f"Sent supported device types: {self.supported_device_types}")
 
-    def _send_supported_functions(self) -> None:
+    async def _send_supported_functions(self) -> None:
+        # Log the outgoing supported functions
+        print(f"Negotiator: _send_supported_functions called. Supported functions: 0x{self.supported_functions:02x}")
+        logger.info("[DEBUG] Entering _send_supported_functions")
         """Send our supported functions to the server."""
         if self.writer is None:
             logger.error("Cannot send functions: writer is None")
@@ -632,8 +651,23 @@ class Negotiator:
 
         if function_bytes:
             sub_data = bytes([TN3270E_FUNCTIONS, TN3270E_SEND] + function_bytes)
+            logger.info(f"[DEBUG] About to send FUNCTIONS SEND: {sub_data.hex()}")
+            print(f"[CLIENT DEBUG] About to send FUNCTIONS SEND subnegotiation: {sub_data.hex()}")
+            print(f"[CLIENT DEBUG] Full SB: IAC SB TN3270E {sub_data.hex()} IAC SE")
             send_subnegotiation(self.writer, bytes([0x28]), sub_data)
+            print(f"[CLIENT DEBUG] FUNCTIONS SEND subnegotiation sent via send_subnegotiation.")
             logger.debug(f"Sent supported functions: 0x{self.supported_functions:02x}")
+            if hasattr(self.writer, 'drain'):
+                try:
+                    await self.writer.drain()
+                    await asyncio.sleep(0.01)  # Yield to allow server to process
+                    print(f"[CLIENT DEBUG] writer.drain() completed after sending FUNCTIONS SEND.")
+                    logger.info("[DEBUG] writer.drain() completed after sending FUNCTIONS SEND")
+                except Exception as e:
+                    print(f"Negotiator: Exception during writer.drain(): {e}")
+        else:
+            print(f"[CLIENT DEBUG] No function bytes to send, skipping FUNCTIONS SEND.")
+        logger.info("[DEBUG] Exiting _send_supported_functions")
 
     def _send_query_sf(self, writer, query_type: int) -> None:
         """

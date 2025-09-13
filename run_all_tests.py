@@ -29,7 +29,7 @@ async def main():
     # Activate virtual environment if it exists
     venv_activate = ""
     if os.path.exists("venv/bin/activate"):
-        venv_activate = "source venv/bin/activate && "
+        venv_activate = ". venv/bin/activate && "
 
     tests = [
         ("Quick Smoke Test", f"{venv_activate}timeout 30 python quick_test.py"),

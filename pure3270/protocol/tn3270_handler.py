@@ -97,6 +97,7 @@ class TN3270Handler:
             connect_port = port or self.port
             connect_ssl = ssl_context or self.ssl_context
 
+            logger.info(f"[HANDLER] Connecting to {connect_host}:{connect_port} (ssl={bool(connect_ssl)})")
             reader, writer = await asyncio.open_connection(
                 connect_host, connect_port, ssl=connect_ssl
             )
@@ -113,9 +114,11 @@ class TN3270Handler:
             # Update negotiator with writer
             self.negotiator.writer = self.writer
 
-            # Perform negotiation
+            logger.info("[HANDLER] Starting Telnet negotiation (TTYPE, BINARY, EOR, TN3270E)")
             await self.negotiator.negotiate()
+            logger.info("[HANDLER] Starting TN3270E subnegotiation")
             await self.negotiator._negotiate_tn3270(timeout=10.0) # Increased timeout for negotiation
+            logger.info("[HANDLER] Negotiation complete")
         except Exception as e:
             logger.error(f"Connection failed: {e}", exc_info=True)
             raise ConnectionError(f"Failed to connect: {e}")
@@ -168,6 +171,7 @@ class TN3270Handler:
 
         Delegates to negotiator.
         """
+        logger.info("[HANDLER] (manual) Starting Telnet negotiation (TTYPE, BINARY, EOR, TN3270E)")
         await self.negotiator.negotiate()
 
     
@@ -178,6 +182,7 @@ class TN3270Handler:
 
         Delegates to negotiator.
         """
+        logger.info("[HANDLER] (manual) Starting TN3270E subnegotiation")
         await self.negotiator._negotiate_tn3270()
 
     def set_ascii_mode(self) -> None:
@@ -443,6 +448,9 @@ class TN3270Handler:
         full_data = self._telnet_buffer + raw_data
         self._telnet_buffer = b""  # Clear the buffer
 
+        logger.debug(f"[TELNET] Processing raw Telnet stream: {raw_data.hex()}")
+        logger.debug(f"[TELNET] Full data (with buffer): {full_data.hex()}")
+
         while i < len(full_data):
             if full_data[i] == IAC:
                 if i + 1 < len(full_data):
@@ -461,6 +469,8 @@ class TN3270Handler:
                             # Found IAC SE
                             sub_option = full_data[i + 2] if i + 2 < j else None
                             sub_data = full_data[i + 3 : j]
+
+                            logger.info(f"[TELNET] Received IAC SB (subnegotiation): option=0x{sub_option:02x}, data={sub_data.hex()}")
 
                             # Pass all subnegotiations to the negotiator for handling
                             if sub_option is not None:
@@ -484,6 +494,7 @@ class TN3270Handler:
                     elif command in (DO, DONT, WILL, WONT):
                         if i + 2 < len(full_data):
                             option = full_data[i + 2]
+                            logger.info(f"[TELNET] Received IAC command: {command:#x}, option: {option:#x}")
                             _call_maybe_schedule(self.negotiator.handle_iac_command, command, option)  # Schedule or call
                             i += 3
                         else:
