@@ -1,3 +1,4 @@
+import platform
 import pytest
 from unittest.mock import patch
 import sys
@@ -6,7 +7,7 @@ from pure3270 import enable_replacement
 from pure3270.patching.patching import MonkeyPatchManager, Pure3270PatchError
 
 
-def test_real_p3270_patching():
+def test_real_p3270_patching(memory_limit_500mb):
     """Test patching with the real p3270 package."""
     # This test requires p3270 to be installed
     pytest.importorskip("p3270", reason="p3270 not available for integration test")
@@ -34,7 +35,7 @@ def test_real_p3270_patching():
         raise e
 
 
-def test_p3270_version_detection():
+def test_p3270_version_detection(memory_limit_500mb):
     """Test that we can properly detect the p3270 version."""
     pytest.importorskip("p3270", reason="p3270 not available for version test")
 
@@ -49,7 +50,7 @@ def test_p3270_version_detection():
     assert version == "0.1.6"  # This is what we have installed
 
 
-def test_patching_with_version_check():
+def test_patching_with_version_check(memory_limit_500mb):
     """Test patching with version checking."""
     pytest.importorskip("p3270", reason="p3270 not available for version test")
 
@@ -72,7 +73,7 @@ def test_patching_with_version_check():
             manager.apply_patches(expected_version="0.3.0", strict_version=True)
 
 
-def test_patching_unpatch():
+def test_patching_unpatch(memory_limit_500mb):
     """Test that unpatching works correctly."""
     pytest.importorskip("p3270", reason="p3270 not available for unpatch test")
 
