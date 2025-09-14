@@ -1,11 +1,13 @@
+import platform
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from pure3270.emulation.screen_buffer import Field
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
 class TestIntegration:
-    async def test_end_to_end_macro_execution(self, async_session):
+    async def test_end_to_end_macro_execution(self, async_session, memory_limit_500mb):
         """
         Ported from s3270 test case: End-to-end macro execution.
         Input macro (startup, keys, reads); output expected screen state;
@@ -55,7 +57,7 @@ class TestIntegration:
         assert mock_handler.send_data.call_count == 1
         mock_handler.receive_data.assert_called_once()
 
-    async def test_ic_pt_order_integration(self, async_session):
+    async def test_ic_pt_order_integration(self, async_session, memory_limit_500mb):
         """
         Integration test for IC (Insert Cursor) and PT (Program Tab) orders.
         Simulates receiving data streams with IC and PT and verifies cursor movement.
