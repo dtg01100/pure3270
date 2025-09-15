@@ -465,6 +465,10 @@ Install dev dependencies (see Installation). Then:
 pytest tests/
 ```
 
+### Memory Limiting
+
+Tests can be run with memory limits to prevent excessive memory usage and detect memory leaks. See [MEMORY_LIMITING.md](MEMORY_LIMITING.md) for details.
+
 ### Coverage Reports
 
 You can generate local coverage reports without using external services:

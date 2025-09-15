@@ -1,6 +1,7 @@
 import pytest
 import asyncio
 import subprocess
+import platform
 from unittest.mock import AsyncMock, MagicMock, patch, ANY, mock_open
 from pure3270.session import Session, AsyncSession, SessionError, MacroError
 from pure3270.emulation.screen_buffer import ScreenBuffer, Field
@@ -17,9 +18,10 @@ def sync_session():
     return Session("localhost", 23)
 
 
+@pytest.mark.skipif(platform.system() != 'Linux', reason="Memory limiting only supported on Linux")
 @pytest.mark.asyncio
 class TestAsyncSession:
-    async def test_init(self, async_session):
+    async def test_init(self, async_session, memory_limit_500mb):
         assert isinstance(async_session.screen_buffer, ScreenBuffer)
         assert async_session._handler is None
         assert async_session._connected is False

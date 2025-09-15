@@ -1,18 +1,20 @@
+import platform
 import pytest
 from unittest.mock import patch, MagicMock
 from pure3270.protocol.ssl_wrapper import SSLWrapper, SSLError
 import ssl
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
 class TestSSLWrapper:
-    def test_init(self, ssl_wrapper):
+    def test_init(self, ssl_wrapper, memory_limit_500mb):
         assert ssl_wrapper.verify is True
         assert ssl_wrapper.cafile is None
         assert ssl_wrapper.capath is None
         assert ssl_wrapper.context is None
 
     @patch("ssl.SSLContext")
-    def test_create_context_verify(self, mock_ssl_context, ssl_wrapper):
+    def test_create_context_verify(self, mock_ssl_context, ssl_wrapper, memory_limit_500mb):
         ctx = MagicMock()
         mock_ssl_context.return_value = ctx
         with patch("ssl.PROTOCOL_TLS_CLIENT"):
@@ -24,7 +26,7 @@ class TestSSLWrapper:
         ctx.set_ciphers.assert_called_with("HIGH:!aNULL:!MD5")
 
     @patch("ssl.SSLContext")
-    def test_create_context_no_verify(self, mock_ssl_context, ssl_wrapper):
+    def test_create_context_no_verify(self, mock_ssl_context, ssl_wrapper, memory_limit_500mb):
         wrapper = SSLWrapper(verify=False)
         ctx = MagicMock()
         mock_ssl_context.return_value = ctx
@@ -34,23 +36,23 @@ class TestSSLWrapper:
         ctx.verify_mode = 0  # CERT_NONE
 
     @patch("ssl.SSLContext")
-    def test_create_context_error(self, mock_ssl_context, ssl_wrapper):
+    def test_create_context_error(self, mock_ssl_context, ssl_wrapper, memory_limit_500mb):
         mock_ssl_context.side_effect = ssl.SSLError("Test error")
         with pytest.raises(SSLError):
             ssl_wrapper.create_context()
 
-    def test_wrap_connection(self, ssl_wrapper):
+    def test_wrap_connection(self, ssl_wrapper, memory_limit_500mb):
         telnet_conn = MagicMock()
         wrapped = ssl_wrapper.wrap_connection(telnet_conn)
         assert wrapped == telnet_conn  # Stub returns original
 
-    def test_get_context(self, ssl_wrapper):
+    def test_get_context(self, ssl_wrapper, memory_limit_500mb):
         with patch.object(ssl_wrapper, "create_context") as mock_create:
             context = ssl_wrapper.get_context()
         mock_create.assert_called_once()
         assert context == ssl_wrapper.context
 
-    def test_ssl_encryption_for_data_transit(self, ssl_wrapper):
+    def test_ssl_encryption_for_data_transit(self, ssl_wrapper, memory_limit_500mb):
         """
         Ported from s3270 test case 4: SSL encryption for data transit.
         Input SSL-wrapped connection, send encrypted data; output decrypts;

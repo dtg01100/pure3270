@@ -1,21 +1,23 @@
 import pytest
+import platform
 from unittest.mock import patch, AsyncMock
 from pure3270.session import Session, AsyncSession
 
 
+@pytest.mark.skipif(platform.system() != 'Linux', reason="Memory limiting only supported on Linux")
 class TestAIDSupport:
-    def test_session_pf_method_exists(self):
+    def test_session_pf_method_exists(self, memory_limit_500mb):
         """Test that Session class has pf method."""
         session = Session()
         assert hasattr(session, "pf")
 
-    def test_session_pa_method_exists(self):
+    def test_session_pa_method_exists(self, memory_limit_500mb):
         """Test that Session class has pa method."""
         session = Session()
         assert hasattr(session, "pa")
 
     @patch("pure3270.session.asyncio.run")
-    def test_session_pf_calls_async_pf(self, mock_run):
+    def test_session_pf_calls_async_pf(self, mock_run, memory_limit_500mb):
         """Test that Session.pf calls AsyncSession.pf."""
         session = Session()
         session._async_session = AsyncMock()
@@ -26,7 +28,7 @@ class TestAIDSupport:
         mock_run.assert_called_once()
 
     @patch("pure3270.session.asyncio.run")
-    def test_session_pa_calls_async_pa(self, mock_run):
+    def test_session_pa_calls_async_pa(self, mock_run, memory_limit_500mb):
         """Test that Session.pa calls AsyncSession.pa."""
         session = Session()
         session._async_session = AsyncMock()
@@ -36,7 +38,7 @@ class TestAIDSupport:
         session._async_session.pa.assert_called_once_with(1)
         mock_run.assert_called_once()
 
-    def test_async_session_key_method_extended_aid_map(self):
+    def test_async_session_key_method_extended_aid_map(self, memory_limit_500mb):
         """Test that AsyncSession.key method has extended AID map."""
         session = AsyncSession()
 

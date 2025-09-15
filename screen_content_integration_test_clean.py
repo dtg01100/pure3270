@@ -1,3 +1,23 @@
+import platform
+import resource
+def set_memory_limit(max_memory_mb: int):
+    """
+    Set maximum memory limit for the current process.
+    
+    Args:
+        max_memory_mb: Maximum memory in megabytes
+    """
+    # Only works on Unix systems
+    if platform.system() != 'Linux':
+        return None
+    
+    try:
+        max_memory_bytes = max_memory_mb * 1024 * 1024
+        # RLIMIT_AS limits total virtual memory
+        resource.setrlimit(resource.RLIMIT_AS, (max_memory_bytes, max_memory_bytes))
+        return max_memory_bytes
+    except Exception:
+        return None
 #!/usr/bin/env python3
 """
 Integration test demonstrating screen content reading with navigation.

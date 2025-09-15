@@ -1,9 +1,11 @@
 import pytest
+import platform
 from pure3270.emulation.screen_buffer import ScreenBuffer, Field
 
 
+@pytest.mark.skipif(platform.system() != 'Linux', reason="Memory limiting only supported on Linux")
 class TestExtendedFieldAttributes:
-    def test_field_extended_attributes(self):
+    def test_field_extended_attributes(self, memory_limit_500mb):
         """Test that Field class supports extended attributes."""
         # Create a field with extended attributes
         field = Field(

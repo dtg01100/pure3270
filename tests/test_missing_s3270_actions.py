@@ -1,11 +1,13 @@
+import platform
 import pytest
 from unittest.mock import AsyncMock, patch
 from pure3270.session import AsyncSession
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
 class TestMissingS3270Actions:
     @pytest.mark.asyncio
-    async def test_compose_action(self):
+    async def test_compose_action(self, memory_limit_500mb):
         """Test Compose() action."""
         session = AsyncSession()
         # Compose is typically used for special characters, but we'll just test it doesn't crash
@@ -15,7 +17,7 @@ class TestMissingS3270Actions:
             mock_insert.assert_called_once_with("test")
 
     @pytest.mark.asyncio
-    async def test_cookie_action(self):
+    async def test_cookie_action(self, memory_limit_500mb):
         """Test Cookie() action."""
         session = AsyncSession()
         # Cookie action for web-based emulators - we'll store it in a simple dict
@@ -24,7 +26,7 @@ class TestMissingS3270Actions:
         assert session._cookies.get("name") == "value"
 
     @pytest.mark.asyncio
-    async def test_expect_action(self):
+    async def test_expect_action(self, memory_limit_500mb):
         """Test Expect() action."""
         session = AsyncSession()
         # Expect action for scripting - we'll implement a simple version
@@ -33,7 +35,7 @@ class TestMissingS3270Actions:
             assert result is True
 
     @pytest.mark.asyncio
-    async def test_fail_action(self):
+    async def test_fail_action(self, memory_limit_500mb):
         """Test Fail() action."""
         session = AsyncSession()
         # Fail action should raise an exception

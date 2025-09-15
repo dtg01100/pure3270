@@ -8,7 +8,7 @@ version = "0.3.1"
 description = "Pure Python 3270 emulator"
 readme = "README.md"
 authors = [{name = "Pure3270 Developers"}]
-dependencies = []
+dependencies = ["ebcdic"]
 requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -30,6 +30,7 @@ test = [
     "black >= 24.0",
     "pytest-cov >= 5.0",
     "p3270 >= 0.1.6",
+    "pytest-timeout >= 2.1",
 ]
 testing = [
     "python-dotenv >= 1.0.0",

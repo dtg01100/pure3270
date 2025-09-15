@@ -76,4 +76,6 @@ if __name__ == "__main__":
     main()
 
 
-__all__ = ["Session", "AsyncSession", "enable_replacement", "setup_logging"]
+from .protocol.exceptions import MacroError
+
+__all__ = ["Session", "AsyncSession", "enable_replacement", "setup_logging", "MacroError"]

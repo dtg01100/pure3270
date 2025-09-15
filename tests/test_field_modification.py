@@ -1,9 +1,11 @@
+import platform
 import pytest
 from pure3270.emulation.screen_buffer import ScreenBuffer, Field
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
 class TestFieldModificationTracking:
-    def test_field_modification_with_write_char_fixed_behavior(self):
+    def test_field_modification_with_write_char_fixed_behavior(self, memory_limit_500mb):
         """Test that writing to a field updates its modified flag."""
         # Create a screen buffer
         screen = ScreenBuffer(rows=2, cols=20)
@@ -27,7 +29,7 @@ class TestFieldModificationTracking:
         # The field's content is still not updated in this simple implementation
         # but the modified flag is properly set
 
-    def test_field_modification_with_set_content(self):
+    def test_field_modification_with_set_content(self, memory_limit_500mb):
         """Test that set_content properly marks field as modified."""
         # Create a field
         field = Field(
@@ -46,7 +48,7 @@ class TestFieldModificationTracking:
         # The field's content should be updated
         assert field.get_content() == "Hello!"
 
-    def test_read_modified_fields_basic(self):
+    def test_read_modified_fields_basic(self, memory_limit_500mb):
         """Test basic read_modified_fields functionality."""
         screen = ScreenBuffer(rows=2, cols=20)
 

@@ -4,6 +4,7 @@ Applies patches to align with expected library versions.
 """
 
 import sys
+import asyncio
 import logging
 from unittest.mock import patch as mock_patch
 from typing import Optional, Dict, Any
@@ -86,6 +87,11 @@ class MonkeyPatchManager:
         docstring: Optional[str] = None,
     ) -> None:
         original = getattr(obj, method_name, None)
+        if asyncio.iscoroutinefunction(original):
+            def wrapped(*args, **kwargs):
+                loop = asyncio.get_event_loop()
+                return loop.run_in_executor(None, lambda: new_method(*args, **kwargs))
+            new_method = wrapped
         if isinstance(obj, type):
             class_name = obj.__name__
         else:

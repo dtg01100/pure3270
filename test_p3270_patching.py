@@ -5,6 +5,7 @@ Test script to connect to a real TN3270 system using p3270 with pure3270 patchin
 This script is for testing purposes only and will not be added to git.
 """
 
+import platform
 import sys
 import time
 import argparse

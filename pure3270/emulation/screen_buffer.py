@@ -2,82 +2,19 @@
 
 from typing import List, Tuple, Optional
 import logging
-from .ebcdic import EBCDICCodec
+import re
+from .ebcdic import EmulationEncoder
+from collections import namedtuple
+
+Field = namedtuple('Field', ['start', 'end', 'protected', 'numeric', 'modified', 'selected', 'intensity', 'color', 'background', 'validation', 'outlining', 'character_set', 'sfe_highlight', 'content'])
+
+from .buffer_writer import BufferWriter
 
 logger = logging.getLogger(__name__)
 
 
-class Field:
-    """Represents a 3270 field with content, attributes, and boundaries."""
 
-    def __init__(
-        self,
-        start: Tuple[int, int],
-        end: Tuple[int, int],
-        protected: bool = False,
-        numeric: bool = False,
-        modified: bool = False,
-        selected: bool = False,
-        intensity: int = 0,  # 0=normal, 1=highlighted, 2=non-display, 3=blink
-        color: int = 0,  # 0=neutral/default, 1=blue, 2=red, 3=pink, etc.
-        background: int = 0,  # 0=neutral/default, 1=blue, 2=red, 3=pink, etc.
-        validation: int = 0,  # 0=no validation, 1=mandatory fill, 2=trigger
-        outlining: int = 0,  # 0=no outline, 1=underscore, 2=rightline, 3=overline
-        character_set: int = 0, # Character set (e.g., Katakana)
-        sfe_highlight: int = 0, # Raw SFE highlight value
-        content: Optional[bytes] = None,
-    ):
-        """
-        Initialize a Field.
-
-        :param start: Tuple of (row, col) for field start position.
-        :param end: Tuple of (row, col) for field end position.
-        :param protected: Whether the field is protected (non-input).
-        :param numeric: Whether the field accepts only numeric input.
-        :param modified: Whether the field has been modified.
-        :param selected: Whether the field is selected.
-        :param intensity: Field intensity (0=normal, 1=highlighted, 2=non-display, 3=blink).
-        :param color: Foreground color (0=default, 1=blue, 2=red, etc.).
-        :param background: Background color/highlight (0=default, 1=blue, 2=red, etc.).
-        :param validation: Validation attribute (0=none, 1=mandatory, 2=trigger).
-        :param outlining: Outlining attribute (0=none, 1=underscore, 2=rightline, 3=overline).
-        :param content: Initial EBCDIC content bytes.
-        """
-        self.start = start
-        self.end = end
-        self.protected = protected
-        self.numeric = numeric
-        self.modified = modified
-        self.selected = selected
-        self.intensity = intensity
-        self.color = color
-        self.background = background
-        self.validation = validation
-        self.outlining = outlining
-        self.character_set = character_set
-        self.sfe_highlight = sfe_highlight
-        self.content = content or b""
-
-    def get_content(self) -> str:
-        """Get field content as Unicode string."""
-        if not self.content:
-            return ""
-        codec = EBCDICCodec()
-        decoded, _ = codec.decode(self.content)
-        return decoded
-
-    def set_content(self, text: str):
-        """Set field content from Unicode string."""
-        codec = EBCDICCodec()
-        encoded, _ = codec.encode(text)
-        self.content = encoded
-        self.modified = True
-
-    def __repr__(self) -> str:
-        return f"Field(start={self.start}, end={self.end}, protected={self.protected}, intensity={self.intensity})"
-
-
-class ScreenBuffer:
+class ScreenBuffer(BufferWriter):
     """Manages the 3270 screen buffer, including characters, attributes, and fields."""
 
     def __init__(self, rows: int = 24, cols: int = 80):
@@ -104,6 +41,7 @@ class ScreenBuffer:
         # Default field attributes
         self._default_protected = True
         self._default_numeric = False
+        self._current_aid = None
 
     def clear(self):
         """Clear the screen buffer and reset fields."""
@@ -111,17 +49,8 @@ class ScreenBuffer:
         self.attributes = bytearray(self.size * 3)
         self._extended_attributes = {}
         self.fields = []
-        self.cursor_row = 0
-        self.cursor_col = 0
+        self.set_position(0, 0)
 
-    def set_position(self, row: int, col: int):
-        """Set cursor position."""
-        self.cursor_row = row
-        self.cursor_col = col
-
-    def get_position(self) -> Tuple[int, int]:
-        """Get current cursor position."""
-        return (self.cursor_row, self.cursor_col)
 
     def write_char(
         self,
@@ -158,23 +87,24 @@ class ScreenBuffer:
     def _update_field_content(self, row: int, col: int, ebcdic_byte: int):
         """
         Update the field content when a character is written to a position.
-
+    
         :param row: Row position.
         :param col: Column position.
         :param ebcdic_byte: EBCDIC byte value written.
         """
         # Find the field that contains this position
-        for field in self.fields:
+        for idx, field in enumerate(self.fields):
             start_row, start_col = field.start
             end_row, end_col = field.end
-
+    
             # Check if the position is within this field
             if start_row <= row <= end_row and (
                 start_row != end_row or (start_col <= col <= end_col)
             ):
                 # Position is within this field, mark as modified
-                field.modified = True
-
+                new_field = field._replace(modified=True)
+                self.fields[idx] = new_field
+    
                 # For now, we'll just mark the field as modified
                 # A more complete implementation would update the field's content buffer
                 break
@@ -259,8 +189,8 @@ class ScreenBuffer:
         attr_byte = self.attributes[attr_offset]
 
         # Extract basic 3270 attributes
-        protected = bool(attr_byte & 0x40)  # Bit 6: protected
-        numeric = bool(attr_byte & 0x20)  # Bit 5: numeric
+        protected = bool(attr_byte & 0x20)  # Bit 5: protected
+        numeric = bool(attr_byte & 0x10)  # Bit 4: numeric
         modified = bool(attr_byte & 0x04)  # Bit 2: modified data tag
 
         # Get extended attributes from the _extended_attributes dictionary
@@ -324,26 +254,25 @@ class ScreenBuffer:
     def to_text(self) -> str:
         """
         Convert screen buffer to Unicode text string.
-
+        
         :return: Multi-line string representation.
         """
-        codec = EBCDICCodec()
         lines = []
         for row in range(self.rows):
             line_bytes = bytes(self.buffer[row * self.cols : (row + 1) * self.cols])
-            line_text, _ = codec.decode(line_bytes)
+            line_text = EmulationEncoder.decode(line_bytes)
             lines.append(line_text)
         return "\n".join(lines)
 
     def get_field_content(self, field_index: int) -> str:
         """
         Get content of a specific field.
-
+    
         :param field_index: Index in fields list.
         :return: Unicode string content.
         """
         if 0 <= field_index < len(self.fields):
-            return self.fields[field_index].get_content()
+            return EmulationEncoder.decode(self.fields[field_index].content)
         return ""
 
     def read_modified_fields(self) -> List[Tuple[Tuple[int, int], str]]:
@@ -377,6 +306,10 @@ class ScreenBuffer:
     def __repr__(self) -> str:
         return f"ScreenBuffer({self.rows}x{self.cols}, fields={len(self.fields)})"
 
+    def get_content(self) -> str:
+        """Retrieve the buffer content as a string."""
+        return self.to_text()
+
     def get_field_at_position(self, row: int, col: int) -> Optional[Field]:
         """Get the field containing the given position, if any."""
         for field in self.fields:
@@ -385,6 +318,23 @@ class ScreenBuffer:
             if start_row <= row <= end_row and start_col <= col <= end_col:
                 return field
         return None
+
+    def get_field_at(self, pos: Tuple[int, int]) -> Optional[Field]:
+        """Get the field at the given position (row, col)."""
+        return self.get_field_at_position(pos[0], pos[1])
+
+    def get_field_at_cursor(self) -> Optional[Field]:
+        """Get the field at the current cursor position."""
+        cursor_pos = self.get_position()
+        return self.get_field_at_position(cursor_pos[0], cursor_pos[1])
+
+    def get_aid(self) -> Optional[int]:
+        """Get the current Attention ID (AID) from the last screen update."""
+        return self._current_aid
+
+    def match_pattern(self, regex: str) -> bool:
+        """Check if the screen text matches the given regex pattern."""
+        return bool(re.search(regex, self.to_text()))
 
     def remove_field(self, field: Field) -> None:
         """Remove a field from the fields list and clear its content in the buffer."""
@@ -482,40 +432,11 @@ class ScreenBuffer:
 
     def set_attribute(self, attr: int) -> None:
         """Set field attribute at current cursor position."""
-        # Extract field attributes from the attribute byte
-        # Bit 0-1: Reserved (usually 0)
-        # Bit 2: Modified Data Tag (MDT) - whether field has been modified
-        # Bit 3: Reserved (usually 0)
-        # Bit 4: Numeric (NUM) - field accepts only numeric input
-        # Bit 5: Protected (PRO) - field is protected from input
-        # Bit 6: Display (DSP) - field is displayable
-        # Bit 7: Reserved (usually 0)
-        
-        protected = bool(attr & 0x20)
-        numeric = bool(attr & 0x10)
-        modified = bool(attr & 0x04)
-        
-        # Create a new field starting at current cursor position
-        start = (self.cursor_row, self.cursor_col)
-        # Field will extend until next attribute or end of screen
-        # For now, create a minimal field - this will be extended by subsequent operations
-        end = (self.cursor_row, min(self.cursor_col + 1, self.cols - 1))
-        
-        field = Field(
-            start=start,
-            end=end,
-            protected=protected,
-            numeric=numeric,
-            modified=modified
-        )
-        
-        # Add to fields list
-        self.fields.append(field)
-        
-        # Write the attribute byte as a character (this is what the test expects)
-        self.write_char(attr, self.cursor_row, self.cursor_col)
-        
-        logger.debug(f"Set field attribute 0x{attr:02x} at position ({self.cursor_row}, {self.cursor_col})")
+        row, col = self.get_position()
+        pos = row * self.cols + col
+        if 0 <= pos < self.size:
+            self.attributes[pos * 3] = attr
+        logger.debug(f"Set field attribute 0x{attr:02x} at position ({row}, {col})")
 
     def repeat_attribute(self, attr: int, repeat: int) -> None:
         """Repeat attribute a specified number of times."""
@@ -559,12 +480,20 @@ class ScreenBuffer:
 
     def set_extended_attribute_sfe(self, attr_type: int, attr_value: int) -> None:
         """Set extended field attribute from SFE order."""
-        # Extended attributes provide additional field properties
-        # This is a simplified implementation for SFE (Start Field Extended) orders
-        logger.debug(f"Set extended attribute type 0x{attr_type:02x} value 0x{attr_value:02x}")
-        
-        # For now, just log - extended attributes would modify the current field's
-        # extended properties like color, highlighting, etc.
+        row, col = self.get_position()
+        attr_map = {
+            0x41: 'highlight',
+            0x42: 'color',
+            0x43: 'character_set',
+            0x44: 'validation',
+            0x45: 'outlining',
+        }
+        key = attr_map.get(attr_type)
+        if key:
+            self.set_extended_attribute(row, col, key, attr_value)
+            logger.debug(f"Set extended attribute '{key}'=0x{attr_value:02x} at ({row}, {col})")
+        else:
+            logger.warning(f"Unknown extended attribute type 0x{attr_type:02x}")
 
     def get_field_at(self, row: int, col: int) -> Optional[Field]:
         """Alias for get_field_at_position for compatibility."""

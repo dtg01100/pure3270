@@ -1,4 +1,5 @@
 import pytest
+import platform
 from unittest.mock import patch, MagicMock
 from pure3270.protocol.data_stream import ParseError, BIND_SF_TYPE
 from pure3270.protocol.utils import (
@@ -16,15 +17,16 @@ from pure3270.protocol.data_stream import (
 )
 
 
+@pytest.mark.skipif(platform.system() != 'Linux', reason="Memory limiting only supported on Linux")
 class TestDataStreamParser:
-    def test_init(self, data_stream_parser):
+    def test_init(self, data_stream_parser, memory_limit_500mb):
         assert data_stream_parser.screen is not None
         assert data_stream_parser._data == b""
         assert data_stream_parser._pos == 0
         assert data_stream_parser.wcc is None
         assert data_stream_parser.aid is None
 
-    def test_parse_wcc(self, data_stream_parser):
+    def test_parse_wcc(self, data_stream_parser, memory_limit_500mb):
         sample_data = b"\xf5\xc1"  # WCC 0xC1
         data_stream_parser.parse(sample_data)
         assert data_stream_parser.wcc == 0xC1

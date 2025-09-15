@@ -1,3 +1,4 @@
+import platform
 import pytest
 from unittest.mock import MagicMock
 from pure3270.protocol.data_stream import DataStreamParser
@@ -10,8 +11,9 @@ from pure3270.protocol.utils import (
 from pure3270.emulation.screen_buffer import ScreenBuffer
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
 class TestStructuredFieldSupport:
-    def test_handle_structured_field(self):
+    def test_handle_structured_field(self, memory_limit_500mb):
         """Test handling structured field command."""
         screen_buffer = ScreenBuffer()
         parser = DataStreamParser(screen_buffer)
@@ -28,7 +30,7 @@ class TestStructuredFieldSupport:
         # Verify skip method was called
         parser._skip_structured_field.assert_called_once()
 
-    def test_skip_structured_field(self):
+    def test_skip_structured_field(self, memory_limit_500mb):
         """Test skipping structured field data."""
         screen_buffer = ScreenBuffer()
         parser = DataStreamParser(screen_buffer)
@@ -42,7 +44,7 @@ class TestStructuredFieldSupport:
         # Should have moved to the SBA command
         assert parser._pos == 4
 
-    def test_build_query_reply_sf(self):
+    def test_build_query_reply_sf(self, memory_limit_500mb):
         """Test building query reply structured field."""
         screen_buffer = ScreenBuffer()
         parser = DataStreamParser(screen_buffer)
@@ -60,7 +62,7 @@ class TestStructuredFieldSupport:
         # Should contain our data
         assert data in sf
 
-    def test_build_device_type_query_reply(self):
+    def test_build_device_type_query_reply(self, memory_limit_500mb):
         """Test building device type query reply."""
         screen_buffer = ScreenBuffer()
         parser = DataStreamParser(screen_buffer)
@@ -76,7 +78,7 @@ class TestStructuredFieldSupport:
         # Should contain device type string
         assert b"IBM-3278" in sf or b"IBM-DYNAMIC" in sf
 
-    def test_build_characteristics_query_reply(self):
+    def test_build_characteristics_query_reply(self, memory_limit_500mb):
         """Test building characteristics query reply."""
         screen_buffer = ScreenBuffer()
         parser = DataStreamParser(screen_buffer)

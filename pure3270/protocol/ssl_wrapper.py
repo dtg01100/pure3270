@@ -44,21 +44,19 @@ class SSLWrapper:
         :raises SSLError: If context creation fails.
         """
         try:
-            # Create SSL context for TLS client
-            self.context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            # Create default SSL context for TLS client
+            self.context = ssl.create_default_context()
 
-            # Set verification options
-            if self.verify:
-                self.context.check_hostname = True
-                self.context.verify_mode = ssl.CERT_REQUIRED
+            # Override verification if disabled
+            if not self.verify:
+                self.context.check_hostname = False
+                self.context.verify_mode = ssl.CERT_NONE
+                logger.warning("SSL verification disabled")
+            else:
                 if self.cafile:
                     self.context.load_verify_locations(cafile=self.cafile)
                 if self.capath:
                     self.context.load_verify_locations(capath=self.capath)
-            else:
-                self.context.check_hostname = False
-                self.context.verify_mode = ssl.CERT_NONE
-                logger.warning("SSL verification disabled")
 
             # Set minimum TLS version to 1.2
             self.context.minimum_version = ssl.TLSVersion.TLSv1_2
