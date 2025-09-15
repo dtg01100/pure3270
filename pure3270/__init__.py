@@ -6,8 +6,30 @@ Exports core classes and functions for 3270 terminal emulation.
 import logging
 import sys
 import argparse
+import json
+import os
+import datetime
 from .session import Session, AsyncSession
 from .patching import enable_replacement
+
+
+class JSONFormatter(logging.Formatter):
+    def format(self, record):
+        log_entry = {
+            "timestamp": datetime.datetime.now().isoformat(),
+            "level": record.levelname,
+            "module": record.module,
+            "message": record.getMessage(),
+        }
+        if hasattr(record, "session_id"):
+            log_entry["session_id"] = record.session_id
+        extra = getattr(record, "pure3270_extra", {})
+        log_entry.update(extra)
+        if record.exc_info:
+            log_entry["exception"] = self.formatException(record.exc_info)
+            if "context" in extra:
+                log_entry["context"] = extra["context"]
+        return json.dumps(log_entry, ensure_ascii=False)
 
 
 def setup_logging(level="INFO"):
@@ -17,7 +39,18 @@ def setup_logging(level="INFO"):
     Args:
         level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
     """
-    logging.basicConfig(level=getattr(logging, level.upper()))
+    use_json = os.environ.get("PURE3270_LOG_JSON", "false").lower() == "true"
+    root = logging.getLogger()
+    root.setLevel(getattr(logging, level.upper()))
+    for handler in root.handlers[:]:
+        root.removeHandler(handler)
+    if use_json:
+        handler = logging.StreamHandler()
+        formatter = JSONFormatter()
+        handler.setFormatter(formatter)
+        root.addHandler(handler)
+    else:
+        logging.basicConfig(level=getattr(logging, level.upper()))
 
 
 def main():
@@ -35,7 +68,7 @@ def main():
 
     session = Session()
     try:
-        session.connect(args.host, port=args.port, ssl=args.ssl)
+        session.connect(args.host, port=args.port, ssl_context=args.ssl)
         print(f"Connected to {args.host}:{args.port}")
 
         if args.script:

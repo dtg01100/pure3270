@@ -77,6 +77,7 @@ class SSLWrapper:
 
         :param telnet_connection: The telnet connection object (e.g., from asyncio.open_connection).
         :return: Wrapped connection.
+        
         Note: This is a stub; asyncio.open_connection handles SSL natively via ssl parameter.
         """
         # Since asyncio supports SSL natively, this method is for compatibility or custom wrapping.
