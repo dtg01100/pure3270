@@ -16,6 +16,9 @@ on:
 
 jobs:
   analyze-regression:
+    permissions:
+      contents: read
+      issues: write
     runs-on: ubuntu-latest
     steps:
     - name: Determine event and labels
