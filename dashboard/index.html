@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pure3270 Python Version Compatibility Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #chart-container { width: 800px; height: 400px; }
+        .version { margin: 10px 0; }
+        button { margin: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Pure3270 Python Version Compatibility Dashboard</h1>
+    <p>Load test results from CI artifacts or JSON files.</p>
+    
+    <div>
+        <button onclick="loadLatestResults()">Load Latest Results</button>
+        <button onclick="loadHistorical()">Load Historical Data</button>
+    </div>
+    
+    <div id="chart-container">
+        <canvas id="compatibilityChart"></canvas>
+    </div>
+    
+    <div id="summary"></div>
+    
+    <script>
+        let chart;
+        
+        async function loadLatestResults() {
+            // Fetch from GitHub API or local JSON
+            try {
+                const response = await fetch('/api/latest-tests');  // Placeholder API
+                const data = await response.json();
+                renderChart(data);
+                updateSummary(data);
+            } catch (e) {
+                alert('Error loading results: ' + e.message);
+            }
+        }
+        
+        async function loadHistorical() {
+            // Load historical JSON
+            try {
+                const response = await fetch('historical-tests.json');
+                const data = await response.json();
+                renderChart(data);
+                updateSummary(data);
+            } catch (e) {
+                alert('Error loading historical data: ' + e.message);
+            }
+        }
+        
+        function renderChart(data) {
+            const ctx = document.getElementById('compatibilityChart').getContext('2d');
+            if (chart) chart.destroy();
+            
+            const labels = data.versions;  // e.g., ['3.8', '3.9', ...]
+            const passRates = data.pass_rates;  // e.g., [95, 98, 100, ...]
+            
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Pass Rate (%)',
+                        data: passRates,
+                        borderColor: 'green',
+                        backgroundColor: 'rgba(0,255,0,0.2)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: { min: 0, max: 100 }
+                    }
+                }
+            });
+        }
+        
+        function updateSummary(data) {
+            const summary = document.getElementById('summary');
+            summary.innerHTML = `<h2>Summary</h2>
+                <p>Overall Pass Rate: ${data.overall_pass}%</p>
+                <p>Failing Versions: ${data.failing_versions.join(', ') || 'None'}</p>
+                <p>Last Updated: ${data.last_updated}</p>`;
+        }
+        
+        // Initial load
+        loadLatestResults();
+    </script>
+</body>
+</html>

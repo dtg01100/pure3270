@@ -1,3 +1,23 @@
+import platform
+import resource
+def set_memory_limit(max_memory_mb: int):
+    """
+    Set maximum memory limit for the current process.
+    
+    Args:
+        max_memory_mb: Maximum memory in megabytes
+    """
+    # Only works on Unix systems
+    if platform.system() != 'Linux':
+        return None
+    
+    try:
+        max_memory_bytes = max_memory_mb * 1024 * 1024
+        # RLIMIT_AS limits total virtual memory
+        resource.setrlimit(resource.RLIMIT_AS, (max_memory_bytes, max_memory_bytes))
+        return max_memory_bytes
+    except Exception:
+        return None
 #!/usr/bin/env python3
 """
 Focused integration test demonstrating complete TN3270 navigation workflow.
@@ -20,6 +40,11 @@ from pure3270 import AsyncSession
 
 class TestCompleteNavigationWorkflow(unittest.TestCase):
     """Test complete navigation workflow using pure3270."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        # Set memory limit for tests
+        set_memory_limit(500)
 
     @patch("pure3270.session.TN3270Handler")
     @patch("pure3270.session.asyncio.open_connection")

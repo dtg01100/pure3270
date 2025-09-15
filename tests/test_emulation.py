@@ -1,11 +1,13 @@
 import pytest
+import platform
 from unittest.mock import patch  # noqa: F401
 
 from pure3270.emulation.screen_buffer import ScreenBuffer, Field
 
 
+@pytest.mark.skipif(platform.system() != 'Linux', reason="Memory limiting only supported on Linux")
 class TestField:
-    def test_field_init(self):
+    def test_field_init(self, memory_limit_500mb):
         field = Field(
             start=(0, 0),
             end=(0, 5),
@@ -21,25 +23,26 @@ class TestField:
         assert field.modified is False
         assert field.content == b"\xc1\xc2\xc3"
 
-    def test_field_get_content(self, ebcdic_codec):
+    def test_field_get_content(self, ebcdic_codec, memory_limit_500mb):
         with patch.object(ebcdic_codec, "decode", return_value=("ABC", 3)):
             field = Field(start=(0, 0), end=(0, 3), content=b"\xc1\xc2\xc3")
             assert field.get_content() == "ABC"
 
-    def test_field_set_content(self, ebcdic_codec):
+    def test_field_set_content(self, ebcdic_codec, memory_limit_500mb):
         with patch.object(ebcdic_codec, "encode", return_value=(b"\xc4\xc5\xc6", 3)):
             field = Field(start=(0, 0), end=(0, 3))
             field.set_content("DEF")
             assert field.content == b"\xc4\xc5\xc6"
             assert field.modified is True
 
-    def test_field_repr(self):
+    def test_field_repr(self, memory_limit_500mb):
         field = Field(start=(0, 0), end=(0, 5), protected=False)
         assert "Field(start=(0, 0), end=(0, 5), protected=False" in repr(field)
 
 
+@pytest.mark.skipif(platform.system() != 'Linux', reason="Memory limiting only supported on Linux")
 class TestScreenBuffer:
-    def test_init(self, screen_buffer):
+    def test_init(self, screen_buffer, memory_limit_500mb):
         assert screen_buffer.rows == 24
         assert screen_buffer.cols == 80
         assert len(screen_buffer.buffer) == 1920

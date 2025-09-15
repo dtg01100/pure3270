@@ -2,12 +2,16 @@
 Printer buffer and rendering logic for 3287 printer emulation.
 """
 import logging
+from typing import Optional, Tuple
+from .buffer_writer import BufferWriter
 
 logger = logging.getLogger(__name__)
 
 
-class PrinterBuffer:
-    def __init__(self):
+class PrinterBuffer(BufferWriter):
+    def __init__(self, max_lines: int = 10000, auto_reset: bool = False):
+        self.max_lines = max_lines
+        self.auto_reset = auto_reset
         self._buffer = []
         self.reset()
 
@@ -15,31 +19,77 @@ class PrinterBuffer:
         """Resets the printer buffer."""
         self._buffer = []
         self._current_line = []
-        self._column = 0
-        self._row = 0
+        self.set_position(0, 0)
 
+    def write_char(
+        self,
+        ebcdic_byte: int,
+        row: Optional[int] = None,
+        col: Optional[int] = None,
+        protected: bool = False,
+        circumvent_protection: bool = False,
+    ):
+        """
+        Write an EBCDIC character to the printer buffer.
+        Supports positioned writes by padding with spaces or adding empty lines.
+        """
+        current_row, current_col = self.get_position()
+        if row is not None and row != current_row:
+            self._flush_current_line()
+            while self.cursor_row < row:
+                self._new_line()
+            self.cursor_row = row
+        if col is not None and col != current_col:
+            while len(self._current_line) < col:
+                self._current_line.append(" ")
+                self.cursor_col += 1
+            self.cursor_col = col
+        char = chr(ebcdic_byte)
+        if char == "\n":
+            self._new_line()
+        elif char == "\r":
+            self.cursor_col = 0
+        elif 0x20 <= ebcdic_byte <= 0x7E:
+            self._current_line.append(char)
+            self.cursor_col += 1
+        # Ignore other controls and non-printable for now
+    
+    
+    def set_attribute(
+        self,
+        attr: int,
+        row: Optional[int] = None,
+        col: Optional[int] = None,
+    ) -> None:
+        """
+        Set attribute at position. Printer buffer does not support attributes.
+        """
+        pass
+    
+    
+    def get_content(self) -> str:
+        """Retrieve the buffer content as a string."""
+        return self.get_rendered_output()
+    
+    
     def write_scs_data(self, data: bytes):
         """Processes incoming SCS data."""
         # This is a simplified implementation.
         # Full implementation would involve parsing SCS commands like text,
         # line feed, carriage return, form feed, etc.
         for byte in data:
-            char = chr(byte)
-            if char == '\n':  # Line Feed
-                self._new_line()
-            elif char == '\r':  # Carriage Return
-                self._column = 0
-            elif 0x20 <= byte <= 0x7E:  # Printable ASCII
-                self._current_line.append(char)
-                self._column += 1
+            self.write_char(byte)
             # Add more SCS command handling here (e.g., Form Feed, Horizontal Tab)
         self._flush_current_line()
+        # Prune buffer if exceeds max_lines
+        if len(self._buffer) > self.max_lines:
+            self._buffer = self._buffer[-self.max_lines:]
 
     def _new_line(self):
         """Adds the current line to the buffer and starts a new one."""
         self._flush_current_line()
-        self._row += 1
-        self._column = 0
+        self.cursor_row += 1
+        self.cursor_col = 0
 
     def _flush_current_line(self):
         """Flushes the current line to the buffer."""
@@ -51,7 +101,10 @@ class PrinterBuffer:
         """Returns the current rendered output as a string."""
         # For simplicity, join all lines with newlines.
         # A real renderer might handle page breaks, margins, etc.
-        return "\n".join(self._buffer) + "".join(self._current_line)
+        output = "\n".join(self._buffer) + "".join(self._current_line)
+        if self.auto_reset:
+            self.reset()
+        return output
 
     def get_buffer_content(self) -> list:
         """Returns the raw buffer content (list of lines)."""
@@ -60,12 +113,43 @@ class PrinterBuffer:
     def __str__(self):
         return self.get_rendered_output()
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.reset()
+        return True
+
     def update_status(self, status_code: int):
         """
-        Updates the printer's internal status.
-        This method can be expanded to handle various printer status codes.
+        Updates the printer's internal status with the given status code.
+
+        Args:
+            status_code: The status code (e.g., 0x00 success, 0x40 device end).
+
+        This method updates the internal status state and can trigger events or updates
+        for status SF handling in TN3270E printer sessions.
         """
-        # For now, just log the status. In a real scenario, this would update
-        # internal state variables, e.g., self._status = status_code
-        # and potentially trigger events or state transitions.
+        self._status = status_code
         logger.debug(f"Printer status updated to: 0x{status_code:02x}")
+        # Trigger any necessary events or updates for status SF
+        if hasattr(self, '_status_event') and self._status_event:
+            self._status_event.set()
+
+    def get_status(self) -> int:
+        """
+        Get the current printer status code.
+
+        Returns:
+            The current status code, or 0x00 if not set.
+        """
+        return getattr(self, '_status', 0x00)
+
+    def end_job(self):
+        """
+        Ends the current print job.
+        This method can be expanded to handle end-of-job processing.
+        """
+        logger.debug("Print job ended")
+        # For now, just log. In a real scenario, this might flush buffers,
+        # update status, or trigger completion events.

@@ -73,6 +73,20 @@ jobs:
         echo "" >> coverage-badge.md
         echo "Current coverage: **${coverage_percent}%**" >> coverage-badge.md
         
+    - name: Generate static analysis reports
+      run: |
+        # Install static analysis tools if not already installed
+        pip install mypy bandit pylint
+        
+        # Generate mypy report
+        python -m mypy pure3270/ > mypy-report.txt 2>&1 || true
+        
+        # Generate bandit report
+        python -m bandit -r pure3270/ -c .bandit > bandit-report.txt 2>&1 || true
+        
+        # Generate pylint report
+        python -m pylint pure3270/ > pylint-report.txt 2>&1 || true
+        
     - name: Generate linting report
       run: |
         # Install linting tools if not already installed
@@ -92,6 +106,16 @@ jobs:
           htmlcov/
           coverage.xml
           coverage-badge.md
+        if-no-files-found: ignore
+        
+    - name: Archive static analysis reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: static-analysis-reports
+        path: |
+          mypy-report.txt
+          bandit-report.txt
+          pylint-report.txt
         if-no-files-found: ignore
         
     - name: Archive linting reports

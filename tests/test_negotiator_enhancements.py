@@ -1,3 +1,4 @@
+import platform
 import pytest
 from pure3270.protocol.negotiator import Negotiator
 from pure3270.protocol.data_stream import DataStreamParser
@@ -5,8 +6,9 @@ from pure3270.emulation.screen_buffer import ScreenBuffer
 from unittest.mock import AsyncMock, MagicMock
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
 class TestNegotiatorEnhancements:
-    def test_init_with_device_type_support(self):
+    def test_init_with_device_type_support(self, memory_limit_500mb):
         """Test that negotiator initializes with device type support."""
         parser = DataStreamParser(ScreenBuffer())
         screen_buffer = ScreenBuffer()
@@ -24,7 +26,7 @@ class TestNegotiatorEnhancements:
         assert negotiator.supported_device_types is not None
         assert "IBM-DYNAMIC" in negotiator.supported_device_types
 
-    def test_parse_tn3270e_subnegotiation_invalid_data(self):
+    def test_parse_tn3270e_subnegotiation_invalid_data(self, memory_limit_500mb):
         """Test parsing invalid TN3270E subnegotiation data."""
         parser = DataStreamParser(ScreenBuffer())
         screen_buffer = ScreenBuffer()
@@ -38,7 +40,7 @@ class TestNegotiatorEnhancements:
         negotiator._parse_tn3270e_subnegotiation(b"\x01\x02\x03")
         # Should not raise exception, just log warning
 
-    def test_handle_device_type_subnegotiation(self):
+    def test_handle_device_type_subnegotiation(self, memory_limit_500mb):
         """Test handling device type subnegotiation."""
         parser = DataStreamParser(ScreenBuffer())
         screen_buffer = ScreenBuffer()
@@ -57,7 +59,7 @@ class TestNegotiatorEnhancements:
         # Should set negotiated_device_type to IBM-DYNAMIC
         assert negotiator.negotiated_device_type == "IBM-DYNAMIC"
 
-    def test_handle_functions_subnegotiation(self):
+    def test_handle_functions_subnegotiation(self, memory_limit_500mb):
         """Test handling functions subnegotiation."""
         parser = DataStreamParser(ScreenBuffer())
         screen_buffer = ScreenBuffer()
@@ -71,7 +73,7 @@ class TestNegotiatorEnhancements:
         negotiator._handle_functions_subnegotiation(b"\x02")
         # Should not raise exception
 
-    def test_send_supported_device_types_no_writer(self):
+    def test_send_supported_device_types_no_writer(self, memory_limit_500mb):
         """Test sending device types with no writer."""
         parser = DataStreamParser(ScreenBuffer())
         screen_buffer = ScreenBuffer()
@@ -80,7 +82,7 @@ class TestNegotiatorEnhancements:
         # Should log error but not raise exception
         negotiator._send_supported_device_types()
 
-    def test_send_supported_functions_no_writer(self):
+    def test_send_supported_functions_no_writer(self, memory_limit_500mb):
         """Test sending functions with no writer."""
         parser = DataStreamParser(ScreenBuffer())
         screen_buffer = ScreenBuffer()

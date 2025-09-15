@@ -1,0 +1,71 @@
+name: Python Release Monitor
+
+on:
+  schedule:
+    # Check for new Python releases daily
+    - cron: '0 8 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  check-python-releases:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check for new Python releases
+      id: check_releases
+      run: |
+        # Get latest Python versions from official source
+        LATEST_RELEASES=$(curl -s https://www.python.org/ftp/python/ | grep -o '>[0-9]*\.[0-9]*\.[0-9]*/<' | sed 's/[<>\/]//g' | sort -V | tail -5)
+        echo "latest_releases=$LATEST_RELEASES" >> $GITHUB_OUTPUT
+        
+        # Get currently supported versions
+        SUPPORTED_VERSIONS="3.8 3.9 3.10 3.11 3.12 3.13"
+        echo "supported_versions=$SUPPORTED_VERSIONS" >> $GITHUB_OUTPUT
+        
+        # Check if any new major/minor versions exist
+        NEW_VERSIONS=""
+        for release in $LATEST_RELEASES; do
+          MAJOR_MINOR=$(echo $release | cut -d. -f1,2)
+          if ! echo $SUPPORTED_VERSIONS | grep -q "$MAJOR_MINOR"; then
+            NEW_VERSIONS="$NEW_VERSIONS $release"
+          fi
+        done
+        echo "new_versions=$NEW_VERSIONS" >> $GITHUB_OUTPUT
+    
+    - name: Create issue for new Python versions
+      if: steps.check_releases.outputs.new_versions != ''
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const newVersions = '${{ steps.check_releases.outputs.new_versions }}';
+          const supportedVersions = '${{ steps.check_releases.outputs.supported_versions }}';
+          
+          const issueTitle = 'New Python Release Available - Update Testing Matrix';
+          const issueBody = `
+          ## New Python Releases Detected
+          
+          The following new Python releases have been detected:
+          ${newVersions}
+          
+          Current supported versions: ${supportedVersions}
+          
+          ## Action Items
+          
+          - [ ] Evaluate compatibility with new Python versions
+          - [ ] Update testing matrix in CI workflows
+          - [ ] Update pyproject.toml classifiers
+          - [ ] Update documentation
+          - [ ] Consider deprecating older versions if needed
+          
+          ## Next Steps
+          
+          Please review and update the testing configuration to include these new versions.
+          `;
+          
+          await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: issueTitle,
+            body: issueBody,
+            labels: ['python-version', 'maintenance']
+          });

@@ -33,12 +33,13 @@ logger = logging.getLogger(__name__)
 class PrinterJob:
     """Represents a printer job in a TN3270E printer session."""
 
-    def __init__(self, job_id: str = ""):
+    def __init__(self, job_id: str = "", max_data_size: int = 1048576):
         """Initialize a printer job."""
         if not job_id:
             # Generate a default ID if none provided
             job_id = f"job_{int(time.time() * 1000) % 100000}"
         self.job_id = job_id
+        self.max_data_size = max_data_size
         self.data = bytearray()
         self.status = "active"  # active, completed, error
         self.start_time = time.time()
@@ -48,6 +49,8 @@ class PrinterJob:
     def add_data(self, data: bytes) -> None:
         """Add SCS character data to the job."""
         self.data.extend(data)
+        if len(self.data) > self.max_data_size:
+            self.data = self.data[-self.max_data_size:]
         logger.debug(f"Added {len(data)} bytes to printer job {self.job_id}")
 
     def complete_job(self) -> None:
@@ -99,7 +102,7 @@ class PrinterSession:
         self.current_job: Optional[PrinterJob] = None
         self.completed_jobs: List[PrinterJob] = []
         self.sequence_number = 0
-        self.max_jobs = 100  # Limit to prevent memory issues
+        self.max_jobs = 50  # Limit to prevent memory issues
         self.job_counter = 0
 
     def activate(self) -> None:
@@ -171,6 +174,12 @@ class PrinterSession:
             self.current_job = None
             logger.info("Current printer job finished and stored")
 
+    def prune(self) -> None:
+        """Prune completed jobs to the last max_jobs."""
+        if len(self.completed_jobs) > self.max_jobs:
+            self.completed_jobs = self.completed_jobs[-self.max_jobs :]
+            logger.debug(f"Pruned completed jobs to last {self.max_jobs}")
+
     def get_current_job(self) -> Optional[PrinterJob]:
         """Get the current active job."""
         return self.current_job
@@ -199,6 +208,12 @@ class PrinterSession:
         """Clear the list of completed jobs."""
         self.completed_jobs.clear()
         logger.info("Cleared completed printer jobs")
+
+    def close(self) -> None:
+        """Close the printer session and clear all jobs."""
+        self.deactivate()
+        self.clear_completed_jobs()
+        logger.info("Printer session closed and jobs cleared")
 
     def handle_scs_control_code(self, scs_code: int) -> None:
         """Handle SCS control codes."""

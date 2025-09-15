@@ -8,6 +8,7 @@ as a fallback when TN3270 negotiation fails, matching s3270 behavior.
 import re
 import logging
 from typing import List, Tuple
+from .utils import BaseStringParser, ParseError
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,7 @@ class VT100Parser:
         self.charset = "B"  # Default charset
         self.graphics_charset = "0"  # Graphics charset
         self.is_alt_charset = False  # Alternative character set mode
+        self.parser = None
 
     def parse(self, data: bytes) -> None:
         """
@@ -51,109 +53,103 @@ class VT100Parser:
         Args:
             text: ASCII text with escape sequences
         """
+        self.parser = BaseStringParser(text)
         # Process text character by character
-        i = 0
-        while i < len(text):
-            if text[i] == "\x1b":  # ESC character
+        while self.parser.has_more():
+            char = self.parser.peek_char()
+            if char == "\x1b":  # ESC character
                 # Parse escape sequence
-                seq_end = self._parse_escape_sequence(text, i)
-                i = seq_end
-            elif text[i] == "\x0e":  # SO (Shift Out) - Activate alternate charset
+                self._parse_escape_sequence()
+            elif char == "\x0e":  # SO (Shift Out) - Activate alternate charset
                 self.is_alt_charset = True
-                i += 1
-            elif text[i] == "\x0f":  # SI (Shift In) - Activate standard charset
+                self.parser.advance(1)
+            elif char == "\x0f":  # SI (Shift In) - Activate standard charset
                 self.is_alt_charset = False
-                i += 1
+                self.parser.advance(1)
             else:
                 # Regular character
-                self._write_char(text[i])
-                i += 1
+                self._write_char(self.parser.read_char())
 
-    def _parse_escape_sequence(self, text: str, start: int) -> int:
+    def _parse_escape_sequence(self) -> None:
         """
-        Parse a VT100 escape sequence.
+        Parse a VT100 escape sequence, advancing the parser.
 
-        Args:
-            text: Text containing escape sequence
-            start: Start position of ESC character
-
-        Returns:
-            Position after the escape sequence
+        Advances the parser past the ESC and sequence.
         """
-        if start + 1 >= len(text):
-            return start + 1
+        # Already peeked ESC, advance past it
+        self.parser.advance(1)
+        if not self.parser.has_more():
+            return
+
+        next_char = self.parser.peek_char()
 
         # Check for CSI (Control Sequence Introducer) - ESC [
-        if text[start + 1] == "[":
-            return self._parse_csi_sequence(text, start + 2)
+        if next_char == "[":
+            self.parser.advance(1)
+            self._parse_csi_sequence()
+            return
         # Check for other escape sequences
-        elif text[start + 1] == "(":
+        elif next_char == "(":
             # ESC ( - Designate G0 Character Set
-            if start + 2 < len(text):
-                self.charset = text[start + 2]
-                return start + 3
-            return start + 2
-        elif text[start + 1] == ")":
+            self.parser.advance(1)
+            if self.parser.has_more():
+                self.charset = self.parser.read_char()
+        elif next_char == ")":
             # ESC ) - Designate G1 Character Set
-            if start + 2 < len(text):
-                self.graphics_charset = text[start + 2]
-                return start + 3
-            return start + 2
-        elif text[start + 1] == "#":
+            self.parser.advance(1)
+            if self.parser.has_more():
+                self.graphics_charset = self.parser.read_char()
+        elif next_char == "#":
             # ESC # - DEC Double-Height/Width Line
-            return start + 3 if start + 2 < len(text) else start + 2
-        elif text[start + 1] == "7":
+            self.parser.advance(2)
+        elif next_char == "7":
             # ESC 7 - Save Cursor
             self._save_cursor()
-            return start + 2
-        elif text[start + 1] == "8":
+            self.parser.advance(1)
+        elif next_char == "8":
             # ESC 8 - Restore Cursor
             self._restore_cursor()
-            return start + 2
-        elif text[start + 1] == "=":
+            self.parser.advance(1)
+        elif next_char == "=":
             # ESC = - Application Keypad Mode
-            return start + 2
-        elif text[start + 1] == ">":
+            self.parser.advance(1)
+        elif next_char == ">":
             # ESC > - Normal Keypad Mode
-            return start + 2
-        elif text[start + 1] == "D":
+            self.parser.advance(1)
+        elif next_char == "D":
             # ESC D - Index (IND)
             self._index()
-            return start + 2
-        elif text[start + 1] == "M":
+            self.parser.advance(1)
+        elif next_char == "M":
             # ESC M - Reverse Index (RI)
             self._reverse_index()
-            return start + 2
-        elif text[start + 1] == "c":
+            self.parser.advance(1)
+        elif next_char == "c":
             # ESC c - Reset
             self._reset()
-            return start + 2
+            self.parser.advance(1)
         else:
             # Simple escape sequence - ESC followed by one character
-            return start + 2
+            self.parser.advance(1)
 
-    def _parse_csi_sequence(self, text: str, start: int) -> int:
+    def _parse_csi_sequence(self) -> None:
         """
-        Parse CSI (Control Sequence Introducer) sequence.
+        Parse CSI (Control Sequence Introducer) sequence, advancing the parser.
 
-        Args:
-            text: Text containing CSI sequence
-            start: Start position after ESC [
-
-        Returns:
-            Position after the CSI sequence
+        Advances the parser past the CSI sequence.
         """
         # Find the end of the sequence (alphabetic final character)
-        i = start
-        while i < len(text) and not text[i].isalpha():
-            i += 1
+        start_pos = self.parser._pos
+        while self.parser.has_more() and not self.parser.peek_char().isalpha():
+            self.parser.advance(1)
 
-        if i >= len(text):
-            return len(text)
+        if not self.parser.has_more():
+            self.parser._pos = len(self.parser._text)
+            return
 
         # Extract parameters
-        params_str = text[start:i]
-        command = text[i]
+        params_str = self.parser._text[start_pos:self.parser._pos]
+        command = self.parser.read_char()
 
         # Parse parameters
         params = []
@@ -170,8 +166,6 @@ class VT100Parser:
 
         # Handle commands
         self._handle_csi_command(command, params)
-
-        return i + 1
 
     def _handle_csi_command(self, command: str, params: list) -> None:
         """

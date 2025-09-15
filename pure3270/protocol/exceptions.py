@@ -17,3 +17,9 @@ class ParseError(Exception):
     """Raised on parsing errors."""
 
     pass
+
+
+class MacroError(Exception):
+    """Raised on macro execution errors."""
+
+    pass

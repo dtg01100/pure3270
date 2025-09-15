@@ -123,4 +123,7 @@ CONNECTION_TEST_RESULTS.md
 TESTING_*.md
 CI_CD_*.md
 
+# Documentation build output
+docs/build/
+
 # End of .gitignore

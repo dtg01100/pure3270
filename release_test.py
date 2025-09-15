@@ -1,10 +1,37 @@
 #!/usr/bin/env python3
+
+import platform
+import resource
+
+def set_memory_limit(max_memory_mb: int):
+    """
+    Set maximum memory limit for the current process.
+    
+    Args:
+        max_memory_mb: Maximum memory in megabytes
+    """
+    # Only works on Unix systems
+    if platform.system() != 'Linux':
+        return None
+    
+    try:
+        max_memory_bytes = max_memory_mb * 1024 * 1024
+        # RLIMIT_AS limits total virtual memory
+        resource.setrlimit(resource.RLIMIT_AS, (max_memory_bytes, max_memory_bytes))
+        return max_memory_bytes
+    except Exception:
+        return None
+
+# Set memory limit for the script
+set_memory_limit(500)
+
 """
 Release validation test suite for pure3270.
 This test suite provides comprehensive validation for releases.
 """
 
 import asyncio
+from safe_read import safe_read
 import sys
 import os
 import platform
@@ -324,7 +351,12 @@ async def test_network_functionality():
                 self.clients.append(writer)
                 try:
                     while True:
-                        data = await reader.read(1024)
+                        try:
+                            data = await safe_read(reader, 1024, timeout=1.0)
+                        except Exception:
+                            continue
+                        if data is None:
+                            continue
                         if not data:
                             break
                         writer.write(data)  # Echo back

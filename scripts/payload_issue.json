@@ -1,0 +1,12 @@
+{
+  "issue": {
+    "number": 1,
+    "title": "Python 3.11 regression: tests failing",
+    "labels": [
+      { "name": "regression" },
+      { "name": "python-version" },
+      { "name": "needs-ai-analysis" }
+    ],
+    "body": "Example issue body"
+  }
+}

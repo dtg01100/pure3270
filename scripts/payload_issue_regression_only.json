@@ -1,0 +1,10 @@
+{
+  "issue": {
+    "number": 3,
+    "title": "Regression: intermittent failures",
+    "labels": [
+      { "name": "regression" }
+    ],
+    "body": "Issue body"
+  }
+}

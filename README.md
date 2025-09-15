@@ -65,6 +65,27 @@ pip install .
 
 This uses the existing [`setup.py`](setup.py), which specifies no external dependencies. Deactivate the venv with `deactivate` when done.
 
+### Development Container (DevContainer)
+
+For the most seamless development experience, use the included devcontainer configuration. This provides a fully configured development environment with all dependencies pre-installed.
+
+#### Requirements
+- [Visual Studio Code](https://code.visualstudio.com/)
+- [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+
+#### Setup
+1. Open the project in VS Code
+2. When prompted, click "Reopen in Container" or use Command Palette: `Dev Containers: Reopen in Container`
+3. The container will automatically install all dependencies and development tools
+
+The devcontainer includes:
+- Python 3.12 environment
+- All development dependencies (pytest, black, flake8, etc.)
+- Pre-configured linting and formatting tools
+- Ready-to-use development environment
+
+For more information, see [`.devcontainer/devcontainer.json`](.devcontainer/devcontainer.json).
+
 ### Development Dependencies
 
 For testing and linting, install additional tools:
@@ -74,6 +95,51 @@ pip install pytest-cov black flake8
 - `pytest-cov`: For coverage reporting (e.g., `pytest --cov=pure3270`).
 - `black`: For code formatting (e.g., `black .`).
 - `flake8`: For linting (e.g., `flake8 .`).
+
+### Pre-commit Hooks
+
+To maintain code quality and consistency, Pure3270 uses pre-commit hooks. These hooks automatically check and format code before each commit.
+
+To set up pre-commit hooks:
+
+```
+# Install pre-commit (already included in test dependencies)
+pip install -e .[test]
+
+# Install the Git hook scripts
+pre-commit install
+```
+
+The hooks will now run automatically on each `git commit`. You can also run them manually:
+
+```
+# Run all hooks on all files
+pre-commit run --all-files
+```
+
+For more information about pre-commit hooks, see [PRE_COMMIT_HOOKS.md](PRE_COMMIT_HOOKS.md).
+
+## Documentation
+
+Pure3270 includes comprehensive API documentation built with Sphinx. The documentation covers all public APIs and provides usage examples.
+
+### Building Documentation
+
+To build the documentation locally:
+
+```bash
+# Install documentation dependencies
+pip install -e .[docs]
+
+# Build HTML documentation
+./build_docs.sh
+```
+
+The documentation will be available in `docs/build/html/index.html`.
+
+### Online Documentation
+
+Online documentation is available at [https://dtg01100.github.io/pure3270/](https://dtg01100.github.io/pure3270/).
 
 ## Exports
 
@@ -443,6 +509,10 @@ Install dev dependencies (see Installation). Then:
 ```
 pytest tests/
 ```
+
+### Memory Limiting
+
+Tests can be run with memory limits to prevent excessive memory usage and detect memory leaks. See [MEMORY_LIMITING.md](MEMORY_LIMITING.md) for details.
 
 ### Coverage Reports
 

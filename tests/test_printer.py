@@ -1,3 +1,4 @@
+import platform
 import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -13,8 +14,9 @@ from pure3270.protocol.utils import (
 )
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
 class TestPrinterJob:
-    def test_init_default(self):
+    def test_init_default(self, memory_limit_500mb):
         """Test default initialization."""
         job = PrinterJob()
         assert len(job.job_id) > 0  # Should have auto-generated ID
@@ -23,13 +25,13 @@ class TestPrinterJob:
         assert job.start_time is not None
         assert job.end_time is None
 
-    def test_init_with_id(self):
+    def test_init_with_id(self, memory_limit_500mb):
         """Test initialization with custom ID."""
         job = PrinterJob("test_job")
         assert job.job_id == "test_job"
         assert job.status == "active"
 
-    def test_add_data(self):
+    def test_add_data(self, memory_limit_500mb):
         """Test adding data to job."""
         job = PrinterJob("test")
         data1 = b"Hello"
@@ -43,7 +45,7 @@ class TestPrinterJob:
         assert len(job.data) == 11
         assert bytes(job.data) == b"Hello World"
 
-    def test_complete_job(self):
+    def test_complete_job(self, memory_limit_500mb):
         """Test completing a job."""
         job = PrinterJob("test")
         job.add_data(b"Test data")
@@ -52,7 +54,7 @@ class TestPrinterJob:
         assert job.status == "completed"
         assert job.end_time is not None
 
-    def test_set_error(self):
+    def test_set_error(self, memory_limit_500mb):
         """Test setting job error."""
         job = PrinterJob("test")
         job.add_data(b"Test data")
@@ -61,7 +63,7 @@ class TestPrinterJob:
         assert job.status == "error"
         assert job.end_time is not None
 
-    def test_get_duration(self):
+    def test_get_duration(self, memory_limit_500mb):
         """Test getting job duration."""
         job = PrinterJob("test")
         duration1 = job.get_duration()
@@ -72,7 +74,7 @@ class TestPrinterJob:
         duration2 = job.get_duration()
         assert duration2 >= 0
 
-    def test_get_page_count(self):
+    def test_get_page_count(self, memory_limit_500mb):
         """Test getting page count."""
         job = PrinterJob("test")
 
@@ -84,7 +86,7 @@ class TestPrinterJob:
         job.add_data(b"Page 1\x0cPage 2\x0cPage 3")
         assert job.get_page_count() == 3
 
-    def test_get_data_size(self):
+    def test_get_data_size(self, memory_limit_500mb):
         """Test getting data size."""
         job = PrinterJob("test")
         assert job.get_data_size() == 0
@@ -92,7 +94,7 @@ class TestPrinterJob:
         job.add_data(b"Test data")
         assert job.get_data_size() == 9
 
-    def test_repr(self):
+    def test_repr(self, memory_limit_500mb):
         """Test string representation."""
         job = PrinterJob("test")
         repr_str = repr(job)
@@ -100,8 +102,9 @@ class TestPrinterJob:
         assert "test" in repr_str
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
 class TestPrinterSession:
-    def test_init(self):
+    def test_init(self, memory_limit_500mb):
         """Test initialization."""
         session = PrinterSession()
         assert session.is_active is False
@@ -109,7 +112,7 @@ class TestPrinterSession:
         assert len(session.completed_jobs) == 0
         assert session.sequence_number == 0
 
-    def test_activate_deactivate(self):
+    def test_activate_deactivate(self, memory_limit_500mb):
         """Test activation and deactivation."""
         session = PrinterSession()
 
@@ -121,7 +124,7 @@ class TestPrinterSession:
         session.deactivate()
         assert session.is_active is False
 
-    def test_start_new_job(self):
+    def test_start_new_job(self, memory_limit_500mb):
         """Test starting a new job."""
         session = PrinterSession()
         session.activate()
@@ -131,14 +134,14 @@ class TestPrinterSession:
         assert job.job_id == "test_job"
         assert job.status == "active"
 
-    def test_start_new_job_without_activation(self):
+    def test_start_new_job_without_activation(self, memory_limit_500mb):
         """Test starting a job without activation."""
         session = PrinterSession()
 
         with pytest.raises(Exception):  # ProtocolError
             session.start_new_job("test_job")
 
-    def test_add_scs_data(self):
+    def test_add_scs_data(self, memory_limit_500mb):
         """Test adding SCS data."""
         session = PrinterSession()
         session.activate()
@@ -150,7 +153,7 @@ class TestPrinterSession:
         assert session.current_job is not None
         assert len(session.current_job.data) == len(data)
 
-    def test_handle_print_eoj(self):
+    def test_handle_print_eoj(self, memory_limit_500mb):
         """Test handling PRINT-EOJ."""
         session = PrinterSession()
         session.activate()
@@ -168,7 +171,7 @@ class TestPrinterSession:
         assert session.completed_jobs[0] is job
         assert job.status == "completed"
 
-    def test_handle_print_eoj_without_active_job(self):
+    def test_handle_print_eoj_without_active_job(self, memory_limit_500mb):
         """Test handling PRINT-EOJ without active job."""
         session = PrinterSession()
         session.activate()
@@ -178,7 +181,7 @@ class TestPrinterSession:
         assert session.current_job is None
         assert len(session.completed_jobs) == 0
 
-    def test_get_current_job(self):
+    def test_get_current_job(self, memory_limit_500mb):
         """Test getting current job."""
         session = PrinterSession()
         session.activate()
@@ -188,7 +191,7 @@ class TestPrinterSession:
         job = session.start_new_job("test")
         assert session.get_current_job() is job
 
-    def test_get_completed_jobs(self):
+    def test_get_completed_jobs(self, memory_limit_500mb):
         """Test getting completed jobs."""
         session = PrinterSession()
         session.activate()
@@ -204,7 +207,7 @@ class TestPrinterSession:
         assert len(completed) == 1
         assert completed[0].job_id == "test1"
 
-    def test_get_job_statistics(self):
+    def test_get_job_statistics(self, memory_limit_500mb):
         """Test getting job statistics."""
         session = PrinterSession()
         session.activate()
@@ -233,7 +236,7 @@ class TestPrinterSession:
         assert stats["average_pages_per_job"] == 1.5
         assert stats["average_bytes_per_job"] == 12.0
 
-    def test_clear_completed_jobs(self):
+    def test_clear_completed_jobs(self, memory_limit_500mb):
         """Test clearing completed jobs."""
         session = PrinterSession()
         session.activate()
@@ -252,7 +255,7 @@ class TestPrinterSession:
         session.clear_completed_jobs()
         assert len(session.completed_jobs) == 0
 
-    def test_handle_scs_control_code(self):
+    def test_handle_scs_control_code(self, memory_limit_500mb):
         """Test handling SCS control codes."""
         session = PrinterSession()
         session.activate()
@@ -268,7 +271,7 @@ class TestPrinterSession:
         assert session.current_job is None
         assert job.status == "completed"
 
-    def test_handle_unknown_scs_control_code(self):
+    def test_handle_unknown_scs_control_code(self, memory_limit_500mb):
         """Test handling unknown SCS control codes."""
         session = PrinterSession()
         session.activate()
@@ -276,7 +279,7 @@ class TestPrinterSession:
         # Should not raise error for unknown codes
         session.handle_scs_control_code(0xFF)
 
-    def test_process_tn3270e_message_scs_data(self):
+    def test_process_tn3270e_message_scs_data(self, memory_limit_500mb):
         """Test processing TN3270E SCS data message."""
         session = PrinterSession()
         session.activate()
@@ -290,7 +293,7 @@ class TestPrinterSession:
         assert session.current_job is not None
         assert len(session.current_job.data) == len(data)
 
-    def test_process_tn3270e_message_error_response(self):
+    def test_process_tn3270e_message_error_response(self, memory_limit_500mb):
         """Test processing TN3270E error response."""
         session = PrinterSession()
         session.activate()
@@ -310,7 +313,7 @@ class TestPrinterSession:
         # Job should have error status
         assert job.status == "error"
 
-    def test_process_tn3270e_message_negative_response(self):
+    def test_process_tn3270e_message_negative_response(self, memory_limit_500mb):
         """Test processing TN3270E negative response."""
         session = PrinterSession()
         session.activate()
@@ -332,7 +335,7 @@ class TestPrinterSession:
         # Job should still be active but warning logged
         assert job.status == "active"
 
-    def test_repr(self):
+    def test_repr(self, memory_limit_500mb):
         """Test string representation."""
         session = PrinterSession()
         session.activate()

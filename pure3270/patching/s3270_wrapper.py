@@ -4,7 +4,6 @@ Wrapper class to make pure3270 compatible with p3270's S3270 interface.
 
 import logging
 from typing import Optional, Any
-from pure3270.session import Session, SessionError
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +33,7 @@ class Pure3270S3270Wrapper:
         self.statusMsg = None
 
         # Create our pure3270 session
+        from pure3270.session import Session
         self._session = Session()
 
         # Increment instance counter

@@ -1,5 +1,7 @@
+import platform
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+from pure3270.emulation.screen_buffer import Field
 
 
 @pytest.mark.asyncio
@@ -18,14 +20,17 @@ class TestIntegration:
         mock_handler.close = AsyncMock()
 
         # Mock responses for macro steps
-        expected_pattern = bytearray([0x40] * (24 * 80))  # Full EBCDIC spaces
-        expected_pattern[0:5] = b"\xc1\xc2\xc3\xc4\xc5"  # Sample 'ABCDE' in EBCDIC
+        expected_pattern = bytes([0x40] * (24 * 80))  # Full EBCDIC spaces
+        expected_pattern = expected_pattern[:5].replace(b"\x40"*5, b"\xc1\xc2\xc3\xc4\xc5") + expected_pattern[5:]  # But since bytes immutable, re-create with modification
+        expected_pattern = bytearray(expected_pattern)  # Wait, to modify, but better: create with mod
+        # Correct: since original modifies bytearray, recreate as bytes with mod
+        full_spaces = bytes([0x40] * (24 * 80))
+        expected_pattern = full_spaces[:5].replace(b"\x40"*5, b"\xc1\xc2\xc3\xc4\xc5") + full_spaces[5:]
 
         # Simulate receive data after sends: Write with sample data
         stream = (
             b"\xf5\x10\x00\x00"
-            + bytes(expected_pattern)
-            + b"\x0d"  # WCC, SBA(0,0), data, EOA
+            + b"\x0d"  # WCC, SBA(0,0), data, EOA - minimal, data ignored by mock parse
         )
         mock_handler.receive_data.return_value = stream
 
@@ -53,6 +58,9 @@ class TestIntegration:
         # Verify sends: one call for macro (key Enter sends input stream)
         assert mock_handler.send_data.call_count == 1
         mock_handler.receive_data.assert_called_once()
+
+        del expected_pattern
+        mock_handler.reset_mock()
 
     async def test_ic_pt_order_integration(self, async_session):
         """
@@ -110,6 +118,10 @@ class TestIntegration:
             assert async_session.screen.cursor_row == 1
             assert async_session.screen.cursor_col == 0
 
+        async_session.screen.fields = []
+
         # No sends expected for these read operations
         assert mock_handler.send_data.call_count == 0
         assert mock_handler.receive_data.call_count == 3
+
+        mock_handler.reset_mock()

@@ -1,0 +1,243 @@
+name: Python Regression Detection
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly on Sunday at midnight UTC
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  issues: write  # For creating issues
+  contents: read
+
+jobs:
+  detect-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      new_versions: ${{ steps.set-versions.outputs.new_versions }}
+      has_new: ${{ steps.set-versions.outputs.has_new }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          pip install requests packaging
+
+      - name: Run version check script
+        id: script
+        run: python scripts/check_python_releases.py
+
+      - name: Parse new versions
+        id: set-versions
+        run: |
+          # Capture the JSON output from the script (last line if new versions)
+          JSON_OUTPUT=$(python scripts/check_python_releases.py 2>/dev/null | grep -o '{"new_versions":\["[^"]*"\]}' || echo '{"new_versions":[]}')
+          echo "JSON_OUTPUT=$JSON_OUTPUT" >> $GITHUB_ENV
+          if [[ "$JSON_OUTPUT" != '{"new_versions":[]}' ]]; then
+            NEW_VERSIONS=$(echo $JSON_OUTPUT | jq -r '.new_versions[]')
+            echo "new_versions=$NEW_VERSIONS" >> $GITHUB_OUTPUT
+            echo "has_new=true" >> $GITHUB_OUTPUT
+          else
+            echo "new_versions=" >> $GITHUB_OUTPUT
+            echo "has_new=false" >> $GITHUB_OUTPUT
+          fi
+
+  test-new-versions:
+    needs: detect-versions
+    if: needs.detect-versions.outputs.has_new == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ${{ fromJson(needs.detect-versions.outputs.new_versions) }}
+      fail-fast: false  # Continue testing other versions even if one fails
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/pyproject.toml') }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[test]
+
+      - name: Run tests
+        run: |
+          pytest tests/ -v --tb=short --junitxml=test-results-${{ matrix.python-version }}.xml -s > test-log-${{ matrix.python-version }}.txt 2>&1 || true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.python-version }}
+          path: |
+            .pytest_cache/
+            test-results-${{ matrix.python-version }}.xml
+            test-log-${{ matrix.python-version }}.txt
+
+      - name: Upload logs for analysis
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-${{ matrix.python-version }}
+          path: |
+            test-log-${{ matrix.python-version }}.txt
+
+  ai-analysis:
+    needs: test-new-versions
+    runs-on: ubuntu-latest
+    if: failure()
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+
+      - name: Download all test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          pattern: test-results-*
+          merge-multiple: true
+
+      - name: Download all log artifacts
+        if: failure()
+        uses: actions/download-artifact@v4
+        with:
+          path: logs/
+          pattern: test-logs-*
+          merge-multiple: true
+
+      - name: Parse failures and build payload
+        id: parse
+        run: |
+          python scripts/failure_parser.py artifacts/test-results-*.xml logs/ > payload.json || true
+          # Note: Parser needs to handle multiple files; for now, assume sequential or modify if needed
+          # To aggregate, we'll run for each and merge
+          jq -s '{
+            project: "pure3270",
+            commit_sha: "${{ github.sha }}",
+            branch: "${{ github.ref_name }}",
+            pr_number: ${{ github.event.pull_request.number || 0 }},
+            num_failures: (.[].num_failures | add),
+            failures: (.[].failures | add)
+          }' <(for xml in artifacts/test-results-*.xml; do python scripts/failure_parser.py "$xml" logs/ | jq '{num_failures: .num_failures, failures: .failures}'; done) > payload.json
+          echo "payload_path=payload.json" >> $GITHUB_OUTPUT
+
+      - name: Run AI analysis
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          python scripts/ai_analyzer.py "${{ steps.parse.outputs.payload_path }}" ./reports
+
+      - name: Upload analysis report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-analysis-report
+          path: reports/regression_analysis.md
+
+      - name: Comment on PR or create issue
+        if: always()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          REPORT_PATH="reports/regression_analysis.md"
+          if [ ! -f "$REPORT_PATH" ]; then
+            echo "No report generated"
+            exit 0
+          fi
+          
+          # Install gh if needed
+          type -p curl >/dev/null || (sudo apt update && sudo apt install curl -y)
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt update
+          sudo apt install gh -y
+          
+          echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+          
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            gh pr comment ${{ github.event.pull_request.number }} --body-file "$REPORT_PATH"
+          else
+            ISSUE_TITLE="Regression Analysis: Tests failed on ${{ github.sha }}"
+            EXISTING_ISSUE=$(gh issue list --repo ${{ github.repository }} --search "Regression Analysis" --state open --json number --jq '.[0].number' || echo "")
+            if [[ -n "$EXISTING_ISSUE" ]]; then
+              gh issue comment ${{ github.repository }}#$EXISTING_ISSUE --body "$(cat $REPORT_PATH)"
+            else
+              gh issue create --repo ${{ github.repository }} --title "$ISSUE_TITLE" --body "$(cat $REPORT_PATH)"
+            fi
+          fi
+
+  report-results:
+    needs: [detect-versions, test-new-versions, ai-analysis]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GitHub CLI
+        run: |
+          type -p curl >/dev/null || (sudo apt update && sudo apt install curl -y)
+          curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+          sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+          sudo apt update
+          sudo apt install gh -y
+
+      - name: Login to GitHub CLI
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
+
+      - name: Check test results
+        id: results
+        run: |
+          if [[ "${{ needs.detect-versions.outputs.has_new }}" == "true" ]]; then
+            FAILED_JOBS=$(gh run list --repo ${{ github.repository }} --status failure --limit 10 --json databaseId | jq -r '.[].databaseId')
+            if [[ -n "$FAILED_JOBS" ]]; then
+              echo "tests_failed=true" >> $GITHUB_OUTPUT
+              echo "result=Regression detected in new Python versions: ${{ needs.detect-versions.outputs.new_versions }}. Tests failed." >> $GITHUB_OUTPUT
+            else
+              echo "tests_failed=false" >> $GITHUB_OUTPUT
+              echo "result=All tests passed on new Python versions: ${{ needs.detect-versions.outputs.new_versions }}. Consider upgrading compatibility." >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "tests_failed=false" >> $GITHUB_OUTPUT
+            echo "result=No new Python versions detected." >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create or update issue
+        run: |
+          ISSUE_TITLE="Python Compatibility Check: ${{ steps.results.outputs.result }}"
+          EXISTING_ISSUE=$(gh issue list --repo ${{ github.repository }} --search "Python Compatibility Check" --json number --jq '.[0].number' || echo "")
+          if [[ -n "$EXISTING_ISSUE" ]]; then
+            gh issue comment ${{ github.repository }}#$EXISTING_ISSUE --body "${{ steps.results.outputs.result }}"
+          else
+            gh issue create --repo ${{ github.repository }} --title "$ISSUE_TITLE" --body "${{ steps.results.outputs.result }}\n\nWorkflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          fi

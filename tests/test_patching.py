@@ -1,3 +1,4 @@
+import platform
 import pytest
 import builtins
 import sys
@@ -15,22 +16,11 @@ from pure3270.patching.patching import (
 _original_import = builtins.__import__
 
 
-@pytest.fixture
-def monkey_patch_manager():
-    return MonkeyPatchManager()
 
 
-@pytest.fixture
-def mock_p3270():
-    mock_module = MagicMock()
-    mock_session_module = MagicMock()
-    mock_session = MagicMock()
-    mock_session_module.Session = mock_session
-    mock_module.session = mock_session_module
-    mock_module.__version__ = "0.1.6"
-    return mock_module
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
 class TestMonkeyPatchManager:
     def test_init(self, monkey_patch_manager):
         assert monkey_patch_manager.originals == {}
@@ -119,6 +109,7 @@ class TestMonkeyPatchManager:
         assert monkey_patch_manager.patched == {}
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
 class TestEnableReplacement:
     def test_enable_replacement(self):
         manager = enable_replacement(patch_sessions=True, strict_version=False)
@@ -138,6 +129,7 @@ def test_patch_alias():
     assert patch is enable_replacement
 
 
+@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
 class TestPatchContext:
     def test_context_manager(self):
         with mock_patch(
@@ -228,7 +220,7 @@ def test_performance_patching():
 
 # Error handling in patching
 @mock_patch("builtins.__import__")
-def test_patching_fallback(mock_import, caplog):
+def test_patching_fallback(mock_import, caplog, monkey_patch_manager):
     def import_side_effect(name, *args, **kwargs):
         if name == "p3270":
             mock_p3270 = MagicMock(__version__="0.1.0")
@@ -240,16 +232,14 @@ def test_patching_fallback(mock_import, caplog):
 
     mock_import.side_effect = import_side_effect
 
-    manager = MonkeyPatchManager()
-
     def mock_check(*args, **kwargs):
         return False
 
     with mock_patch.object(
-        manager, "_check_version_compatibility", side_effect=mock_check
+        monkey_patch_manager, "_check_version_compatibility", side_effect=mock_check
     ):
         with caplog.at_level("INFO"):
-            manager.apply_patches(strict_version=False)
+            monkey_patch_manager.apply_patches(strict_version=False)
     assert "Graceful degradation" in caplog.text
 
 

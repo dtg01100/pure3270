@@ -1,3 +1,4 @@
+import platform
 import pytest
 import asyncio
 from unittest.mock import patch
@@ -8,7 +9,7 @@ from pure3270.protocol.ssl_wrapper import SSLWrapper, SSLError
 import ssl
 
 
-def test_parse_error(caplog):
+def test_parse_error(caplog, memory_limit_500mb):
     parser = DataStreamParser(ScreenBuffer())
     with caplog.at_level("ERROR"):
         with pytest.raises(ParseError):
@@ -16,7 +17,7 @@ def test_parse_error(caplog):
     assert "Unexpected end" in caplog.text
 
 
-def test_protocol_error(caplog):
+def test_protocol_error(caplog, memory_limit_500mb):
     handler = TN3270Handler("host", 23)
     handler.writer = None
     with caplog.at_level("ERROR"):
@@ -25,7 +26,7 @@ def test_protocol_error(caplog):
     assert "Not connected" in caplog.text
 
 
-def test_ssl_error(caplog):
+def test_ssl_error(caplog, memory_limit_500mb):
     wrapper = SSLWrapper()
     with patch("ssl.SSLContext", side_effect=ssl.SSLError("Test")):
         with caplog.at_level("ERROR"):

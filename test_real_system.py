@@ -5,6 +5,7 @@ Test script to connect to a real TN3270 system using pure3270.
 This script is for testing purposes only and will not be added to git.
 """
 
+import platform
 import sys
 import time
 import argparse
@@ -40,56 +41,81 @@ def main():
     # Setup logging
     setup_logging(level="DEBUG" if args.debug else "INFO")
     
-    print(f"Connecting to {host}:{args.port}...")
+    # Import limits wrapper
+    from tools.memory_limit import run_with_limits_sync, get_integration_limits
     
-    # Create session with SSL context if needed
-    if args.ssl:
-        import ssl
-        ssl_context = ssl.create_default_context()
-        session = Session(host=host, port=args.port, ssl_context=ssl_context)
-    else:
-        ssl_context = None
-        session = Session(host=host, port=args.port)
+    int_time, int_mem = get_integration_limits()
+    print(f"Running integration test with limits: {int_time}s / {int_mem}MB")
     
-    try:
-        # Connect to the host
-        session.connect()
-        print("Connected successfully!")
-        print(f"Session connected: {session.connected}")
+    def run_test():
+        # Create session with SSL context if needed
+        if args.ssl:
+            import ssl
+            ssl_context = ssl.create_default_context()
+            session = Session(host=host, port=args.port, ssl_context=ssl_context)
+        else:
+            session = Session(host=host, port=args.port)
         
-        # Read initial screen
-        print("\n--- Initial Screen ---")
-        screen_data = session.read()
-        print(screen_data.decode('ascii', errors='ignore'))
-        
-        # If user and password provided, attempt login
-        if user and password:
-            print(f"\n--- Attempting login with {user} ---")
-            # Send username
-            session.send(f"String({user})".encode('ascii'))
-            session.send(b"key Tab")  # Move to password field
-            # Send password
-            session.send(f"String({password})".encode('ascii'))
-            session.send(b"key Enter")  # Submit
+        try:
+            print(f"Connecting to {host}:{args.port}...")
             
-            # Wait a moment for response
-            time.sleep(2)
+            # Connect to the host
+            session.connect()
+            print("Connected successfully!")
+            print(f"Session connected: {session.connected}")
             
-            # Read post-login screen
-            print("\n--- Post-Login Screen ---")
+            # Read initial screen
+            print("\n--- Initial Screen ---")
             screen_data = session.read()
             print(screen_data.decode('ascii', errors='ignore'))
-        
-        # Wait for user input before closing
-        input("\nPress Enter to close the session...")
-        
-    except Exception as e:
-        print(f"Error: {e}")
+            
+            # If user and password provided, attempt login
+            if user and password:
+                print(f"\n--- Attempting login with {user} ---")
+                # Send username
+                session.send(f"String({user})".encode('ascii'))
+                session.send(b"key Tab")  # Move to password field
+                # Send password
+                session.send(f"String({password})".encode('ascii'))
+                session.send(b"key Enter")  # Submit
+                
+                # Wait a moment for response
+                time.sleep(2)
+                
+                # Read post-login screen
+                print("\n--- Post-Login Screen ---")
+                screen_data = session.read()
+                print(screen_data.decode('ascii', errors='ignore'))
+            
+            # Wait for user input before closing (only in interactive mode)
+            if sys.stdin.isatty():
+                input("\nPress Enter to close the session...")
+            else:
+                print("Non-interactive environment: closing session without prompt.")
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error: {e}")
+            return False
+        finally:
+            # Always close the session
+            try:
+                session.close()
+                print("Session closed.")
+            except:
+                pass
+    
+    success, result = run_with_limits_sync(run_test, int_time, int_mem)
+    if not success:
+        print(f"Test failed due to limits: {result}")
         sys.exit(1)
-    finally:
-        # Always close the session
-        session.close()
-        print("Session closed.")
+    if not result:
+        print("Test failed (connection/login issues)")
+        sys.exit(1)
+    
+    # Note: Limits applied to entire connection/login block via run_with_limits_sync.
+    # Unix-only memory, cross-platform time. Defaults: 10s/200MB, env: INT_TIME_LIMIT, INT_MEM_LIMIT.
 
 
 if __name__ == "__main__":
