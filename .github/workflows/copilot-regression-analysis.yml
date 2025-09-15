@@ -1,5 +1,9 @@
 name: Copilot Regression Analysis
 
+permissions:
+  contents: read
+  issues: write
+
 on:
   # Run on any push to any branch
   push: {}
