@@ -8,9 +8,28 @@ on:
 
 jobs:
   analyze-regression:
-    if: contains(github.event.issue.labels.*.name, 'regression') && contains(github.event.issue.labels.*.name, 'python-version')
     runs-on: ubuntu-latest
     steps:
+    - name: Determine event and labels
+      id: label_check
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const eventName = context.event_name;
+          const issue = context.payload.issue || (context.payload.comment && context.payload.comment.issue);
+          if (!issue) {
+            core.setOutput('should_run', 'false');
+            return;
+          }
+          const labels = issue.labels ? issue.labels.map(l => l.name) : [];
+          const hasRegression = labels.includes('regression');
+          if (hasRegression) {
+            core.setOutput('should_run', 'true');
+          } else {
+            core.setOutput('should_run', 'false');
+          }
+
     - name: Check if comment is for Copilot
       id: check_comment
       if: github.event_name == 'issue_comment'
@@ -20,9 +39,9 @@ jobs:
         else
           echo "analyze=false" >> $GITHUB_OUTPUT
         fi
-    
+
     - name: Analyze with Copilot
-      if: github.event_name == 'issues' || steps.check_comment.outputs.analyze == 'true'
+      if: steps.label_check.outputs.should_run == 'true' && (github.event_name == 'issues' || steps.check_comment.outputs.analyze == 'true')
       uses: actions/github-script@v7
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}

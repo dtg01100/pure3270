@@ -8,43 +8,66 @@ on:
 
 jobs:
   copilot-assistance:
-    if: contains(github.event.issue.labels.*.name, 'regression') && contains(github.event.issue.labels.*.name, 'python-version')
     runs-on: ubuntu-latest
     steps:
-    - name: Trigger Copilot analysis
+    - name: Determine event and labels
+      id: label_check
       uses: actions/github-script@v7
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
-          const issue = context.payload.issue;
-          
-          // Check if issue has been labeled for Copilot assistance
-          const hasCopilotLabel = issue.labels.some(label => 
-            label.name === 'copilot-assist' || label.name === 'needs-ai-analysis'
-          );
-          
-          if (hasCopilotLabel || context.event_name === 'issues') {
-            const copilotPrompt = `
-            @copilot[task] Please analyze this Python version regression issue and provide:
-            
-            1. **Root Cause Analysis**: What specific Python ${issue.title.match(/Python ([0-9.]+)/)?.[1] || 'version'} changes are causing the failure?
-            2. **Code Examples**: Show the exact code changes needed to fix compatibility
-            3. **Testing Strategy**: How to verify the fix works with both old and new Python versions
-            4. **Risk Assessment**: Any potential side effects of the proposed changes
-            5. **Implementation Priority**: Which files should be fixed first based on impact
-            
-            Focus on:
-            - Syntax compatibility issues
-            - Standard library API changes  
-            - Asyncio behavior differences
-            - Type hinting compatibility
-            - String/encoding handling changes
-            `;
-            
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: issue.number,
-              body: copilotPrompt
-            });
+          const issue = context.payload.issue || (context.payload.comment && context.payload.comment.issue);
+          if (!issue) {
+            core.setOutput('should_run', 'false');
+            return;
           }
+          const labels = issue.labels ? issue.labels.map(l => l.name) : [];
+          const hasRegression = labels.includes('regression');
+          // For issue_comment events we allow comment-triggered runs if the comment contains @copilot[analyze]
+          const hasCopilotLabel = labels.includes('copilot-assist') || labels.includes('needs-ai-analysis');
+          if (hasRegression) {
+            core.setOutput('should_run', 'true');
+          } else {
+            core.setOutput('should_run', 'false');
+          }
+
+    - name: Check comment for explicit Copilot request
+      id: check_comment
+      if: github.event_name == 'issue_comment'
+      run: |
+        if echo "${{ github.event.comment.body }}" | grep -q "@copilot\[analyze\]"; then
+          echo "analyze=true" >> $GITHUB_OUTPUT
+        else
+          echo "analyze=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Trigger Copilot analysis
+      if: steps.label_check.outputs.should_run == 'true' && (github.event_name == 'issues' || steps.check_comment.outputs.analyze == 'true')
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        script: |
+          const issue = context.payload.issue || context.payload.comment.issue;
+          const copilotPrompt = `
+          @copilot[task] Please analyze this Python version regression issue and provide:
+          
+          1. **Root Cause Analysis**: What specific Python ${issue.title.match(/Python ([0-9.]+)/)?.[1] || 'version'} changes are causing the failure?
+          2. **Code Examples**: Show the exact code changes needed to fix compatibility
+          3. **Testing Strategy**: How to verify the fix works with both old and new Python versions
+          4. **Risk Assessment**: Any potential side effects of the proposed changes
+          5. **Implementation Priority**: Which files should be fixed first based on impact
+          
+          Focus on:
+          - Syntax compatibility issues
+          - Standard library API changes  
+          - Asyncio behavior differences
+          - Type hinting compatibility
+          - String/encoding handling changes
+          `;
+          
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: issue.number,
+            body: copilotPrompt
+          });

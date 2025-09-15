@@ -1,0 +1,14 @@
+{
+  "comment": {
+    "body": "@copilot[analyze] please",
+    "issue": {
+      "number": 2,
+      "title": "Python 3.11 regression: failing on CI",
+      "labels": [
+        { "name": "regression" },
+        { "name": "python-version" }
+      ],
+      "body": "Comment-triggered issue"
+    }
+  }
+}
