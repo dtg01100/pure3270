@@ -1,0 +1,24 @@
+name: Diagnostic Issue Comment Listener
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dump event payload
+        run: |
+          echo "Event: $GITHUB_EVENT_NAME"
+          echo "Actor: $GITHUB_ACTOR"
+          echo "Event file: $GITHUB_EVENT_PATH"
+          echo "--- payload ---"
+          cat "$GITHUB_EVENT_PATH"
+      - name: Confirm marker
+        run: |
+          if grep -q "@diag-TEST" "$GITHUB_EVENT_PATH"; then
+            echo "DIAGNOSTIC_MARKER_DETECTED=true" >> $GITHUB_OUTPUT
+          else
+            echo "DIAGNOSTIC_MARKER_DETECTED=false" >> $GITHUB_OUTPUT
+          fi

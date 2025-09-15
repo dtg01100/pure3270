@@ -1,10 +1,18 @@
 name: Copilot Regression Analysis
 
 on:
+  # Run on any push to any branch
+  push: {}
   issues:
     types: [opened, reopened]
   issue_comment:
     types: [created]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch or tag to run the workflow against (optional)'
+        required: false
+        default: ''
 
 jobs:
   analyze-regression:
@@ -39,6 +47,53 @@ jobs:
         else
           echo "analyze=false" >> $GITHUB_OUTPUT
         fi
+    
+      - name: Try assign copilot
+        id: try_assign
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const core = require('@actions/core');
+            const assignee = 'copilot';
+            // Determine issue number from payload
+            const issueNumber = (context.payload.issue && context.payload.issue.number) || (context.payload.comment && context.payload.issue && context.payload.issue.number) || null;
+            if (!issueNumber) {
+              core.info('No issue number in payload; skipping assignee step.');
+              return;
+            }
+
+            // Check if user exists
+            try {
+              await github.rest.users.getByUsername({ username: assignee });
+            } catch (err) {
+              core.warning(`User ${assignee} not found (${err.status}). Adding comment and continuing.`);
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: `Attempted to assign @${assignee} but the GitHub user was not found. Proceeding without assignment.`
+              });
+              return;
+            }
+
+            // Try to add the assignee
+            try {
+              await github.rest.issues.addAssignees({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                assignees: [assignee]
+              });
+              core.info(`Assigned ${assignee} to issue #${issueNumber}`);
+            } catch (err) {
+              core.warning(`Failed to assign ${assignee}: ${err.message}. Posting comment and continuing.`);
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issueNumber,
+                body: `Attempt to assign @${assignee} failed: ${err.message}. Proceeding with the workflow.`
+              });
+            }
 
     - name: Analyze with Copilot
       # Allow an explicit @copilot[analyze] comment to trigger analysis even if the issue lacks the 'regression' label.
