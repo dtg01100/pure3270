@@ -56,7 +56,7 @@ jobs:
             const core = require('@actions/core');
             const assignee = 'copilot';
             // Determine issue number from payload
-            const issueNumber = (context.payload.issue && context.payload.issue.number) || (context.payload.comment && context.payload.issue && context.payload.issue.number) || null;
+            const issueNumber = (context.payload.issue && context.payload.issue.number) || (context.payload.comment && context.payload.comment.issue && context.payload.comment.issue.number) || null;
             if (!issueNumber) {
               core.info('No issue number in payload; skipping assignee step.');
               return;
