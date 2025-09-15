@@ -86,6 +86,16 @@ Format code:
 python -m black pure3270/
 ```
 
+### Pre-commit Hooks
+Run pre-commit hooks to ensure code quality:
+```bash
+# Install pre-commit hooks (after installing test dependencies)
+pre-commit install
+
+# Run all hooks on all files
+pre-commit run --all-files
+```
+
 ## Test Coverage
 
 The test suite verifies:

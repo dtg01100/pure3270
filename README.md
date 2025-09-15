@@ -96,6 +96,51 @@ pip install pytest-cov black flake8
 - `black`: For code formatting (e.g., `black .`).
 - `flake8`: For linting (e.g., `flake8 .`).
 
+### Pre-commit Hooks
+
+To maintain code quality and consistency, Pure3270 uses pre-commit hooks. These hooks automatically check and format code before each commit.
+
+To set up pre-commit hooks:
+
+```
+# Install pre-commit (already included in test dependencies)
+pip install -e .[test]
+
+# Install the Git hook scripts
+pre-commit install
+```
+
+The hooks will now run automatically on each `git commit`. You can also run them manually:
+
+```
+# Run all hooks on all files
+pre-commit run --all-files
+```
+
+For more information about pre-commit hooks, see [PRE_COMMIT_HOOKS.md](PRE_COMMIT_HOOKS.md).
+
+## Documentation
+
+Pure3270 includes comprehensive API documentation built with Sphinx. The documentation covers all public APIs and provides usage examples.
+
+### Building Documentation
+
+To build the documentation locally:
+
+```bash
+# Install documentation dependencies
+pip install -e .[docs]
+
+# Build HTML documentation
+./build_docs.sh
+```
+
+The documentation will be available in `docs/build/html/index.html`.
+
+### Online Documentation
+
+Online documentation is available at [https://dtg01100.github.io/pure3270/](https://dtg01100.github.io/pure3270/).
+
 ## Exports
 
 The main classes and functions are exported from the top-level module for easy import. From [`pure3270/__init__.py`](pure3270/__init__.py):
