@@ -1,0 +1,27 @@
+{
+  "project": "pure3270",
+  "commit_sha": "",
+  "branch": "",
+  "pr_number": null,
+  "num_failures": 3,
+  "failures": [
+    {
+      "test_name": "tests.property.test_data_stream_properties",
+      "classname": "",
+      "message": "collection failure",
+      "traceback": "tests/property/test_data_stream_properties.py:10: in <module>\n    @settings(max_examples=50, deadline=None)\n     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n/home/user in __call__\n    raise InvalidArgument(\nE   hypothesis.errors.InvalidArgument: @settings(...) can only be used as a decorator on functions, or on subclasses of RuleBasedStateMachine."
+    },
+    {
+      "test_name": "tests.property.test_ebcdic_properties",
+      "classname": "",
+      "message": "collection failure",
+      "traceback": "tests/property/test_ebcdic_properties.py:8: in <module>\n    @settings(max_examples=100, deadline=None)\n     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n/home/user in __call__\n    raise InvalidArgument(\nE   hypothesis.errors.InvalidArgument: @settings(...) can only be used as a decorator on functions, or on subclasses of RuleBasedStateMachine."
+    },
+    {
+      "test_name": "tests.property.test_tn3270_handler_properties",
+      "classname": "",
+      "message": "collection failure",
+      "traceback": "tests/property/test_tn3270_handler_properties.py:10: in <module>\n    @settings(max_examples=30, deadline=None)\n     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n/home/user in __call__\n    raise InvalidArgument(\nE   hypothesis.errors.InvalidArgument: @settings(...) can only be used as a decorator on functions, or on subclasses of RuleBasedStateMachine."
+    }
+  ]
+}

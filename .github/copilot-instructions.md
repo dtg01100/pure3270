@@ -335,7 +335,12 @@ python -m py_compile pure3270/*.py
 python -m black pure3270/ && python -m flake8 pure3270/
 
 # Complete pre-commit validation (ALL MUST PASS)
-python -m black pure3270/ && python -m flake8 pure3270/ && python quick_test.py && python run_all_tests.py
+# Install pre-commit hooks first
+pre-commit install
+# Run all pre-commit hooks
+pre-commit run --all-files
+# Then run tests
+python quick_test.py && python run_all_tests.py
 ```
 
 ## Code Patterns and Conventions

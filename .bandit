@@ -1,0 +1,30 @@
+# Bandit configuration for Pure3270
+
+# Skip specific test IDs
+# Format: BXXX where XXX is the test ID
+skips: 
+  - B101  # skip test for assert_ statements (common in tests)
+  - B311  # skip test for random module usage (may be needed for testing)
+
+# Exclude directories
+exclude_dirs: 
+  - .venv
+  - venv
+  - build
+  - dist
+  - docs
+  - migrations
+  - .tox
+  - .pytest_cache
+
+# Set the number of lines of context to include
+# around detected issues
+context_lines: 3
+
+# Set severity levels
+# low, medium, high
+severity: medium
+
+# Set confidence levels
+# low, medium, high
+confidence: medium
