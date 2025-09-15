@@ -41,7 +41,9 @@ jobs:
         fi
 
     - name: Analyze with Copilot
-      if: steps.label_check.outputs.should_run == 'true' && (github.event_name == 'issues' || steps.check_comment.outputs.analyze == 'true')
+      # Allow an explicit @copilot[analyze] comment to trigger analysis even if the issue lacks the 'regression' label.
+      # Logic: run when the issue has the regression label OR when this is an issue_comment with analyze=true.
+      if: (steps.label_check.outputs.should_run == 'true') || (github.event_name == 'issue_comment' && steps.check_comment.outputs.analyze == 'true')
       uses: actions/github-script@v7
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
