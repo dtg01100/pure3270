@@ -110,46 +110,57 @@ jobs:
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
-          const issue = context.payload.issue || context.payload.comment.issue;
-          const issueBody = issue.body;
-          
-          // Extract Python version from issue title
-          const pythonVersionMatch = issue.title.match(/Python ([0-9.]+)/);
-          const pythonVersion = pythonVersionMatch ? pythonVersionMatch[1] : 'unknown';
-          
-          const analysisComment = `
-          @github-actions[bot] Analyzing Python ${pythonVersion} regression...
-          
-          ## Automated Analysis
-          
-          Based on the test failures, here are potential areas to investigate:
-          
-          1. **Syntax Compatibility**: Check for newer Python syntax that may not be backward compatible
-          2. **Standard Library Changes**: Review for deprecated or modified stdlib functions
-          3. **Asyncio Updates**: Verify async behavior changes in Python ${pythonVersion}
-          4. **Type Hinting**: Check for typing module changes
-          5. **String/Unicode Handling**: Review text processing changes
-          
-          ## Suggested Investigation Steps
-          
-          @copilot[task] Please provide specific code changes to fix the compatibility issues with Python ${pythonVersion}. Focus on:
-          
-          1. Identifying the exact lines of code causing failures
-          2. Suggesting Python version-compatible alternatives
-          3. Providing code examples for the fixes
-          4. Recommending testing approaches to verify the fixes
-          
-          ## Common Python Version Upgrade Issues
-          
-          For Python ${pythonVersion}, typical issues include:
-          - [Insert common issues for this Python version based on release notes]
-          
-          Please provide detailed analysis and suggested fixes.
-          `;
-          
-          await github.rest.issues.createComment({
-            owner: context.repo.owner,
-            repo: context.repo.repo,
-            issue_number: issue.number,
-            body: analysisComment
-          });
+            const core = require('@actions/core');
+            const issue = context.payload.issue || context.payload.comment.issue;
+            const issueBody = issue.body;
+
+            // Extract Python version from issue title
+            const pythonVersionMatch = issue.title.match(/Python ([0-9.]+)/);
+            const pythonVersion = pythonVersionMatch ? pythonVersionMatch[1] : 'unknown';
+
+            const analysisComment = `
+            @github-actions[bot] Analyzing Python ${pythonVersion} regression...
+
+            ## Automated Analysis
+
+            Based on the test failures, here are potential areas to investigate:
+
+            1. **Syntax Compatibility**: Check for newer Python syntax that may not be backward compatible
+            2. **Standard Library Changes**: Review for deprecated or modified stdlib functions
+            3. **Asyncio Updates**: Verify async behavior changes in Python ${pythonVersion}
+            4. **Type Hinting**: Check for typing module changes
+            5. **String/Unicode Handling**: Review text processing changes
+
+            ## Suggested Investigation Steps
+
+            @copilot[task] Please provide specific code changes to fix the compatibility issues with Python ${pythonVersion}. Focus on:
+
+            1. Identifying the exact lines of code causing failures
+            2. Suggesting Python version-compatible alternatives
+            3. Providing code examples for the fixes
+            4. Recommending testing approaches to verify the fixes
+
+            ## Common Python Version Upgrade Issues
+
+            For Python ${pythonVersion}, typical issues include:
+            - [Insert common issues for this Python version based on release notes]
+
+            Please provide detailed analysis and suggested fixes.
+            `;
+
+            try {
+              const resp = await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issue.number,
+                body: analysisComment
+              });
+              // Log concise response info so we can confirm success in job logs
+              core.info(`createComment response: status=${resp.status}`);
+              try { core.info(`createComment data keys: ${Object.keys(resp.data || {}).join(', ')}`); } catch (e) {}
+            } catch (err) {
+              // Log the full error for diagnostics but continue the job so we can inspect other outputs
+              core.error(`createComment failed: ${err.message}`);
+              try { core.error(JSON.stringify(err)); } catch (e) { core.error(String(err)); }
+              core.warning('Proceeding despite comment-post failure so workflow does not block.' );
+            }
