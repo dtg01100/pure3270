@@ -10,61 +10,33 @@ from typing import TYPE_CHECKING, List, Optional
 
 from ..emulation.screen_buffer import ScreenBuffer
 from .data_stream import (  # Import SnaResponse and BindImage
-    SNA_SENSE_CODE_INVALID_FORMAT,
-    SNA_SENSE_CODE_INVALID_REQUEST,
-    SNA_SENSE_CODE_INVALID_SEQUENCE,
-    SNA_SENSE_CODE_LU_BUSY,
-    SNA_SENSE_CODE_NO_RESOURCES,
-    SNA_SENSE_CODE_NOT_SUPPORTED,
-    SNA_SENSE_CODE_SESSION_FAILURE,
-    SNA_SENSE_CODE_STATE_ERROR,
-    SNA_SENSE_CODE_SUCCESS,
-    BindImage,
-    DataStreamParser,
-    SnaResponse,
-)
-from .errors import (
-    handle_drain,
-    raise_negotiation_error,
-    raise_protocol_error,
-    safe_socket_operation,
-)
+    SNA_SENSE_CODE_INVALID_FORMAT, SNA_SENSE_CODE_INVALID_REQUEST,
+    SNA_SENSE_CODE_INVALID_SEQUENCE, SNA_SENSE_CODE_LU_BUSY,
+    SNA_SENSE_CODE_NO_RESOURCES, SNA_SENSE_CODE_NOT_SUPPORTED,
+    SNA_SENSE_CODE_SESSION_FAILURE, SNA_SENSE_CODE_STATE_ERROR,
+    SNA_SENSE_CODE_SUCCESS, BindImage, DataStreamParser, SnaResponse)
+from .errors import (handle_drain, raise_negotiation_error,
+                     raise_protocol_error, safe_socket_operation)
 from .exceptions import NegotiationError, ParseError, ProtocolError
+from .trace_recorder import TraceRecorder  # Optional diagnostic recorder
 from .utils import SNA_RESPONSE  # Import SNA_RESPONSE
 from .utils import TELOPT_BIND_UNIT  # TELOPT 48
-from .utils import DO, DONT, QUERY_REPLY_CHARACTERISTICS, TELOPT_BINARY, TELOPT_EOR
-from .utils import (
-    TELOPT_OLD_ENVIRON as TELOPT_TERMINAL_LOCATION,
-)  # Alias for RFC 1646 (TELOPT 36)
-from .utils import (
-    TELOPT_TN3270E,
-    TELOPT_TTYPE,
-    TN3270E_BIND_IMAGE,
-    TN3270E_DATA_STREAM_CTL,
-    TN3270E_DEVICE_TYPE,
-    TN3270E_FUNCTIONS,
-    TN3270E_IBM_DYNAMIC,
-    TN3270E_IS,
-    TN3270E_REQUEST,
-    TN3270E_RESPONSES,
-    TN3270E_RSF_ERROR_RESPONSE,
-    TN3270E_RSF_NEGATIVE_RESPONSE,
-    TN3270E_RSF_POSITIVE_RESPONSE,
-    TN3270E_SCS_CTL_CODES,
-    TN3270E_SEND,
-    TN3270E_SYSREQ,
-    TN3270E_SYSREQ_ATTN,
-    TN3270E_SYSREQ_BREAK,
-    TN3270E_SYSREQ_CANCEL,
-    TN3270E_SYSREQ_LOGOFF,
-    TN3270E_SYSREQ_MESSAGE_TYPE,
-    TN3270E_SYSREQ_PRINT,
-    TN3270E_SYSREQ_RESTART,
-    WILL,
-    WONT,
-    send_iac,
-    send_subnegotiation,
-)
+from .utils import (DO, DONT, QUERY_REPLY_CHARACTERISTICS, TELOPT_BINARY,
+                    TELOPT_EOR)
+from .utils import \
+    TELOPT_OLD_ENVIRON as \
+    TELOPT_TERMINAL_LOCATION  # Alias for RFC 1646 (TELOPT 36)
+from .utils import (TELOPT_TN3270E, TELOPT_TTYPE, TN3270E_BIND_IMAGE,
+                    TN3270E_DATA_STREAM_CTL, TN3270E_DEVICE_TYPE,
+                    TN3270E_FUNCTIONS, TN3270E_IBM_DYNAMIC, TN3270E_IS,
+                    TN3270E_REQUEST, TN3270E_RESPONSES,
+                    TN3270E_RSF_ERROR_RESPONSE, TN3270E_RSF_NEGATIVE_RESPONSE,
+                    TN3270E_RSF_POSITIVE_RESPONSE, TN3270E_SCS_CTL_CODES,
+                    TN3270E_SEND, TN3270E_SYSREQ, TN3270E_SYSREQ_ATTN,
+                    TN3270E_SYSREQ_BREAK, TN3270E_SYSREQ_CANCEL,
+                    TN3270E_SYSREQ_LOGOFF, TN3270E_SYSREQ_MESSAGE_TYPE,
+                    TN3270E_SYSREQ_PRINT, TN3270E_SYSREQ_RESTART, WILL, WONT,
+                    send_iac, send_subnegotiation)
 
 if TYPE_CHECKING:
     from .tn3270_handler import TN3270Handler
@@ -72,22 +44,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 from .tn3270e_header import TN3270EHeader
-from .utils import (
-    BIND_IMAGE,
-    NVT_DATA,
-    PRINT_EOJ,
-    REQUEST,
-    RESPONSE,
-    SCS_DATA,
-    SSCP_LU_DATA,
-    TN3270_DATA,
-    TN3270E_RSF_ALWAYS_RESPONSE,
-    TN3270E_RSF_ERROR_RESPONSE,
-    TN3270E_RSF_NEGATIVE_RESPONSE,
-    TN3270E_RSF_NO_RESPONSE,
-    TN3270E_RSF_POSITIVE_RESPONSE,
-    UNBIND,
-)
+from .utils import (BIND_IMAGE, NVT_DATA, PRINT_EOJ, REQUEST, RESPONSE,
+                    SCS_DATA, SSCP_LU_DATA, TN3270_DATA,
+                    TN3270E_RSF_ALWAYS_RESPONSE, TN3270E_RSF_ERROR_RESPONSE,
+                    TN3270E_RSF_NEGATIVE_RESPONSE, TN3270E_RSF_NO_RESPONSE,
+                    TN3270E_RSF_POSITIVE_RESPONSE, UNBIND)
 
 
 class SnaSessionState(Enum):
@@ -116,6 +77,7 @@ class Negotiator:
         is_printer_session: bool = False,
         force_mode: Optional[str] = None,
         allow_fallback: bool = True,
+        recorder: Optional[TraceRecorder] = None,
     ):
         """
         Initialize the Negotiator.
@@ -193,6 +155,38 @@ class Negotiator:
         self._forced_failure: bool = False
         # Buffer to accumulate negotiation bytes when inference is needed (e.g., tests)
         self._negotiation_trace: bytes | None = None
+        # Optional trace recorder for diagnostics / tests
+        self.recorder: Optional[TraceRecorder] = recorder
+
+    # ------------------------------------------------------------------
+    # Recorder helpers
+    # ------------------------------------------------------------------
+    def _record_telnet(self, direction: str, command: int, option: int) -> None:
+        if not self.recorder:
+            return
+        try:
+            name_map = {DO: "DO", DONT: "DONT", WILL: "WILL", WONT: "WONT"}
+            self.recorder.telnet(
+                direction, name_map.get(command, f"0x{command:02x}"), option
+            )
+        except Exception:
+            pass
+
+    def _record_decision(
+        self, requested: str, chosen: str, fallback_used: bool
+    ) -> None:
+        if self.recorder:
+            try:
+                self.recorder.decision(requested, chosen, fallback_used)
+            except Exception:
+                pass
+
+    def _record_error(self, message: str) -> None:
+        if self.recorder:
+            try:
+                self.recorder.error(message)
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------
     # Inference / compatibility helpers
@@ -344,8 +338,10 @@ class Negotiator:
                 "[NEGOTIATION] Sending IAC WILL TERMINAL-TYPE and IAC DO TERMINAL-TYPE"
             )
             send_iac(self.writer, b"\xfb\x18")  # WILL TERMINAL-TYPE
+            self._record_telnet("out", WILL, TELOPT_TTYPE)
             logger.debug("[NEGOTIATION] Sent IAC WILL TERMINAL-TYPE (fb 18)")
             send_iac(self.writer, b"\xfd\x18")  # DO TERMINAL-TYPE
+            self._record_telnet("out", DO, TELOPT_TTYPE)
             logger.debug("[NEGOTIATION] Sent IAC DO TERMINAL-TYPE (fd 18)")
             # Per RFC 1091, after TTYPE negotiation, wait for the server to initiate BINARY/EOR/TN3270E negotiation.
             await self.writer.drain()
@@ -372,6 +368,7 @@ class Negotiator:
             )
             self.set_ascii_mode()
             self.negotiated_tn3270e = False
+            self._record_decision("ascii", "ascii", False)
             for ev in (
                 self._device_type_is_event,
                 self._functions_is_event,
@@ -384,6 +381,7 @@ class Negotiator:
                 "[NEGOTIATION] force_mode=tn3270 specified; skipping TN3270E negotiation (basic TN3270 only)."
             )
             self.negotiated_tn3270e = False
+            self._record_decision("tn3270", "tn3270", False)
             # Events set so upstream waits proceed
             for ev in (
                 self._device_type_is_event,
@@ -433,12 +431,10 @@ class Negotiator:
                     # Stub for SNA response handling in printer session
                     if self.parser:
                         # Simulate a positive SNA response for BIND in printer session
-                        from .data_stream import (
-                            SNA_COMMAND_RESPONSE,
-                            SNA_FLAGS_RSP,
-                            SNA_SENSE_CODE_SUCCESS,
-                            SnaResponse,
-                        )
+                        from .data_stream import (SNA_COMMAND_RESPONSE,
+                                                  SNA_FLAGS_RSP,
+                                                  SNA_SENSE_CODE_SUCCESS,
+                                                  SnaResponse)
 
                         sna_response = SnaResponse(
                             SNA_COMMAND_RESPONSE, SNA_FLAGS_RSP, SNA_SENSE_CODE_SUCCESS
@@ -454,15 +450,18 @@ class Negotiator:
                         "[NEGOTIATION] ASCII mode active; skipping TN3270E negotiated flag."
                     )
                     self.negotiated_tn3270e = False
+                    self._record_decision(self.force_mode or "auto", "ascii", True)
                 else:
                     self.negotiated_tn3270e = True
                     logger.info("[NEGOTIATION] TN3270E negotiation successful.")
+                    self._record_decision(self.force_mode or "auto", "tn3270e", False)
 
         except asyncio.TimeoutError:
             if self.force_mode == "tn3270e" and not self.allow_fallback:
                 logger.error(
                     "[NEGOTIATION] TN3270E negotiation timed out and fallback disabled (force_mode=tn3270e); raising error."
                 )
+                self._record_error("timeout forcing tn3270e without fallback")
                 # Ensure events are set so any awaiters unblock
                 for ev in (
                     self._device_type_is_event,
@@ -478,6 +477,7 @@ class Negotiator:
             )
             if self.allow_fallback:
                 self.set_ascii_mode()
+                self._record_decision(self.force_mode or "auto", "ascii", True)
             self.negotiated_tn3270e = False
             for ev in (
                 self._device_type_is_event,
@@ -501,6 +501,7 @@ class Negotiator:
                 logger.error(
                     f"[NEGOTIATION] TN3270E negotiation explicitly refused and fallback disabled: {e}"
                 )
+                self._record_error(f"refused tn3270e without fallback: {e}")
                 for ev in (
                     self._device_type_is_event,
                     self._functions_is_event,
@@ -515,6 +516,7 @@ class Negotiator:
             )
             if self.allow_fallback:
                 self.set_ascii_mode()
+                self._record_decision(self.force_mode or "auto", "ascii", True)
             self.negotiated_tn3270e = False
             for ev in (
                 self._device_type_is_event,
@@ -589,6 +591,7 @@ class Negotiator:
         logger.info(
             f"[NEGOTIATION] Received IAC command: {command:#x}, option: {option:#x}"
         )
+        self._record_telnet("in", command, option)
         if command == DO:
             logger.debug(f"[NEGOTIATION] Received IAC DO {option:#x}")
             if option == TELOPT_TTYPE:  # Terminal Type
@@ -596,24 +599,29 @@ class Negotiator:
                     "[NEGOTIATION] Sending IAC WILL TTYPE in response to DO TTYPE"
                 )
                 send_iac(self.writer, bytes([WILL, TELOPT_TTYPE]))
+                self._record_telnet("out", WILL, TELOPT_TTYPE)
             elif option == TELOPT_BINARY:  # Binary Transmission
                 logger.info(
                     "[NEGOTIATION] Sending IAC WILL BINARY in response to DO BINARY"
                 )
                 send_iac(self.writer, bytes([WILL, TELOPT_BINARY]))
+                self._record_telnet("out", WILL, TELOPT_BINARY)
             elif option == TELOPT_EOR:  # End of Record
                 logger.info("[NEGOTIATION] Sending IAC WILL EOR in response to DO EOR")
                 send_iac(self.writer, bytes([WILL, TELOPT_EOR]))
+                self._record_telnet("out", WILL, TELOPT_EOR)
             elif option == TELOPT_TN3270E:  # TN3270E
                 logger.info(
                     "[NEGOTIATION] Sending IAC WILL TN3270E in response to DO TN3270E"
                 )
                 send_iac(self.writer, bytes([WILL, TELOPT_TN3270E]))
+                self._record_telnet("out", WILL, TELOPT_TN3270E)
             elif option == TELOPT_TERMINAL_LOCATION:  # TERMINAL-LOCATION (RFC 1646)
                 logger.info(
                     "[NEGOTIATION] Sending IAC WILL TERMINAL-LOCATION in response to DO TERMINAL-LOCATION"
                 )
                 send_iac(self.writer, bytes([WILL, TELOPT_TERMINAL_LOCATION]))
+                self._record_telnet("out", WILL, TELOPT_TERMINAL_LOCATION)
                 # If the server requests TERMINAL-LOCATION, we respond with our LU name
                 await self._send_lu_name_is()
             elif option == TELOPT_BIND_UNIT:  # BIND-UNIT
@@ -621,11 +629,13 @@ class Negotiator:
                     "[NEGOTIATION] Sending IAC WILL BIND-UNIT in response to DO BIND-UNIT"
                 )
                 send_iac(self.writer, bytes([WILL, TELOPT_BIND_UNIT]))
+                self._record_telnet("out", WILL, TELOPT_BIND_UNIT)
             else:
                 logger.info(
                     f"[NEGOTIATION] Sending IAC WONT {option:#x} in response to DO {option:#x}"
                 )
                 send_iac(self.writer, bytes([WONT, option]))
+                self._record_telnet("out", WONT, option)
             # Attempt to drain if available; if writer.drain is a MagicMock/AsyncMock
             # tests will handle awaiting it; otherwise await to flush network buffers.
             if hasattr(self.writer, "drain"):
@@ -633,6 +643,7 @@ class Negotiator:
         elif command == DONT:
             logger.info(f"[NEGOTIATION] Received IAC DONT {option:#x}")
             send_iac(self.writer, bytes([WONT, option]))
+            self._record_telnet("out", WONT, option)
             if hasattr(self.writer, "drain"):
                 await self.writer.drain()
         elif command == WILL:
@@ -642,40 +653,48 @@ class Negotiator:
                     "[NEGOTIATION] Sending IAC DO TTYPE in response to WILL TTYPE"
                 )
                 send_iac(self.writer, bytes([DO, TELOPT_TTYPE]))
+                self._record_telnet("out", DO, TELOPT_TTYPE)
             elif option == TELOPT_BINARY:
                 logger.info(
                     "[NEGOTIATION] Sending IAC DO BINARY in response to WILL BINARY"
                 )
                 send_iac(self.writer, bytes([DO, TELOPT_BINARY]))
+                self._record_telnet("out", DO, TELOPT_BINARY)
             elif option == TELOPT_EOR:
                 logger.info("[NEGOTIATION] Sending IAC DO EOR in response to WILL EOR")
                 send_iac(self.writer, bytes([DO, TELOPT_EOR]))
+                self._record_telnet("out", DO, TELOPT_EOR)
             elif option == TELOPT_TN3270E:
                 logger.info(
                     "[NEGOTIATION] Sending IAC DO TN3270E in response to WILL TN3270E"
                 )
                 send_iac(self.writer, bytes([DO, TELOPT_TN3270E]))
+                self._record_telnet("out", DO, TELOPT_TN3270E)
             elif option == TELOPT_TERMINAL_LOCATION:  # TERMINAL-LOCATION (RFC 1646)
                 logger.info(
                     "[NEGOTIATION] Sending IAC DO TERMINAL-LOCATION in response to WILL TERMINAL-LOCATION"
                 )
                 send_iac(self.writer, bytes([DO, TELOPT_TERMINAL_LOCATION]))
+                self._record_telnet("out", DO, TELOPT_TERMINAL_LOCATION)
                 # The host is telling us it WILL use TERMINAL-LOCATION, no action needed from client other than DO.
             elif option == TELOPT_BIND_UNIT:  # BIND-UNIT
                 logger.info(
                     "[NEGOTIATION] Sending IAC DO BIND-UNIT in response to WILL BIND-UNIT"
                 )
                 send_iac(self.writer, bytes([DO, TELOPT_BIND_UNIT]))
+                self._record_telnet("out", DO, TELOPT_BIND_UNIT)
             else:
                 logger.info(
                     f"[NEGOTIATION] Sending IAC DONT {option:#x} in response to WILL {option:#x}"
                 )
                 send_iac(self.writer, bytes([DONT, option]))
+                self._record_telnet("out", DONT, option)
             if hasattr(self.writer, "drain"):
                 await self.writer.drain()
         elif command == WONT:
             logger.info(f"[NEGOTIATION] Received IAC WONT {option:#x}")
             send_iac(self.writer, bytes([DONT, option]))
+            self._record_telnet("out", DONT, option)
             if hasattr(self.writer, "drain"):
                 await self.writer.drain()
             # If the remote explicitly refuses TN3270E (or related terminal/location option),
@@ -716,6 +735,7 @@ class Negotiator:
                     )
                     if self.allow_fallback:
                         self.set_ascii_mode()
+                        self._record_decision(self.force_mode or "auto", "ascii", True)
                     self.negotiated_tn3270e = False
                     # Unblock any waiters so negotiation can complete/fallback
                     for ev in (
@@ -741,6 +761,11 @@ class Negotiator:
         # Here, <option> is TELOPT_TERMINAL_LOCATION, <suboption> is IS
         sub_data = bytes([TN3270E_IS]) + lu_name_bytes
         send_subnegotiation(self.writer, bytes([TELOPT_TERMINAL_LOCATION]), sub_data)
+        if self.recorder:
+            try:
+                self.recorder.subneg(TELOPT_TERMINAL_LOCATION, sub_data)
+            except Exception:
+                pass
         logger.debug(f"Sent TERMINAL-LOCATION IS with LU name: {self._lu_name}")
         await self.writer.drain()  # Ensure the data is sent immediately
 
@@ -777,6 +802,11 @@ class Negotiator:
         logger.debug(
             f"Received subnegotiation: Option=0x{option:02x}, Data={data.hex()}"
         )
+        if self.recorder:
+            try:
+                self.recorder.subneg(option, data)
+            except Exception:
+                pass
 
         if option == TELOPT_TN3270E:
             result = self._parse_tn3270e_subnegotiation(data)

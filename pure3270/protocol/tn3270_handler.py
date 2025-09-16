@@ -17,20 +17,12 @@ from .errors import handle_drain, raise_protocol_error, safe_socket_operation
 from .exceptions import NegotiationError, ParseError, ProtocolError
 from .negotiator import Negotiator
 from .tn3270e_header import TN3270EHeader
-from .utils import (
-    TELOPT_TN3270E,
-    TN3270_DATA,
-    TN3270E_SYSREQ,
-    TN3270E_SYSREQ_ATTN,
-    TN3270E_SYSREQ_BREAK,
-    TN3270E_SYSREQ_CANCEL,
-    TN3270E_SYSREQ_LOGOFF,
-    TN3270E_SYSREQ_MESSAGE_TYPE,
-    TN3270E_SYSREQ_PRINT,
-    TN3270E_SYSREQ_RESTART,
-    send_iac,
-    send_subnegotiation,
-)
+from .trace_recorder import TraceRecorder
+from .utils import (TELOPT_TN3270E, TN3270_DATA, TN3270E_SYSREQ,
+                    TN3270E_SYSREQ_ATTN, TN3270E_SYSREQ_BREAK,
+                    TN3270E_SYSREQ_CANCEL, TN3270E_SYSREQ_LOGOFF,
+                    TN3270E_SYSREQ_MESSAGE_TYPE, TN3270E_SYSREQ_PRINT,
+                    TN3270E_SYSREQ_RESTART, send_iac, send_subnegotiation)
 
 logger = logging.getLogger(__name__)
 
@@ -203,6 +195,7 @@ class TN3270Handler:
         is_printer_session: bool = False,  # New parameter for printer session
         force_mode: Optional[str] = None,
         allow_fallback: bool = True,
+        recorder: Optional["TraceRecorder"] = None,
     ):
         """
         Initialize the TN3270 handler.
@@ -243,6 +236,7 @@ class TN3270Handler:
             is_printer_session=is_printer_session,
             force_mode=force_mode,
             allow_fallback=allow_fallback,
+            recorder=recorder,
         )  # Pass None for parser initially
         self.negotiator.is_printer_session = (
             is_printer_session  # Set printer session after initialization
@@ -542,7 +536,8 @@ class TN3270Handler:
                 try:
                     # Use module-level VT100Parser if patched by tests; otherwise import lazily
                     if VT100Parser is None:
-                        from .vt100_parser import VT100Parser as _RealVT100Parser
+                        from .vt100_parser import \
+                            VT100Parser as _RealVT100Parser
 
                         VT100Parser = _RealVT100Parser  # cache for future calls / tests
                     vt100_parser = VT100Parser(self.screen_buffer)
@@ -564,18 +559,10 @@ class TN3270Handler:
                 # matches a known TN3270E data type. This avoids mis-parsing ASCII
                 # VT100 streams (which can start with ESC '[') as binary headers.
                 if tn3270e_header:
-                    from .utils import (
-                        BIND_IMAGE,
-                        NVT_DATA,
-                        PRINT_EOJ,
-                        PRINTER_STATUS_DATA_TYPE,
-                        REQUEST,
-                        SCS_DATA,
-                        SNA_RESPONSE,
-                        SSCP_LU_DATA,
-                        TN3270_DATA,
-                        UNBIND,
-                    )
+                    from .utils import (BIND_IMAGE, NVT_DATA, PRINT_EOJ,
+                                        PRINTER_STATUS_DATA_TYPE, REQUEST,
+                                        SCS_DATA, SNA_RESPONSE, SSCP_LU_DATA,
+                                        TN3270_DATA, UNBIND)
 
                     valid_types = {
                         TN3270_DATA,

@@ -10,14 +10,11 @@ from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional, Union
 
 from pure3270.patching import enable_replacement
-from pure3270.protocol.utils import (
-    TN3270E_SYSREQ_ATTN,
-    TN3270E_SYSREQ_BREAK,
-    TN3270E_SYSREQ_CANCEL,
-    TN3270E_SYSREQ_LOGOFF,
-    TN3270E_SYSREQ_PRINT,
-    TN3270E_SYSREQ_RESTART,
-)
+from pure3270.protocol.utils import (TN3270E_SYSREQ_ATTN, TN3270E_SYSREQ_BREAK,
+                                     TN3270E_SYSREQ_CANCEL,
+                                     TN3270E_SYSREQ_LOGOFF,
+                                     TN3270E_SYSREQ_PRINT,
+                                     TN3270E_SYSREQ_RESTART)
 
 from .emulation.buffer_writer import BufferWriter
 from .emulation.screen_buffer import ScreenBuffer
@@ -66,6 +63,7 @@ class Session:
         ssl_context: Optional[Any] = None,
         force_mode: Optional[str] = None,
         allow_fallback: bool = True,
+        enable_trace: bool = False,
     ):
         """
         Initialize a synchronous session.
@@ -84,6 +82,8 @@ class Session:
         self._async_session = None
         self._force_mode = force_mode
         self._allow_fallback = allow_fallback
+        self._enable_trace = enable_trace
+        self._recorder = None
 
     def _run_async(self, coro):
         """Run an async coroutine, handling both sync and async contexts."""
@@ -129,6 +129,7 @@ class Session:
             self._ssl_context,
             force_mode=self._force_mode,
             allow_fallback=self._allow_fallback,
+            enable_trace=self._enable_trace,
         )
         if not self._async_session.connected:
             self._run_async(self._async_session.connect())
@@ -204,6 +205,11 @@ class Session:
         if self._async_session:
             asyncio.run(self._async_session.close())
             self._async_session = None
+
+    def get_trace_events(self):
+        if not self._async_session:
+            return []
+        return self._async_session.get_trace_events()
 
     def open(self, host: str, port: int = 23) -> None:
         """Open connection synchronously (s3270 Open() action)."""
@@ -637,6 +643,7 @@ class AsyncSession:
         ssl_context: Optional[Any] = None,
         force_mode: Optional[str] = None,
         allow_fallback: bool = True,
+        enable_trace: bool = False,
     ):
         """
         Initialize the async session.
@@ -716,6 +723,8 @@ class AsyncSession:
         self.logger = logging.getLogger(__name__)
         self._force_mode = force_mode
         self._allow_fallback = allow_fallback
+        self._enable_trace = enable_trace
+        self._recorder = None
 
     async def connect(
         self,
@@ -753,12 +762,17 @@ class AsyncSession:
                 logger.debug(
                     f"Replacing existing handler with object ID: {id(self._handler)}"
                 )
+            from .protocol.trace_recorder import TraceRecorder
+
+            recorder = TraceRecorder() if self._enable_trace else None
+            self._recorder = recorder
             self._handler = TN3270Handler(
                 self._transport.reader,
                 self._transport.writer,
                 self.screen_buffer,
                 force_mode=self._force_mode,
                 allow_fallback=self._allow_fallback,
+                recorder=recorder,
             )
             logger.debug(f"New handler created with object ID: {id(self._handler)}")
             # Set the LU name on the handler if configured
@@ -786,12 +800,17 @@ class AsyncSession:
                     f"TN3270 negotiation failed, falling back to ASCII mode: {e}"
                 )
                 if self._handler is None:
+                    recorder = self._recorder or (
+                        TraceRecorder() if self._enable_trace else None
+                    )
+                    self._recorder = recorder
                     self._handler = TN3270Handler(
                         self._transport.reader,
                         self._transport.writer,
                         self.screen_buffer,
                         force_mode=self._force_mode,
                         allow_fallback=self._allow_fallback,
+                        recorder=recorder,
                     )
                     await self._handler.connect()
                 if self._handler:
@@ -890,6 +909,15 @@ class AsyncSession:
             self._last_aid = data[-1]
 
         return data
+
+    def get_trace_events(self):
+        if (
+            self._handler
+            and self._handler.negotiator
+            and getattr(self._handler.negotiator, "recorder", None)
+        ):
+            return self._handler.negotiator.recorder.events()
+        return []
 
     async def _execute_single_command(self, cmd: str, vars: Dict[str, str]) -> str:
         """

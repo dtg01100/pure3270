@@ -69,9 +69,6 @@ class TestIntegration:
         assert mock_handler.send_data.call_count == 1
         mock_handler.receive_data.assert_called_once()
 
-        del expected_pattern
-        mock_handler.reset_mock()
-
     async def test_ic_pt_order_integration(self, async_session):
         """
         Integration test for IC (Insert Cursor) and PT (Program Tab) orders.

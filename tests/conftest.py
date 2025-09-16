@@ -42,10 +42,11 @@ def ebcdic_codec():
     """Fixture providing an EBCDICCodec."""
     return EBCDICCodec()
 
+
 @pytest.fixture
 def ssl_wrapper():
-     """Fixture providing an SSLWrapper."""
-     return SSLWrapper()
+    """Fixture providing an SSLWrapper."""
+    return SSLWrapper()
 
 
 @pytest.fixture
@@ -68,37 +69,40 @@ def screen_buffer():
     handler.send_data = AsyncMock()
     handler.receive_data = AsyncMock(return_value=b"")
     type(mock).connected = PropertyMock(return_value=True)
-    
+
     # Fix get_position to return a proper tuple
     def mock_get_position():
         return (mock.cursor_row, mock.cursor_col)
+
     mock.get_position = Mock(side_effect=mock_get_position)
-    
-        # Configure set_position to actually update cursor position
+
+    # Configure set_position to actually update cursor position
     def mock_set_position(row, col):
         mock.cursor_row = row
         mock.cursor_col = col
+
     mock.set_position = Mock(side_effect=mock_set_position)
-    
+
     mock.buffer = bytearray(b"\x40" * (24 * 80))
     mock.fields = []
     mock.connected = True
     mock.size = 24 * 80
     mock.cursor_row = 0
     mock.cursor_col = 0
-    
+
     # Configure read_modified_fields to return a list for tests that need it
     mock.read_modified_fields = Mock(return_value=[])
-    
+
     # Configure write_char to actually update the buffer
     def mock_write_char(char, row, col):
         if 0 <= row < mock.rows and 0 <= col < mock.cols:
             pos = row * mock.cols + col
             if pos < len(mock.buffer):
                 mock.buffer[pos] = char
+
     mock.write_char = Mock(side_effect=mock_write_char)
-    
-        # Configure move_cursor_to_first_input_field to actually move the cursor
+
+    # Configure move_cursor_to_first_input_field to actually move the cursor
     def mock_move_cursor_to_first_input_field():
         first_input_field = None
         for field in mock.fields:
@@ -107,25 +111,28 @@ def screen_buffer():
                 break
         if first_input_field:
             mock.cursor_row, mock.cursor_col = first_input_field.start
-    mock.move_cursor_to_first_input_field = Mock(side_effect=mock_move_cursor_to_first_input_field)
-    
-        # Configure move_cursor_to_next_input_field to actually move the cursor
+
+    mock.move_cursor_to_first_input_field = Mock(
+        side_effect=mock_move_cursor_to_first_input_field
+    )
+
+    # Configure move_cursor_to_next_input_field to actually move the cursor
     def mock_move_cursor_to_next_input_field():
         current_pos_linear = mock.cursor_row * mock.cols + mock.cursor_col
         next_input_field = None
-    
+
         # Sort fields by their linear start position to ensure correct traversal
         sorted_fields = sorted(
             mock.fields, key=lambda f: f.start[0] * mock.cols + f.start[1]
         )
-    
+
         # Find the next input field after the current cursor position
         for field in sorted_fields:
             field_start_linear = field.start[0] * mock.cols + field.start[1]
             if field_start_linear > current_pos_linear and not field.protected:
                 next_input_field = field
                 break
-    
+
         if next_input_field:
             mock.cursor_row, mock.cursor_col = next_input_field.start
         else:
@@ -134,11 +141,14 @@ def screen_buffer():
                 if not field.protected:
                     next_input_field = field
                     break
-        
+
             if next_input_field:
                 mock.cursor_row, mock.cursor_col = next_input_field.start
-    mock.move_cursor_to_next_input_field = Mock(side_effect=mock_move_cursor_to_next_input_field)
-    
+
+    mock.move_cursor_to_next_input_field = Mock(
+        side_effect=mock_move_cursor_to_next_input_field
+    )
+
     return mock
 
 
@@ -158,6 +168,7 @@ def tn3270_handler():
         handler.negotiator._ascii_mode = False
         # Mock the SNA session state properly
         from pure3270.protocol.negotiator import SnaSessionState
+
         handler.negotiator._sna_session_state = SnaSessionState.NORMAL
         # Mock current_sna_session_state as a property that returns the _sna_session_state
         type(handler.negotiator).current_sna_session_state = PropertyMock(
@@ -178,6 +189,7 @@ def tn3270_handler():
         handler.negotiator._ascii_mode = False
         # Mock the SNA session state properly for fallback case
         from pure3270.protocol.negotiator import SnaSessionState
+
         mock_sna_state = Mock()
         mock_sna_state.value = SnaSessionState.NORMAL.value
         handler.negotiator.current_sna_session_state = mock_sna_state
@@ -208,18 +220,22 @@ def suppress_logging():
 @pytest.fixture
 def memory_limit_500mb():
     """Fixture to limit memory to 500MB for the duration of the test."""
-    if platform.system() == 'Linux':
+    if platform.system() == "Linux":
         try:
             # Set memory limit to 500MB (in bytes)
-            resource.setrlimit(resource.RLIMIT_AS, (500 * 1024 * 1024, 500 * 1024 * 1024))
+            resource.setrlimit(
+                resource.RLIMIT_AS, (500 * 1024 * 1024, 500 * 1024 * 1024)
+            )
         except (ValueError, OSError):
             # If we can't set the limit, just continue
             pass
     yield
-    if platform.system() == 'Linux':
+    if platform.system() == "Linux":
         try:
             # Reset to unlimited
-            resource.setrlimit(resource.RLIMIT_AS, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
+            resource.setrlimit(
+                resource.RLIMIT_AS, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
+            )
         except (ValueError, OSError):
             pass
 
@@ -227,17 +243,21 @@ def memory_limit_500mb():
 @pytest.fixture
 def memory_limit_100mb():
     """Fixture to limit memory to 100MB for the duration of the test."""
-    if platform.system() == 'Linux':
+    if platform.system() == "Linux":
         try:
             # Set memory limit to 100MB (in bytes)
-            resource.setrlimit(resource.RLIMIT_AS, (100 * 1024 * 1024, 100 * 1024 * 1024))
+            resource.setrlimit(
+                resource.RLIMIT_AS, (100 * 1024 * 1024, 100 * 1024 * 1024)
+            )
         except (ValueError, OSError):
             # If we can't set the limit, just continue
             pass
     yield
-    if platform.system() == 'Linux':
+    if platform.system() == "Linux":
         try:
             # Reset to unlimited
-            resource.setrlimit(resource.RLIMIT_AS, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
+            resource.setrlimit(
+                resource.RLIMIT_AS, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
+            )
         except (ValueError, OSError):
             pass
