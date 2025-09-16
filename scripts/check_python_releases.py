@@ -18,19 +18,63 @@ PYTHON_DATA_SOURCES = {
 }
 
 # Known stable Python versions as of 2024 (fallback data)
+# This should be updated manually when new stable versions are released
 FALLBACK_PYTHON_VERSIONS = [
-    {"v": "3.13", "eol": False, "stable": True},
-    {"v": "3.12", "eol": False, "stable": True},
-    {"v": "3.11", "eol": False, "stable": True},
-    {"v": "3.10", "eol": False, "stable": True},
-    {"v": "3.9", "eol": False, "stable": True},
-    {"v": "3.8", "eol": False, "stable": True}
+    {"v": "3.13", "eol": False, "stable": True, "eol_date": "2029-10-31"},
+    {"v": "3.12", "eol": False, "stable": True, "eol_date": "2028-10-31"},
+    {"v": "3.11", "eol": False, "stable": True, "eol_date": "2027-10-31"},
+    {"v": "3.10", "eol": False, "stable": True, "eol_date": "2026-10-31"},
+    {"v": "3.9", "eol": False, "stable": True, "eol_date": "2025-10-31"},
+    {"v": "3.8", "eol": False, "stable": True, "eol_date": "2024-10-07"}
 ]
 
 def get_latest_python_versions() -> List[Dict[str, Any]]:
     """Fetch latest Python versions from multiple sources with fallbacks."""
     
-    # Try GitHub API first (most likely to work in CI environments)
+    # Try endoflife.date API first (most comprehensive data)
+    try:
+        print("Trying endoflife.date API for Python releases...")
+        response = requests.get(PYTHON_DATA_SOURCES["endoflife"], timeout=10)
+        response.raise_for_status()
+        eol_data = response.json()
+        
+        # Filter for non-EOL versions and add metadata
+        active_versions = []
+        for item in eol_data:
+            version = item.get("cycle", "")
+            eol_date = item.get("eol", "")
+            latest_release = item.get("latest", version)
+            
+            # Check if version is still active (not end-of-life)
+            is_active = True
+            if eol_date and eol_date != "false":
+                try:
+                    from datetime import datetime
+                    if isinstance(eol_date, str) and eol_date not in ["false", ""]:
+                        eol_datetime = datetime.strptime(eol_date, "%Y-%m-%d")
+                        is_active = eol_datetime > datetime.now()
+                except:
+                    pass  # If we can't parse the date, assume it's active
+            
+            if version.startswith("3.") and is_active:
+                active_versions.append({
+                    "v": version,
+                    "eol": False,
+                    "stable": True,
+                    "latest_release": latest_release,
+                    "eol_date": eol_date
+                })
+        
+        if active_versions:
+            print(f"✓ Found {len(active_versions)} active Python versions from endoflife.date")
+            # Sort by version number (newest first)
+            active_versions.sort(key=lambda x: tuple(map(int, x["v"].split("."))), reverse=True)
+            return active_versions
+    
+    except Exception as e:
+        print(f"endoflife.date API failed: {e}")
+    
+    # Try GitHub API as backup (for latest development info)
     try:
         print("Trying GitHub API for Python releases...")
         response = requests.get(PYTHON_DATA_SOURCES["github_api"], timeout=10)
@@ -38,37 +82,36 @@ def get_latest_python_versions() -> List[Dict[str, Any]]:
         github_tags = response.json()
         
         # Extract stable Python 3.x versions from GitHub tags
-        stable_versions = []
-        for tag in github_tags[:50]:  # Check first 50 tags
+        stable_versions = {}
+        for tag in github_tags:
             tag_name = tag.get("name", "")
             if tag_name.startswith("v3.") and not any(x in tag_name for x in ["a", "b", "rc"]):
-                # Extract version like "v3.12.1" -> "3.12"
-                version_match = re.match(r"v(3\.\d+)", tag_name)
+                # Look for full version pattern like v3.12.7
+                version_match = re.match(r"v(3\.\d+)\.(\d+)", tag_name)
                 if version_match:
-                    version = version_match.group(1)
-                    if version not in [v["v"] for v in stable_versions]:
-                        stable_versions.append({"v": version, "eol": False, "stable": True})
+                    minor_version = version_match.group(1)  # e.g., "3.12"
+                    full_version = f"{minor_version}.{version_match.group(2)}"  # e.g., "3.12.7"
+                    
+                    # Keep the latest patch version for each minor version
+                    if minor_version not in stable_versions or full_version > stable_versions[minor_version]:
+                        stable_versions[minor_version] = full_version
         
-        if stable_versions:
-            # Sort by version number (newest first)
-            stable_versions.sort(key=lambda x: tuple(map(int, x["v"].split("."))), reverse=True)
-            print(f"✓ Found {len(stable_versions)} stable versions from GitHub API")
-            return stable_versions
+        # Convert to the expected format
+        github_versions = []
+        for minor_version in sorted(stable_versions.keys(), key=lambda x: tuple(map(int, x.split("."))), reverse=True):
+            github_versions.append({
+                "v": minor_version,
+                "eol": False,
+                "stable": True,
+                "latest_release": stable_versions[minor_version]
+            })
+        
+        if github_versions:
+            print(f"✓ Found {len(github_versions)} stable versions from GitHub API")
+            return github_versions
     
     except Exception as e:
         print(f"GitHub API failed: {e}")
-    
-    # Try endoflife.date API as backup
-    try:
-        print("Trying endoflife.date API...")
-        response = requests.get(PYTHON_DATA_SOURCES["endoflife"], timeout=10)
-        response.raise_for_status()
-        eol_data = response.json()
-        if eol_data:
-            print(f"✓ Found {len(eol_data)} versions from endoflife.date")
-            return eol_data
-    except Exception as e:
-        print(f"endoflife.date API failed: {e}")
     
     # Use fallback data
     print("Using fallback Python version data")
@@ -228,6 +271,19 @@ def check_for_new_releases(current_versions: List[str]) -> tuple[bool, str, List
     
     latest_stable = releases[0]["v"]  # First is latest
     
+    # Get all active versions from online source
+    active_versions = {release["v"] for release in releases}
+    
+    # Check for EOL versions in current matrix
+    eol_versions = []
+    for version in current_versions:
+        if version.startswith("3.") and version not in active_versions:
+            eol_versions.append(version)
+    
+    if eol_versions:
+        print(f"⚠️  Warning: End-of-life Python versions detected in CI matrix: {eol_versions}")
+        print("    Consider removing these versions or updating to supported versions.")
+    
     # Extract minor version numbers for comparison
     try:
         latest_minor = int(latest_stable.split('.')[1])
@@ -251,6 +307,8 @@ def check_for_new_releases(current_versions: List[str]) -> tuple[bool, str, List
             return True, latest_stable, new_versions
         else:
             print(f"No new releases. Latest: {latest_stable}, Current max: 3.{current_max_minor}")
+            if eol_versions:
+                print(f"Note: Consider updating from EOL versions {eol_versions} to maintain security support.")
             return False, latest_stable, []
             
     except (ValueError, IndexError) as e:
