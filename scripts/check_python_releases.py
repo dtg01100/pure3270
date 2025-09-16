@@ -149,9 +149,8 @@ def main():
                                       capture_output=True, text=True, check=True)
                 if result.stdout.strip():  # Has changes
                     subprocess.run(["git", "add", ".github/workflows/"], check=True)
-                    subprocess.run(["git", "commit", "-m", 
-                                   f"Update Python testing matrix to include {latest_stable}"], 
-                                   check=True)
+                    commit_msg = f"Update Python testing matrix to include {latest_stable}"
+                    subprocess.run(["git", "commit", "-m", commit_msg], check=True)
                     print("Changes committed successfully")
                     
                     # Only push if we have push permissions
@@ -168,7 +167,8 @@ def main():
             # Create issue if gh CLI is available
             if shutil.which("gh"):
                 issue_title = f"Python {latest_stable} Compatibility Testing"
-                issue_body = f"New Python release {latest_stable} detected. Please verify compatibility and update documentation."
+                issue_body = (f"New Python release {latest_stable} detected. "
+                             f"Please verify compatibility and update documentation.")
                 try:
                     subprocess.run(["gh", "issue", "create", "--title", issue_title, "--body", issue_body], check=True)
                     print(f"Created issue for Python {latest_stable}")
