@@ -158,13 +158,13 @@ from pure3270 import Session
 
 class TestVersionSpecificBehavior:
     """Tests for behavior that differs across Python versions"""
-    
+
     @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
     def test_asyncio_features(self):
         """Test Python 3.10+ specific asyncio features"""
         # Implementation
         pass
-    
+
     @pytest.mark.skipif(sys.version_info < (3, 11), reason="Requires Python 3.11+")
     def test_exception_groups(self):
         """Test Python 3.11+ exception group handling"""

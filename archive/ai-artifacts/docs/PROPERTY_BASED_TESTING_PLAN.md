@@ -88,7 +88,7 @@ I've documented and implemented:
 I've created the following files as part of this implementation:
 
 1. **Dependency Updates**: Added Hypothesis to `pyproject.toml`
-2. **Comprehensive Plan**: `PROPERTY_BASED_TESTING_PLAN.md` 
+2. **Comprehensive Plan**: `PROPERTY_BASED_TESTING_PLAN.md`
 3. **Property Test Examples**:
    - `tests/property/test_ebcdic_properties.py`
    - `tests/property/test_screen_buffer_properties.py`

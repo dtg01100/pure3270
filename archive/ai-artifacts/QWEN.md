@@ -318,7 +318,7 @@ python -m black pure3270/ && python -m flake8 pure3270/ && python quick_test.py 
   ```bash
   # Format code first
   python -m black pure3270/
-  
+
   # Then run linter - this MUST pass with no errors
   python -m flake8 pure3270/
   ```

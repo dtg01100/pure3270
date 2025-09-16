@@ -2,12 +2,12 @@
 
 # Skip specific test IDs
 # Format: BXXX where XXX is the test ID
-skips: 
+skips:
   - B101  # skip test for assert_ statements (common in tests)
   - B311  # skip test for random module usage (may be needed for testing)
 
 # Exclude directories
-exclude_dirs: 
+exclude_dirs:
   - .venv
   - venv
   - build

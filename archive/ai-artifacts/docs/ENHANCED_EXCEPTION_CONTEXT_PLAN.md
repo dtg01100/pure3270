@@ -195,12 +195,12 @@ with operation_context("connect", host=host, port=port):
 ```python
 class EnhancedSessionError(SessionError):
     """Enhanced session error with context information."""
-    
+
     def __init__(self, message, context=None, original_exception=None):
         super().__init__(message)
         self.context = context or {}
         self.original_exception = original_exception
-        
+
     def __str__(self):
         base_msg = super().__str__()
         if self.context:
@@ -248,7 +248,7 @@ def with_connection_context(func):
                     'function': func.__name__
                 }
                 # Create enhanced version of the exception
-                enhanced_exception = type(f"Enhanced{e.__class__.__name__}", 
+                enhanced_exception = type(f"Enhanced{e.__class__.__name__}",
                                         (e.__class__,), {})(str(e))
                 enhanced_exception.context = {k: v for k, v in context.items() if v is not None}
                 enhanced_exception.original_exception = e

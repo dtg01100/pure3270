@@ -105,7 +105,7 @@ This roadmap outlines a comprehensive approach to enhance bug prevention in Pure
 
 ### Tooling Resources
 - **CI/CD Platform:** GitHub Actions (existing infrastructure)
-- **Code Quality Tools:** 
+- **Code Quality Tools:**
   - mypy, bandit, pylint, vulture (open source)
   - Pre-commit hooks (open source)
 - **Testing Tools:**

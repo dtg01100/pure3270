@@ -1,7 +1,8 @@
 import json
 import os
-from typing import Dict, Any, Optional
 from pathlib import Path
+from typing import Any, Dict, Optional
+
 from openai import OpenAI
 from tenacity import retry, stop_after_attempt, wait_exponential
 
@@ -42,34 +43,34 @@ Be concise, actionable, and code-focused.
 def generate_markdown_report(analysis: Dict[str, Any]) -> str:
     """
     Generate Markdown report from AI analysis JSON.
-    
+
     :param analysis: JSON response from OpenAI
     :return: Markdown report content
     """
     md = f"# Regression Analysis Report\n\n"
     md += f"**Project:** Pure3270\n"
     md += f"**Summary:** {analysis.get('summary', 'N/A')}\n\n"
-    
+
     md += "## Root Causes\n"
     for cause in analysis.get('root_causes', []):
         md += f"- {cause}\n"
-    
+
     md += "\n## Patterns\n"
     for pattern in analysis.get('patterns', []):
         md += f"- {pattern}\n"
-    
+
     md += "\n## Recommendations\n"
     for rec in analysis.get('recommendations', []):
         md += f"- {rec}\n"
-    
+
     md += f"\n## Assessment\n"
     md += f"- Is Regression: {analysis.get('is_regression', False)}\n"
     md += f"- Priority: {analysis.get('priority', 'medium')}\n\n"
-    
+
     md += "## Next Steps\n"
     for step in analysis.get('next_steps', []):
         md += f"- {step}\n"
-    
+
     return md
 
 
@@ -77,7 +78,7 @@ def generate_markdown_report(analysis: Dict[str, Any]) -> str:
 def analyze_failures(payload: Dict[str, Any], api_key: str) -> Dict[str, Any]:
     """
     Call OpenAI API to analyze failures.
-    
+
     :param payload: Payload from failure_parser
     :param api_key: OpenAI API key
     :return: Parsed JSON analysis
@@ -93,9 +94,9 @@ def analyze_failures(payload: Dict[str, Any], api_key: str) -> Dict[str, Any]:
             "priority": "low",
             "next_steps": ["Review if needed"]
         }
-    
+
     client = OpenAI(api_key=api_key)
-    
+
     prompt = PROMPT_TEMPLATE.format(
         commit_sha=payload.get('commit_sha', ''),
         branch=payload.get('branch', ''),
@@ -103,7 +104,7 @@ def analyze_failures(payload: Dict[str, Any], api_key: str) -> Dict[str, Any]:
         num_failures=payload.get('num_failures', 0),
         failures=json.dumps(payload.get('failures', []), indent=2)
     )
-    
+
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
@@ -113,11 +114,11 @@ def analyze_failures(payload: Dict[str, Any], api_key: str) -> Dict[str, Any]:
         temperature=0.1,
         response_format={"type": "json_object"}
     )
-    
+
     content = response.choices[0].message.content
     if not content:
         raise ValueError("Empty response from OpenAI")
-    
+
     # Parse JSON from content
     try:
         analysis = json.loads(content)
@@ -129,7 +130,7 @@ def analyze_failures(payload: Dict[str, Any], api_key: str) -> Dict[str, Any]:
             analysis = json.loads(content[json_start:json_end])
         else:
             raise ValueError(f"Invalid JSON response: {e}")
-    
+
     return analysis
 
 def run_analysis(
@@ -139,7 +140,7 @@ def run_analysis(
 ) -> Path:
     """
     Main entry point: Load payload, analyze, generate report.
-    
+
     :param payload_path: Path to JSON payload from failure_parser
     :param output_dir: Directory to save report
     :param api_key: OpenAI API key (from env if None)
@@ -147,23 +148,23 @@ def run_analysis(
     """
     if api_key is None:
         api_key = os.getenv('OPENAI_API_KEY')
-    
+
     if os.getenv('MOCK_ANALYSIS', 'false').lower() == 'true':
         api_key = "mock_key"
-    
+
     if not api_key:
         raise ValueError("OPENAI_API_KEY not set")
-    
+
     with open(payload_path, 'r') as f:
         payload = json.load(f)
-    
+
     analysis = analyze_failures(payload, api_key)
-    
+
     report_path = Path(output_dir) / "regression_analysis.md"
     report_content = generate_markdown_report(analysis)
-    
+
     report_path.write_text(report_content, encoding='utf-8')
-    
+
     return report_path
 
 
@@ -172,11 +173,11 @@ if __name__ == '__main__':
     if len(sys.argv) < 3:
         print("Usage: python ai_analyzer.py <payload.json> <output_dir> [api_key]")
         sys.exit(1)
-    
+
     payload_path = sys.argv[1]
     output_dir = sys.argv[2]
     api_key = sys.argv[3] if len(sys.argv) > 3 else None
-    
+
     try:
         report = run_analysis(payload_path, output_dir, api_key)
         print(f"Report generated: {report}")

@@ -43,7 +43,7 @@ The dependencies form a logical sequence where core architectural changes must b
 ### Task 1: Session/AsyncSession Refactoring
 **Estimated Effort**: 8-10 days
 **Dependencies**: None
-**Success Criteria**: 
+**Success Criteria**:
 - AsyncSession is the primary implementation with all core functionality
 - Session is a thin synchronous wrapper using asyncio.run()
 - Method count is reduced by at least 30%

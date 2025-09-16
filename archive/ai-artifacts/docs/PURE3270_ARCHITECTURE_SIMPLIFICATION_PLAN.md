@@ -170,7 +170,7 @@ The refactored navigation will provide:
    ```python
    async def move(self, direction: str, count: int = 1) -> None:
        """Move cursor in specified direction."""
-   
+
    async def position(self, row: int, col: int, relative: bool = False) -> None:
        """Position cursor at specified coordinates."""
    ```
