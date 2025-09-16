@@ -165,11 +165,11 @@ screen_buffer = session.screen_buffer.buffer
 print(f"Screen buffer size: {len(screen_buffer)} bytes")
 
 # Count different types of elements
-protected_fields = sum(1 for field in session.screen_buffer.fields 
+protected_fields = sum(1 for field in session.screen_buffer.fields
                       if getattr(field, 'protected', False))
-unprotected_fields = sum(1 for field in session.screen_buffer.fields 
+unprotected_fields = sum(1 for field in session.screen_buffer.fields
                         if not getattr(field, 'protected', True))
-numeric_fields = sum(1 for field in session.screen_buffer.fields 
+numeric_fields = sum(1 for field in session.screen_buffer.fields
                     if getattr(field, 'numeric', False))
 
 print(f"Protected fields: {protected_fields}")
@@ -265,7 +265,7 @@ print(repr(new_screen.split('\\n')[0]))  # First line usually has title
 # Check if we're back at main menu
 if "MAIN MENU" in new_screen.upper():
     print("✓ Successfully returned to main menu")
-    
+
 # Use PF1 for help
 await session.pf(1)
 help_screen = session.screen_buffer.to_text()
@@ -345,11 +345,11 @@ def show_practical_usage_examples():
             "code": """
 async def automated_data_entry_bot(session, customer_data):
     '''Automate customer data entry by reading screen labels.'''
-    
+
     # Read current screen to understand form structure
     screen_text = session.screen_buffer.to_text()
     lines = screen_text.split(chr(10))
-    
+
     # Find labeled fields by searching for common patterns
     field_mapping = {}
     for line_num, line in enumerate(lines):
@@ -361,17 +361,17 @@ async def automated_data_entry_bot(session, customer_data):
             field_mapping['phone'] = line_num + 1
         elif 'EMAIL:' in line.upper():
             field_mapping['email'] = line_num + 1
-    
+
     # Fill fields based on discovered positions
     for field_name, line_num in field_mapping.items():
         if field_name in customer_data:
             # Move to approximate field position
             await session.move_cursor(line_num, 15)  # Typical input column
             await session.insert_text(customer_data[field_name])
-    
+
     # Submit form
     await session.enter()
-    
+
     # Verify success by reading response
     response = session.screen_buffer.to_text()
     if 'SUCCESS' in response.upper() or 'CONFIRMED' in response.upper():
@@ -388,17 +388,17 @@ async def automated_data_entry_bot(session, customer_data):
             "code": """
 async def intelligent_menu_navigator(session, target_menu_path):
     '''Navigate menus by reading option labels instead of hardcoding positions.'''
-    
+
     for menu_choice in target_menu_path:
         # Read current menu screen
         screen_text = session.screen_buffer.to_text()
         lines = screen_text.split(chr(10))
-        
+
         # Find menu option by searching for text
         option_found = False
         for line in lines:
             # Look for menu options (typically numbered)
-            if (line.strip().startswith(('1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.')) 
+            if (line.strip().startswith(('1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.'))
                 and menu_choice.lower() in line.lower()):
                 # Extract option number
                 option_number = line.strip().split('.')[0]
@@ -406,13 +406,13 @@ async def intelligent_menu_navigator(session, target_menu_path):
                 await session.enter()
                 option_found = True
                 break
-        
+
         if not option_found:
             raise ValueError(f"Menu option '{menu_choice}' not found")
-        
+
         # Wait for next screen to load
         await asyncio.sleep(0.5)
-    
+
     return True
 """,
         },
@@ -422,16 +422,16 @@ async def intelligent_menu_navigator(session, target_menu_path):
             "code": """
 async def error_resilient_operation(session, operation_func, *args, **kwargs):
     '''Execute operation with automatic error detection and recovery.'''
-    
+
     max_retries = 3
     for attempt in range(max_retries):
         try:
             # Execute the operation
             result = await operation_func(session, *args, **kwargs)
-            
+
             # Check screen for errors
             screen_text = session.screen_buffer.to_text().upper()
-            
+
             if 'ERROR' in screen_text:
                 print(f"Attempt {attempt + 1}: Error detected")
                 # Try to recover (e.g., press Enter to clear error)
@@ -451,7 +451,7 @@ async def error_resilient_operation(session, operation_func, *args, **kwargs):
             else:
                 # Success
                 return result
-                
+
         except Exception as e:
             print(f"Attempt {attempt + 1} failed: {e}")
             if attempt < max_retries - 1:
@@ -459,7 +459,7 @@ async def error_resilient_operation(session, operation_func, *args, **kwargs):
                 continue
             else:
                 raise
-    
+
     raise RuntimeError(f"Operation failed after {max_retries} attempts")
 
 async def handle_invalid_input(session):
