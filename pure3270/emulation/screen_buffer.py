@@ -336,7 +336,36 @@ class ScreenBuffer(BufferWriter):
             self._create_field_from_range(field_start_idx, self.size - 1)
         logger.debug(f"Finished _detect_fields. Total fields: {len(self.fields)}")
 
-    # _create_field_from_range is no longer used; logic integrated into _detect_fields
+    def _create_field_from_range(self, start_idx: int, end_idx: int) -> None:
+        """Create a field from a range of buffer positions."""
+        if start_idx >= end_idx:
+            return
+
+        start_row, start_col = self._calculate_coords(start_idx)
+        end_row, end_col = self._calculate_coords(end_idx)
+
+        # Extract field content
+        content = bytes(self.buffer[start_idx:end_idx + 1])
+
+        # Get field attributes from the start position
+        attr_offset = start_idx * 3
+        if attr_offset < len(self.attributes):
+            protected = bool(self.attributes[attr_offset] & 0x40)
+            intensity = self.attributes[attr_offset + 1] if attr_offset + 1 < len(self.attributes) else 0
+        else:
+            protected = False
+            intensity = 0
+
+        # Create field
+        field = Field(
+            start=(start_row, start_col),
+            end=(end_row, end_col),
+            protected=protected,
+            content=content,
+            intensity=intensity,
+        )
+
+        self.fields.append(field)
 
     def _calculate_coords(self, index: int) -> Tuple[int, int]:
         """Helper to calculate row, col from a linear index."""
@@ -353,7 +382,7 @@ class ScreenBuffer(BufferWriter):
         lines = []
         for row in range(self.rows):
             line_bytes = bytes(self.buffer[row * self.cols : (row + 1) * self.cols])
-            line_text = EBCDICCodec().decode(line_bytes)
+            line_text, _ = EBCDICCodec().decode(line_bytes)
             lines.append(line_text)
         return "\n".join(lines)
 

@@ -1404,6 +1404,11 @@ class AsyncSession:
         """Check if session is connected."""
         return self._transport.connected
 
+    @connected.setter
+    def connected(self, value: bool) -> None:
+        """Set the connected state."""
+        self._transport.connected = value
+
     @property
     def tn3270_mode(self) -> bool:
         """Check if TN3270 mode is active."""
@@ -2575,3 +2580,15 @@ class AsyncSession:
                         if attr_offset < len(self.screen_buffer.attributes):
                             self.screen_buffer.attributes[attr_offset] = value
             # Add more as needed
+
+    async def _retry_operation(self, operation, max_retries: int = 3, delay: float = 1.0):
+        """Retry an async operation with exponential backoff."""
+        import asyncio
+
+        for attempt in range(max_retries):
+            try:
+                return await operation()
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise e
+                await asyncio.sleep(delay * (2 ** attempt))

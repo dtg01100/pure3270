@@ -43,6 +43,7 @@ def test_mock_server_connectivity():
     assert True
 
 
+@pytest.mark.asyncio
 async def test_with_mock_server():
     """Test with mock server (async version for simple_mock_test.py)."""
     # Placeholder test - would need mock server implementation
@@ -55,8 +56,8 @@ def test_navigation_methods():
 
     session = Session("localhost", 23)
     # Check that navigation methods exist
-    assert hasattr(session, 'send_enter')
-    assert hasattr(session, 'send_pf1')
+    assert hasattr(session, 'enter')
+    assert hasattr(session, 'pf')
 
 
 def test_p3270_patching():
@@ -72,7 +73,7 @@ def test_session_management():
     session = Session("localhost", 23)
     assert session is not None
     # Basic session properties
-    assert hasattr(session, '_connected')
+    assert hasattr(session, 'connected')
 
 
 def test_macro_execution():

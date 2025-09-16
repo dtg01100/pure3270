@@ -38,6 +38,8 @@ import platform
 import subprocess
 import sys
 
+import pytest
+
 from safe_read import safe_read
 
 # Add the current directory to the path so we can import pure3270
@@ -339,6 +341,7 @@ def test_p3270_compatibility():
         return False
 
 
+@pytest.mark.asyncio
 async def test_network_functionality():
     """Test network functionality with mock server."""
     print("6. Testing network functionality...")

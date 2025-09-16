@@ -459,8 +459,9 @@ class DataStreamParser:
                         self._order_handlers[order]()
                     self._pos = self.parser._pos
                 else:
-                    self._pos += 1
-                    continue
+                    # Treat unknown bytes as text data
+                    self._write_text_byte(order)
+                    self._pos = self.parser._pos
 
             logger.debug("Data stream parsing completed successfully")
         except ParseError as e:
@@ -662,6 +663,20 @@ class DataStreamParser:
         """Handle Write order."""
         self.screen.clear()
         logger.debug("Write order - screen cleared")
+
+    def _write_text_byte(self, byte_value: int) -> None:
+        """Write a text byte to the current screen position."""
+        if self.screen:
+            current_row, current_col = self.screen.get_position()
+            self.screen.write_char(byte_value, current_row, current_col)
+            # Advance cursor
+            if current_col + 1 >= self.screen.cols:
+                if current_row + 1 < self.screen.rows:
+                    self.screen.set_position(current_row + 1, 0)
+                else:
+                    self.screen.set_position(0, 0)  # Wrap around
+            else:
+                self.screen.set_position(current_row, current_col + 1)
 
     def _handle_eoa(self) -> None:
         """Handle End of Aid."""

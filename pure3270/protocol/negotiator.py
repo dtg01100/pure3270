@@ -131,6 +131,7 @@ class Negotiator:
         )  # To store pending requests for response correlation
         self._device_type_is_event = asyncio.Event()
         self._functions_is_event = asyncio.Event()
+        self._negotiation_complete = asyncio.Event()  # Event for full negotiation completion
         self._query_sf_response_event = (
             asyncio.Event()
         )  # New event for Query SF response
