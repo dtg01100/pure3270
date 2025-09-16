@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 
+
 def load_dotenv(path=None, **kwargs):
     """
     Minimal load_dotenv shim for tests.
