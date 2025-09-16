@@ -49,7 +49,6 @@ def get_latest_python_versions() -> List[Dict[str, Any]]:
             is_active = True
             if eol_date and eol_date != "false":
                 try:
-                    from datetime import datetime
                     if isinstance(eol_date, str) and eol_date not in ["false", ""]:
                         eol_datetime = datetime.strptime(eol_date, "%Y-%m-%d")
                         is_active = eol_datetime > datetime.now()
