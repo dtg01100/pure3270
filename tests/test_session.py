@@ -5,6 +5,7 @@ from unittest.mock import (ANY, AsyncMock, MagicMock, PropertyMock, mock_open,
                            patch)
 
 import pytest
+import pytest_asyncio
 
 from pure3270.emulation.screen_buffer import Field, ScreenBuffer
 from pure3270.protocol.tn3270_handler import TN3270Handler
@@ -36,10 +37,23 @@ def sync_session():
     async_session._connected = True
     type(async_session).handler = PropertyMock(return_value=async_session._handler)
     type(async_session).connected = PropertyMock(return_value=True)
-    type(session).handler = PropertyMock(return_value=session._async_session._handler)
-    type(session).connected = PropertyMock(return_value=True)
     session._async_session = async_session
     session._connected = True
+    type(session).handler = PropertyMock(return_value=session._async_session._handler)
+    type(session).connected = PropertyMock(return_value=True)
+    return session
+
+
+@pytest_asyncio.fixture
+async def async_session():
+    session = AsyncSession("localhost", 23)
+    session._handler = AsyncMock(spec=TN3270Handler)
+    session._handler.send_data = AsyncMock()
+    session._handler.receive_data = AsyncMock()
+    session._handler.connected = True
+    session._connected = True
+    type(session).handler = PropertyMock(return_value=session._handler)
+    type(session).connected = PropertyMock(return_value=True)
     return session
 
 

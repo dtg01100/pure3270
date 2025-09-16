@@ -14,6 +14,11 @@ class TestTN3270Handler:
     @pytest.mark.asyncio
     @patch("asyncio.open_connection")
     async def test_connect_non_ssl(self, mock_open, tn3270_handler):
+        # Clear existing reader/writer to test connection logic
+        tn3270_handler.reader = None
+        tn3270_handler.writer = None
+        tn3270_handler._connected = False
+
         mock_reader = AsyncMock()
         mock_writer = AsyncMock()
         mock_reader.read.return_value = b""  # Initial data
@@ -33,6 +38,11 @@ class TestTN3270Handler:
     @pytest.mark.asyncio
     @patch("asyncio.open_connection")
     async def test_connect_ssl(self, mock_open, tn3270_handler):
+        # Clear existing reader/writer to test connection logic
+        tn3270_handler.reader = None
+        tn3270_handler.writer = None
+        tn3270_handler._connected = False
+
         ssl_wrapper = SSLWrapper()
         ssl_context = ssl_wrapper.get_context()
         tn3270_handler.ssl_context = ssl_context
@@ -55,6 +65,11 @@ class TestTN3270Handler:
     @pytest.mark.asyncio
     @patch("asyncio.open_connection")
     async def test_connect_error(self, mock_open, tn3270_handler):
+        # Clear existing reader/writer to test connection logic
+        tn3270_handler.reader = None
+        tn3270_handler.writer = None
+        tn3270_handler._connected = False
+
         mock_open.side_effect = Exception("Connection failed")
         with pytest.raises(ConnectionError):
             await tn3270_handler.connect()

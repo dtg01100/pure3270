@@ -49,6 +49,13 @@ def tn3270_handler():
         handler = TN3270Handler(mock_reader, mock_writer)
         handler.negotiator = Mock()
         handler.negotiator._ascii_mode = False
+        # Mock the SNA session state properly
+        from pure3270.protocol.negotiator import SnaSessionState
+        handler.negotiator._sna_session_state = SnaSessionState.NORMAL
+        # Mock current_sna_session_state as a property that returns the _sna_session_state
+        type(handler.negotiator).current_sna_session_state = PropertyMock(
+            return_value=SnaSessionState.NORMAL
+        )
         handler.connected = True
         inner_handler = Mock()
         type(handler).handler = PropertyMock(return_value=inner_handler)
@@ -62,6 +69,11 @@ def tn3270_handler():
         handler = Mock(spec=TN3270Handler)
         handler.negotiator = Mock()
         handler.negotiator._ascii_mode = False
+        # Mock the SNA session state properly for fallback case
+        from pure3270.protocol.negotiator import SnaSessionState
+        mock_sna_state = Mock()
+        mock_sna_state.value = SnaSessionState.NORMAL.value
+        handler.negotiator.current_sna_session_state = mock_sna_state
         handler.connected = True
         inner_handler = Mock()
         type(handler).handler = PropertyMock(return_value=inner_handler)
@@ -72,39 +84,6 @@ def tn3270_handler():
         inner_handler.receive_data = AsyncMock(return_value=b"")
         type(handler).connected = PropertyMock(return_value=True)
     return handler
-
-
-@pytest.fixture
-async def port():
-    """Get an available port for testing."""
-    import socket
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('', 0))
-        s.listen(1)
-        port = s.getsockname()[1]
-    return port
-
-
-@pytest.fixture
-async def mock_server(port):
-    """Create a mock TN3270 server for testing."""
-    from integration_test import TN3270ENegotiatingMockServer
-
-    server = TN3270ENegotiatingMockServer(port=port)
-    server.rows = 24
-    server.cols = 80
-    server.bind_image_sent = asyncio.Event()
-
-    # Start server properly
-    await server.start()
-
-    yield server
-
-    # Cleanup
-    try:
-        await server.stop()
-    except Exception:
-        pass
 
 
 @pytest.fixture(autouse=True)
