@@ -106,7 +106,9 @@ class ConnectionError(SessionError):
 class MacroError(SessionError):
     """Raised during macro execution errors."""
 
-    pass
+    def __init__(self, message: str, context: Optional[dict] = None):
+        super().__init__(message)
+        self.context = context
 
 
 class Session:
@@ -655,13 +657,13 @@ class Session:
     @property
     def connected(self) -> bool:
         """Check if session is connected."""
-        return self._async_session._connected if self._async_session else False
+        return self._async_session.connected if self._async_session else False
 
     @connected.setter
     def connected(self, value: bool) -> None:
         """Set the connected state."""
         if self._async_session:
-            self._async_session._connected = value
+            self._async_session.connected = value
 
     @property
     def sna_session_state(self) -> str:
@@ -696,7 +698,6 @@ class AsyncSession:
             ValueError: If host or port is invalid.
         """
         self.handler = None
-        self._connected = False
         self.host = host
         self.port = port
         self.ssl_context = ssl_context
@@ -821,7 +822,7 @@ class AsyncSession:
                 self._lu_name = self._handler.lu_name
                 self.screen_buffer.rows = self._handler.screen_rows
                 self.screen_buffer.cols = self._handler.screen_cols
-                self._connected = True
+                self.connected = True
             except NegotiationError as e:
                 logger.warning(
                     f"TN3270 negotiation failed, falling back to ASCII mode: {e}"
@@ -844,9 +845,9 @@ class AsyncSession:
                     logger.info(
                         "Session switched to ASCII/VT100 mode (s3270 compatibility)"
                     )
-                    self._connected = True
+                    self.connected = True
                 else:
-                    self._connected = False
+                    self.connected = False
                     self._handler = None
 
         await self._retry_operation(_perform_connect)
@@ -861,7 +862,7 @@ class AsyncSession:
         Raises:
             SessionError: If send fails.
         """
-        if not self._connected or self._handler is None:
+        if not self.connected or self._handler is None:
             raise NotConnectedError("Session not connected.")
 
         async def _perform_send():
@@ -882,7 +883,7 @@ class AsyncSession:
         Raises:
             asyncio.TimeoutError: If timeout exceeded.
         """
-        if not self._connected or self._handler is None:
+        if not self.connected or self._handler is None:
             raise NotConnectedError("Session not connected.")
 
         async def _perform_read():
@@ -963,7 +964,7 @@ class AsyncSession:
             MacroError: Unknown condition.
         """
         if condition == "connected":
-            return self._connected
+            return self.connected
         elif condition == "error":
             # Simplified: assume no error for now; could track last_error
             return False
@@ -1466,7 +1467,7 @@ class AsyncSession:
             MacroError: If command parsing or execution fails.
             SessionError: If not connected.
         """
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         from .emulation.ebcdic import translate_ascii_to_ebcdic
@@ -1707,7 +1708,7 @@ class AsyncSession:
             }
             aid = aid_map.get(n, 0xF1)  # Default to PF1
 
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         await self.submit(aid)
@@ -1729,7 +1730,7 @@ class AsyncSession:
         aid_map = {1: 0x6C, 2: 0x6E, 3: 0x6B}  # Standard PA1-PA3 AIDs
         aid = aid_map[n]
 
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         await self.submit(aid)
@@ -1744,7 +1745,7 @@ class AsyncSession:
         Raises:
             SessionError: If not connected.
         """
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         from .protocol.data_stream import DataStreamSender
@@ -1857,7 +1858,7 @@ class AsyncSession:
         Raises:
             SessionError: If not connected.
         """
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         # Simple implementation: move left
@@ -1870,7 +1871,7 @@ class AsyncSession:
         Raises:
             SessionError: If not connected.
         """
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         self.screen_buffer.set_position(0, 0)
@@ -1882,7 +1883,7 @@ class AsyncSession:
         Raises:
             SessionError: If not connected.
         """
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         row, col = self.screen_buffer.get_position()
@@ -1900,7 +1901,7 @@ class AsyncSession:
         Raises:
             SessionError: If not connected.
         """
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         row, col = self.screen_buffer.get_position()
@@ -1917,7 +1918,7 @@ class AsyncSession:
         Raises:
             SessionError: If not connected.
         """
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         row, col = self.screen_buffer.get_position()
@@ -1934,7 +1935,7 @@ class AsyncSession:
         Raises:
             SessionError: If not connected and no screen buffer available.
         """
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             # Allow basic navigation on screen buffer even without connection
             if not self.screen_buffer:
                 raise SessionError("Session not connected.")
@@ -1969,7 +1970,7 @@ class AsyncSession:
         Raises:
             SessionError: If not connected.
         """
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         # Simple implementation: move right
@@ -2137,7 +2138,7 @@ class AsyncSession:
     async def info(self) -> None:
         """Display session information (s3270 Info() action)."""
         print(
-            f"Connected: {self._connected}, TN3270 mode: {self.tn3270_mode}, LU: {self._lu_name}"
+            f"Connected: {self.connected}, TN3270 mode: {self.tn3270_mode}, LU: {self._lu_name}"
         )
 
     async def newline(self) -> None:
@@ -2332,7 +2333,7 @@ class AsyncSession:
         Raises:
             SessionError: If not connected.
         """
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         await self.handler.send_soh_message(status_code)
