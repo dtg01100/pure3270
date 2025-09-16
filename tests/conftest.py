@@ -96,3 +96,41 @@ def suppress_logging():
         if isinstance(h, NullHandler):
             logger.removeHandler(h)
     logger.handlers = old_handlers
+
+
+@pytest.fixture
+def memory_limit_500mb():
+    """Fixture to limit memory to 500MB for the duration of the test."""
+    if platform.system() == 'Linux':
+        try:
+            # Set memory limit to 500MB (in bytes)
+            resource.setrlimit(resource.RLIMIT_AS, (500 * 1024 * 1024, 500 * 1024 * 1024))
+        except (ValueError, OSError):
+            # If we can't set the limit, just continue
+            pass
+    yield
+    if platform.system() == 'Linux':
+        try:
+            # Reset to unlimited
+            resource.setrlimit(resource.RLIMIT_AS, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
+        except (ValueError, OSError):
+            pass
+
+
+@pytest.fixture
+def memory_limit_100mb():
+    """Fixture to limit memory to 100MB for the duration of the test."""
+    if platform.system() == 'Linux':
+        try:
+            # Set memory limit to 100MB (in bytes)
+            resource.setrlimit(resource.RLIMIT_AS, (100 * 1024 * 1024, 100 * 1024 * 1024))
+        except (ValueError, OSError):
+            # If we can't set the limit, just continue
+            pass
+    yield
+    if platform.system() == 'Linux':
+        try:
+            # Reset to unlimited
+            resource.setrlimit(resource.RLIMIT_AS, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
+        except (ValueError, OSError):
+            pass

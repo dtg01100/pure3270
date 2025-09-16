@@ -62,12 +62,14 @@ async def async_session():
 )
 @pytest.mark.asyncio
 class TestAsyncSession:
-    async def test_init(self, async_session, memory_limit_500mb):
-        assert isinstance(async_session.screen_buffer, ScreenBuffer)
-        assert async_session._handler is None
-        assert async_session.connected is False
-        assert async_session.host == "localhost"
-        assert async_session.port == 23
+    async def test_init(self, memory_limit_500mb):
+        # Create a fresh session to test initial state
+        fresh_session = AsyncSession("localhost", 23)
+        assert isinstance(fresh_session.screen_buffer, ScreenBuffer)
+        assert fresh_session._handler is None
+        assert fresh_session.connected is False
+        assert fresh_session.host == "localhost"
+        assert fresh_session.port == 23
 
     @patch("pure3270.session.asyncio.open_connection")
     @patch("pure3270.session.TN3270Handler")
