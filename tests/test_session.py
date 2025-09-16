@@ -20,7 +20,7 @@ async def async_session():
     session._handler.receive_data = AsyncMock(return_value=b"")
     session._handler.close = AsyncMock()
     session._handler.connected = True
-    session._connected = True
+    session.connected = True
     type(session).handler = PropertyMock(return_value=session._handler)
     type(session).connected = PropertyMock(return_value=True)
     return session
@@ -34,11 +34,11 @@ def sync_session():
     async_session._handler.send_data = AsyncMock()
     async_session._handler.receive_data = AsyncMock()
     async_session._handler.connected = True
-    async_session._connected = True
+    async_session.connected = True
     type(async_session).handler = PropertyMock(return_value=async_session._handler)
     type(async_session).connected = PropertyMock(return_value=True)
     session._async_session = async_session
-    session._connected = True
+    session.connected = True
     type(session).handler = PropertyMock(return_value=session._async_session._handler)
     type(session).connected = PropertyMock(return_value=True)
     return session
@@ -51,7 +51,7 @@ async def async_session():
     session._handler.send_data = AsyncMock()
     session._handler.receive_data = AsyncMock()
     session._handler.connected = True
-    session._connected = True
+    session.connected = True
     type(session).handler = PropertyMock(return_value=session._handler)
     type(session).connected = PropertyMock(return_value=True)
     return session
@@ -65,7 +65,7 @@ class TestAsyncSession:
     async def test_init(self, async_session, memory_limit_500mb):
         assert isinstance(async_session.screen_buffer, ScreenBuffer)
         assert async_session._handler is None
-        assert async_session._connected is False
+        assert async_session.connected is False
         assert async_session.host == "localhost"
         assert async_session.port == 23
 
@@ -84,7 +84,7 @@ class TestAsyncSession:
 
         mock_open.assert_called_once()
         mock_handler.assert_called_once_with(mock_reader, mock_writer, ANY)
-        assert async_session._connected is True
+        assert async_session.connected is True
 
     @patch("pure3270.session.asyncio.open_connection")
     @patch("pure3270.session.TN3270Handler")
@@ -126,7 +126,7 @@ class TestAsyncSession:
         mock_open.assert_called_once()
         mock_handler.assert_called_once_with(mock_reader, mock_writer, ANY)
         mock_handler.return_value.send_data.assert_called_once_with(b"test data")
-        assert async_session._connected is True
+        assert async_session.connected is True
 
     async def test_send_not_connected(self, async_session):
         with pytest.raises(SessionError) as exc_info:
@@ -161,7 +161,7 @@ class TestAsyncSession:
         mock_open.assert_called_once()
         mock_handler.assert_called_once_with(mock_reader, mock_writer, ANY)
         handler_instance.receive_data.assert_called_once_with(5.0)
-        assert async_session._connected is True
+        assert async_session.connected is True
 
     async def test_read_not_connected(self, async_session):
         with pytest.raises(SessionError):
@@ -170,29 +170,31 @@ class TestAsyncSession:
     async def test_close(self, async_session):
         async_session._handler = AsyncMock()
         async_session._handler.close = AsyncMock()
-        async_session._connected = True
+        async_session.connected = True
 
         handler = async_session._handler
         await async_session.close()
 
         handler.close.assert_called_once()
-        assert async_session._connected is False
+        assert async_session.connected is False
         assert async_session._handler is None
 
     async def test_close_no_handler(self, async_session):
         await async_session.close()
-        assert async_session._connected is False
-
-    def test_connected(self, async_session):
         assert async_session.connected is False
-        async_session._connected = True
-        assert async_session.connected is True
+
+    def test_connected(self):
+        # Use a minimal session without mocked connected property
+        session = AsyncSession("localhost", 23)
+        assert session.connected is False
+        session.connected = True
+        assert session.connected is True
 
     async def test_managed_context(self, async_session):
-        async_session._connected = True
+        async_session.connected = True
         async_session.close = AsyncMock()
         async with async_session.managed():
-            assert async_session._connected is True
+            assert async_session.connected is True
         async_session.close.assert_called_once()
 
     @pytest.mark.asyncio
@@ -375,7 +377,7 @@ class TestAsyncSession:
     async def test_execute_macro_empty(self, async_session):
         """Test macro with empty script succeeds with empty output."""
         async_session._handler = AsyncMock()
-        async_session._connected = True
+        async_session.connected = True
         result = await async_session.execute_macro("")
         assert result["success"] is True
         assert result["output"] == []
@@ -439,7 +441,9 @@ class TestSession:
 
         mock_run.assert_called_once()
 
-    def test_connected_property(self, sync_session):
+    def test_connected_property(self):
+        # Use a minimal session without mocked connected property
+        sync_session = Session("localhost", 23)
         assert sync_session.connected is False
         sync_session._async_session = AsyncSession("localhost", 23)
         sync_session._async_session._transport.connected = True
@@ -550,7 +554,7 @@ class TestAsyncSessionAdvanced:
     async def test_insert_text_with_circumvent(self, async_session):
         """Test insert_text with circumvent_protection."""
         # Mock connection for local operations
-        async_session._connected = True
+        async_session.connected = True
         async_session.handler = AsyncMock()
 
         # Setup protected field
@@ -563,7 +567,7 @@ class TestAsyncSessionAdvanced:
     async def test_insert_text_protected_without_circumvent(self, async_session):
         """Test insert_text skips protected without circumvent."""
         # Mock connection for local operations
-        async_session._connected = True
+        async_session.connected = True
         async_session.handler = AsyncMock()
 
         # Setup protected field
@@ -689,7 +693,7 @@ class TestAsyncSessionAdvanced:
     async def test_left2_action(self, async_session):
         """Test Left2 action."""
         # Mock connection for local operations
-        async_session._connected = True
+        async_session.connected = True
         async_session.handler = AsyncMock()
 
         async_session.screen_buffer.set_position(0, 5)
@@ -700,7 +704,7 @@ class TestAsyncSessionAdvanced:
     async def test_right2_action(self, async_session):
         """Test Right2 action."""
         # Mock connection for local operations
-        async_session._connected = True
+        async_session.connected = True
         async_session.handler = AsyncMock()
 
         async_session.screen_buffer.set_position(0, 0)
@@ -798,7 +802,7 @@ class TestAsyncSessionAdvanced:
     async def test_load_resource_definitions(self, mock_getmtime, async_session):
         """Test resource definitions loading."""
         # Mock connection for local operations
-        async_session._connected = True
+        async_session.connected = True
         async_session.handler = AsyncMock()
 
         # Mock file path and check no error
@@ -813,7 +817,7 @@ class TestAsyncSessionAdvanced:
     ):
         """Test parsing valid xrdb file."""
         # Mock connection for local operations
-        async_session._connected = True
+        async_session.connected = True
         async_session.handler = AsyncMock()
 
         xrdb_content = """s3270.color8: #FF0000
@@ -846,7 +850,7 @@ s3270.keymap: default
     async def test_load_resource_definitions_error(self, mock_getmtime, async_session):
         """Test error handling: invalid file raises error."""
         # Mock connection for local operations
-        async_session._connected = True
+        async_session.connected = True
         async_session.handler = AsyncMock()
 
         with patch("builtins.open", side_effect=IOError("File not found")):
@@ -860,7 +864,7 @@ s3270.keymap: default
     ):
         """Test error handling: invalid resource logged but partial success."""
         # Mock connection for local operations
-        async_session._connected = True
+        async_session.connected = True
         async_session.handler = AsyncMock()
 
         xrdb_content = """s3270.color8: invalid
@@ -883,7 +887,7 @@ s3270.model: 3279
     ):
         """Integration test: Load resources in macro and verify."""
         # Mock connection for local operations
-        async_session._connected = True
+        async_session.connected = True
         async_session.handler = AsyncMock()
 
         xrdb_content = """s3270.color1: #00FF00
@@ -1018,7 +1022,7 @@ s3270.model: 3279
         with patch("pure3270.session.logger") as mock_logger:
             await async_session.connect()
 
-        assert async_session._connected is True
+        assert async_session.connected is True
         assert async_session._transport.setup_connection.call_count == 3
         mock_logger.warning.assert_called_with("Retry 1/3 after first fail; delay 1s")
         mock_logger.warning.assert_called_with("Retry 2/3 after second fail; delay 2s")
@@ -1026,7 +1030,7 @@ s3270.model: 3279
     @pytest.mark.asyncio
     async def test_send_retry(self, async_session):
         """Test send retries on OSError."""
-        async_session._connected = True
+        async_session.connected = True
         async_session._handler = MagicMock()
         async_session._handler.send_data.side_effect = [
             OSError("First send fail"),
@@ -1048,7 +1052,7 @@ s3270.model: 3279
     @pytest.mark.asyncio
     async def test_read_retry(self, async_session):
         """Test read retries on TimeoutError."""
-        async_session._connected = True
+        async_session.connected = True
         async_session._handler = MagicMock()
         async_session._handler.receive_data.side_effect = [
             asyncio.TimeoutError("First timeout"),
@@ -1071,7 +1075,7 @@ s3270.model: 3279
     @pytest.mark.asyncio
     async def test_execute_macro_retry_wait(self, async_session):
         """Test execute_macro retries WAIT on TimeoutError."""
-        async_session._connected = True
+        async_session.connected = True
         async_session._handler = MagicMock()
         async_session._last_aid = 0x7D
 
