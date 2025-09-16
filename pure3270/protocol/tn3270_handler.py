@@ -370,8 +370,8 @@ class TN3270Handler:
                         logger.warning("Reader task did not cancel within timeout")
                     except Exception as e:
                         logger.debug(f"Reader task exception during cancellation: {e}")
-                        # Check for exception and propagate if present
-                        if reader_task.exception():
+                        # Check for exception and propagate if present, but not for normal cancellation
+                        if reader_task.done() and not reader_task.cancelled() and reader_task.exception():
                             logger.error("Propagating exception from reader task")
                             raise reader_task.exception()
 

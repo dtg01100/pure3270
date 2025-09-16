@@ -426,14 +426,9 @@ class DataStreamParser:
                 try:
                     order = self.parser.read_byte()
                 except ParseError:
+                    stream_trace = self._data[max(0, pos_before - 5) : self._pos + 5].hex()
                     raise ParseError(
-                        "Incomplete order in data stream",
-                        context={
-                            "pos": pos_before,
-                            "stream_trace": self._data[
-                                max(0, pos_before - 5) : self._pos + 5
-                            ].hex(),
-                        },
+                        f"Incomplete order in data stream at position {pos_before}, trace: {stream_trace}"
                     )
 
                 if order in self._order_handlers:
@@ -465,18 +460,14 @@ class DataStreamParser:
 
             logger.debug("Data stream parsing completed successfully")
         except ParseError as e:
-            if hasattr(e, "context") and e.context:
-                logger.warning(
-                    f"Parse error during data stream processing: {e} (Context: {e.context})"
-                )
-            else:
-                logger.warning(f"Parse error during data stream processing: {e}")
+            logger.warning(f"Parse error during data stream processing: {e}")
             # Graceful handling: do not raise, continue parsing if possible
+        except (MemoryError, KeyboardInterrupt, SystemExit):
+            # Critical system errors should propagate immediately
+            raise
         except Exception as e:
             logger.error(f"Unexpected error during parsing: {e}", exc_info=True)
-            raise ParseError(
-                f"Parsing failed: {e}", context={"trace": traceback.format_exc()}
-            )
+            raise ParseError(f"Parsing failed: {e}")
 
     def _ensure_parser(self) -> BaseParser:
         """Ensure `self.parser` exists; create from `self._data`/_pos if needed."""
@@ -585,11 +576,11 @@ class DataStreamParser:
         try:
             attr_type = self._read_byte()
         except ParseError:
-            raise ParseError("Incomplete RA order", context={"pos": self._pos})
+            raise ParseError(f"Incomplete RA order at position {self._pos}")
         try:
             address_bytes = self.parser.read_fixed(2)
         except ParseError:
-            raise ParseError("Incomplete RA address", context={"pos": self._pos})
+            raise ParseError(f"Incomplete RA address at position {self._pos}")
         address = struct.unpack(">H", address_bytes)[0]
         target_row = ((address >> 8) & 0x3F) << 2 | ((address & 0xFF) & 0xC0) >> 6
         target_col = address & 0x3F
