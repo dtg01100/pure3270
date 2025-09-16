@@ -19,6 +19,25 @@ from pure3270.session import AsyncSession, Session
 
 
 @pytest.fixture
+def data_stream_parser(screen_buffer):
+    """Fixture providing a DataStreamParser with mocked screen buffer."""
+    return DataStreamParser(screen_buffer)
+
+
+@pytest.fixture
+def data_stream_sender():
+    """Fixture providing a DataStreamSender."""
+    return DataStreamSender()
+
+
+@pytest.fixture
+def negotiator(screen_buffer):
+    """Fixture providing a Negotiator with mocked dependencies."""
+    parser = Mock(spec=DataStreamParser)
+    return Negotiator(None, parser, screen_buffer)
+
+
+@pytest.fixture
 def screen_buffer():
     mock = Mock(spec=ScreenBuffer, rows=24, cols=80)
     handler = Mock()
@@ -27,11 +46,14 @@ def screen_buffer():
     handler.send_data = AsyncMock()
     handler.receive_data = AsyncMock(return_value=b"")
     type(mock).connected = PropertyMock(return_value=True)
-    type(mock).set_position = Mock()
+    
+    # Fix get_position to return a proper tuple
+    mock.get_position = Mock(return_value=(0, 0))
+    mock.set_position = Mock()
+    
     mock.buffer = bytearray(b"\x40" * (24 * 80))
     mock.fields = []
     mock.connected = True
-    mock.set_position = Mock()
     return mock
 
 
