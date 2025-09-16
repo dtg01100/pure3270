@@ -1,27 +1,28 @@
+import asyncio
+import multiprocessing as mp
+import os
 import platform
 import resource
-import multiprocessing as mp
 import signal
-import os
 import sys
-from typing import Callable, Any, Union, Tuple
-import asyncio
+from typing import Any, Callable, Tuple, Union
+
 
 def set_memory_limit(max_memory_mb: int):
     """
     Set maximum memory limit for the current process.
-    
+
     Args:
         max_memory_mb: Maximum memory in megabytes
-    
+
     Returns:
         Actual limit in bytes if set, None otherwise.
-    
+
     Note: Unix-only (uses resource.setrlimit). No-op on Windows/other platforms.
     """
     if platform.system() != 'Linux':
         return None
-    
+
     try:
         max_memory_bytes = max_memory_mb * 1024 * 1024
         # RLIMIT_AS limits total virtual memory
@@ -40,17 +41,17 @@ def run_with_limits(
 ) -> Tuple[bool, Union[Any, str]]:
     """
     Run test_func with time and memory limits in an isolated subprocess.
-    
+
     Args:
         test_func: The test function or method to run.
         time_limit: Maximum execution time in seconds (cross-platform via process timeout).
         mem_limit: Maximum memory in MB (Unix-only via setrlimit).
         is_async: If True, run test_func as async with asyncio.run (child imports asyncio).
         *args, **kwargs: Arguments to pass to test_func.
-    
+
     Returns:
         Tuple (success: bool, result_or_error: Any or str)
-    
+
     Notes:
         - Cross-platform time limit via mp.Process.join(timeout); Unix adds signal.alarm for precision.
         - Memory limit Unix-only; Windows no-op (add psutil for monitoring if needed, but avoids dep).
@@ -63,7 +64,7 @@ def run_with_limits(
         try:
             # Set memory limit (Unix-only)
             set_memory_limit(mem_limit)
-            
+
             # Set Unix time limit with signal.alarm
             alarm_set = False
             if os.name == 'posix':
@@ -72,19 +73,19 @@ def run_with_limits(
                 original_handler = signal.signal(signal.SIGALRM, timeout_handler)
                 signal.alarm(int(time_limit))
                 alarm_set = True
-            
+
             if is_async:
                 # For async, run with asyncio (import in child to avoid issues)
                 loop_result = asyncio.run(test_func(*func_args, **func_kwargs))
                 result = loop_result
             else:
                 result = test_func(*func_args, **func_kwargs)
-            
+
             # Cancel alarm if set
             if alarm_set:
                 signal.alarm(0)
                 signal.signal(signal.SIGALRM, original_handler)
-            
+
             q.put(('success', result))
         except Exception as e:
             if alarm_set:
@@ -93,16 +94,16 @@ def run_with_limits(
             q.put(('error', str(e)))
         finally:
             q.put('done')
-    
+
     q = mp.Queue()
     args_tuple = args if args else ()
     kwargs_dict = kwargs if kwargs else {}
     p = mp.Process(target=target, args=(q, args_tuple, kwargs_dict))
     p.start()
-    
+
     # Wait with timeout
     p.join(timeout=time_limit)
-    
+
     if p.is_alive():
         # Timeout: terminate and check exit code if Unix
         p.terminate()
@@ -111,7 +112,7 @@ def run_with_limits(
             return (False, f'Timeout after {time_limit}s (signal.alarm)')
         else:
             return (False, f'Timeout after {time_limit}s (process join)')
-    
+
     # Get result from queue
     try:
         while True:

@@ -51,14 +51,14 @@ case $choice in
         read -p "Username (optional): " user
         read -s -p "Password (optional): " password
         echo ""
-        
+
         # Set defaults
         port=${port:-23}
         ssl_flag=""
         if [[ "$ssl" =~ ^[Yy]$ ]]; then
             ssl_flag="--ssl"
         fi
-        
+
         if [ -n "$user" ] && [ -n "$password" ]; then
             python test_real_system.py --host "$host" --port "$port" $ssl_flag --user "$user" --password "$password"
         else
@@ -99,14 +99,14 @@ case $choice in
         read -p "Username (optional): " user
         read -s -p "Password (optional): " password
         echo ""
-        
+
         # Set defaults
         port=${port:-23}
         ssl_flag=""
         if [[ "$ssl" =~ ^[Yy]$ ]]; then
             ssl_flag="--ssl"
         fi
-        
+
         if [ -n "$user" ] && [ -n "$password" ]; then
             python test_p3270_patching.py --host "$host" --port "$port" $ssl_flag --user "$user" --password "$password"
         else
