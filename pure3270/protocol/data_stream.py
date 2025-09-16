@@ -568,7 +568,8 @@ class DataStreamParser:
         """Handle Repeat to Address (RMA)."""
         if self.screen is None:
             raise ParseError("Screen buffer not initialized")
-        if self.parser.remaining() < 3:
+        parser = self._ensure_parser()
+        if parser.remaining() < 3:
             logger.warning("Incomplete RA order")
             return
         # Save current position before RA
@@ -578,7 +579,7 @@ class DataStreamParser:
         except ParseError:
             raise ParseError(f"Incomplete RA order at position {self._pos}")
         try:
-            address_bytes = self.parser.read_fixed(2)
+            address_bytes = parser.read_fixed(2)
         except ParseError:
             raise ParseError(f"Incomplete RA address at position {self._pos}")
         address = struct.unpack(">H", address_bytes)[0]
@@ -600,6 +601,7 @@ class DataStreamParser:
 
     def _handle_rmf(self) -> None:
         """Handle Repeat to Modified Field (RMF)."""
+        assert self.parser is not None, "Parser must be initialized before calling _handle_rmf"
         if self.parser.remaining() < 2:
             logger.warning("Incomplete RMF order")
             return
@@ -627,6 +629,7 @@ class DataStreamParser:
 
     def _handle_ge(self) -> None:
         """Handle Graphic Escape (GE)."""
+        assert self.parser is not None, "Parser must be initialized before calling _handle_ge"
         if self.parser.remaining() < 1:
             logger.warning("Incomplete GE order")
             return
@@ -647,6 +650,7 @@ class DataStreamParser:
 
     def _handle_scs(self) -> None:
         """Handle SCS control codes order."""
+        assert self.parser is not None, "Parser must be initialized before calling _handle_scs"
         if self.parser.has_more():
             code = self._read_byte()
             logger.debug(f"SCS control code: 0x{code:02x} - stub implementation")
@@ -724,6 +728,7 @@ class DataStreamParser:
             return attrs
 
         # Original order handling: parse length, then fixed pairs
+        assert self.parser is not None, "Parser must be initialized before calling _handle_sfe"
         if not self.parser.has_more():
             return attrs
         try:
@@ -911,7 +916,7 @@ class DataStreamParser:
 
         # Mirror position back to object
         self._pos = parser._pos
-        if not using_temp:
+        if not using_temp and self.parser is not None:
             # keep real parser in sync
             self.parser._pos = parser._pos
 
