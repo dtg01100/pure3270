@@ -5,32 +5,149 @@ import requests
 import json
 import shutil
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import subprocess
 import sys
 import re
 
-PYTHON_RELEASES_URL = "https://endoflife.date/api/python.json"
+# Multiple data sources for Python version information
+PYTHON_DATA_SOURCES = {
+    "github_api": "https://api.github.com/repos/python/cpython/tags",
+    "pypi_api": "https://pypi.org/pypi/python-version-info/json", 
+    "endoflife": "https://endoflife.date/api/python.json"
+}
+
+# Known stable Python versions as of 2024 (fallback data)
+FALLBACK_PYTHON_VERSIONS = [
+    {"v": "3.13", "eol": False, "stable": True},
+    {"v": "3.12", "eol": False, "stable": True},
+    {"v": "3.11", "eol": False, "stable": True},
+    {"v": "3.10", "eol": False, "stable": True},
+    {"v": "3.9", "eol": False, "stable": True},
+    {"v": "3.8", "eol": False, "stable": True}
+]
 
 def get_latest_python_versions() -> List[Dict[str, Any]]:
-    """Fetch latest Python versions from endoflife.date API."""
+    """Fetch latest Python versions from multiple sources with fallbacks."""
+    
+    # Try GitHub API first (most likely to work in CI environments)
     try:
-        response = requests.get(PYTHON_RELEASES_URL, timeout=10)
+        print("Trying GitHub API for Python releases...")
+        response = requests.get(PYTHON_DATA_SOURCES["github_api"], timeout=10)
         response.raise_for_status()
-        return response.json()
+        github_tags = response.json()
+        
+        # Extract stable Python 3.x versions from GitHub tags
+        stable_versions = []
+        for tag in github_tags[:50]:  # Check first 50 tags
+            tag_name = tag.get("name", "")
+            if tag_name.startswith("v3.") and not any(x in tag_name for x in ["a", "b", "rc"]):
+                # Extract version like "v3.12.1" -> "3.12"
+                version_match = re.match(r"v(3\.\d+)", tag_name)
+                if version_match:
+                    version = version_match.group(1)
+                    if version not in [v["v"] for v in stable_versions]:
+                        stable_versions.append({"v": version, "eol": False, "stable": True})
+        
+        if stable_versions:
+            # Sort by version number (newest first)
+            stable_versions.sort(key=lambda x: tuple(map(int, x["v"].split("."))), reverse=True)
+            print(f"✓ Found {len(stable_versions)} stable versions from GitHub API")
+            return stable_versions
+    
     except Exception as e:
-        print(f"Warning: Could not fetch from endoflife.date API: {e}")
-        # Fallback to known recent versions
-        return [
-            {"v": "3.13", "eol": False},
-            {"v": "3.12", "eol": False},
-            {"v": "3.11", "eol": False},
-            {"v": "3.10", "eol": False},
-            {"v": "3.9", "eol": False},
-            {"v": "3.8", "eol": False}
-        ]
+        print(f"GitHub API failed: {e}")
+    
+    # Try endoflife.date API as backup
+    try:
+        print("Trying endoflife.date API...")
+        response = requests.get(PYTHON_DATA_SOURCES["endoflife"], timeout=10)
+        response.raise_for_status()
+        eol_data = response.json()
+        if eol_data:
+            print(f"✓ Found {len(eol_data)} versions from endoflife.date")
+            return eol_data
+    except Exception as e:
+        print(f"endoflife.date API failed: {e}")
+    
+    # Use fallback data
+    print("Using fallback Python version data")
+    return FALLBACK_PYTHON_VERSIONS
+
+def get_current_python_matrix_versions() -> List[str]:
+    """Extract Python versions currently used in CI matrix files."""
+    workflow_files = [
+        ".github/workflows/ci.yml",
+        ".github/workflows/comprehensive-python-testing.yml",
+        ".github/workflows/quick-ci.yml"
+    ]
+    
+    all_versions = set()
+    
+    for workflow_file in workflow_files:
+        try:
+            with open(workflow_file, "r") as f:
+                content = f.read()
+            
+            # Find python-version matrix entries
+            lines = content.splitlines()
+            for line in lines:
+                if 'python-version:' in line and '[' in line and ']' in line:
+                    # Extract versions from matrix like: python-version: [3.8, 3.9, "3.10", 3.11, 3.12, 3.13]
+                    version_match = re.search(r'python-version:\s*\[(.*?)\]', line)
+                    if version_match:
+                        version_str = version_match.group(1)
+                        # Extract individual versions
+                        versions = re.findall(r'["\']?(\d+\.\d+)["\']?', version_str)
+                        all_versions.update(versions)
+        except FileNotFoundError:
+            print(f"Workflow file {workflow_file} not found")
+        except Exception as e:
+            print(f"Error reading {workflow_file}: {e}")
+    
+    # Convert to sorted list
+    version_list = sorted(list(all_versions), key=lambda x: tuple(map(int, x.split("."))))
+    print(f"Current CI matrix versions: {version_list}")
+    return version_list
+
+def detect_system_python_versions() -> List[str]:
+    """Detect Python versions available on the system."""
+    detected_versions = []
+    
+    # Try common Python version commands
+    for minor in range(6, 20):  # Python 3.6 to 3.19
+        version_str = f"3.{minor}"
+        try:
+            # Try to run python3.X --version
+            result = subprocess.run([f"python{version_str}", "--version"], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0 and version_str in result.stdout:
+                detected_versions.append(version_str)
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            pass
+    
+    if detected_versions:
+        print(f"Detected system Python versions: {detected_versions}")
+    
+    return detected_versions
 
 def get_supported_versions() -> List[str]:
+    """Get currently supported Python versions from multiple sources."""
+    # Start with pyproject.toml
+    pyproject_versions = get_pyproject_versions()
+    
+    # Also check current CI matrix
+    ci_versions = get_current_python_matrix_versions()
+    
+    # Merge and deduplicate
+    all_versions = set(pyproject_versions + ci_versions)
+    
+    # Convert to sorted list
+    version_list = sorted(list(all_versions), key=lambda x: tuple(map(int, x.split("."))))
+    print(f"Combined supported versions: {version_list}")
+    return version_list
+
+def get_pyproject_versions() -> List[str]:
     """Get currently supported Python versions from pyproject.toml."""
     try:
         with open("pyproject.toml", "r") as f:
@@ -48,11 +165,15 @@ def get_supported_versions() -> List[str]:
                         return [f"3.{minor}" for minor in range(8, 14)]  # 3.8 to 3.13
         
         # Fallback: extract from classifiers
+        versions = []
         for line in lines:
             if "Programming Language :: Python :: 3." in line:
                 version_match = re.search(r'Python :: 3\.(\d+)', line)
                 if version_match:
-                    continue  # We could collect these but let's use the fallback
+                    versions.append(f"3.{version_match.group(1)}")
+        
+        if versions:
+            return sorted(list(set(versions)), key=lambda x: tuple(map(int, x.split("."))))
         
         return ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]  # Default fallback
     except Exception as e:
@@ -95,13 +216,16 @@ def update_ci_matrix(new_versions: List[str]) -> None:
         except Exception as e:
             print(f"Error updating {workflow_file}: {e}")
 
-def check_for_new_releases(current_versions: List[str]) -> tuple[bool, str]:
+def check_for_new_releases(current_versions: List[str]) -> tuple[bool, str, List[str]]:
     """Check if there are new Python releases.
     
     Returns:
-        tuple: (has_new_release, latest_version)
+        tuple: (has_new_release, latest_version, suggested_new_versions)
     """
     releases = get_latest_python_versions()
+    if not releases:
+        return False, "unknown", []
+    
     latest_stable = releases[0]["v"]  # First is latest
     
     # Extract minor version numbers for comparison
@@ -110,15 +234,28 @@ def check_for_new_releases(current_versions: List[str]) -> tuple[bool, str]:
         current_minors = [int(v.split('.')[1]) for v in current_versions if v.startswith('3.')]
         current_max_minor = max(current_minors) if current_minors else 8
         
-        if latest_minor > current_max_minor:
-            print(f"New Python release detected: {latest_stable}")
-            return True, latest_stable
+        # Check if we have new versions to add
+        new_versions = []
+        for release in releases:
+            version = release["v"]
+            if version.startswith("3.") and version not in current_versions:
+                # Only add stable versions
+                if not any(x in version for x in ["a", "b", "rc"]) and "." in version:
+                    minor_version = int(version.split('.')[1])
+                    if minor_version > current_max_minor:
+                        new_versions.append(version)
+        
+        if new_versions:
+            new_versions.sort(key=lambda x: tuple(map(int, x.split("."))))
+            print(f"New Python releases detected: {new_versions}")
+            return True, latest_stable, new_versions
         else:
             print(f"No new releases. Latest: {latest_stable}, Current max: 3.{current_max_minor}")
-            return False, latest_stable
+            return False, latest_stable, []
+            
     except (ValueError, IndexError) as e:
         print(f"Error parsing version numbers: {e}")
-        return False, latest_stable
+        return False, latest_stable, []
 
 def main():
     """Main entry point."""
@@ -126,17 +263,13 @@ def main():
         current = get_supported_versions()
         print(f"Current supported versions: {current}")
         
-        has_new_release, latest_stable = check_for_new_releases(current)
+        has_new_release, latest_stable, suggested_versions = check_for_new_releases(current)
         
-        if has_new_release:
-            # Calculate new versions to add
-            latest_minor = int(latest_stable.split('.')[1])
-            current_minors = [int(v.split('.')[1]) for v in current if v.startswith('3.')]
-            current_max_minor = max(current_minors) if current_minors else 8
-            
-            # Add new versions from current max + 1 to latest
-            new_minor_versions = list(range(current_max_minor + 1, latest_minor + 1))
-            new_versions = current + [f"3.{minor}" for minor in new_minor_versions]
+        if has_new_release and suggested_versions:
+            # Use the suggested versions directly
+            new_versions = current + suggested_versions
+            # Remove duplicates and sort
+            new_versions = sorted(list(set(new_versions)), key=lambda x: tuple(map(int, x.split("."))))
             
             print(f"Will update matrix to include: {new_versions}")
             
@@ -149,7 +282,7 @@ def main():
                                       capture_output=True, text=True, check=True)
                 if result.stdout.strip():  # Has changes
                     subprocess.run(["git", "add", ".github/workflows/"], check=True)
-                    commit_msg = f"Update Python testing matrix to include {latest_stable}"
+                    commit_msg = f"Update Python testing matrix to include {', '.join(suggested_versions)}"
                     subprocess.run(["git", "commit", "-m", commit_msg], check=True)
                     print("Changes committed successfully")
                     
@@ -166,12 +299,12 @@ def main():
             
             # Create issue if gh CLI is available
             if shutil.which("gh"):
-                issue_title = f"Python {latest_stable} Compatibility Testing"
-                issue_body = (f"New Python release {latest_stable} detected. "
+                issue_title = f"Python {', '.join(suggested_versions)} Compatibility Testing"
+                issue_body = (f"New Python releases {', '.join(suggested_versions)} detected. "
                              f"Please verify compatibility and update documentation.")
                 try:
                     subprocess.run(["gh", "issue", "create", "--title", issue_title, "--body", issue_body], check=True)
-                    print(f"Created issue for Python {latest_stable}")
+                    print(f"Created issue for Python {', '.join(suggested_versions)}")
                 except subprocess.CalledProcessError:
                     print("Could not create issue (may need authentication)")
             else:

@@ -28,19 +28,25 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install requests
+        # Note: requests is used for API calls, but script has fallback mechanisms
+        # if external APIs are blocked by firewall/DNS restrictions
 
     - name: Check for new Python releases
       id: check_releases
       run: |
         cd ${{ github.workspace }}
+        echo "Running Python release check..."
         python scripts/check_python_releases.py
         
         # Capture any changes made to workflow files
         if git diff --quiet .github/workflows/; then
           echo "no_changes=true" >> $GITHUB_OUTPUT
+          echo "No workflow changes detected"
         else
           echo "no_changes=false" >> $GITHUB_OUTPUT
-          echo "changed_files=$(git diff --name-only .github/workflows/)" >> $GITHUB_OUTPUT
+          changed_files=$(git diff --name-only .github/workflows/)
+          echo "changed_files=$changed_files" >> $GITHUB_OUTPUT
+          echo "Changed files: $changed_files"
         fi
 
     - name: Commit and push changes
