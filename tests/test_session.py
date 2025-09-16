@@ -173,6 +173,10 @@ class TestAsyncSession:
             await fresh_session.read()
 
     async def test_close(self, async_session):
+        # Remove the connected property mock for this test to allow real behavior
+        if hasattr(type(async_session), 'connected'):
+            delattr(type(async_session), 'connected')
+        
         async_session._handler = AsyncMock()
         async_session._handler.close = AsyncMock()
         async_session.connected = True
@@ -185,6 +189,10 @@ class TestAsyncSession:
         assert async_session._handler is None
 
     async def test_close_no_handler(self, async_session):
+        # Remove the connected property mock for this test to allow real behavior
+        if hasattr(type(async_session), 'connected'):
+            delattr(type(async_session), 'connected')
+        
         await async_session.close()
         assert async_session.connected is False
 
@@ -244,8 +252,9 @@ class TestAsyncSession:
             mock_reader.read.return_value = b"\x28\x00\x01\x00"
             mock_handler.return_value.set_ascii_mode = AsyncMock()
             await session.connect()
-        session.send = AsyncMock()
-        session.read = AsyncMock(return_value=b"substituted")
+        
+        # Mock the submit method instead of send
+        session.submit = AsyncMock()
 
         macro = "key ${action}"
         vars_dict = {"action": "PF3"}
@@ -253,8 +262,9 @@ class TestAsyncSession:
 
         assert result["success"] is True
         assert len(result["output"]) == 1
-        assert "substituted" in result["output"][0]
-        session.send.assert_called_once_with(b"key PF3")
+        assert "Key sent: pf3" in result["output"][0]
+        # Verify that submit was called with the PF3 AID (0xF3)
+        session.submit.assert_called_once_with(0xF3)
 
     @pytest.mark.asyncio
     async def test_nested_macros(self):
@@ -271,21 +281,21 @@ class TestAsyncSession:
             mock_reader.read.return_value = b"\x28\x00\x01\x00"
             mock_handler.return_value.set_ascii_mode = AsyncMock()
             await session.connect()
-        session.send = AsyncMock()
-        session.read = AsyncMock(return_value=b"nested output")
+        
+        # Mock the submit method 
+        session.submit = AsyncMock()
+        
+        # Store the sub macro first
+        session._macros["sub_macro"] = ["key Enter"]
 
         macro = "macro sub_macro"
-        vars_dict = {"sub_macro": "key Enter"}
-        result = await session.execute_macro(macro, vars_dict)
+        result = await session.execute_macro(macro)
 
         assert result["success"] is True
         assert len(result["output"]) == 1
-        sub_result = result["output"][0]
-        assert isinstance(sub_result, dict)
-        assert sub_result["success"] is True
-        assert len(sub_result["output"]) == 1
-        assert "nested output" in sub_result["output"][0]
-        session.send.assert_called_once_with(b"key Enter")
+        # Should contain the output from the nested macro execution
+        assert "Key sent: enter" in result["output"][0]
+        session.submit.assert_called_once_with(0x7D)  # ENTER AID
 
     @pytest.mark.asyncio
     async def test_incompatible_patching(self):
