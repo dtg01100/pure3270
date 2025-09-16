@@ -315,10 +315,10 @@ def enable_replacement(
 ) -> MonkeyPatchManager:
     """
     Top-level API for zero-configuration opt-in patching.
-    
+
     Applies global patches to p3270 for seamless pure3270 integration.
     Supports selective patching and fallback detection.
-    
+
     :param patch_sessions: Patch session initialization and methods (default True).
     :param patch_commands: Patch command execution (default True).
     :param strict_version: Raise error on version mismatch (default False).
@@ -339,11 +339,11 @@ class Session:
     """
     Synchronous 3270 session handler (wraps AsyncSession).
     """
-    
+
     def __init__(self, host: Optional[str] = None, port: int = 23, ssl_context: Optional[Any] = None):
         """
         Initialize the Session.
-        
+
         :param host: Hostname or IP.
         :param port: Port (default 23).
         :param ssl_context: SSL context for secure connections.
@@ -352,7 +352,7 @@ class Session:
     def connect(self, host: Optional[str] = None, port: Optional[int] = None, ssl_context: Optional[Any] = None) -> None:
         """
         Connect to the TN3270 host (sync).
-        
+
         :param host: Hostname or IP.
         :param port: Port (default 23).
         :param ssl_context: SSL context for secure connections.
@@ -362,7 +362,7 @@ class Session:
     def send(self, data: bytes) -> None:
         """
         Send data to the host (sync).
-        
+
         :param data: Data to send.
         :raises SessionError: If send fails.
         """
@@ -370,7 +370,7 @@ class Session:
     def read(self, timeout: float = 5.0) -> bytes:
         """
         Read data from the host (sync).
-        
+
         :param timeout: Read timeout in seconds.
         :return: Data received from host.
         :raises SessionError: If read fails.
@@ -379,7 +379,7 @@ class Session:
     def execute_macro(self, macro: str, vars: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """
         Execute a macro (sync).
-        
+
         :param macro: Macro to execute.
         :param vars: Variables for macro execution.
         :return: Macro execution results.
@@ -450,7 +450,7 @@ class AsyncSession:
     async def send(self, data: bytes) -> None:
         """
         Send data to the host.
-        
+
         :param data: Data to send.
         :raises SessionError: If send fails.
         """
@@ -458,7 +458,7 @@ class AsyncSession:
     async def read(self, timeout: float = 5.0) -> bytes:
         """
         Read data from the host.
-        
+
         :param timeout: Read timeout in seconds.
         :return: Data received from host.
         :raises SessionError: If read fails.
@@ -467,7 +467,7 @@ class AsyncSession:
     async def execute_macro(self, macro: str, vars: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
         """
         Execute a macro.
-        
+
         :param macro: Macro to execute.
         :param vars: Variables for macro execution.
         :return: Macro execution results.
@@ -606,7 +606,7 @@ Pure3270 replaces the binary `s3270` dependency in `p3270` setups, eliminating t
 
 - **Binary Replacement via Patching**: Call `pure3270.enable_replacement()` before importing `p3270`. This monkey-patches `p3270.P3270Client` to delegate to pure3270's `Session`, handling connections, sends, and reads internally using standard asyncio instead of spawning `s3270` processes.
 - **Zero-Config Opt-In**: No changes to your `p3270` code required. The patching is global by default but reversible.
-- **Handling Mismatches**: 
+- **Handling Mismatches**:
   - If `p3270` version doesn't match (e.g., !=0.1.6, as checked in patches), logs a warning and skips patches gracefully (no error unless `strict_version=True`).
   - If `p3270` is not installed, patching simulates with mocks and logs a warning; use standalone `pure3270.Session` instead.
   - Protocol differences: Pure3270 uses pure Python telnet/SSL, so ensure hosts support TN3270/TN3270E (RFC 1576/2355). SSL uses Python's `ssl` module.
