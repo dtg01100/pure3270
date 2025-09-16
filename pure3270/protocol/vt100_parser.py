@@ -149,7 +149,7 @@ class VT100Parser:
             return
 
         # Extract parameters
-        params_str = self.parser._text[start_pos:self.parser._pos]
+        params_str = self.parser._text[start_pos : self.parser._pos]
         command = self.parser.read_char()
 
         # Parse parameters

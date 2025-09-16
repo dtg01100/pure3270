@@ -75,7 +75,7 @@ For p3270 compatibility:
 .. code-block:: python
 
     from pure3270.patching import enable_replacement
-    
+
     enable_replacement()  # Enable monkey patching
     # Now s3270 APIs work with pure3270 backend
 

@@ -23,7 +23,7 @@ def run_command(cmd, timeout=60, env=None):
             "shell": True,
             "capture_output": True,
             "text": True,
-            "timeout": timeout
+            "timeout": timeout,
         }
         if env is not None:
             kwargs["env"] = env
@@ -34,16 +34,33 @@ def run_command(cmd, timeout=60, env=None):
     except Exception as e:
         return False, "", str(e)
 
+
 async def main():
     """Run working tests."""
     print("=== Running Working Pure3270 Tests ===\n")
 
     # Parse CLI arguments for runner-level limit overrides
-    parser = argparse.ArgumentParser(description="Run working pure3270 tests with configurable limits")
-    parser.add_argument("--unit-timeout", type=int, default=5, help="Timeout for unit tests (seconds)")
-    parser.add_argument("--unit-mem", type=int, default=100, help="Memory limit for unit tests (MB)")
-    parser.add_argument("--int-timeout", type=int, default=10, help="Timeout for integration tests (seconds)")
-    parser.add_argument("--int-mem", type=int, default=200, help="Memory limit for integration tests (MB)")
+    parser = argparse.ArgumentParser(
+        description="Run working pure3270 tests with configurable limits"
+    )
+    parser.add_argument(
+        "--unit-timeout", type=int, default=5, help="Timeout for unit tests (seconds)"
+    )
+    parser.add_argument(
+        "--unit-mem", type=int, default=100, help="Memory limit for unit tests (MB)"
+    )
+    parser.add_argument(
+        "--int-timeout",
+        type=int,
+        default=10,
+        help="Timeout for integration tests (seconds)",
+    )
+    parser.add_argument(
+        "--int-mem",
+        type=int,
+        default=200,
+        help="Memory limit for integration tests (MB)",
+    )
     args = parser.parse_args()
 
     # Test type classification for limit propagation (unit vs integration)
@@ -52,7 +69,6 @@ async def main():
         "Working Integration Test": "integration",
         "Simple Integration Test": "integration",
     }
-
 
     tests = [
         ("Navigation Unit Tests", "python navigation_unit_tests.py"),
@@ -107,6 +123,7 @@ async def main():
         print("Please check the failed tests above.")
 
     return 0 if all_passed else 1
+
 
 if __name__ == "__main__":
     exit_code = asyncio.run(main())

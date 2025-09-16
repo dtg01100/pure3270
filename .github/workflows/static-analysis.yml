@@ -36,8 +36,8 @@ jobs:
         pip install -e .[test]
 
     - name: Run mypy
-      run: mypy pure3270/ --strict --install-types --non-interactive
+      run: mypy pure3270/ --config-file=mypy.ini
     - name: Run pylint
-      run: pylint pure3270/
+      run: pylint pure3270/ --rcfile=.pylintrc
     - name: Run bandit
-      run: bandit -r pure3270/ --format json --output bandit-report.json || true  # Don't fail CI on warnings
+      run: bandit -c .bandit -r pure3270/

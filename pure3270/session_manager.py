@@ -71,9 +71,11 @@ class SessionManager:
         """Perform Telnet negotiation (TTYPE, BINARY, etc.)."""
         await negotiator.negotiate()
 
-    async def perform_tn3270_negotiation(self, negotiator, timeout: Optional[float] = None) -> None:
+    async def perform_tn3270_negotiation(
+        self, negotiator, timeout: Optional[float] = None
+    ) -> None:
         """Perform TN3270 negotiation using the handler's method if available."""
-        if negotiator.handler and hasattr(negotiator.handler, '_negotiate_tn3270'):
+        if negotiator.handler and hasattr(negotiator.handler, "_negotiate_tn3270"):
             await negotiator.handler._negotiate_tn3270(timeout=timeout)
         else:
             await negotiator._negotiate_tn3270(timeout=timeout)

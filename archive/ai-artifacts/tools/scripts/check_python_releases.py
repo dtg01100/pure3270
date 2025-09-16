@@ -30,16 +30,19 @@ def check_python_releases():
                 if title and "Python " in title and "release" in title.lower():
                     # Extract version from title like "Python 3.13.0 (Oct. 7, 2024)"
                     ver_str = title.split("Python ")[1].split(" ")[0]
-                    if ver_str.startswith("3.") and not any(s in ver_str for s in ['a', 'b', 'rc']):
+                    if ver_str.startswith("3.") and not any(
+                        s in ver_str for s in ["a", "b", "rc"]
+                    ):
                         if version.parse(ver_str) > version.parse(latest):
                             latest = ver_str
 
-        output = {'latest_minor': latest}
+        output = {"latest_minor": latest}
         print(json.dumps(output))
         return output
     except Exception as e:
-        print(json.dumps({'error': str(e), 'latest_minor': '3.13.0'}), file=sys.stderr)
+        print(json.dumps({"error": str(e), "latest_minor": "3.13.0"}), file=sys.stderr)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     check_python

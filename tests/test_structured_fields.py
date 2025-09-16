@@ -10,7 +10,9 @@ from pure3270.protocol.utils import (QUERY_REPLY_CHARACTERISTICS,
                                      STRUCTURED_FIELD)
 
 
-@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
+@pytest.mark.skipif(
+    platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+)
 class TestStructuredFieldSupport:
     def test_handle_structured_field(self, memory_limit_500mb):
         """Test handling structured field command."""

@@ -19,9 +19,13 @@ def main():
     # Load environment variables from .env file
     load_dotenv()
 
-    parser = argparse.ArgumentParser(description="Test connection to a real TN3270 system using p3270 with pure3270 patching")
+    parser = argparse.ArgumentParser(
+        description="Test connection to a real TN3270 system using p3270 with pure3270 patching"
+    )
     parser.add_argument("--host", help="Host to connect to")
-    parser.add_argument("--port", type=int, default=23, help="Port to connect to (default: 23)")
+    parser.add_argument(
+        "--port", type=int, default=23, help="Port to connect to (default: 23)"
+    )
     parser.add_argument("--ssl", action="store_true", help="Use SSL/TLS connection")
     parser.add_argument("--user", help="Username for login (optional)")
     parser.add_argument("--password", help="Password for login (optional)")
@@ -36,7 +40,9 @@ def main():
 
     # Validate that we have a host
     if not host:
-        print("Error: Host must be provided either via --host argument or TN3270_HOST environment variable")
+        print(
+            "Error: Host must be provided either via --host argument or TN3270_HOST environment variable"
+        )
         sys.exit(1)
 
     # Setup logging
@@ -117,6 +123,7 @@ def main():
     except Exception as e:
         print(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
     finally:

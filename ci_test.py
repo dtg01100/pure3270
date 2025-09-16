@@ -12,7 +12,7 @@ def set_memory_limit(max_memory_mb: int):
         max_memory_mb: Maximum memory in megabytes
     """
     # Only works on Unix systems
-    if platform.system() != 'Linux':
+    if platform.system() != "Linux":
         return None
 
     try:
@@ -22,6 +22,7 @@ def set_memory_limit(max_memory_mb: int):
         return max_memory_bytes
     except Exception:
         return None
+
 
 # Set memory limit for the script
 set_memory_limit(500)
@@ -37,7 +38,7 @@ import os
 import sys
 
 # Configure logging to show debug messages
-logging.basicConfig(level=logging.DEBUG, format='%(levelname)s:%(name)s:%(message)s')
+logging.basicConfig(level=logging.DEBUG, format="%(levelname)s:%(name)s:%(message)s")
 
 # Add the current directory to the path so we can import pure3270
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))

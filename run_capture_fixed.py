@@ -15,10 +15,12 @@ async def capture(timeout=6.0):
     reader = writer = None
     collected = bytearray()
     try:
-        reader, writer = await asyncio.open_connection('localhost', server.port)
+        reader, writer = await asyncio.open_connection("localhost", server.port)
 
         # Send DEVICE-TYPE SEND subnegotiation
-        msg = bytes([IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_SEND, IAC, SE])
+        msg = bytes(
+            [IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_SEND, IAC, SE]
+        )
         writer.write(msg)
         await writer.drain()
 
@@ -34,7 +36,11 @@ async def capture(timeout=6.0):
                 break
             collected.extend(chunk)
             # If we see IAC SB TELOPT_TN3270E or a Structured Field (0x3C) or TN3270E header (0x00 0x00), exit early
-            if b'\xff\xfa' in collected or b'\x3c' in collected or collected.find(b'\x00\x00') != -1:
+            if (
+                b"\xff\xfa" in collected
+                or b"\x3c" in collected
+                or collected.find(b"\x00\x00") != -1
+            ):
                 break
         return collected
     finally:
@@ -51,7 +57,8 @@ async def capture(timeout=6.0):
             pass
         server_task.cancel()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     data = asyncio.run(capture())
-    print('\nCollected (hex):')
+    print("\nCollected (hex):")
     print(data.hex())

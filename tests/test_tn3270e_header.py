@@ -8,7 +8,9 @@ from pure3270.protocol.utils import (SCS_DATA, TN3270_DATA,
                                      TN3270E_RSF_NO_RESPONSE)
 
 
-@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
+@pytest.mark.skipif(
+    platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+)
 class TestTN3270EHeader:
     def test_init_default(self, memory_limit_500mb):
         """Test default initialization."""

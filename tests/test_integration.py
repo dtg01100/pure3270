@@ -23,11 +23,19 @@ class TestIntegration:
 
         # Mock responses for macro steps
         expected_pattern = bytes([0x40] * (24 * 80))  # Full EBCDIC spaces
-        expected_pattern = expected_pattern[:5].replace(b"\x40"*5, b"\xc1\xc2\xc3\xc4\xc5") + expected_pattern[5:]  # But since bytes immutable, re-create with modification
-        expected_pattern = bytearray(expected_pattern)  # Wait, to modify, but better: create with mod
+        expected_pattern = (
+            expected_pattern[:5].replace(b"\x40" * 5, b"\xc1\xc2\xc3\xc4\xc5")
+            + expected_pattern[5:]
+        )  # But since bytes immutable, re-create with modification
+        expected_pattern = bytearray(
+            expected_pattern
+        )  # Wait, to modify, but better: create with mod
         # Correct: since original modifies bytearray, recreate as bytes with mod
         full_spaces = bytes([0x40] * (24 * 80))
-        expected_pattern = full_spaces[:5].replace(b"\x40"*5, b"\xc1\xc2\xc3\xc4\xc5") + full_spaces[5:]
+        expected_pattern = (
+            full_spaces[:5].replace(b"\x40" * 5, b"\xc1\xc2\xc3\xc4\xc5")
+            + full_spaces[5:]
+        )
 
         # Simulate receive data after sends: Write with sample data
         stream = (
@@ -87,35 +95,35 @@ class TestIntegration:
 
             def parse(self, data, data_type=0x00):
                 # Simulate parsing IC order
-                if b'\x0F' in data: # Assuming 0x0F is IC
+                if b"\x0F" in data:  # Assuming 0x0F is IC
                     self.screen.move_cursor_to_first_input_field()
                 # Simulate parsing PT order
-                if b'\x0E' in data: # Assuming 0x0E is PT
+                if b"\x0E" in data:  # Assuming 0x0E is PT
                     self.screen.move_cursor_to_next_input_field()
 
         with patch("pure3270.session.DataStreamParser", new=MockDataStreamParser):
             # Set up fields in the screen buffer for testing cursor movement
             async_session.screen.fields = [
                 Field((0, 0), (0, 5), protected=True),
-                Field((1, 0), (1, 5), protected=False), # Input field 1
+                Field((1, 0), (1, 5), protected=False),  # Input field 1
                 Field((2, 0), (2, 5), protected=True),
-                Field((3, 0), (3, 5), protected=False)  # Input field 2
+                Field((3, 0), (3, 5), protected=False),  # Input field 2
             ]
 
             # Test IC order: move to first input field (1,0)
-            mock_handler.receive_data.return_value = b'\x05\x0F' # Write + IC
+            mock_handler.receive_data.return_value = b"\x05\x0F"  # Write + IC
             await async_session.read()
             assert async_session.screen.cursor_row == 1
             assert async_session.screen.cursor_col == 0
 
             # Test PT order: move from (1,0) to next input field (3,0)
-            mock_handler.receive_data.return_value = b'\x05\x0E' # Write + PT
+            mock_handler.receive_data.return_value = b"\x05\x0E"  # Write + PT
             await async_session.read()
             assert async_session.screen.cursor_row == 3
             assert async_session.screen.cursor_col == 0
 
             # Test PT order: wrap around from (3,0) to first input field (1,0)
-            mock_handler.receive_data.return_value = b'\x05\x0E' # Write + PT
+            mock_handler.receive_data.return_value = b"\x05\x0E"  # Write + PT
             await async_session.read()
             assert async_session.screen.cursor_row == 1
             assert async_session.screen.cursor_col == 0

@@ -10,13 +10,15 @@ async def run():
     server_task = asyncio.create_task(server.start())
     await asyncio.sleep(0.1)  # Give server time to bind
 
-    reader, writer = await asyncio.open_connection('localhost', server.port)
+    reader, writer = await asyncio.open_connection("localhost", server.port)
     try:
         # Build subnegotiation: IAC SB TELOPT_TN3270E DEVICE_TYPE SEND IAC SE
-        msg = bytes([IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_SEND, IAC, SE])
+        msg = bytes(
+            [IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_SEND, IAC, SE]
+        )
         writer.write(msg)
         await writer.drain()
-        print('Client sent device-type SEND subnegotiation:', msg.hex())
+        print("Client sent device-type SEND subnegotiation:", msg.hex())
 
         collected = bytearray()
         # Read incoming bytes for up to 3s
@@ -25,12 +27,12 @@ async def run():
                 data = await asyncio.wait_for(reader.read(4096), timeout=0.5)
                 if not data:
                     break
-                print('Client received chunk:', data.hex())
+                print("Client received chunk:", data.hex())
                 collected.extend(data)
         except asyncio.TimeoutError:
             pass
 
-        print('\n--- Final collected bytes (hex) ---')
+        print("\n--- Final collected bytes (hex) ---")
         print(collected.hex())
     finally:
         try:
@@ -41,5 +43,6 @@ async def run():
         await server.stop()
         server_task.cancel()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     asyncio.run(run())

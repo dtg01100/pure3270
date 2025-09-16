@@ -34,6 +34,7 @@ class Pure3270S3270Wrapper:
 
         # Create our pure3270 session
         from pure3270.session import Session
+
         self._session = Session()
 
         # Increment instance counter

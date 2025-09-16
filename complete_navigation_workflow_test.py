@@ -10,7 +10,7 @@ def set_memory_limit(max_memory_mb: int):
         max_memory_mb: Maximum memory in megabytes
     """
     # Only works on Unix systems
-    if platform.system() != 'Linux':
+    if platform.system() != "Linux":
         return None
 
     try:
@@ -20,6 +20,8 @@ def set_memory_limit(max_memory_mb: int):
         return max_memory_bytes
     except Exception:
         return None
+
+
 #!/usr/bin/env python3
 """
 Focused integration test demonstrating complete TN3270 navigation workflow.

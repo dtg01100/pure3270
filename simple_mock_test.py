@@ -6,6 +6,7 @@ from tools.memory_limit import set_memory_limit
 # Set memory limit for the script
 set_memory_limit(500)
 
+
 def set_memory_limit(max_memory_mb: int):
     """
     Set maximum memory limit for the current process.
@@ -14,7 +15,7 @@ def set_memory_limit(max_memory_mb: int):
         max_memory_mb: Maximum memory in megabytes
     """
     # Only works on Unix systems
-    if platform.system() != 'Linux':
+    if platform.system() != "Linux":
         return None
 
     try:
@@ -24,6 +25,8 @@ def set_memory_limit(max_memory_mb: int):
         return max_memory_bytes
     except Exception:
         return None
+
+
 #!/usr/bin/env python3
 """
 Simple test script focusing on mock server functionality only.

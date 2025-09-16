@@ -12,7 +12,9 @@ from pure3270.protocol.utils import (PRINT_EOJ, SCS_DATA, TN3270E_RESPONSES,
                                      TN3270E_SCS_CTL_CODES)
 
 
-@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
+@pytest.mark.skipif(
+    platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+)
 class TestPrinterJob:
     def test_init_default(self, memory_limit_500mb):
         """Test default initialization."""
@@ -100,7 +102,9 @@ class TestPrinterJob:
         assert "test" in repr_str
 
 
-@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
+@pytest.mark.skipif(
+    platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+)
 class TestPrinterSession:
     def test_init(self, memory_limit_500mb):
         """Test initialization."""

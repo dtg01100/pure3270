@@ -13,7 +13,7 @@ async def capture():
     from pure3270.protocol.utils import (DO, IAC, TELOPT_BINARY, TELOPT_EOR,
                                          TELOPT_TN3270E, TELOPT_TTYPE, WILL)
 
-    reader, writer = await asyncio.open_connection('localhost', server.port)
+    reader, writer = await asyncio.open_connection("localhost", server.port)
     try:
         # Send several WILL options to trigger server behavior
         opts = [TELOPT_TN3270E, TELOPT_TTYPE, TELOPT_BINARY, TELOPT_EOR]
@@ -43,7 +43,7 @@ async def capture():
             collected.extend(data)
             print(f"Client: received: {data.hex()}")
 
-        print('\n--- Final collected bytes (hex) ---')
+        print("\n--- Final collected bytes (hex) ---")
         print(collected.hex())
 
     finally:
@@ -55,5 +55,6 @@ async def capture():
         server_task.cancel()
         await asyncio.sleep(0.1)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     asyncio.run(capture())

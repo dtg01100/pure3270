@@ -10,7 +10,7 @@ import asyncio
 import functools
 import logging
 import ssl
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Dict, Optional
 
 from .exceptions import NegotiationError, ProtocolError
 
@@ -25,16 +25,18 @@ def handle_drain(func: Callable) -> Callable:
     logging warnings on failure without raising (to preserve behavior).
     Assumes the function is async and ends with await writer.drain().
     """
+
     @functools.wraps(func)
     async def wrapper(*args, **kwargs):
         result = await func(*args, **kwargs)
         # Assume last operation is drain; catch and log
         try:
-            if hasattr(args[0], 'writer') and args[0].writer is not None:
+            if hasattr(args[0], "writer") and args[0].writer is not None:
                 await args[0].writer.drain()
         except Exception as e:
             logger.warning(f"Failed to drain writer in {func.__name__}: {e}")
         return result
+
     return wrapper
 
 
@@ -45,6 +47,7 @@ class safe_socket_operation:
     Catches OSError, ssl.SSLError, asyncio.TimeoutError; logs and raises
     ProtocolError with original message. Use for connect, read/write ops.
     """
+
     def __enter__(self):
         return self
 
@@ -71,11 +74,26 @@ def raise_protocol_error(message: str, exc: Optional[Exception] = None) -> None:
         raise ProtocolError(message)
 
 
-def raise_negotiation_error(message: str, exc: Optional[Exception] = None) -> None:
-    """Raise a NegotiationError with optional wrapped exception."""
-    if exc:
-        logger.error(f"Negotiation failed: {message}: {exc}", exc_info=True)
-        raise NegotiationError(f"{message}: {exc}") from exc
+def raise_negotiation_error(
+    message: str,
+    exc: Optional[Exception] = None,
+    context: Optional[Dict[str, Any]] = None,
+) -> None:
+    """Raise a NegotiationError with optional wrapped exception and context."""
+    if context:
+        if exc:
+            logger.error(
+                f"Negotiation failed: {message}: {exc} (Context: {context})",
+                exc_info=True,
+            )
+            raise NegotiationError(f"{message}: {exc}", context=context) from exc
+        else:
+            logger.error(f"Negotiation failed: {message} (Context: {context})")
+            raise NegotiationError(message, context=context)
     else:
-        logger.error(f"Negotiation failed: {message}")
-        raise NegotiationError(message)
+        if exc:
+            logger.error(f"Negotiation failed: {message}: {exc}", exc_info=True)
+            raise NegotiationError(f"{message}: {exc}") from exc
+        else:
+            logger.error(f"Negotiation failed: {message}")
+            raise NegotiationError(message)

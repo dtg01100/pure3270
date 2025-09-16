@@ -22,9 +22,17 @@ repos:
     rev: v1.11.1
     hooks:
       - id: mypy
-        args: [--strict, --config-file=pyproject.toml]
+        args: [--config-file=mypy.ini, --exclude, docs/source/conf.py]
   - repo: https://github.com/PyCQA/bandit
     rev: 1.8.1
     hooks:
       - id: bandit
-        args: [-r, pure3270/, --format, json, --quiet]
+        args: [-c, .bandit, --quiet]
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: pylint
+        language: system
+        types: [python]
+        args: [pure3270/]

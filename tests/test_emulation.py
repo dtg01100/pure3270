@@ -6,7 +6,9 @@ import pytest
 from pure3270.emulation.screen_buffer import Field, ScreenBuffer
 
 
-@pytest.mark.skipif(platform.system() != 'Linux', reason="Memory limiting only supported on Linux")
+@pytest.mark.skipif(
+    platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+)
 class TestField:
     def test_field_init(self, memory_limit_500mb):
         field = Field(
@@ -41,7 +43,9 @@ class TestField:
         assert "Field(start=(0, 0), end=(0, 5), protected=False" in repr(field)
 
 
-@pytest.mark.skipif(platform.system() != 'Linux', reason="Memory limiting only supported on Linux")
+@pytest.mark.skipif(
+    platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+)
 class TestScreenBuffer:
     def test_init(self, screen_buffer, memory_limit_500mb):
         assert screen_buffer.rows == 24
@@ -277,25 +281,27 @@ def test_read_modified_fields_after_change(screen_buffer, ebcdic_codec):
     assert screen_buffer.buffer[pos : pos + 5] == b"\xc1\xc2\xc3\xc4\xc5"
     assert field.modified is True
 
+
 # Tests for IC and PT orders
 def test_move_cursor_to_first_input_field(screen_buffer):
     # Set up fields
     screen_buffer.fields = [
-        Field((0, 0), (0, 5), protected=True), # Protected field
-        Field((1, 0), (1, 5), protected=False), # Input field 1
-        Field((2, 0), (2, 5), protected=True), # Protected field
-        Field((3, 0), (3, 5), protected=False)  # Input field 2
+        Field((0, 0), (0, 5), protected=True),  # Protected field
+        Field((1, 0), (1, 5), protected=False),  # Input field 1
+        Field((2, 0), (2, 5), protected=True),  # Protected field
+        Field((3, 0), (3, 5), protected=False),  # Input field 2
     ]
 
     screen_buffer.move_cursor_to_first_input_field()
     assert screen_buffer.cursor_row == 1
     assert screen_buffer.cursor_col == 0
 
+
 def test_move_cursor_to_first_input_field_no_input_fields(screen_buffer):
     # Set up only protected fields
     screen_buffer.fields = [
         Field((0, 0), (0, 5), protected=True),
-        Field((1, 0), (1, 5), protected=True)
+        Field((1, 0), (1, 5), protected=True),
     ]
 
     # Cursor should remain at its current position (default 0,0) or not change
@@ -303,13 +309,14 @@ def test_move_cursor_to_first_input_field_no_input_fields(screen_buffer):
     assert screen_buffer.cursor_row == 0
     assert screen_buffer.cursor_col == 0
 
+
 def test_move_cursor_to_next_input_field(screen_buffer):
     # Set up fields
     screen_buffer.fields = [
         Field((0, 0), (0, 5), protected=True),
-        Field((1, 0), (1, 5), protected=False), # Input field 1
+        Field((1, 0), (1, 5), protected=False),  # Input field 1
         Field((2, 0), (2, 5), protected=True),
-        Field((3, 0), (3, 5), protected=False)  # Input field 2
+        Field((3, 0), (3, 5), protected=False),  # Input field 2
     ]
 
     # Set initial cursor position before the first input field
@@ -330,11 +337,12 @@ def test_move_cursor_to_next_input_field(screen_buffer):
     assert screen_buffer.cursor_row == 1
     assert screen_buffer.cursor_col == 0
 
+
 def test_move_cursor_to_next_input_field_no_input_fields(screen_buffer):
     # Set up only protected fields
     screen_buffer.fields = [
         Field((0, 0), (0, 5), protected=True),
-        Field((1, 0), (1, 5), protected=True)
+        Field((1, 0), (1, 5), protected=True),
     ]
 
     # Cursor should remain at its current position (default 0,0) or not change
@@ -342,12 +350,13 @@ def test_move_cursor_to_next_input_field_no_input_fields(screen_buffer):
     assert screen_buffer.cursor_row == 0
     assert screen_buffer.cursor_col == 0
 
+
 def test_move_cursor_to_next_input_field_single_input_field_wraps_around(screen_buffer):
     # Set up a single input field
     screen_buffer.fields = [
         Field((0, 0), (0, 5), protected=True),
-        Field((1, 0), (1, 5), protected=False), # Only input field
-        Field((2, 0), (2, 5), protected=True)
+        Field((1, 0), (1, 5), protected=False),  # Only input field
+        Field((2, 0), (2, 5), protected=True),
     ]
 
     # Set cursor to the single input field

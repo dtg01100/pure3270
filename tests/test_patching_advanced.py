@@ -39,7 +39,9 @@ def test_monkey_patch_manager_unpatch(memory_limit_500mb):
 def test_apply_method_patch(memory_limit_500mb):
     """Test apply_method_patch."""
 
-    @pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
+    @pytest.mark.skipif(
+        platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+    )
     class TestClass:
         pass
 
@@ -65,7 +67,9 @@ def test_apply_module_patch(memory_limit_500mb):
 def test_unpatch_method(memory_limit_500mb):
     """Test unpatch_method restores original."""
 
-    @pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
+    @pytest.mark.skipif(
+        platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+    )
     class TestClass:
         def original(self, memory_limit_500mb):
             return "original"

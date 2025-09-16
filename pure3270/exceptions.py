@@ -3,8 +3,8 @@
 from typing import Any, Dict, Optional
 
 
-class EnhancedSessionError(Exception):
-    """Enhanced session error with contextual information."""
+class Pure3270Error(Exception):
+    """Base error for pure3270 with contextual information."""
 
     def __init__(
         self,
@@ -13,11 +13,11 @@ class EnhancedSessionError(Exception):
         original_exception: Optional[Exception] = None,
     ):
         """
-        Initialize an enhanced session error.
+        Initialize a pure3270 error.
 
         Args:
             message: Error message
-            context: Optional context information (host, port, operation, etc.)
+            context: Optional context information (host, port, operation, stream_pos, order_byte, trace, etc.)
             original_exception: Original exception that caused this error
         """
         super().__init__(message)
@@ -70,31 +70,43 @@ class EnhancedSessionError(Exception):
         return self.context.get(key, default)
 
 
-class EnhancedConnectionError(EnhancedSessionError):
-    """Enhanced connection error with connection-specific context."""
+class ConnectionError(Pure3270Error):
+    """Connection error with connection-specific context."""
 
     pass
 
 
-class EnhancedNegotiationError(EnhancedSessionError):
-    """Enhanced negotiation error with protocol-specific context."""
+class NegotiationError(Pure3270Error):
+    """Negotiation error with protocol-specific context."""
 
     pass
 
 
-class EnhancedMacroError(EnhancedSessionError):
-    """Enhanced macro error with macro-specific context."""
+class MacroError(Pure3270Error):
+    """Macro error with macro-specific context."""
 
     pass
 
 
-class EnhancedParseError(EnhancedSessionError):
-    """Enhanced parsing error with data-specific context."""
+class ParseError(Pure3270Error):
+    """Parsing error with data-specific context."""
 
     pass
 
 
-class EnhancedProtocolError(EnhancedSessionError):
-    """Enhanced protocol error with protocol-specific context."""
+class ProtocolError(Pure3270Error):
+    """Protocol error with protocol-specific context."""
+
+    pass
+
+
+class TimeoutError(Pure3270Error):
+    """Timeout error with operation-specific context."""
+
+    pass
+
+
+class NotConnectedError(Pure3270Error):
+    """Error raised when operation is attempted on a not connected session."""
 
     pass

@@ -30,7 +30,9 @@ def _decode_cp037(data: bytes) -> str:
         if ebcdic is not None and hasattr(ebcdic, "decode"):
             return ebcdic.decode("cp037", data)
     except Exception:
-        logger.debug("ebcdic.decode failed, falling back to codecs.decode", exc_info=True)
+        logger.debug(
+            "ebcdic.decode failed, falling back to codecs.decode", exc_info=True
+        )
     try:
         return data.decode("cp037")
     except Exception:
@@ -62,7 +64,9 @@ def _encode_cp037(text: str | bytes) -> bytes:
         if ebcdic is not None and hasattr(ebcdic, "encode"):
             return ebcdic.encode("cp037", text)
     except Exception:
-        logger.debug("ebcdic.encode failed, falling back to builtin encode", exc_info=True)
+        logger.debug(
+            "ebcdic.encode failed, falling back to builtin encode", exc_info=True
+        )
     try:
         return text.encode("cp037")
     except Exception:

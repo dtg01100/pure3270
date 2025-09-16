@@ -20,7 +20,7 @@ def set_memory_limit(max_memory_mb: int):
 
     Note: Unix-only (uses resource.setrlimit). No-op on Windows/other platforms.
     """
-    if platform.system() != 'Linux':
+    if platform.system() != "Linux":
         return None
 
     try:
@@ -31,13 +31,14 @@ def set_memory_limit(max_memory_mb: int):
     except Exception:
         return None
 
+
 def run_with_limits(
     test_func: Callable[..., Any],
     time_limit: float,
     mem_limit: int,
     is_async: bool = False,
     *args,
-    **kwargs
+    **kwargs,
 ) -> Tuple[bool, Union[Any, str]]:
     """
     Run test_func with time and memory limits in an isolated subprocess.
@@ -60,6 +61,7 @@ def run_with_limits(
         - Configurable limits via env vars (see usage in scripts).
         - Exits child with os._exit(124) on Unix timeout for distinction.
     """
+
     def target(q: mp.Queue, func_args, func_kwargs):
         try:
             # Set memory limit (Unix-only)
@@ -67,9 +69,11 @@ def run_with_limits(
 
             # Set Unix time limit with signal.alarm
             alarm_set = False
-            if os.name == 'posix':
+            if os.name == "posix":
+
                 def timeout_handler(signum, frame):
                     os._exit(124)  # Special exit code for timeout
+
                 original_handler = signal.signal(signal.SIGALRM, timeout_handler)
                 signal.alarm(int(time_limit))
                 alarm_set = True
@@ -86,14 +90,14 @@ def run_with_limits(
                 signal.alarm(0)
                 signal.signal(signal.SIGALRM, original_handler)
 
-            q.put(('success', result))
+            q.put(("success", result))
         except Exception as e:
             if alarm_set:
                 signal.alarm(0)
                 signal.signal(signal.SIGALRM, original_handler)
-            q.put(('error', str(e)))
+            q.put(("error", str(e)))
         finally:
-            q.put('done')
+            q.put("done")
 
     q = mp.Queue()
     args_tuple = args if args else ()
@@ -108,43 +112,51 @@ def run_with_limits(
         # Timeout: terminate and check exit code if Unix
         p.terminate()
         p.join()  # Wait for termination
-        if os.name == 'posix' and p.exitcode == 124:
-            return (False, f'Timeout after {time_limit}s (signal.alarm)')
+        if os.name == "posix" and p.exitcode == 124:
+            return (False, f"Timeout after {time_limit}s (signal.alarm)")
         else:
-            return (False, f'Timeout after {time_limit}s (process join)')
+            return (False, f"Timeout after {time_limit}s (process join)")
 
     # Get result from queue
     try:
         while True:
             msg = q.get_nowait()
-            if msg == 'done':
+            if msg == "done":
                 continue
             status, res = msg
-            if status == 'success':
+            if status == "success":
                 return (True, res)
             else:
                 return (False, res)
     except mp.queues.Empty:
-        return (False, 'Process completed without result in queue')
+        return (False, "Process completed without result in queue")
+
 
 # Convenience wrappers
-def run_with_limits_sync(test_func: Callable, time_limit: float, mem_limit: int, *args, **kwargs) -> Tuple[bool, Union[Any, str]]:
+def run_with_limits_sync(
+    test_func: Callable, time_limit: float, mem_limit: int, *args, **kwargs
+) -> Tuple[bool, Union[Any, str]]:
     """Sync wrapper for run_with_limits."""
     return run_with_limits(test_func, time_limit, mem_limit, False, *args, **kwargs)
 
-def run_with_limits_async(test_func: Callable, time_limit: float, mem_limit: int, *args, **kwargs) -> Tuple[bool, Union[Any, str]]:
+
+def run_with_limits_async(
+    test_func: Callable, time_limit: float, mem_limit: int, *args, **kwargs
+) -> Tuple[bool, Union[Any, str]]:
     """Async wrapper for run_with_limits (runs asyncio.run in child)."""
     return run_with_limits(test_func, time_limit, mem_limit, True, *args, **kwargs)
+
 
 # Limit getters for configurability
 def get_unit_limits() -> Tuple[float, int]:
     """Get unit test limits (default 5s/100MB)."""
-    time_limit = float(os.getenv('UNIT_TIME_LIMIT', '5'))
-    mem_limit = int(os.getenv('UNIT_MEM_LIMIT', '100'))
+    time_limit = float(os.getenv("UNIT_TIME_LIMIT", "5"))
+    mem_limit = int(os.getenv("UNIT_MEM_LIMIT", "100"))
     return time_limit, mem_limit
+
 
 def get_integration_limits() -> Tuple[float, int]:
     """Get integration test limits (default 10s/200MB)."""
-    time_limit = float(os.getenv('INT_TIME_LIMIT', '10'))
-    mem_limit = int(os.getenv('INT_MEM_LIMIT', '200'))
+    time_limit = float(os.getenv("INT_TIME_LIMIT", "10"))
+    mem_limit = int(os.getenv("INT_MEM_LIMIT", "200"))
     return time_limit, mem_limit

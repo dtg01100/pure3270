@@ -6,7 +6,9 @@ import pytest
 from pure3270.session import AsyncSession
 
 
-@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
+@pytest.mark.skipif(
+    platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+)
 class TestMissingS3270Actions:
     @pytest.mark.asyncio
     async def test_compose_action(self, memory_limit_500mb):

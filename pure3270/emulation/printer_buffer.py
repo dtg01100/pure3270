@@ -1,6 +1,7 @@
 """
 Printer buffer and rendering logic for 3287 printer emulation.
 """
+
 import logging
 from typing import Optional, Tuple
 
@@ -55,7 +56,6 @@ class PrinterBuffer(BufferWriter):
             self.cursor_col += 1
         # Ignore other controls and non-printable for now
 
-
     def set_attribute(
         self,
         attr: int,
@@ -67,11 +67,9 @@ class PrinterBuffer(BufferWriter):
         """
         pass
 
-
     def get_content(self) -> str:
         """Retrieve the buffer content as a string."""
         return self.get_rendered_output()
-
 
     def write_scs_data(self, data: bytes):
         """Processes incoming SCS data."""
@@ -84,7 +82,7 @@ class PrinterBuffer(BufferWriter):
         self._flush_current_line()
         # Prune buffer if exceeds max_lines
         if len(self._buffer) > self.max_lines:
-            self._buffer = self._buffer[-self.max_lines:]
+            self._buffer = self._buffer[-self.max_lines :]
 
     def _new_line(self):
         """Adds the current line to the buffer and starts a new one."""
@@ -134,7 +132,7 @@ class PrinterBuffer(BufferWriter):
         self._status = status_code
         logger.debug(f"Printer status updated to: 0x{status_code:02x}")
         # Trigger any necessary events or updates for status SF
-        if hasattr(self, '_status_event') and self._status_event:
+        if hasattr(self, "_status_event") and self._status_event:
             self._status_event.set()
 
     def get_status(self) -> int:
@@ -144,7 +142,7 @@ class PrinterBuffer(BufferWriter):
         Returns:
             The current status code, or 0x00 if not set.
         """
-        return getattr(self, '_status', 0x00)
+        return getattr(self, "_status", 0x00)
 
     def end_job(self):
         """

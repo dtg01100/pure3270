@@ -6,7 +6,9 @@ import pytest
 from pure3270.session import AsyncSession, Session
 
 
-@pytest.mark.skipif(platform.system() != 'Linux', reason="Memory limiting only supported on Linux")
+@pytest.mark.skipif(
+    platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+)
 class TestAIDSupport:
     def test_session_pf_method_exists(self, memory_limit_500mb):
         """Test that Session class has pf method."""
@@ -29,6 +31,7 @@ class TestAIDSupport:
         session._async_session.pf.assert_called_once_with(1)
         mock_run.assert_called_once()
 
+    @pytest.mark.asyncio
     @patch("pure3270.session.asyncio.run")
     def test_session_pa_calls_async_pa(self, mock_run, memory_limit_500mb):
         """Test that Session.pa calls AsyncSession.pa."""

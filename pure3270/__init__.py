@@ -100,7 +100,10 @@ def main():
                 print("Non-interactive session: skipping interactive prompt.")
 
     except Exception as e:
-        print(f"Connection failed: {e}")
+        if hasattr(e, "context") and e.context:
+            print(f"Connection failed: {e} (Context: {e.context})")
+        else:
+            print(f"Connection failed: {e}")
     finally:
         session.close()
         print("Disconnected.")
@@ -112,4 +115,10 @@ if __name__ == "__main__":
 
 from .protocol.exceptions import MacroError
 
-__all__ = ["Session", "AsyncSession", "enable_replacement", "setup_logging", "MacroError"]
+__all__ = [
+    "Session",
+    "AsyncSession",
+    "enable_replacement",
+    "setup_logging",
+    "MacroError",
+]

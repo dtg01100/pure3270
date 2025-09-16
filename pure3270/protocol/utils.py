@@ -13,8 +13,8 @@ WILL = 0xFB
 WONT = 0xFC
 DO = 0xFD
 DONT = 0xFE
-IP = 0xF7 # Interrupt Process
-BRK = 0xF3 # Break Process
+IP = 0xF7  # Interrupt Process
+BRK = 0xF3  # Break Process
 BREAK = 0xF3
 # Telnet Options
 TELOPT_BINARY = 0x00
@@ -70,7 +70,7 @@ TELOPT_OPAQUE_STRUCTURE = 0x31
 TELOPT_PRAGMA_LOGON = 0x32
 TELOPT_SSPI_LOGON = 0x33
 TELOPT_PRAGMA_HEARTBEAT = 0x34
-TELOPT_TERMINAL_LOCATION = 0x24 # RFC 1646, Option 36 decimal = 0x24 hex
+TELOPT_TERMINAL_LOCATION = 0x24  # RFC 1646, Option 36 decimal = 0x24 hex
 TELOPT_EXOPL = 0xFF  # Extended-Options-List
 
 # TN3270E constants
@@ -79,6 +79,7 @@ EOR = 0x19  # End of Record (duplicate, but kept for clarity)
 
 # TN3270E Data Types
 TN3270_DATA = 0x00
+TN3270E_DATA = 0x01
 SCS_DATA = 0x01
 RESPONSE = 0x02
 BIND_IMAGE = 0x03
@@ -87,9 +88,9 @@ NVT_DATA = 0x05
 REQUEST = 0x06
 SSCP_LU_DATA = 0x07
 PRINT_EOJ = 0x08
-SNA_RESPONSE = 0x09 # New SNA Response Data Type
-SNA_RESPONSE_DATA_TYPE = 0x09 # SNA Response Data Type
-PRINTER_STATUS_DATA_TYPE = 0x0A # New data type for Printer Status (TN3270E)
+SNA_RESPONSE = 0x09  # New SNA Response Data Type
+SNA_RESPONSE_DATA_TYPE = 0x09  # SNA Response Data Type
+PRINTER_STATUS_DATA_TYPE = 0x0A  # New data type for Printer Status (TN3270E)
 
 # TN3270E Subnegotiation Message Types
 TN3270E_DEVICE_TYPE = 0x00
@@ -294,12 +295,15 @@ def strip_telnet_iac(
             i += 1
     return clean_data
 
+
 from typing import Optional
 
 
 class ParseError(Exception):
     """Error during parsing."""
+
     pass
+
 
 class BaseParser:
     def __init__(self, data: bytes):
@@ -327,14 +331,15 @@ class BaseParser:
     def read_u16(self) -> int:
         high = self.read_byte()
         low = self.read_byte()
-        return struct.unpack('>H', bytes([high, low]))[0]
+        return struct.unpack(">H", bytes([high, low]))[0]
 
     def read_fixed(self, length: int) -> bytes:
         if self.remaining() < length:
             raise ParseError("Insufficient data for fixed length read")
         start = self._pos
         self._pos += length
-        return self._data[start:self._pos]
+        return self._data[start : self._pos]
+
 
 class BaseStringParser:
     def __init__(self, text: str):

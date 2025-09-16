@@ -39,7 +39,7 @@ class PrinterJob:
         """Add SCS character data to the job."""
         self.data.extend(data)
         if len(self.data) > self.max_data_size:
-            self.data = self.data[-self.max_data_size:]
+            self.data = self.data[-self.max_data_size :]
         logger.debug(f"Added {len(data)} bytes to printer job {self.job_id}")
 
     def complete_job(self) -> None:

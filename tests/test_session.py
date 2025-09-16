@@ -1,7 +1,8 @@
 import asyncio
 import platform
 import subprocess
-from unittest.mock import ANY, AsyncMock, MagicMock, mock_open, patch
+from unittest.mock import (ANY, AsyncMock, MagicMock, PropertyMock, mock_open,
+                           patch)
 
 import pytest
 
@@ -11,13 +12,35 @@ from pure3270.session import AsyncSession, MacroError, Session, SessionError
 
 
 @pytest.fixture
-def async_session():
-    return AsyncSession("localhost", 23)
+async def async_session():
+    session = AsyncSession("localhost", 23)
+    session._handler = AsyncMock(spec=TN3270Handler)
+    session._handler.send_data = AsyncMock(side_effect=[b"test", None])
+    session._handler.receive_data = AsyncMock(return_value=b"")
+    session._handler.close = AsyncMock()
+    session._handler.connected = True
+    session._connected = True
+    type(session).handler = PropertyMock(return_value=session._handler)
+    type(session).connected = PropertyMock(return_value=True)
+    return session
 
 
 @pytest.fixture
 def sync_session():
-    return Session("localhost", 23)
+    session = Session("localhost", 23)
+    async_session = AsyncSession("localhost", 23)
+    async_session._handler = AsyncMock(spec=TN3270Handler)
+    async_session._handler.send_data = AsyncMock()
+    async_session._handler.receive_data = AsyncMock()
+    async_session._handler.connected = True
+    async_session._connected = True
+    type(async_session).handler = PropertyMock(return_value=async_session._handler)
+    type(async_session).connected = PropertyMock(return_value=True)
+    type(session).handler = PropertyMock(return_value=session._async_session._handler)
+    type(session).connected = PropertyMock(return_value=True)
+    session._async_session = async_session
+    session._connected = True
+    return session
 
 
 @pytest.mark.skipif(
@@ -92,8 +115,11 @@ class TestAsyncSession:
         assert async_session._connected is True
 
     async def test_send_not_connected(self, async_session):
-        with pytest.raises(SessionError):
+        with pytest.raises(SessionError) as exc_info:
             await async_session.send(b"data")
+        e = exc_info.value
+        assert "operation" in str(e)
+        assert e.context["operation"] == "send"
 
     @patch("pure3270.session.asyncio.open_connection")
     @patch("pure3270.session.TN3270Handler")
@@ -402,7 +428,7 @@ class TestSession:
     def test_connected_property(self, sync_session):
         assert sync_session.connected is False
         sync_session._async_session = AsyncSession("localhost", 23)
-        sync_session._async_session._connected = True
+        sync_session._async_session._transport.connected = True
         assert sync_session.connected is True
 
     def test_screen_buffer_property(self, sync_session):
@@ -961,3 +987,91 @@ s3270.model: 3279
         await async_session.delete()
         assert list(async_session.screen_buffer.buffer[1:3]) == [0xC2, 0xC3]
         assert list(async_session.screen_buffer.buffer[3:4]) == [0x40]  # Last cleared
+
+    @pytest.mark.asyncio
+    async def test_connect_retry(self, async_session):
+        """Test connect retries on ConnectionError."""
+        from unittest.mock import patch
+
+        async_session._transport = MagicMock()
+        async_session._transport.setup_connection.side_effect = [
+            ConnectionError("First fail"),
+            ConnectionError("Second fail"),
+            None,  # Success on third
+        ]
+        async_session._handler = None
+
+        with patch("pure3270.session.logger") as mock_logger:
+            await async_session.connect()
+
+        assert async_session._connected is True
+        assert async_session._transport.setup_connection.call_count == 3
+        mock_logger.warning.assert_called_with("Retry 1/3 after first fail; delay 1s")
+        mock_logger.warning.assert_called_with("Retry 2/3 after second fail; delay 2s")
+
+    @pytest.mark.asyncio
+    async def test_send_retry(self, async_session):
+        """Test send retries on OSError."""
+        async_session._connected = True
+        async_session._handler = MagicMock()
+        async_session._handler.send_data.side_effect = [
+            OSError("First send fail"),
+            OSError("Second send fail"),
+            None,  # Success on third
+        ]
+
+        with patch("pure3270.session.logger") as mock_logger:
+            await async_session.send(b"test")
+
+        assert async_session._handler.send_data.call_count == 3
+        mock_logger.warning.assert_called_with(
+            "Retry 1/3 after first send fail; delay 1s"
+        )
+        mock_logger.warning.assert_called_with(
+            "Retry 2/3 after second send fail; delay 2s"
+        )
+
+    @pytest.mark.asyncio
+    async def test_read_retry(self, async_session):
+        """Test read retries on TimeoutError."""
+        async_session._connected = True
+        async_session._handler = MagicMock()
+        async_session._handler.receive_data.side_effect = [
+            asyncio.TimeoutError("First timeout"),
+            asyncio.TimeoutError("Second timeout"),
+            b"success data",  # Success on third
+        ]
+
+        with patch("pure3270.session.logger") as mock_logger:
+            data = await async_session.read()
+
+        assert data == b"success data"
+        assert async_session._handler.receive_data.call_count == 3
+        mock_logger.warning.assert_called_with(
+            "Retry 1/3 after first timeout; delay 1s"
+        )
+        mock_logger.warning.assert_called_with(
+            "Retry 2/3 after second timeout; delay 2s"
+        )
+
+    @pytest.mark.asyncio
+    async def test_execute_macro_retry_wait(self, async_session):
+        """Test execute_macro retries WAIT on TimeoutError."""
+        async_session._connected = True
+        async_session._handler = MagicMock()
+        async_session._last_aid = 0x7D
+
+        macro = "WAIT(AID=ENTER, timeout=1)"
+        vars_dict = {}
+        with patch(
+            "pure3270.session.asyncio.wait_for",
+            side_effect=[
+                asyncio.TimeoutError("First WAIT fail"),
+                asyncio.TimeoutError("Second WAIT fail"),
+                None,  # Success on third
+            ],
+        ), patch("pure3270.session.logger") as mock_logger:
+            result = await async_session.execute_macro(macro, vars_dict)
+
+        assert result["success"] is True
+        assert "WAIT aid=ENTER succeeded" in result["output"][0]

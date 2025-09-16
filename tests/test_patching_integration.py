@@ -47,7 +47,7 @@ def test_p3270_version_detection(memory_limit_500mb):
 
     from pure3270.emulation.ebcdic import get_p3270_version
 
-    with patch('pure3270.emulation.ebcdic.get_p3270_version') as mock_get:
+    with patch("pure3270.emulation.ebcdic.get_p3270_version") as mock_get:
         mock_get.return_value = "0.1.6"
         version = get_p3270_version()
 

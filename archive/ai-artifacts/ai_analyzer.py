@@ -52,15 +52,15 @@ def generate_markdown_report(analysis: Dict[str, Any]) -> str:
     md += f"**Summary:** {analysis.get('summary', 'N/A')}\n\n"
 
     md += "## Root Causes\n"
-    for cause in analysis.get('root_causes', []):
+    for cause in analysis.get("root_causes", []):
         md += f"- {cause}\n"
 
     md += "\n## Patterns\n"
-    for pattern in analysis.get('patterns', []):
+    for pattern in analysis.get("patterns", []):
         md += f"- {pattern}\n"
 
     md += "\n## Recommendations\n"
-    for rec in analysis.get('recommendations', []):
+    for rec in analysis.get("recommendations", []):
         md += f"- {rec}\n"
 
     md += f"\n## Assessment\n"
@@ -68,7 +68,7 @@ def generate_markdown_report(analysis: Dict[str, Any]) -> str:
     md += f"- Priority: {analysis.get('priority', 'medium')}\n\n"
 
     md += "## Next Steps\n"
-    for step in analysis.get('next_steps', []):
+    for step in analysis.get("next_steps", []):
         md += f"- {step}\n"
 
     return md
@@ -83,7 +83,7 @@ def analyze_failures(payload: Dict[str, Any], api_key: str) -> Dict[str, Any]:
     :param api_key: OpenAI API key
     :return: Parsed JSON analysis
     """
-    if os.getenv('MOCK_ANALYSIS', 'false').lower() == 'true':
+    if os.getenv("MOCK_ANALYSIS", "false").lower() == "true":
         # Mock response for local testing
         return {
             "summary": "Mock analysis: Tests passed, no failures detected.",
@@ -92,27 +92,30 @@ def analyze_failures(payload: Dict[str, Any], api_key: str) -> Dict[str, Any]:
             "recommendations": ["No action needed"],
             "is_regression": False,
             "priority": "low",
-            "next_steps": ["Review if needed"]
+            "next_steps": ["Review if needed"],
         }
 
     client = OpenAI(api_key=api_key)
 
     prompt = PROMPT_TEMPLATE.format(
-        commit_sha=payload.get('commit_sha', ''),
-        branch=payload.get('branch', ''),
-        pr_number=payload.get('pr_number', 'N/A'),
-        num_failures=payload.get('num_failures', 0),
-        failures=json.dumps(payload.get('failures', []), indent=2)
+        commit_sha=payload.get("commit_sha", ""),
+        branch=payload.get("branch", ""),
+        pr_number=payload.get("pr_number", "N/A"),
+        num_failures=payload.get("num_failures", 0),
+        failures=json.dumps(payload.get("failures", []), indent=2),
     )
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": "You are a helpful assistant that responds only in JSON."},
-            {"role": "user", "content": prompt}
+            {
+                "role": "system",
+                "content": "You are a helpful assistant that responds only in JSON.",
+            },
+            {"role": "user", "content": prompt},
         ],
         temperature=0.1,
-        response_format={"type": "json_object"}
+        response_format={"type": "json_object"},
     )
 
     content = response.choices[0].message.content
@@ -124,8 +127,8 @@ def analyze_failures(payload: Dict[str, Any], api_key: str) -> Dict[str, Any]:
         analysis = json.loads(content)
     except json.JSONDecodeError as e:
         # Fallback: try to extract JSON
-        json_start = content.find('{')
-        json_end = content.rfind('}') + 1
+        json_start = content.find("{")
+        json_end = content.rfind("}") + 1
         if json_start != -1 and json_end != -1:
             analysis = json.loads(content[json_start:json_end])
         else:
@@ -133,10 +136,9 @@ def analyze_failures(payload: Dict[str, Any], api_key: str) -> Dict[str, Any]:
 
     return analysis
 
+
 def run_analysis(
-    payload_path: str,
-    output_dir: str,
-    api_key: Optional[str] = None
+    payload_path: str, output_dir: str, api_key: Optional[str] = None
 ) -> Path:
     """
     Main entry point: Load payload, analyze, generate report.
@@ -147,15 +149,15 @@ def run_analysis(
     :return: Path to generated report
     """
     if api_key is None:
-        api_key = os.getenv('OPENAI_API_KEY')
+        api_key = os.getenv("OPENAI_API_KEY")
 
-    if os.getenv('MOCK_ANALYSIS', 'false').lower() == 'true':
+    if os.getenv("MOCK_ANALYSIS", "false").lower() == "true":
         api_key = "mock_key"
 
     if not api_key:
         raise ValueError("OPENAI_API_KEY not set")
 
-    with open(payload_path, 'r') as f:
+    with open(payload_path, "r") as f:
         payload = json.load(f)
 
     analysis = analyze_failures(payload, api_key)
@@ -163,13 +165,14 @@ def run_analysis(
     report_path = Path(output_dir) / "regression_analysis.md"
     report_content = generate_markdown_report(analysis)
 
-    report_path.write_text(report_content, encoding='utf-8')
+    report_path.write_text(report_content, encoding="utf-8")
 
     return report_path
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import sys
+
     if len(sys.argv) < 3:
         print("Usage: python ai_analyzer.py <payload.json> <output_dir> [api_key]")
         sys.exit(1)
