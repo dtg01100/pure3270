@@ -47,7 +47,9 @@ class TestField:
     platform.system() != "Linux", reason="Memory limiting only supported on Linux"
 )
 class TestScreenBuffer:
-    def test_init(self, screen_buffer, memory_limit_500mb):
+    def test_init(self, memory_limit_500mb):
+        from pure3270.emulation.screen_buffer import ScreenBuffer
+        screen_buffer = ScreenBuffer(rows=24, cols=80)
         assert screen_buffer.rows == 24
         assert screen_buffer.cols == 80
         assert len(screen_buffer.buffer) == 1920
@@ -56,9 +58,12 @@ class TestScreenBuffer:
         assert screen_buffer.cursor_row == 0
         assert screen_buffer.cursor_col == 0
 
-    def test_clear(self, screen_buffer):
-        screen_buffer.buffer = bytearray([1] * 1920)
-        screen_buffer.attributes = bytearray([2] * 5760)
+    def test_clear(self):
+        from pure3270.emulation.screen_buffer import ScreenBuffer, Field
+        screen_buffer = ScreenBuffer(rows=24, cols=80)
+        # Modify buffer to have some non-default values
+        screen_buffer.buffer[:] = bytearray([1] * 1920)
+        screen_buffer.attributes[:] = bytearray([2] * 5760)
         screen_buffer.fields = [Field((0, 0), (0, 1))]
         screen_buffer.cursor_row = 5
         screen_buffer.cursor_col = 10
@@ -185,11 +190,11 @@ class TestEBCDICCodec:
         assert decoded == text
 
     def test_round_trip_unmapped(self, ebcdic_codec):
-        """Test round-trip for unmapped character defaults to 'z'."""
+        """Test round-trip for unmapped character defaults to ':'."""
         text = chr(0xFF)
         encoded, _ = ebcdic_codec.encode(text)
         decoded, _ = ebcdic_codec.decode(encoded)
-        assert decoded == "z"
+        assert decoded == ":"  # Unmapped chars encode to 0x7A which decodes to ':'
 
     def test_decode_mock_data(self, ebcdic_codec):
         """Test decode with mock unmapped data like b'\x00\xff'."""

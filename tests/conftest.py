@@ -38,6 +38,12 @@ def negotiator(screen_buffer):
 
 
 @pytest.fixture
+def ebcdic_codec():
+    """Fixture providing an EBCDICCodec."""
+    return EBCDICCodec()
+
+
+@pytest.fixture
 def screen_buffer():
     mock = Mock(spec=ScreenBuffer, rows=24, cols=80)
     handler = Mock()

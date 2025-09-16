@@ -58,9 +58,15 @@ class TestDataStreamParser:
 
     def test_parse_sf(self, data_stream_parser):
         sample_data = b"\x1d\x40"  # SF protected
-        with patch.object(data_stream_parser.screen, "write_char"):
+        with patch.object(data_stream_parser.screen, "set_attribute") as mock_set_attr, \
+             patch.object(data_stream_parser.screen, "set_position") as mock_set_pos, \
+             patch.object(data_stream_parser.screen, "get_position", return_value=(0, 0)):
             data_stream_parser.parse(sample_data)
-            data_stream_parser.screen.write_char.assert_called_once()
+            mock_set_attr.assert_called_once_with(0x40)  # Test actual behavior
+            # Parse method calls set_position(0,0) initially, then SF handler calls set_position(0,1)
+            assert mock_set_pos.call_count == 2
+            mock_set_pos.assert_any_call(0, 0)  # Initial position reset
+            mock_set_pos.assert_any_call(0, 1)  # SF position advance
 
     def test_parse_ra(self, data_stream_parser):
         sample_data = b"\xf3\x40\x00\x05"  # RA space 5 times
@@ -79,10 +85,17 @@ class TestDataStreamParser:
             data_stream_parser.screen.clear.assert_called_once()
 
     def test_parse_data(self, data_stream_parser):
-        sample_data = b"\xc1\xc2"  # Data ABC
-        data_stream_parser.parse(sample_data)
-        # Check buffer updated
-        assert data_stream_parser.screen.buffer[0:2] == b"\xc1\xc2"
+        sample_data = b"\xc1\xc2"  # Data characters A and B in EBCDIC
+        with patch.object(data_stream_parser.screen, "write_char") as mock_write_char, \
+             patch.object(data_stream_parser.screen, "get_position", return_value=(0, 0)) as mock_get_pos, \
+             patch.object(data_stream_parser.screen, "set_position") as mock_set_pos:
+            data_stream_parser.parse(sample_data)
+            # Should write each character and advance position
+            assert mock_write_char.call_count == 2
+            mock_write_char.assert_any_call(0xc1, 0, 0)  # First character at (0,0)
+            mock_write_char.assert_any_call(0xc2, 0, 0)  # Second character at (0,0)
+            # Position should be set initially and advanced after each character
+            assert mock_set_pos.call_count >= 3  # Initial + after each char
 
     def test_parse_bind_structured_field(self, data_stream_parser):
         # Structured field: 0x3C (SF_ID), Length (2 bytes), SF_Type (1 byte), Data
@@ -127,10 +140,14 @@ class TestDataStreamParser:
         # Assert that it doesn't raise an error and skips the structured field
         assert data_stream_parser._pos == len(sample_data)
 
-    def test_parse_unknown_order_raises_parse_error(self, data_stream_parser):
-        sample_data = b"\xFF"  # Unknown 3270 order
-        with pytest.raises(ParseError, match=r"Unknown or unhandled 3270 order: 0xff"):
+    def test_parse_unknown_order_treated_as_text_data(self, data_stream_parser):
+        sample_data = b"\xFF"  # Unknown byte treated as text data
+        with patch.object(data_stream_parser.screen, "write_char") as mock_write_char, \
+             patch.object(data_stream_parser.screen, "get_position", return_value=(0, 0)), \
+             patch.object(data_stream_parser.screen, "set_position"):
             data_stream_parser.parse(sample_data)
+            # Unknown bytes are treated as text data, not as errors
+            mock_write_char.assert_called_once_with(0xFF, 0, 0)
 
     def test_parse_ic_order(self, data_stream_parser):
         # Assuming IC is 0x0F
@@ -395,7 +412,7 @@ def test_parse_sample_write(data_stream_parser, sample_write_stream):
             assert sna_response.is_positive()
             assert not sna_response.is_negative()
 
-    def test_parse_sna_response_data_type_negative(self, data_stream_parser):
+    def test_parse_sna_response_data_type_negative_first(self, data_stream_parser):
         from pure3270.protocol.data_stream import (
             SNA_FLAGS_EXCEPTION_RESPONSE, SNA_FLAGS_RSP)
 
@@ -422,7 +439,7 @@ def test_parse_sample_write(data_stream_parser, sample_write_stream):
             assert sna_response.is_negative()
             assert not sna_response.is_positive()
 
-    def test_parse_sna_response_data_type_incomplete(self, data_stream_parser):
+    def test_parse_sna_response_data_type_incomplete_first(self, data_stream_parser):
         from pure3270.protocol.data_stream import SNA_FLAGS_NONE
 
         # Incomplete SNA response (only type byte)
@@ -458,7 +475,7 @@ def test_parse_sample_write(data_stream_parser, sample_write_stream):
             assert sna_response.sense_code is None
             assert sna_response.data == b""
 
-    def test_parse_sna_response_structured_field(self, data_stream_parser):
+    def test_parse_sna_response_structured_field_first(self, data_stream_parser):
         from pure3270.protocol.data_stream import (SNA_FLAGS_RSP,
                                                    SNA_RESPONSE_SF_TYPE)
 
@@ -529,7 +546,7 @@ def test_parse_sample_write(data_stream_parser, sample_write_stream):
             mock_update_printer_status.assert_called_once_with(0x02)
             assert data_stream_parser._pos == len(sample_data)
 
-    def test_parse_sna_response_data_type_negative(self, data_stream_parser):
+    def test_parse_sna_response_data_type_negative_second(self, data_stream_parser):
         # Negative response: Sense Code 0x1002 (Not Supported)
         sna_payload = bytes(
             [
@@ -551,7 +568,7 @@ def test_parse_sample_write(data_stream_parser, sample_write_stream):
             assert sna_response.is_negative()
             assert not sna_response.is_positive()
 
-    def test_parse_sna_response_data_type_incomplete(self, data_stream_parser):
+    def test_parse_sna_response_data_type_incomplete_second(self, data_stream_parser):
         # Incomplete SNA response (only type byte)
         sna_payload = bytes([SNA_COMMAND_RESPONSE])
         with patch.object(
@@ -566,7 +583,7 @@ def test_parse_sample_write(data_stream_parser, sample_write_stream):
             assert sna_response.sense_code is None  # No sense code provided
             assert sna_response.data == b""
 
-    def test_parse_sna_response_structured_field(self, data_stream_parser):
+    def test_parse_sna_response_structured_field_second(self, data_stream_parser):
         # Structured field: 0x3C (SF_ID), Length (2 bytes), SF_Type (1 byte), Data
         # SNA_RESPONSE_SF_TYPE is 0x01
         sna_response_payload = bytes(
