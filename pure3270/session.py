@@ -1146,6 +1146,26 @@ class AsyncSession:
                         results["output"].append(f"SysReq executed: {arg}")
                     else:
                         raise MacroError(f"Invalid SYSREQ syntax: {cmd}")
+                elif cmd.lower().startswith("key "):
+                    # Handle key commands like "key Enter", "key PF3", etc.
+                    key_name = cmd[4:].strip().lower()
+                    aid = self.aid_map.get(key_name)
+                    if aid is not None:
+                        await self.submit(aid)
+                        results["output"].append(f"Key sent: {key_name}")
+                    else:
+                        raise MacroError(f"Unsupported key: {key_name}")
+                elif cmd.lower().startswith("macro "):
+                    # Handle macro calls like "macro sub_macro"
+                    macro_name = cmd[6:].strip()
+                    # Check if it's a stored macro
+                    if macro_name in self._macros:
+                        sub_result = await self.execute_macro(macro_name, vars_)
+                        results["output"].extend(sub_result["output"])
+                        if not sub_result["success"]:
+                            results["success"] = False
+                    else:
+                        raise MacroError(f"Unknown macro: {macro_name}")
                 else:
                     raise MacroError(f"Unknown macro command", context={"command": cmd})
             except asyncio.TimeoutError as e:
@@ -1501,7 +1521,7 @@ class AsyncSession:
                     await self.insert_text(text)
                 elif command.startswith("key "):
                     key_name = command[4:].strip().lower()
-                    aid = AID_MAP.get(key_name)
+                    aid = self.aid_map.get(key_name)
                     if aid is not None:
                         await self.submit(aid)
                     else:
