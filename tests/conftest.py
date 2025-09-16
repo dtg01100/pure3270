@@ -44,6 +44,17 @@ def ebcdic_codec():
 
 
 @pytest.fixture
+def async_session():
+    """Fixture providing an AsyncSession."""
+    session = AsyncSession()
+    # Mock the screen buffer
+    session.screen = Mock(spec=ScreenBuffer)
+    session.screen.buffer = bytearray(b"\x40" * (24 * 80))
+    session.screen.fields = []
+    return session
+
+
+@pytest.fixture
 def screen_buffer():
     mock = Mock(spec=ScreenBuffer, rows=24, cols=80)
     handler = Mock()

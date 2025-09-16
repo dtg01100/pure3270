@@ -78,27 +78,35 @@ class TestScreenBuffer:
         assert screen_buffer.cursor_row == 0
         assert screen_buffer.cursor_col == 0
 
-    def test_set_position_and_get_position(self, screen_buffer):
+    def test_set_position_and_get_position(self):
+        from pure3270.emulation.screen_buffer import ScreenBuffer
+        screen_buffer = ScreenBuffer(rows=24, cols=80)
         screen_buffer.set_position(10, 20)
         assert screen_buffer.get_position() == (10, 20)
 
-    def test_write_char(self, screen_buffer):
+    def test_write_char(self):
+        from pure3270.emulation.screen_buffer import ScreenBuffer
+        screen_buffer = ScreenBuffer(rows=24, cols=80)
         screen_buffer.write_char(0xC1, 0, 0, protected=True)
         pos = 0
         assert screen_buffer.buffer[pos] == 0xC1
         attr_offset = pos * 3
         assert screen_buffer.attributes[attr_offset] & 0x40  # protected bit (bit 6)
 
-    def test_write_char_out_of_bounds(self, screen_buffer):
+    def test_write_char_out_of_bounds(self):
+        from pure3270.emulation.screen_buffer import ScreenBuffer
+        screen_buffer = ScreenBuffer(rows=24, cols=80)
         screen_buffer.write_char(0xC1, 25, 81)  # out of bounds
         assert (
             screen_buffer.buffer[0] == 0x40
         )  # no change (buffer initialized with spaces)
 
     @patch("pure3270.emulation.screen_buffer.EBCDICCodec")
-    def test_to_text(self, mock_codec, screen_buffer):
+    def test_to_text(self, mock_codec):
+        from pure3270.emulation.screen_buffer import ScreenBuffer
+        screen_buffer = ScreenBuffer(rows=24, cols=80)
         mock_codec.return_value.decode.return_value = ("Test Line", 9)
-        screen_buffer.buffer = bytearray([0xC1] * 80)  # A repeated
+        screen_buffer.buffer[:80] = bytearray([0xC1] * 80)  # A repeated
         with patch.object(
             mock_codec.return_value, "decode", return_value=("A" * 80, 80)
         ):
@@ -107,7 +115,9 @@ class TestScreenBuffer:
             assert len(lines) == 24
             assert lines[0] == "A" * 80
 
-    def test_update_from_stream(self, screen_buffer):
+    def test_update_from_stream(self):
+        from pure3270.emulation.screen_buffer import ScreenBuffer
+        screen_buffer = ScreenBuffer(rows=24, cols=80)
         sample_stream = b"\xc1\xc2\xc3" * 10  # Sample EBCDIC
         with patch.object(screen_buffer, "_detect_fields"):
             screen_buffer.update_from_stream(sample_stream)
@@ -115,14 +125,18 @@ class TestScreenBuffer:
         for i in range(30):
             assert screen_buffer.buffer[pos + i] == sample_stream[i % 3]
 
-    def test_get_field_content(self, screen_buffer):
+    def test_get_field_content(self):
+        from pure3270.emulation.screen_buffer import ScreenBuffer, Field
+        screen_buffer = ScreenBuffer(rows=24, cols=80)
         screen_buffer.fields = [Field((0, 0), (0, 3), content=b"\xc1\xc2\xc3")]
         with patch("pure3270.emulation.screen_buffer.EBCDICCodec") as mock_codec:
             mock_codec.return_value.decode.return_value = ("ABC", 3)
             assert screen_buffer.get_field_content(0) == "ABC"
         assert screen_buffer.get_field_content(1) == ""  # out of range
 
-    def test_read_modified_fields(self, screen_buffer):
+    def test_read_modified_fields(self):
+        from pure3270.emulation.screen_buffer import ScreenBuffer, Field
+        screen_buffer = ScreenBuffer(rows=24, cols=80)
         field1 = Field((0, 0), (0, 3), modified=True)
         field2 = Field((1, 0), (1, 3), modified=False)
         screen_buffer.fields = [field1, field2]
@@ -134,7 +148,9 @@ class TestScreenBuffer:
             assert modified[0][0] == (0, 0)
             assert modified[0][1] == "MOD"
 
-    def test_repr(self, screen_buffer):
+    def test_repr(self):
+        from pure3270.emulation.screen_buffer import ScreenBuffer
+        screen_buffer = ScreenBuffer(rows=24, cols=80)
         screen_buffer.fields = []  # Ensure empty
         assert repr(screen_buffer) == "ScreenBuffer(24x80, fields=0)"
 

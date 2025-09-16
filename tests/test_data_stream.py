@@ -162,10 +162,10 @@ class TestDataStreamParser:
         # Assuming PT is 0x0E
         sample_data = b"\x0E"
         with patch.object(
-            data_stream_parser.screen, "move_cursor_to_next_input_field"
-        ) as mock_move:
+            data_stream_parser.screen, "program_tab"
+        ) as mock_program_tab:
             data_stream_parser.parse(sample_data)
-            mock_move.assert_called_once()
+            mock_program_tab.assert_called_once()
 
     def test_parse_scs_data_type(self, data_stream_parser):
         sample_data = b"Some SCS data"
