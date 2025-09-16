@@ -12,6 +12,7 @@ import os
 import platform
 import resource
 import sys
+import pytest
 
 # Add the current directory to the path so we can import pure3270
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
@@ -45,6 +46,7 @@ def set_memory_limit(max_memory_mb: int):
 set_memory_limit(500)
 
 
+@pytest.mark.asyncio
 async def test_mock_server_connectivity():
     """Test mock server connectivity."""
     print("1. Testing mock server connectivity...")
@@ -63,6 +65,7 @@ async def test_mock_server_connectivity():
         return False
 
 
+@pytest.mark.asyncio
 async def test_p3270_patching():
     """Test p3270 patching functionality."""
     print("2. Testing p3270 patching...")
@@ -138,6 +141,7 @@ def test_navigation_methods():
         return False
 
 
+@pytest.mark.asyncio
 async def test_basic_functionality():
     """Test basic functionality."""
     print("4. Testing basic functionality...")

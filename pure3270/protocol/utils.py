@@ -92,6 +92,22 @@ SNA_RESPONSE = 0x09  # New SNA Response Data Type
 SNA_RESPONSE_DATA_TYPE = 0x09  # SNA Response Data Type
 PRINTER_STATUS_DATA_TYPE = 0x0A  # New data type for Printer Status (TN3270E)
 
+# TN3270E Data Types tuple for validation
+TN3270E_DATA_TYPES = (
+    TN3270_DATA,
+    TN3270E_DATA,
+    SCS_DATA,
+    RESPONSE,
+    BIND_IMAGE,
+    UNBIND,
+    NVT_DATA,
+    REQUEST,
+    SSCP_LU_DATA,
+    PRINT_EOJ,
+    SNA_RESPONSE,
+    PRINTER_STATUS_DATA_TYPE,
+)
+
 # TN3270E Subnegotiation Message Types
 TN3270E_DEVICE_TYPE = 0x00
 TN3270E_FUNCTIONS = 0x01

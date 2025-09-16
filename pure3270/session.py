@@ -645,7 +645,13 @@ class Session:
     @property
     def connected(self) -> bool:
         """Check if session is connected."""
-        return self._async_session.connected if self._async_session else False
+        return self._async_session._connected if self._async_session else False
+
+    @connected.setter
+    def connected(self, value: bool) -> None:
+        """Set the connected state."""
+        if self._async_session:
+            self._async_session._connected = value
 
     @property
     def sna_session_state(self) -> str:
@@ -680,7 +686,7 @@ class AsyncSession:
             ValueError: If host or port is invalid.
         """
         self.handler = None
-        self.connected = False
+        self._connected = False
         self.host = host
         self.port = port
         self.ssl_context = ssl_context
@@ -805,7 +811,7 @@ class AsyncSession:
                 self._lu_name = self._handler.lu_name
                 self.screen_buffer.rows = self._handler.screen_rows
                 self.screen_buffer.cols = self._handler.screen_cols
-                self.connected = True
+                self._connected = True
             except NegotiationError as e:
                 logger.warning(
                     f"TN3270 negotiation failed, falling back to ASCII mode: {e}"
@@ -828,9 +834,9 @@ class AsyncSession:
                     logger.info(
                         "Session switched to ASCII/VT100 mode (s3270 compatibility)"
                     )
-                    self.connected = True
+                    self._connected = True
                 else:
-                    self.connected = False
+                    self._connected = False
                     self._handler = None
 
         await self._retry_operation(_perform_connect)
@@ -845,7 +851,7 @@ class AsyncSession:
         Raises:
             SessionError: If send fails.
         """
-        if not self.connected or self._handler is None:
+        if not self._connected or self._handler is None:
             raise NotConnectedError("Session not connected.")
 
         if not self._connected or not self._handler:
@@ -869,7 +875,7 @@ class AsyncSession:
         Raises:
             asyncio.TimeoutError: If timeout exceeded.
         """
-        if not self.connected or self._handler is None:
+        if not self._connected or self._handler is None:
             raise NotConnectedError("Session not connected.")
 
         if not self._connected or not self._handler:

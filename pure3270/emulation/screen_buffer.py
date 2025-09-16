@@ -178,7 +178,7 @@ class ScreenBuffer(BufferWriter):
     def clear(self):
         """Clear the screen buffer and reset fields."""
         self.buffer = bytearray(b"\x40" * self.size)
-        self.attributes.fill(0x00)
+        self.attributes = bytearray([0] * len(self.attributes))
         self._extended_attributes.clear()
         self.fields = []
         self._detect_fields()

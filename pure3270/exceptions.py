@@ -110,3 +110,9 @@ class NotConnectedError(Pure3270Error):
     """Error raised when operation is attempted on a not connected session."""
 
     pass
+
+
+class EnhancedSessionError(Pure3270Error):
+    """Enhanced session error with session-specific context."""
+
+    pass
