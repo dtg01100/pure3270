@@ -150,8 +150,7 @@ class MonkeyPatchManager:
                 # Patch the S3270 class at module level
                 original = getattr(p3270, "S3270", None)
                 self._store_original("p3270.S3270", original)
-                from pure3270.patching.s3270_wrapper import \
-                    Pure3270S3270Wrapper
+                from pure3270.patching.s3270_wrapper import Pure3270S3270Wrapper
 
                 setattr(p3270, "S3270", Pure3270S3270Wrapper)
                 logger.info("Patched Session")

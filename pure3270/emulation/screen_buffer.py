@@ -223,7 +223,9 @@ class ScreenBuffer(BufferWriter):
             attr_offset = pos * 3
             # Check that attr_offset is within bounds of attributes array
             if attr_offset + 2 < len(self.attributes):
-                is_protected = bool(self.attributes[attr_offset] & 0x40)  # Bit 6: protected
+                is_protected = bool(
+                    self.attributes[attr_offset] & 0x40
+                )  # Bit 6: protected
                 if is_protected and not circumvent_protection:
                     return  # Skip writing to protected field
                 self.buffer[pos] = ebcdic_byte
@@ -257,7 +259,7 @@ class ScreenBuffer(BufferWriter):
                 # Recalculate the field content from the buffer to ensure consistency
                 start_idx = start_row * self.cols + start_col
                 end_idx = end_row * self.cols + end_col
-                new_content = bytes(self.buffer[start_idx:end_idx + 1])
+                new_content = bytes(self.buffer[start_idx : end_idx + 1])
                 new_field = field._replace(content=new_content, modified=True)
                 self.fields[idx] = new_field
                 break
@@ -350,13 +352,17 @@ class ScreenBuffer(BufferWriter):
         end_row, end_col = self._calculate_coords(end_idx)
 
         # Extract field content
-        content = bytes(self.buffer[start_idx:end_idx + 1])
+        content = bytes(self.buffer[start_idx : end_idx + 1])
 
         # Get field attributes from the start position
         attr_offset = start_idx * 3
         if attr_offset < len(self.attributes):
             protected = bool(self.attributes[attr_offset] & 0x40)
-            intensity = self.attributes[attr_offset + 1] if attr_offset + 1 < len(self.attributes) else 0
+            intensity = (
+                self.attributes[attr_offset + 1]
+                if attr_offset + 1 < len(self.attributes)
+                else 0
+            )
         else:
             protected = False
             intensity = 0

@@ -10,11 +10,14 @@ from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Optional, Union
 
 from pure3270.patching import enable_replacement
-from pure3270.protocol.utils import (TN3270E_SYSREQ_ATTN, TN3270E_SYSREQ_BREAK,
-                                     TN3270E_SYSREQ_CANCEL,
-                                     TN3270E_SYSREQ_LOGOFF,
-                                     TN3270E_SYSREQ_PRINT,
-                                     TN3270E_SYSREQ_RESTART)
+from pure3270.protocol.utils import (
+    TN3270E_SYSREQ_ATTN,
+    TN3270E_SYSREQ_BREAK,
+    TN3270E_SYSREQ_CANCEL,
+    TN3270E_SYSREQ_LOGOFF,
+    TN3270E_SYSREQ_PRINT,
+    TN3270E_SYSREQ_RESTART,
+)
 
 from .emulation.buffer_writer import BufferWriter
 from .emulation.screen_buffer import ScreenBuffer
@@ -85,7 +88,7 @@ class Session:
             # We're in an async context - this is problematic for sync methods
             # For now, let's avoid the issue by not running async operations in async contexts
             # The session should be connected before being used in async tests
-            if hasattr(coro, '__await__'):
+            if hasattr(coro, "__await__"):
                 # Don't run async operations when already in async context
                 return None
             else:
@@ -800,7 +803,9 @@ class AsyncSession:
             SessionError: If send fails.
         """
         if not self.connected or self._handler is None:
-            raise SessionError("Session not connected for send operation.", {"operation": "send"})
+            raise SessionError(
+                "Session not connected for send operation.", {"operation": "send"}
+            )
 
         async def _perform_send():
             await self._handler.send_data(data)
@@ -2525,7 +2530,9 @@ class AsyncSession:
                             self.screen_buffer.attributes[attr_offset] = value
             # Add more as needed
 
-    async def _retry_operation(self, operation, max_retries: int = 3, delay: float = 1.0):
+    async def _retry_operation(
+        self, operation, max_retries: int = 3, delay: float = 1.0
+    ):
         """Retry an async operation with exponential backoff."""
         import asyncio
 
@@ -2535,4 +2542,4 @@ class AsyncSession:
             except Exception as e:
                 if attempt == max_retries - 1:
                     raise e
-                await asyncio.sleep(delay * (2 ** attempt))
+                await asyncio.sleep(delay * (2**attempt))

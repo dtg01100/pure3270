@@ -10,32 +10,61 @@ from typing import TYPE_CHECKING, List, Optional
 
 from ..emulation.screen_buffer import ScreenBuffer
 from .data_stream import (  # Import SnaResponse and BindImage
-    SNA_SENSE_CODE_INVALID_FORMAT, SNA_SENSE_CODE_INVALID_REQUEST,
-    SNA_SENSE_CODE_INVALID_SEQUENCE, SNA_SENSE_CODE_LU_BUSY,
-    SNA_SENSE_CODE_NO_RESOURCES, SNA_SENSE_CODE_NOT_SUPPORTED,
-    SNA_SENSE_CODE_SESSION_FAILURE, SNA_SENSE_CODE_STATE_ERROR,
-    SNA_SENSE_CODE_SUCCESS, BindImage, DataStreamParser, SnaResponse)
-from .errors import (handle_drain, raise_negotiation_error,
-                     raise_protocol_error, safe_socket_operation)
+    SNA_SENSE_CODE_INVALID_FORMAT,
+    SNA_SENSE_CODE_INVALID_REQUEST,
+    SNA_SENSE_CODE_INVALID_SEQUENCE,
+    SNA_SENSE_CODE_LU_BUSY,
+    SNA_SENSE_CODE_NO_RESOURCES,
+    SNA_SENSE_CODE_NOT_SUPPORTED,
+    SNA_SENSE_CODE_SESSION_FAILURE,
+    SNA_SENSE_CODE_STATE_ERROR,
+    SNA_SENSE_CODE_SUCCESS,
+    BindImage,
+    DataStreamParser,
+    SnaResponse,
+)
+from .errors import (
+    handle_drain,
+    raise_negotiation_error,
+    raise_protocol_error,
+    safe_socket_operation,
+)
 from .exceptions import NegotiationError, ParseError, ProtocolError
 from .utils import SNA_RESPONSE  # Import SNA_RESPONSE
 from .utils import TELOPT_BIND_UNIT  # TELOPT 48
-from .utils import (DO, DONT, QUERY_REPLY_CHARACTERISTICS, TELOPT_BINARY,
-                    TELOPT_EOR)
-from .utils import \
-    TELOPT_OLD_ENVIRON as \
-    TELOPT_TERMINAL_LOCATION  # Alias for RFC 1646 (TELOPT 36)
-from .utils import (TELOPT_TN3270E, TELOPT_TTYPE, TN3270E_BIND_IMAGE,
-                    TN3270E_DATA_STREAM_CTL, TN3270E_DEVICE_TYPE,
-                    TN3270E_FUNCTIONS, TN3270E_IBM_DYNAMIC, TN3270E_IS,
-                    TN3270E_REQUEST, TN3270E_RESPONSES,
-                    TN3270E_RSF_ERROR_RESPONSE, TN3270E_RSF_NEGATIVE_RESPONSE,
-                    TN3270E_RSF_POSITIVE_RESPONSE, TN3270E_SCS_CTL_CODES,
-                    TN3270E_SEND, TN3270E_SYSREQ, TN3270E_SYSREQ_ATTN,
-                    TN3270E_SYSREQ_BREAK, TN3270E_SYSREQ_CANCEL,
-                    TN3270E_SYSREQ_LOGOFF, TN3270E_SYSREQ_MESSAGE_TYPE,
-                    TN3270E_SYSREQ_PRINT, TN3270E_SYSREQ_RESTART, WILL, WONT,
-                    send_iac, send_subnegotiation)
+from .utils import DO, DONT, QUERY_REPLY_CHARACTERISTICS, TELOPT_BINARY, TELOPT_EOR
+from .utils import (
+    TELOPT_OLD_ENVIRON as TELOPT_TERMINAL_LOCATION,
+)  # Alias for RFC 1646 (TELOPT 36)
+from .utils import (
+    TELOPT_TN3270E,
+    TELOPT_TTYPE,
+    TN3270E_BIND_IMAGE,
+    TN3270E_DATA_STREAM_CTL,
+    TN3270E_DEVICE_TYPE,
+    TN3270E_FUNCTIONS,
+    TN3270E_IBM_DYNAMIC,
+    TN3270E_IS,
+    TN3270E_REQUEST,
+    TN3270E_RESPONSES,
+    TN3270E_RSF_ERROR_RESPONSE,
+    TN3270E_RSF_NEGATIVE_RESPONSE,
+    TN3270E_RSF_POSITIVE_RESPONSE,
+    TN3270E_SCS_CTL_CODES,
+    TN3270E_SEND,
+    TN3270E_SYSREQ,
+    TN3270E_SYSREQ_ATTN,
+    TN3270E_SYSREQ_BREAK,
+    TN3270E_SYSREQ_CANCEL,
+    TN3270E_SYSREQ_LOGOFF,
+    TN3270E_SYSREQ_MESSAGE_TYPE,
+    TN3270E_SYSREQ_PRINT,
+    TN3270E_SYSREQ_RESTART,
+    WILL,
+    WONT,
+    send_iac,
+    send_subnegotiation,
+)
 
 if TYPE_CHECKING:
     from .tn3270_handler import TN3270Handler
@@ -43,11 +72,22 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 from .tn3270e_header import TN3270EHeader
-from .utils import (BIND_IMAGE, NVT_DATA, PRINT_EOJ, REQUEST, RESPONSE,
-                    SCS_DATA, SSCP_LU_DATA, TN3270_DATA,
-                    TN3270E_RSF_ALWAYS_RESPONSE, TN3270E_RSF_ERROR_RESPONSE,
-                    TN3270E_RSF_NEGATIVE_RESPONSE, TN3270E_RSF_NO_RESPONSE,
-                    TN3270E_RSF_POSITIVE_RESPONSE, UNBIND)
+from .utils import (
+    BIND_IMAGE,
+    NVT_DATA,
+    PRINT_EOJ,
+    REQUEST,
+    RESPONSE,
+    SCS_DATA,
+    SSCP_LU_DATA,
+    TN3270_DATA,
+    TN3270E_RSF_ALWAYS_RESPONSE,
+    TN3270E_RSF_ERROR_RESPONSE,
+    TN3270E_RSF_NEGATIVE_RESPONSE,
+    TN3270E_RSF_NO_RESPONSE,
+    TN3270E_RSF_POSITIVE_RESPONSE,
+    UNBIND,
+)
 
 
 class SnaSessionState(Enum):
@@ -131,7 +171,9 @@ class Negotiator:
         )  # To store pending requests for response correlation
         self._device_type_is_event = asyncio.Event()
         self._functions_is_event = asyncio.Event()
-        self._negotiation_complete = asyncio.Event()  # Event for full negotiation completion
+        self._negotiation_complete = (
+            asyncio.Event()
+        )  # Event for full negotiation completion
         self._query_sf_response_event = (
             asyncio.Event()
         )  # New event for Query SF response
@@ -321,10 +363,12 @@ class Negotiator:
                     # Stub for SNA response handling in printer session
                     if self.parser:
                         # Simulate a positive SNA response for BIND in printer session
-                        from .data_stream import (SNA_COMMAND_RESPONSE,
-                                                  SNA_FLAGS_RSP,
-                                                  SNA_SENSE_CODE_SUCCESS,
-                                                  SnaResponse)
+                        from .data_stream import (
+                            SNA_COMMAND_RESPONSE,
+                            SNA_FLAGS_RSP,
+                            SNA_SENSE_CODE_SUCCESS,
+                            SnaResponse,
+                        )
 
                         sna_response = SnaResponse(
                             SNA_COMMAND_RESPONSE, SNA_FLAGS_RSP, SNA_SENSE_CODE_SUCCESS
@@ -593,7 +637,7 @@ class Negotiator:
         if option == TELOPT_TN3270E:
             result = self._parse_tn3270e_subnegotiation(data)
             # If the result is awaitable, await it
-            if result is not None and hasattr(result, '__await__'):
+            if result is not None and hasattr(result, "__await__"):
                 await result
         elif option == TELOPT_TERMINAL_LOCATION:
             await self._handle_terminal_location_subnegotiation(data)
@@ -961,7 +1005,7 @@ class Negotiator:
 
                 logger.info(f"Server enabled functions: 0x{function_bits:02x}")
                 self.negotiated_functions = function_bits
-                
+
                 # Log specific functions
                 if function_bits & TN3270E_BIND_IMAGE:
                     logger.debug("BIND-IMAGE function enabled")

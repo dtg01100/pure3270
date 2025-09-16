@@ -17,11 +17,20 @@ from .errors import handle_drain, raise_protocol_error, safe_socket_operation
 from .exceptions import NegotiationError, ParseError, ProtocolError
 from .negotiator import Negotiator
 from .tn3270e_header import TN3270EHeader
-from .utils import (TELOPT_TN3270E, TN3270_DATA, TN3270E_SYSREQ,
-                    TN3270E_SYSREQ_ATTN, TN3270E_SYSREQ_BREAK,
-                    TN3270E_SYSREQ_CANCEL, TN3270E_SYSREQ_LOGOFF,
-                    TN3270E_SYSREQ_MESSAGE_TYPE, TN3270E_SYSREQ_PRINT,
-                    TN3270E_SYSREQ_RESTART, send_iac, send_subnegotiation)
+from .utils import (
+    TELOPT_TN3270E,
+    TN3270_DATA,
+    TN3270E_SYSREQ,
+    TN3270E_SYSREQ_ATTN,
+    TN3270E_SYSREQ_BREAK,
+    TN3270E_SYSREQ_CANCEL,
+    TN3270E_SYSREQ_LOGOFF,
+    TN3270E_SYSREQ_MESSAGE_TYPE,
+    TN3270E_SYSREQ_PRINT,
+    TN3270E_SYSREQ_RESTART,
+    send_iac,
+    send_subnegotiation,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -371,7 +380,11 @@ class TN3270Handler:
                     except Exception as e:
                         logger.debug(f"Reader task exception during cancellation: {e}")
                         # Check for exception and propagate if present, but not for normal cancellation
-                        if reader_task.done() and not reader_task.cancelled() and reader_task.exception():
+                        if (
+                            reader_task.done()
+                            and not reader_task.cancelled()
+                            and reader_task.exception()
+                        ):
                             logger.error("Propagating exception from reader task")
                             raise reader_task.exception()
 
@@ -524,10 +537,18 @@ class TN3270Handler:
                 # matches a known TN3270E data type. This avoids mis-parsing ASCII
                 # VT100 streams (which can start with ESC '[') as binary headers.
                 if tn3270e_header:
-                    from .utils import (BIND_IMAGE, NVT_DATA, PRINT_EOJ,
-                                        PRINTER_STATUS_DATA_TYPE, REQUEST,
-                                        SCS_DATA, SNA_RESPONSE, SSCP_LU_DATA,
-                                        TN3270_DATA, UNBIND)
+                    from .utils import (
+                        BIND_IMAGE,
+                        NVT_DATA,
+                        PRINT_EOJ,
+                        PRINTER_STATUS_DATA_TYPE,
+                        REQUEST,
+                        SCS_DATA,
+                        SNA_RESPONSE,
+                        SSCP_LU_DATA,
+                        TN3270_DATA,
+                        UNBIND,
+                    )
 
                     valid_types = {
                         TN3270_DATA,
