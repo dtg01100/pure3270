@@ -549,8 +549,12 @@ class DataStreamParser:
         addr_high = self._read_byte()
         addr_low = self._read_byte()
         address = (addr_high << 8) | addr_low
-        row = ((address >> 8) & 0x3F) << 2 | ((address & 0xFF) & 0xC0) >> 6
-        col = address & 0x3F
+        # 3270 address format: address = row * 80 + col
+        row = address // 80
+        col = address % 80
+        # Clamp to screen bounds
+        row = min(row, self.screen.rows - 1)
+        col = min(col, self.screen.cols - 1)
         self.screen.set_position(row, col)
         self._pos = self.parser._pos
         logger.debug(f"Set buffer address to ({row}, {col})")
@@ -1168,8 +1172,10 @@ class DataStreamSender:
             # SBA to position
             row = pos // cols
             col = pos % cols
-            sba_addr = (row << 6) | col  # Simplified addressing
-            stream.extend([SBA, sba_addr])
+            address = row * cols + col
+            addr_high = (address >> 8) & 0x3F
+            addr_low = address & 0xFF
+            stream.extend([SBA, addr_high, addr_low])
             stream.extend(field_data)
 
         stream.append(EOA)  # End of Area
@@ -1178,10 +1184,9 @@ class DataStreamSender:
     def build_sba(self, row: int, col: int) -> bytes:
         """Build Set Buffer Address command."""
         # SBA + 2-byte address
-        addr_high = (row >> 4) & 0x3F  # High 6 bits of row
-        addr_low = ((row & 0x0F) << 4) | (
-            col & 0x3F
-        )  # Low 4 bits of row + 6 bits of col
+        address = row * 80 + col
+        addr_high = (address >> 8) & 0x3F
+        addr_low = address & 0xFF
         return bytes([SBA, addr_high, addr_low])
 
     def build_scs_ctl_codes(self, code: int) -> bytes:
