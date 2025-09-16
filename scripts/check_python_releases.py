@@ -13,7 +13,6 @@ import re
 # Multiple data sources for Python version information
 PYTHON_DATA_SOURCES = {
     "github_api": "https://api.github.com/repos/python/cpython/tags",
-    "pypi_api": "https://pypi.org/pypi/python-version-info/json", 
     "endoflife": "https://endoflife.date/api/python.json"
 }
 
