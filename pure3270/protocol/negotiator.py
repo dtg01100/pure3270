@@ -541,6 +541,66 @@ class Negotiator:
                     except Exception:
                         pass
 
+    async def _parse_tn3270e_subnegotiation(self, data: bytes) -> None:
+        """
+        Parse TN3270E subnegotiation data and handle DEVICE-TYPE IS and FUNCTIONS IS responses.
+
+        Args:
+            data: The subnegotiation data (option byte + payload).
+        """
+        if len(data) < 2:
+            logger.warning(f"TN3270E subnegotiation too short: {data.hex()}")
+            return
+
+        tn3270e_type = data[0]
+        tn3270e_subtype = data[1]
+        payload = data[2:]
+
+        logger.debug(
+            f"Parsing TN3270E subnegotiation: type=0x{tn3270e_type:02x}, subtype=0x{tn3270e_subtype:02x}, payload={payload.hex()}"
+        )
+
+        if tn3270e_type == TN3270E_DEVICE_TYPE and tn3270e_subtype == TN3270E_IS:
+            # DEVICE-TYPE IS response
+            device_type = payload.rstrip(b'\x00').decode('ascii', errors='ignore')
+            logger.info(f"[NEGOTIATION] Received DEVICE-TYPE IS: {device_type}")
+            self.negotiated_device_type = device_type
+            self._device_type_is_event.set()
+
+        elif tn3270e_type == TN3270E_FUNCTIONS and tn3270e_subtype == TN3270E_IS:
+            # FUNCTIONS IS response
+            functions = payload[0] if payload else 0
+            logger.info(f"[NEGOTIATION] Received FUNCTIONS IS: 0x{functions:02x}")
+            self.negotiated_functions = functions
+            self._functions_is_event.set()
+
+        else:
+            logger.debug(
+                f"Unhandled TN3270E subnegotiation: type=0x{tn3270e_type:02x}, subtype=0x{tn3270e_subtype:02x}"
+            )
+
+    async def handle_subnegotiation(self, option: int, data: bytes) -> None:
+        """
+        Handle general Telnet subnegotiation.
+
+        Args:
+            option: The Telnet option.
+            data: The subnegotiation data.
+        """
+        logger.debug(
+            f"Handling subnegotiation: option=0x{option:02x}, data={data.hex()}"
+        )
+
+        if option == TELOPT_TN3270E:
+            await self._parse_tn3270e_subnegotiation(data)
+        elif option == TELOPT_TTYPE:
+            # Handle TTYPE subnegotiation
+            if len(data) >= 1 and data[0] == 0:  # IS
+                terminal_type = data[1:].rstrip(b'\x00').decode('ascii', errors='ignore')
+                logger.info(f"[NEGOTIATION] Received TTYPE IS: {terminal_type}")
+        else:
+            logger.debug(f"Unhandled subnegotiation option: 0x{option:02x}")
+
     @handle_drain
     async def _send_lu_name_is(self) -> None:
         """

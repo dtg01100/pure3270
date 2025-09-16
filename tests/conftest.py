@@ -74,6 +74,39 @@ def tn3270_handler():
     return handler
 
 
+@pytest.fixture
+async def port():
+    """Get an available port for testing."""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('', 0))
+        s.listen(1)
+        port = s.getsockname()[1]
+    return port
+
+
+@pytest.fixture
+async def mock_server(port):
+    """Create a mock TN3270 server for testing."""
+    from integration_test import TN3270ENegotiatingMockServer
+
+    server = TN3270ENegotiatingMockServer(port=port)
+    server.rows = 24
+    server.cols = 80
+    server.bind_image_sent = asyncio.Event()
+
+    # Start server properly
+    await server.start()
+
+    yield server
+
+    # Cleanup
+    try:
+        await server.stop()
+    except Exception:
+        pass
+
+
 @pytest.fixture(autouse=True)
 def suppress_logging():
     logger = logging.getLogger()

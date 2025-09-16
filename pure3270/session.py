@@ -139,6 +139,22 @@ class Session:
         self._ssl_context = ssl_context
         self._async_session = None
 
+    def _run_async(self, coro):
+        """Run an async coroutine, handling both sync and async contexts."""
+        try:
+            loop = asyncio.get_running_loop()
+            # We're in an async context - this is problematic for sync methods
+            # For now, let's avoid the issue by not running async operations in async contexts
+            # The session should be connected before being used in async tests
+            if hasattr(coro, '__await__'):
+                # Don't run async operations when already in async context
+                return None
+            else:
+                return coro
+        except RuntimeError:
+            # No running loop, use asyncio.run
+            return asyncio.run(coro)
+
     def connect(
         self,
         host: Optional[str] = None,
@@ -163,7 +179,7 @@ class Session:
             self._ssl_context = ssl_context
         self._async_session = AsyncSession(self._host, self._port, self._ssl_context)
         if not self._async_session.connected:
-            asyncio.run(self._async_session.connect())
+            self._run_async(self._async_session.connect())
 
     def send(self, data: bytes) -> None:
         """

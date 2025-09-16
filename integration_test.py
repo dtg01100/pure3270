@@ -2,6 +2,7 @@
 
 import platform
 import resource
+import pytest
 
 
 def set_memory_limit(max_memory_mb: int):
@@ -220,6 +221,7 @@ class MockServer:
 
 
 # Minimal helper used by simple_mock_test.py — keep lightweight and non-invasive
+@pytest.mark.asyncio
 async def test_with_mock_server():
     """
     Simple helper to start then stop the basic MockServer.
@@ -243,6 +245,54 @@ async def test_with_mock_server():
         server_task.cancel()
 
 
+class BindImageMockServer(MockServer):
+    """
+    Simple mock server for testing BIND-IMAGE functionality.
+    """
+
+    def __init__(self, port=0):
+        super().__init__(port)
+        self.rows = 24
+        self.cols = 80
+
+    async def start(self):
+        """Start the mock server."""
+        try:
+            self.server = await asyncio.start_server(
+                self.handle_client, "localhost", self.port
+            )
+            socket = self.server.sockets[0]
+            self.port = socket.getsockname()[1]
+            print(f"BindImageMockServer listening on port {self.port}")
+            await self.server.serve_forever()
+        except Exception as e:
+            print(f"Failed to start BindImageMockServer: {e}")
+            return False
+
+    async def stop(self):
+        """Stop the mock server."""
+        if self.server:
+            self.server.close()
+            await self.server.wait_closed()
+            print(f"BindImageMockServer on port {self.port} stopped.")
+
+    async def handle_client(self, reader, writer):
+        """Handle a client connection with basic echo."""
+        try:
+            while True:
+                data = await reader.read(1024)
+                if not data:
+                    break
+                # Echo back for basic testing
+                writer.write(data)
+                await writer.drain()
+        except Exception:
+            pass
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+
 class TN3270ENegotiatingMockServer(MockServer):
     """
     A mock TN3270 server that simulates TN3270E negotiation.
@@ -253,6 +303,9 @@ class TN3270ENegotiatingMockServer(MockServer):
         self.negotiation_complete = asyncio.Event()
         self._negotiated_device_type = False
         self._negotiated_functions = False
+        self.rows = 24
+        self.cols = 80
+        self.bind_image_sent = asyncio.Event()
 
     def _maybe_set_negotiation_complete(self):
         if self._negotiated_device_type and self._negotiated_functions:
@@ -1601,6 +1654,7 @@ class SNAAwareMockServer(TN3270ENegotiatingMockServer):
             print(f"[MOCK SERVER DEBUG] SNAAware: Client connection closed.")
 
 
+@pytest.mark.asyncio
 async def test_sna_response_handling(port, mock_server):
     """
     Test that pure3270 correctly handles various SNA response types
@@ -1751,6 +1805,7 @@ async def test_sna_response_handling(port, mock_server):
 
 
 # Main entry point for running all integration tests
+@pytest.mark.asyncio
 async def test_macro_integration(port, mock_server):
     """
     Test macro execution with mock server.
@@ -1824,6 +1879,7 @@ IF connected: SENDKEYS(ok) ELSE: FAIL(not connected)
             await session.close()
 
 
+@pytest.mark.asyncio
 async def test_printer_status(port, mock_server):
     """
     Test printer status handling with mock server sending SOH and Structured Fields.
