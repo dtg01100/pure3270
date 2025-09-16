@@ -114,6 +114,8 @@ class Negotiator:
         screen_buffer: ScreenBuffer,
         handler: Optional["TN3270Handler"] = None,
         is_printer_session: bool = False,
+        force_mode: Optional[str] = None,
+        allow_fallback: bool = True,
     ):
         """
         Initialize the Negotiator.
@@ -135,6 +137,13 @@ class Negotiator:
         self.handler = handler
         self._ascii_mode = False
         logger.debug(f"Negotiator._ascii_mode initialized to {self._ascii_mode}")
+        # Mode negotiation / override controls
+        self.force_mode = (force_mode or None) if force_mode else None
+        if self.force_mode not in (None, "ascii", "tn3270", "tn3270e"):
+            raise ValueError(
+                "force_mode must be one of None, 'ascii', 'tn3270', 'tn3270e'"
+            )
+        self.allow_fallback = allow_fallback
         self.negotiated_tn3270e = False
         self._lu_name: Optional[str] = None
         self.screen_rows = 24
@@ -180,6 +189,39 @@ class Negotiator:
         self._printer_status_event = (
             asyncio.Event()
         )  # New event for printer status updates
+        # Internal flag to signal forced failure (e.g., server refusal when fallback disabled)
+        self._forced_failure: bool = False
+        # Buffer to accumulate negotiation bytes when inference is needed (e.g., tests)
+        self._negotiation_trace: bytes | None = None
+
+    # ------------------------------------------------------------------
+    # Inference / compatibility helpers
+    # ------------------------------------------------------------------
+    def infer_tn3270e_from_trace(self, trace: bytes) -> bool:
+        """Infer TN3270E negotiation success from raw Telnet negotiation bytes.
+
+        This mirrors the temporary heuristic previously implemented in the
+        handler. We keep it here so that test fixtures can rely on a single
+        canonical implementation and the handler stays slim.
+
+        Rules:
+          1. If IAC WONT TN3270E (FF FC 24) appears => failure (False).
+          2. Else if IAC WILL EOR (FF FB 19) appears => success (True).
+          3. Otherwise => False.
+
+        The heuristic is intentionally conservative; explicit refusal always
+        wins over implied success.
+        """
+        if not trace:
+            return False
+        try:
+            if b"\xff\xfc\x24" in trace:
+                return False
+            if b"\xff\xfb\x19" in trace:
+                return True
+        except Exception:
+            pass
+        return False
 
     def _maybe_schedule_coro(self, coro) -> None:
         """
@@ -323,6 +365,34 @@ class Negotiator:
         Raises:
             NegotiationError: On subnegotiation failure or timeout.
         """
+        # Short-circuit for forced modes that do not require TN3270E negotiation
+        if self.force_mode == "ascii":
+            logger.info(
+                "[NEGOTIATION] force_mode=ascii specified; skipping TN3270E negotiation and enabling ASCII mode."
+            )
+            self.set_ascii_mode()
+            self.negotiated_tn3270e = False
+            for ev in (
+                self._device_type_is_event,
+                self._functions_is_event,
+                self._negotiation_complete,
+            ):
+                ev.set()
+            return
+        if self.force_mode == "tn3270":
+            logger.info(
+                "[NEGOTIATION] force_mode=tn3270 specified; skipping TN3270E negotiation (basic TN3270 only)."
+            )
+            self.negotiated_tn3270e = False
+            # Events set so upstream waits proceed
+            for ev in (
+                self._device_type_is_event,
+                self._functions_is_event,
+                self._negotiation_complete,
+            ):
+                ev.set()
+            return
+
         if self.writer is None:
             raise ProtocolError("Writer is None; cannot negotiate TN3270.")
 
@@ -389,26 +459,69 @@ class Negotiator:
                     logger.info("[NEGOTIATION] TN3270E negotiation successful.")
 
         except asyncio.TimeoutError:
+            if self.force_mode == "tn3270e" and not self.allow_fallback:
+                logger.error(
+                    "[NEGOTIATION] TN3270E negotiation timed out and fallback disabled (force_mode=tn3270e); raising error."
+                )
+                # Ensure events are set so any awaiters unblock
+                for ev in (
+                    self._device_type_is_event,
+                    self._functions_is_event,
+                    self._negotiation_complete,
+                ):
+                    ev.set()
+                raise_negotiation_error(
+                    "TN3270E negotiation timed out (fallback disabled)"
+                )
             logger.warning(
                 "[NEGOTIATION] TN3270E negotiation timed out. Falling back to ASCII/VT100 mode."
             )
-            self.set_ascii_mode()
+            if self.allow_fallback:
+                self.set_ascii_mode()
             self.negotiated_tn3270e = False
-            # Set events to unblock any waiters
-            self._device_type_is_event.set()
-            self._functions_is_event.set()
-            self._negotiation_complete.set()
+            for ev in (
+                self._device_type_is_event,
+                self._functions_is_event,
+                self._negotiation_complete,
+            ):
+                ev.set()
             raise_negotiation_error("TN3270E negotiation timed out")
+        except asyncio.CancelledError:
+            # Treat cancellation as a benign event (e.g. session close) without noisy traceback
+            logger.debug("[NEGOTIATION] TN3270E negotiation task cancelled")
+            # Propagate so upstream logic (e.g. context manager) can respond appropriately
+            raise
         except Exception as e:
+            # If a forced failure has been recorded (e.g., WONT TN3270E with fallback disabled)
+            if (
+                self._forced_failure
+                and self.force_mode == "tn3270e"
+                and not self.allow_fallback
+            ):
+                logger.error(
+                    f"[NEGOTIATION] TN3270E negotiation explicitly refused and fallback disabled: {e}"
+                )
+                for ev in (
+                    self._device_type_is_event,
+                    self._functions_is_event,
+                    self._negotiation_complete,
+                ):
+                    ev.set()
+                raise_negotiation_error(
+                    "TN3270E negotiation refused by host (fallback disabled)", e
+                )
             logger.error(
                 f"[NEGOTIATION] Error during TN3270E negotiation: {e}", exc_info=True
             )
-            self.set_ascii_mode()
+            if self.allow_fallback:
+                self.set_ascii_mode()
             self.negotiated_tn3270e = False
-            # Set events to unblock
-            self._device_type_is_event.set()
-            self._functions_is_event.set()
-            self._negotiation_complete.set()
+            for ev in (
+                self._device_type_is_event,
+                self._functions_is_event,
+                self._negotiation_complete,
+            ):
+                ev.set()
             raise_negotiation_error(f"TN3270E negotiation failed: {e}", e)
 
     def set_ascii_mode(self) -> None:
@@ -568,21 +681,52 @@ class Negotiator:
             # If the remote explicitly refuses TN3270E (or related terminal/location option),
             # immediately fallback so negotiation doesn't hang waiting for TN3270E subnegotiation replies.
             if option in (TELOPT_TN3270E, TELOPT_TERMINAL_LOCATION):
-                logger.info(
-                    f"Remote refused TN3270E/TERMINAL-LOCATION (WONT 0x{option:02x}) -- falling back to ASCII/VT100 mode"
-                )
-                self.set_ascii_mode()
-                self.negotiated_tn3270e = False
-                # Unblock any waiters so negotiation can complete/fallback
-                for ev in (
-                    self._device_type_is_event,
-                    self._functions_is_event,
-                    self._negotiation_complete,
-                ):
-                    try:
-                        ev.set()
-                    except Exception:
-                        pass
+                if self.force_mode == "tn3270e" and not self.allow_fallback:
+                    logger.error(
+                        f"Remote refused TN3270E/TERMINAL-LOCATION (WONT 0x{option:02x}); fallback disabled (force_mode=tn3270e)."
+                    )
+                    self._forced_failure = True
+                    # Unblock waiters so negotiation routine can raise
+                    for ev in (
+                        self._device_type_is_event,
+                        self._functions_is_event,
+                        self._negotiation_complete,
+                    ):
+                        try:
+                            ev.set()
+                        except Exception:
+                            pass
+                elif self.force_mode == "tn3270":
+                    # In forced basic TN3270 mode, ignore refusal of TN3270E without falling back to ASCII.
+                    logger.info(
+                        f"Remote refused TN3270E (WONT 0x{option:02x}); continuing in forced basic TN3270 mode."
+                    )
+                    for ev in (
+                        self._device_type_is_event,
+                        self._functions_is_event,
+                        self._negotiation_complete,
+                    ):
+                        try:
+                            ev.set()
+                        except Exception:
+                            pass
+                else:
+                    logger.info(
+                        f"Remote refused TN3270E/TERMINAL-LOCATION (WONT 0x{option:02x}) -- falling back to ASCII/VT100 mode"
+                    )
+                    if self.allow_fallback:
+                        self.set_ascii_mode()
+                    self.negotiated_tn3270e = False
+                    # Unblock any waiters so negotiation can complete/fallback
+                    for ev in (
+                        self._device_type_is_event,
+                        self._functions_is_event,
+                        self._negotiation_complete,
+                    ):
+                        try:
+                            ev.set()
+                        except Exception:
+                            pass
 
     @handle_drain
     async def _send_lu_name_is(self) -> None:

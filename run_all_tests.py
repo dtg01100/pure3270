@@ -96,7 +96,9 @@ async def main():
 
     tests = [
         ("Quick Smoke Test", f"{venv_activate}timeout 30 python quick_test.py"),
-        ("Integration Test", ". venv/bin/activate && python integration_test.py"),
+        # Use the same conditional venv activation approach for Integration Test to
+        # avoid hard failure when venv/ is not present (will run without venv then)
+        ("Integration Test", f"{venv_activate}python integration_test.py"),
         ("CI Test", f"{venv_activate}timeout 60 python ci_test.py"),
         (
             "Comprehensive Test",

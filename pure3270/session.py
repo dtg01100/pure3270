@@ -64,6 +64,8 @@ class Session:
         host: Optional[str] = None,
         port: int = 23,
         ssl_context: Optional[Any] = None,
+        force_mode: Optional[str] = None,
+        allow_fallback: bool = True,
     ):
         """
         Initialize a synchronous session.
@@ -80,6 +82,8 @@ class Session:
         self._port = port
         self._ssl_context = ssl_context
         self._async_session = None
+        self._force_mode = force_mode
+        self._allow_fallback = allow_fallback
 
     def _run_async(self, coro):
         """Run an async coroutine, handling both sync and async contexts."""
@@ -119,7 +123,13 @@ class Session:
             self._port = port
         if ssl_context is not None:
             self._ssl_context = ssl_context
-        self._async_session = AsyncSession(self._host, self._port, self._ssl_context)
+        self._async_session = AsyncSession(
+            self._host,
+            self._port,
+            self._ssl_context,
+            force_mode=self._force_mode,
+            allow_fallback=self._allow_fallback,
+        )
         if not self._async_session.connected:
             self._run_async(self._async_session.connect())
 
@@ -625,6 +635,8 @@ class AsyncSession:
         host: Optional[str] = None,
         port: int = 23,
         ssl_context: Optional[Any] = None,
+        force_mode: Optional[str] = None,
+        allow_fallback: bool = True,
     ):
         """
         Initialize the async session.
@@ -702,6 +714,8 @@ class AsyncSession:
             logger.warning("Incompatible patching")
             self._patching_enabled = False
         self.logger = logging.getLogger(__name__)
+        self._force_mode = force_mode
+        self._allow_fallback = allow_fallback
 
     async def connect(
         self,
@@ -740,7 +754,11 @@ class AsyncSession:
                     f"Replacing existing handler with object ID: {id(self._handler)}"
                 )
             self._handler = TN3270Handler(
-                self._transport.reader, self._transport.writer, self.screen_buffer
+                self._transport.reader,
+                self._transport.writer,
+                self.screen_buffer,
+                force_mode=self._force_mode,
+                allow_fallback=self._allow_fallback,
             )
             logger.debug(f"New handler created with object ID: {id(self._handler)}")
             # Set the LU name on the handler if configured
@@ -772,6 +790,8 @@ class AsyncSession:
                         self._transport.reader,
                         self._transport.writer,
                         self.screen_buffer,
+                        force_mode=self._force_mode,
+                        allow_fallback=self._allow_fallback,
                     )
                     await self._handler.connect()
                 if self._handler:

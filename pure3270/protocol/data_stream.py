@@ -498,14 +498,21 @@ class DataStreamParser:
 
             logger.debug("Data stream parsing completed successfully")
         except ParseError as e:
-                # Check if this is a critical parse error that should propagate
-                error_msg = str(e)
-                if any(critical in error_msg for critical in ["Incomplete WCC order", "Incomplete AID order", "Incomplete DATA_STREAM_CTL order"]):
-                    # Critical incomplete order errors should propagate
-                    raise
-                else:
-                    logger.warning(f"Parse error during data stream processing: {e}")
-                    # Graceful handling: do not raise, continue parsing if possible
+            # Check if this is a critical parse error that should propagate
+            error_msg = str(e)
+            if any(
+                critical in error_msg
+                for critical in [
+                    "Incomplete WCC order",
+                    "Incomplete AID order",
+                    "Incomplete DATA_STREAM_CTL order",
+                ]
+            ):
+                # Critical incomplete order errors should propagate
+                raise
+            else:
+                logger.warning(f"Parse error during data stream processing: {e}")
+                # Graceful handling: do not raise, continue parsing if possible
         except (MemoryError, KeyboardInterrupt, SystemExit):
             # Critical system errors should propagate immediately
             raise

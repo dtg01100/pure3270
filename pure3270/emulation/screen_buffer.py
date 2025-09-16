@@ -160,7 +160,7 @@ class ScreenBuffer(BufferWriter):
             raise ValueError(f"rows must be positive, got {rows}")
         if cols <= 0:
             raise ValueError(f"cols must be positive, got {cols}")
-        
+
         self.rows = rows
         self.cols = cols
         self.size = rows * cols

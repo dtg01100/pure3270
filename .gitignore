@@ -118,6 +118,8 @@ final_*.py
 advanced_*.py
 ci_cd_*.py
 s3270_*.py
+\n+# Allow specific committed unit tests that validate core negotiation heuristics
+!tests/test_negotiation_inference.py
 VT100_*.md
 CONNECTION_TEST_RESULTS.md
 TESTING_*.md
