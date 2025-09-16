@@ -1278,11 +1278,9 @@ class AsyncSession:
 
     async def close(self) -> None:
         """Close the async session."""
-        if not self.connected:
-            raise NotConnectedError("Session not connected.")
         if self._handler:
             await self._handler.close()
-        self._handler = None
+            self._handler = None
         self.connected = False
 
     async def execute(self, command: str) -> str:

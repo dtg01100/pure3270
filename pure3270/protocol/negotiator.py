@@ -287,9 +287,7 @@ class Negotiator:
         # Clear events before starting negotiation
         self._device_type_is_event.clear()
         self._functions_is_event.clear()
-        self._negotiation_complete = (
-            asyncio.Event()
-        )  # New event for full negotiation completion
+        self._negotiation_complete.clear()
 
         logger.info(
             "[NEGOTIATION] Starting TN3270E negotiation: waiting for server DEVICE-TYPE SEND."
@@ -310,7 +308,7 @@ class Negotiator:
                 logger.debug(
                     f"[NEGOTIATION] Waiting for full TN3270E negotiation with timeout {timeout}s..."
                 )
-                await asyncio.wait_for(self._functions_is_event.wait(), timeout=5.0)
+                await asyncio.wait_for(self._negotiation_complete.wait(), timeout=5.0)
                 logger.info(
                     f"[NEGOTIATION] TN3270E negotiation complete: device={self.negotiated_device_type}, functions=0x{self.negotiated_functions:02x}"
                 )
@@ -542,44 +540,6 @@ class Negotiator:
                     except Exception:
                         pass
 
-    async def _parse_tn3270e_subnegotiation(self, data: bytes) -> None:
-        """
-        Parse TN3270E subnegotiation data and handle DEVICE-TYPE IS and FUNCTIONS IS responses.
-
-        Args:
-            data: The subnegotiation data (option byte + payload).
-        """
-        if len(data) < 2:
-            logger.warning(f"TN3270E subnegotiation too short: {data.hex()}")
-            return
-
-        tn3270e_type = data[0]
-        tn3270e_subtype = data[1]
-        payload = data[2:]
-
-        logger.debug(
-            f"Parsing TN3270E subnegotiation: type=0x{tn3270e_type:02x}, subtype=0x{tn3270e_subtype:02x}, payload={payload.hex()}"
-        )
-
-        if tn3270e_type == TN3270E_DEVICE_TYPE and tn3270e_subtype == TN3270E_IS:
-            # DEVICE-TYPE IS response
-            device_type = payload.rstrip(b'\x00').decode('ascii', errors='ignore')
-            logger.info(f"[NEGOTIATION] Received DEVICE-TYPE IS: {device_type}")
-            self.negotiated_device_type = device_type
-            self._device_type_is_event.set()
-
-        elif tn3270e_type == TN3270E_FUNCTIONS and tn3270e_subtype == TN3270E_IS:
-            # FUNCTIONS IS response
-            functions = payload[0] if payload else 0
-            logger.info(f"[NEGOTIATION] Received FUNCTIONS IS: 0x{functions:02x}")
-            self.negotiated_functions = functions
-            self._functions_is_event.set()
-
-        else:
-            logger.debug(
-                f"Unhandled TN3270E subnegotiation: type=0x{tn3270e_type:02x}, subtype=0x{tn3270e_subtype:02x}"
-            )
-
     @handle_drain
     async def _send_lu_name_is(self) -> None:
         """
@@ -631,7 +591,10 @@ class Negotiator:
         )
 
         if option == TELOPT_TN3270E:
-            await self._parse_tn3270e_subnegotiation(data)
+            result = self._parse_tn3270e_subnegotiation(data)
+            # If the result is awaitable, await it
+            if result is not None and hasattr(result, '__await__'):
+                await result
         elif option == TELOPT_TERMINAL_LOCATION:
             await self._handle_terminal_location_subnegotiation(data)
         elif option == TN3270E_SYSREQ_MESSAGE_TYPE:
@@ -950,16 +913,11 @@ class Negotiator:
                         except Exception:
                             logger.exception("Failed to send QUERY SF for IBM-DYNAMIC")
             self._device_type_is_event.set()
-            # After receiving DEVICE-TYPE IS, immediately send FUNCTIONS SEND (RFC 2355 section 7.2)
-            logger.info(
-                "[RFC 2355] Immediately sending FUNCTIONS SEND after DEVICE-TYPE IS."
+            # NOTE: According to RFC 2355, the server should initiate FUNCTIONS negotiation
+            # The client should wait for the server to send FUNCTIONS SEND, not send it immediately
+            logger.debug(
+                "[RFC 2355] Received DEVICE-TYPE IS. Waiting for server to initiate FUNCTIONS negotiation."
             )
-            try:
-                self._maybe_schedule_coro(self._send_supported_functions())
-            except Exception as e:
-                logger.error(
-                    f"Error scheduling FUNCTIONS SEND after DEVICE-TYPE IS: {e}"
-                )
         elif sub_type == TN3270E_SEND:
             logger.info("Received DEVICE-TYPE SEND, sending supported device types")
             self._send_supported_device_types()

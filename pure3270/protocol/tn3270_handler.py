@@ -297,11 +297,11 @@ class TN3270Handler:
 
         Delegates to negotiator.
         """
-        print(
-            f"[HANDLER DEBUG] Starting Telnet negotiation (TTYPE, BINARY, EOR, TN3270E) on handler {id(self)}"
+        logger.debug(
+            f"Starting Telnet negotiation (TTYPE, BINARY, EOR, TN3270E) on handler {id(self)}"
         )
         await self.negotiator.negotiate()
-        print(f"[HANDLER DEBUG] Telnet negotiation completed on handler {id(self)}")
+        logger.debug(f"Telnet negotiation completed on handler {id(self)}")
 
     async def _reader_loop(self):
         """
@@ -345,7 +345,7 @@ class TN3270Handler:
         Args:
             timeout: Maximum time to wait for negotiation responses.
         """
-        print(f"[HANDLER DEBUG] Starting TN3270E subnegotiation on handler {id(self)}")
+        logger.debug(f"Starting TN3270E subnegotiation on handler {id(self)}")
 
         async def _perform_negotiate():
             reader_task = asyncio.create_task(self._reader_loop())
@@ -377,7 +377,7 @@ class TN3270Handler:
 
         await self._retry_operation(_perform_negotiate)
 
-        print(f"[HANDLER DEBUG] TN3270E subnegotiation completed on handler {id(self)}")
+        logger.debug(f"TN3270E subnegotiation completed on handler {id(self)}")
 
     def set_ascii_mode(self) -> None:
         """
