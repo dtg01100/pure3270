@@ -29,7 +29,9 @@ logger = logging.getLogger(__name__)
 class SessionError(Exception):
     """Base exception for session-related errors."""
 
-    pass
+    def __init__(self, message: str, context: Optional[dict] = None):
+        super().__init__(message)
+        self.context = context or {}
 
 
 class ConnectionError(SessionError):
@@ -798,7 +800,7 @@ class AsyncSession:
             SessionError: If send fails.
         """
         if not self.connected or self._handler is None:
-            raise NotConnectedError("Session not connected.")
+            raise SessionError("Session not connected for send operation.", {"operation": "send"})
 
         async def _perform_send():
             await self._handler.send_data(data)
@@ -819,7 +821,7 @@ class AsyncSession:
             asyncio.TimeoutError: If timeout exceeded.
         """
         if not self.connected or self._handler is None:
-            raise NotConnectedError("Session not connected.")
+            raise SessionError("Session not connected.", {"operation": "read"})
 
         async def _perform_read():
             return await self._handler.receive_data(timeout)

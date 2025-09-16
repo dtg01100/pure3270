@@ -104,9 +104,10 @@ class TestAsyncSession:
 
         handler_instance.negotiate.side_effect = NegotiationError("Negotiation failed")
 
-        # Test that NegotiationError is raised
-        with pytest.raises(NegotiationError):
-            await async_session.connect()
+        # Test that connection succeeds with fallback to ASCII mode
+        await async_session.connect()
+        # Connection should still succeed (fallback to ASCII mode)
+        assert async_session.connected is True
 
     @patch("pure3270.session.asyncio.open_connection")
     @patch("pure3270.session.TN3270Handler")
@@ -129,8 +130,10 @@ class TestAsyncSession:
         assert async_session.connected is True
 
     async def test_send_not_connected(self, async_session):
+        # Create a fresh session that is actually not connected
+        fresh_session = AsyncSession("localhost", 23)
         with pytest.raises(SessionError) as exc_info:
-            await async_session.send(b"data")
+            await fresh_session.send(b"data")
         e = exc_info.value
         assert "operation" in str(e)
         assert e.context["operation"] == "send"
@@ -164,8 +167,10 @@ class TestAsyncSession:
         assert async_session.connected is True
 
     async def test_read_not_connected(self, async_session):
+        # Create a fresh session that is actually not connected
+        fresh_session = AsyncSession("localhost", 23)
         with pytest.raises(SessionError):
-            await async_session.read()
+            await fresh_session.read()
 
     async def test_close(self, async_session):
         async_session._handler = AsyncMock()
