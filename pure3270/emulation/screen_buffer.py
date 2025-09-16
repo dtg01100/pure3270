@@ -156,6 +156,11 @@ class ScreenBuffer(BufferWriter):
         :param cols: Number of columns (default 80).
         :param init_value: Initial value for buffer (default 0x40 for space).
         """
+        if rows <= 0:
+            raise ValueError(f"rows must be positive, got {rows}")
+        if cols <= 0:
+            raise ValueError(f"cols must be positive, got {cols}")
+        
         self.rows = rows
         self.cols = cols
         self.size = rows * cols

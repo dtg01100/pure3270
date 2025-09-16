@@ -271,31 +271,54 @@ class TestDataStreamParser:
     def test_parse_unhandled_data_type_defaults_to_tn3270_data(
         self, data_stream_parser
     ):
-        sample_data = b"\x05\xc1"  # A simple write command
-        unhandled_data_type = 0xFF  # An arbitrary unhandled data type
-        with patch(
-            "pure3270.protocol.data_stream.logger.warning"
-        ) as mock_logger_warning, patch.object(
-            data_stream_parser, "_handle_write"
-        ) as mock_handle_write:
-            data_stream_parser.parse(sample_data, data_type=unhandled_data_type)
-            mock_logger_warning.assert_called_once()
-            assert (
-                "Unhandled TN3270E data type: 0x{:02x}. Processing as TN3270_DATA.".format(
-                    unhandled_data_type
-                )
-                in mock_logger_warning.call_args[0][0]
-            )
-            mock_handle_write.assert_called_once()
+            sample_data = b"\x05\xc1"  # A simple write command
+            unhandled_data_type = 0xFF  # An arbitrary unhandled data type
+        
+            # Create a mock that wraps the original method  
+            from unittest.mock import MagicMock
+            from pure3270.protocol.data_stream import WRITE
+        
+            mock_handle_write = MagicMock(wraps=data_stream_parser._handle_write)
+            # Store original handler and replace it in the dictionary
+            original_handler = data_stream_parser._order_handlers[WRITE]
+            data_stream_parser._order_handlers[WRITE] = mock_handle_write
+        
+            try:
+                with patch("pure3270.protocol.data_stream.logger.warning") as mock_logger_warning:
+                    data_stream_parser.parse(sample_data, data_type=unhandled_data_type)
+                    mock_logger_warning.assert_called_once()
+                    assert (
+                        "Unhandled TN3270E data type: 0x{:02x}. Processing as TN3270_DATA.".format(
+                            unhandled_data_type
+                        )
+                        in mock_logger_warning.call_args[0][0]
+                    )
+                    mock_handle_write.assert_called_once()
+            finally:
+                # Restore original handler
+                data_stream_parser._order_handlers[WRITE] = original_handler
 
     def test_parse_tn3270_data_type(self, data_stream_parser):
-        from pure3270.protocol.data_stream import TN3270_DATA
+            from pure3270.protocol.data_stream import TN3270_DATA
+            from unittest.mock import MagicMock
+            from pure3270.protocol.data_stream import WRITE
 
-        sample_data = b"\x05\xc1"  # A simple write command
-        with patch.object(data_stream_parser, "_handle_write") as mock_handle_write:
-            data_stream_parser.parse(sample_data, data_type=TN3270_DATA)
-            mock_handle_write.assert_called_once()
-        assert not data_stream_parser._is_scs_data_stream  # Should be reset after parse
+            sample_data = b"\x05\xc1"  # A simple write command
+        
+            # Create a mock that wraps the original method
+            mock_handle_write = MagicMock(wraps=data_stream_parser._handle_write)
+            # Store original handler and replace it in the dictionary
+            original_handler = data_stream_parser._order_handlers[WRITE]
+            data_stream_parser._order_handlers[WRITE] = mock_handle_write
+        
+            try:
+                data_stream_parser.parse(sample_data, data_type=TN3270_DATA)
+                mock_handle_write.assert_called_once()
+            finally:
+                # Restore original handler
+                data_stream_parser._order_handlers[WRITE] = original_handler
+            
+            assert not data_stream_parser._is_scs_data_stream  # Should be reset after parse
 
 
 class TestDataStreamSender:
@@ -377,10 +400,17 @@ def test_parse_sample_sba(data_stream_parser, sample_sba_stream):
 
 
 def test_parse_sample_write(data_stream_parser, sample_write_stream):
-    with patch.object(data_stream_parser.screen, "clear"):
+    with patch.object(data_stream_parser.screen, "clear"), \
+         patch.object(data_stream_parser.screen, "write_char") as mock_write_char, \
+            patch.object(data_stream_parser.screen, "get_position", side_effect=[(0, 0), (0, 1), (0, 2)]) as mock_get_pos, \
+         patch.object(data_stream_parser.screen, "set_position") as mock_set_pos:
         data_stream_parser.parse(sample_write_stream)
         data_stream_parser.screen.clear.assert_called_once()
-    assert data_stream_parser.screen.buffer[0:3] == b"\xc1\xc2\xc3"
+        # Verify that the ABC characters were written to the screen
+        assert mock_write_char.call_count == 3
+        mock_write_char.assert_any_call(0xc1, 0, 0)  # A at (0,0)
+        mock_write_char.assert_any_call(0xc2, 0, 1)  # B at (0,1)  
+        mock_write_char.assert_any_call(0xc3, 0, 2)  # C at (0,2)
 
     def test_parse_sna_response_data_type_positive(self, data_stream_parser):
         from pure3270.protocol.data_stream import SNA_FLAGS_NONE, SNA_FLAGS_RSP

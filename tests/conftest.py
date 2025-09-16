@@ -42,6 +42,11 @@ def ebcdic_codec():
     """Fixture providing an EBCDICCodec."""
     return EBCDICCodec()
 
+@pytest.fixture
+def ssl_wrapper():
+     """Fixture providing an SSLWrapper."""
+     return SSLWrapper()
+
 
 @pytest.fixture
 def async_session():
@@ -65,12 +70,75 @@ def screen_buffer():
     type(mock).connected = PropertyMock(return_value=True)
     
     # Fix get_position to return a proper tuple
-    mock.get_position = Mock(return_value=(0, 0))
-    mock.set_position = Mock()
+    def mock_get_position():
+        return (mock.cursor_row, mock.cursor_col)
+    mock.get_position = Mock(side_effect=mock_get_position)
+    
+        # Configure set_position to actually update cursor position
+    def mock_set_position(row, col):
+        mock.cursor_row = row
+        mock.cursor_col = col
+    mock.set_position = Mock(side_effect=mock_set_position)
     
     mock.buffer = bytearray(b"\x40" * (24 * 80))
     mock.fields = []
     mock.connected = True
+    mock.size = 24 * 80
+    mock.cursor_row = 0
+    mock.cursor_col = 0
+    
+    # Configure read_modified_fields to return a list for tests that need it
+    mock.read_modified_fields = Mock(return_value=[])
+    
+    # Configure write_char to actually update the buffer
+    def mock_write_char(char, row, col):
+        if 0 <= row < mock.rows and 0 <= col < mock.cols:
+            pos = row * mock.cols + col
+            if pos < len(mock.buffer):
+                mock.buffer[pos] = char
+    mock.write_char = Mock(side_effect=mock_write_char)
+    
+        # Configure move_cursor_to_first_input_field to actually move the cursor
+    def mock_move_cursor_to_first_input_field():
+        first_input_field = None
+        for field in mock.fields:
+            if not field.protected:
+                first_input_field = field
+                break
+        if first_input_field:
+            mock.cursor_row, mock.cursor_col = first_input_field.start
+    mock.move_cursor_to_first_input_field = Mock(side_effect=mock_move_cursor_to_first_input_field)
+    
+        # Configure move_cursor_to_next_input_field to actually move the cursor
+    def mock_move_cursor_to_next_input_field():
+        current_pos_linear = mock.cursor_row * mock.cols + mock.cursor_col
+        next_input_field = None
+    
+        # Sort fields by their linear start position to ensure correct traversal
+        sorted_fields = sorted(
+            mock.fields, key=lambda f: f.start[0] * mock.cols + f.start[1]
+        )
+    
+        # Find the next input field after the current cursor position
+        for field in sorted_fields:
+            field_start_linear = field.start[0] * mock.cols + field.start[1]
+            if field_start_linear > current_pos_linear and not field.protected:
+                next_input_field = field
+                break
+    
+        if next_input_field:
+            mock.cursor_row, mock.cursor_col = next_input_field.start
+        else:
+            # If no next input field is found, wrap around to the first input field
+            for field in sorted_fields:
+                if not field.protected:
+                    next_input_field = field
+                    break
+        
+            if next_input_field:
+                mock.cursor_row, mock.cursor_col = next_input_field.start
+    mock.move_cursor_to_next_input_field = Mock(side_effect=mock_move_cursor_to_next_input_field)
+    
     return mock
 
 
