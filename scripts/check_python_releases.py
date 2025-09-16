@@ -25,7 +25,7 @@ FALLBACK_PYTHON_VERSIONS = [
     {"v": "3.11", "eol": False, "stable": True, "eol_date": "2027-10-31"},
     {"v": "3.10", "eol": False, "stable": True, "eol_date": "2026-10-31"},
     {"v": "3.9", "eol": False, "stable": True, "eol_date": "2025-10-31"},
-    {"v": "3.8", "eol": False, "stable": True, "eol_date": "2024-10-07"}
+    {"v": "3.8", "eol": True, "stable": True, "eol_date": "2024-10-07"}
 ]
 
 def get_latest_python_versions() -> List[Dict[str, Any]]:
