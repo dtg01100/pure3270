@@ -142,7 +142,7 @@ python quick_test.py && python examples/example_standalone.py
   ```bash
   # Format code first
   python -m black pure3270/
-  
+
   # Then run linter - this MUST pass with no errors
   python -m flake8 pure3270/
   ```

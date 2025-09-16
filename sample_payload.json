@@ -1,0 +1,18 @@
+{
+  "issue": {
+    "number": 123,
+    "title": "Python 3.13 Regression: TypeError in asyncio",
+    "body": "Test failures on Python 3.13",
+    "labels": [
+      {
+        "name": "regression"
+      },
+      {
+        "name": "python-version"
+      }
+    ]
+  },
+  "comment": {
+    "body": "@copilot[analyze] Please review this regression"
+  }
+}

@@ -1,7 +1,7 @@
 # [TASK001] Fix DataStreamParser lint errors
 
-**Status:** Completed  
-**Added:** 2025-09-12  
+**Status:** Completed
+**Added:** 2025-09-12
 **Updated:** 2025-09-12
 
 ## Original Request

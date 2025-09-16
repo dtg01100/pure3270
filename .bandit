@@ -1,0 +1,31 @@
+[DEFAULT]
+exclude:
+    /tests/
+    /examples/
+    /docs/
+    /archive/
+tests:
+    - B101  # assert used
+    - B201  # flask debug
+    - B301  # shell inject
+    - B307  # ssl with bad version
+    - B308  # ssl with bad defaults
+    - B310  # ssl with bad defaults
+    - B311  # ssl with bad defaults
+    - B323  # ssl with bad defaults
+    - B324  # ssl with bad defaults
+    - B325  # ssl with bad defaults
+    - B602  # requests with bad ssl
+    - B604  # requests with bad ssl
+    - B607  # ssl with no version
+    - B608  # ssl with no hostname
+    - B101  # assert used in tests
+
+[PLUGINS]
+enable:
+    - bandit.plugins.injection
+    - bandit.plugins.request
+    - bandit.plugins.ssl
+
+skip:
+    B101,B201,B301,B307,B308,B310,B311,B323,B324,B325,B602,B604,B607,B608

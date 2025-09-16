@@ -64,7 +64,7 @@ To create a new release:
 ## Workflow Dependencies
 
 ```
-Tag Push (v*.*.*) 
+Tag Push (v*.*.*)
     ↓
 release.yml (creates GitHub release)
     ↓

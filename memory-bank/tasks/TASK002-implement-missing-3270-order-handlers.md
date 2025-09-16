@@ -1,7 +1,7 @@
 # [TASK002] Implement missing 3270 order handlers
 
-**Status:** Completed  
-**Added:** 2025-09-12  
+**Status:** Completed
+**Added:** 2025-09-12
 **Updated:** 2025-09-12
 
 ## Original Request

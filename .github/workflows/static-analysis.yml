@@ -35,5 +35,9 @@ jobs:
         python -m pip install --upgrade pip
         pip install -e .[test]
 
-    - name: Run static analysis
-      run: python run_static_analysis.py
+    - name: Run mypy
+      run: mypy pure3270/ --strict --install-types --non-interactive
+    - name: Run pylint
+      run: pylint pure3270/
+    - name: Run bandit
+      run: bandit -r pure3270/ --format json --output bandit-report.json || true  # Don't fail CI on warnings

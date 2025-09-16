@@ -50,21 +50,21 @@ jobs:
           const issue = context.payload.issue || context.payload.comment.issue;
           const copilotPrompt = `
           @copilot[task] Please analyze this Python version regression issue and provide:
-          
+
           1. **Root Cause Analysis**: What specific Python ${issue.title.match(/Python ([0-9.]+)/)?.[1] || 'version'} changes are causing the failure?
           2. **Code Examples**: Show the exact code changes needed to fix compatibility
           3. **Testing Strategy**: How to verify the fix works with both old and new Python versions
           4. **Risk Assessment**: Any potential side effects of the proposed changes
           5. **Implementation Priority**: Which files should be fixed first based on impact
-          
+
           Focus on:
           - Syntax compatibility issues
-          - Standard library API changes  
+          - Standard library API changes
           - Asyncio behavior differences
           - Type hinting compatibility
           - String/encoding handling changes
           `;
-          
+
           await github.rest.issues.createComment({
             owner: context.repo.owner,
             repo: context.repo.repo,
