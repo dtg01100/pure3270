@@ -3,17 +3,18 @@
 import platform
 import resource
 
+
 def set_memory_limit(max_memory_mb: int):
     """
     Set maximum memory limit for the current process.
-    
+
     Args:
         max_memory_mb: Maximum memory in megabytes
     """
     # Only works on Unix systems
     if platform.system() != 'Linux':
         return None
-    
+
     try:
         max_memory_bytes = max_memory_mb * 1024 * 1024
         # RLIMIT_AS limits total virtual memory
@@ -34,6 +35,7 @@ set_memory_limit(500)
 print("[INTEGRATION DEBUG] integration_test.py script starting - shebang executed")
 print("[INTEGRATION DEBUG] Script body starting")
 import time
+
 print("[INTEGRATION DEBUG] Imported time")
 
 """
@@ -49,17 +51,23 @@ This test suite verifies:
 """
 
 import asyncio
+
 print("[INTEGRATION DEBUG] Imported asyncio")
 print("[INTEGRATION DEBUG] After import asyncio")
 import sys
+
 print("[INTEGRATION DEBUG] Imported sys")
 import os
+
 print("[INTEGRATION DEBUG] Imported os")
 import tempfile
+
 print("[INTEGRATION DEBUG] Imported tempfile")
 import json
+
 print("[INTEGRATION DEBUG] Imported json")
 import re
+
 print("[INTEGRATION DEBUG] Imported re")
 
 # Add the current directory to the path so we can import pure3270
@@ -68,13 +76,20 @@ print("[INTEGRATION DEBUG] sys.path modified")
 print("[INTEGRATION DEBUG] About to import from pure3270.protocol.data_stream")
 print("[INTEGRATION DEBUG] sys.path modified")
 from pure3270.protocol.data_stream import DataStreamSender
+
 print("[INTEGRATION DEBUG] Imported DataStreamSender from protocol.data_stream")
 print("[INTEGRATION DEBUG] After DataStreamSender import")
-from pure3270.protocol.utils import WONT, DONT, TN3270E_BIND_IMAGE, TN3270E_RESPONSES, TN3270E_DEVICE_TYPE, TN3270E_SEND
+from pure3270.protocol.utils import (DONT, TN3270E_BIND_IMAGE,
+                                     TN3270E_DEVICE_TYPE, TN3270E_RESPONSES,
+                                     TN3270E_SEND, WONT)
+
 print("[INTEGRATION DEBUG] Imported utils from protocol.utils")
-from pure3270.protocol.data_stream import QUERY_REPLY_SF, QUERY_REPLY_CHARACTERISTICS
+from pure3270.protocol.data_stream import (QUERY_REPLY_CHARACTERISTICS,
+                                           QUERY_REPLY_SF)
+
 print("[INTEGRATION DEBUG] Imported QUERY_REPLY_SF, QUERY_REPLY_CHARACTERISTICS from protocol.data_stream")
 from pure3270.protocol.tn3270e_header import TN3270EHeader
+
 print("[INTEGRATION DEBUG] Imported TN3270EHeader from protocol.tn3270e_header")
 
 
@@ -96,7 +111,7 @@ def test_basic_functionality():
     try:
         # Test imports
         import pure3270
-        from pure3270 import Session, AsyncSession
+        from pure3270 import AsyncSession, Session
         from pure3270.patching import enable_replacement
 
         print("   ✓ Imports successful")
@@ -188,7 +203,7 @@ class MockServer:
                 self.clients.remove(writer)
             writer.close()
             await writer.wait_closed()
-  
+
 # Minimal helper used by simple_mock_test.py — keep lightweight and non-invasive
 async def test_with_mock_server():
     """
@@ -211,7 +226,7 @@ async def test_with_mock_server():
         except Exception:
             pass
         server_task.cancel()
- 
+
 class TN3270ENegotiatingMockServer(MockServer):
     """
     A mock TN3270 server that simulates TN3270E negotiation.
@@ -245,11 +260,12 @@ class TN3270ENegotiatingMockServer(MockServer):
             print(f"Mock Server on port {self.port} stopped.")
 
     async def handle_client(self, reader, writer):
-        from pure3270.protocol.utils import (
-            IAC, DO, DONT, WILL, WONT, SB, SE,
-            TELOPT_TTYPE, TELOPT_BINARY, TELOPT_EOR, TELOPT_TN3270E,
-            TN3270E_DEVICE_TYPE, TN3270E_FUNCTIONS, TN3270E_IS, TN3270E_SEND
-        )
+        from pure3270.protocol.utils import (DO, DONT, IAC, SB, SE,
+                                             TELOPT_BINARY, TELOPT_EOR,
+                                             TELOPT_TN3270E, TELOPT_TTYPE,
+                                             TN3270E_DEVICE_TYPE,
+                                             TN3270E_FUNCTIONS, TN3270E_IS,
+                                             TN3270E_SEND, WILL, WONT)
         try:
             negotiation_done = False
             while True:
@@ -376,10 +392,12 @@ class LUNameMockServer(TN3270ENegotiatingMockServer):
         self.received_lu_name = None
 
     async def handle_client(self, reader, writer):
-        from pure3270.protocol.utils import (
-            IAC, DO, WILL, SB, SE, TELOPT_TTYPE, TELOPT_BINARY, TELOPT_EOR, TELOPT_TN3270E,
-            TELOPT_OLD_ENVIRON as TELOPT_TERMINAL_LOCATION, TN3270E_IS
-        )
+        from pure3270.protocol.utils import (DO, IAC, SB, SE, TELOPT_BINARY,
+                                             TELOPT_EOR)
+        from pure3270.protocol.utils import \
+            TELOPT_OLD_ENVIRON as TELOPT_TERMINAL_LOCATION
+        from pure3270.protocol.utils import (TELOPT_TN3270E, TELOPT_TTYPE,
+                                             TN3270E_IS, WILL)
         try:
             while True:
                 try:
@@ -459,7 +477,7 @@ class LUNameMockServer(TN3270ENegotiatingMockServer):
                                 j = i + 2
                                 while j < len(data) and not (data[j] == IAC and j + 1 < len(data) and data[j+1] == SE):
                                     j += 1
-                                
+
                                 if j + 1 < len(data) and data[j+1] == SE:
                                     sub_option = data[i+2]
                                     sub_data = data[i+3:j]
@@ -510,21 +528,25 @@ class PrinterStatusMockServer(TN3270ENegotiatingMockServer):
         self.received_printer_status_sf_code = None
 
     async def handle_client(self, reader, writer):
-        from pure3270.protocol.utils import (
-            IAC, DO, WILL, SB, SE, TELOPT_TTYPE, TELOPT_BINARY, TELOPT_EOR, TELOPT_TN3270E,
-            TN3270E_DEVICE_TYPE, TN3270E_FUNCTIONS, TN3270E_IS, TN3270E_SEND,
-            TN3270E_RESPONSES, TN3270E_BIND_IMAGE, TN3270E_DATA_STREAM_CTL,
-            TN3270_DATA, SCS_DATA, NVT_DATA, SNA_RESPONSE as SNA_RESPONSE_TYPE_UTIL
-        )
         from pure3270.protocol.data_stream import (
-            STRUCTURED_FIELD, BIND_SF_TYPE, SNA_RESPONSE_DATA_TYPE, PRINTER_STATUS_DATA_TYPE,
-            SNA_COMMAND_RESPONSE, SNA_DATA_RESPONSE,
-            SNA_SENSE_CODE_SUCCESS, SNA_SENSE_CODE_INVALID_FORMAT,
-            SNA_SENSE_CODE_NOT_SUPPORTED, SNA_SENSE_CODE_SESSION_FAILURE,
-            PRINTER_STATUS_SF_TYPE, SOH_DEVICE_END, SOH_INTERVENTION_REQUIRED, SOH_SUCCESS,
-            SOH
-        )
+            BIND_SF_TYPE, PRINTER_STATUS_DATA_TYPE, PRINTER_STATUS_SF_TYPE,
+            SNA_COMMAND_RESPONSE, SNA_DATA_RESPONSE, SNA_RESPONSE_DATA_TYPE,
+            SNA_SENSE_CODE_INVALID_FORMAT, SNA_SENSE_CODE_NOT_SUPPORTED,
+            SNA_SENSE_CODE_SESSION_FAILURE, SNA_SENSE_CODE_SUCCESS, SOH,
+            SOH_DEVICE_END, SOH_INTERVENTION_REQUIRED, SOH_SUCCESS,
+            STRUCTURED_FIELD)
         from pure3270.protocol.tn3270e_header import TN3270EHeader
+        from pure3270.protocol.utils import DO, IAC, NVT_DATA, SB, SCS_DATA, SE
+        from pure3270.protocol.utils import \
+            SNA_RESPONSE as SNA_RESPONSE_TYPE_UTIL
+        from pure3270.protocol.utils import (TELOPT_BINARY, TELOPT_EOR,
+                                             TELOPT_TN3270E, TELOPT_TTYPE,
+                                             TN3270_DATA, TN3270E_BIND_IMAGE,
+                                             TN3270E_DATA_STREAM_CTL,
+                                             TN3270E_DEVICE_TYPE,
+                                             TN3270E_FUNCTIONS, TN3270E_IS,
+                                             TN3270E_RESPONSES, TN3270E_SEND,
+                                             WILL)
 
         try:
             negotiation_done = False
@@ -580,7 +602,7 @@ class PrinterStatusMockServer(TN3270ENegotiatingMockServer):
                                 j = i + 2
                                 while j < len(data) and not (data[j] == IAC and j + 1 < len(data) and data[j+1] == SE):
                                     j += 1
-                                
+
                                 if j + 1 < len(data) and data[j+1] == SE:
                                     sub_option = data[i+2]
                                     sub_data = data[i+3:j]
@@ -683,18 +705,20 @@ class BindImageMockServer(TN3270ENegotiatingMockServer):
         self.bind_image_sent = asyncio.Event()
 
     async def handle_client(self, reader, writer):
-        from pure3270.protocol.utils import (
-            IAC, DO, DONT, WILL, WONT, SB, SE,
-            TELOPT_TTYPE, TELOPT_BINARY, TELOPT_EOR, TELOPT_TN3270E,
-            TN3270E_DEVICE_TYPE, TN3270E_FUNCTIONS, TN3270E_IS, TN3270E_SEND,
-            TN3270E_BIND_IMAGE, TN3270E_RESPONSES,
-            TN3270E_IBM_DYNAMIC
-        )
-        from pure3270.protocol.data_stream import (
-            STRUCTURED_FIELD, QUERY_REPLY_SF, QUERY_REPLY_CHARACTERISTICS
-        )
+        from pure3270.protocol.data_stream import (BIND_IMAGE,
+                                                   QUERY_REPLY_CHARACTERISTICS,
+                                                   QUERY_REPLY_SF,
+                                                   STRUCTURED_FIELD)
         from pure3270.protocol.tn3270e_header import TN3270EHeader
-        from pure3270.protocol.data_stream import BIND_IMAGE
+        from pure3270.protocol.utils import (DO, DONT, IAC, SB, SE,
+                                             TELOPT_BINARY, TELOPT_EOR,
+                                             TELOPT_TN3270E, TELOPT_TTYPE,
+                                             TN3270E_BIND_IMAGE,
+                                             TN3270E_DEVICE_TYPE,
+                                             TN3270E_FUNCTIONS,
+                                             TN3270E_IBM_DYNAMIC, TN3270E_IS,
+                                             TN3270E_RESPONSES, TN3270E_SEND,
+                                             WILL, WONT)
 
         try:
             negotiation_done = False
@@ -858,23 +882,26 @@ class SNAAwareMockServer(TN3270ENegotiatingMockServer):
             b"IBM-DYNAMIC"
         ]
         ttype_index = 0
-        from pure3270.protocol.utils import (
-            IAC, DO, WILL, SB, SE, TELOPT_TTYPE, TELOPT_BINARY, TELOPT_EOR, TELOPT_TN3270E,
-            TN3270E_DEVICE_TYPE, TN3270E_FUNCTIONS, TN3270E_IS, TN3270E_SEND,
-            TN3270E_RESPONSES, TN3270E_BIND_IMAGE, TN3270E_DATA_STREAM_CTL,
-            TN3270_DATA, SCS_DATA, NVT_DATA, REQUEST, SSCP_LU_DATA, PRINT_EOJ
-        )
         from pure3270.protocol.data_stream import (
             SNA_COMMAND_RESPONSE, SNA_DATA_RESPONSE,
-            SNA_SENSE_CODE_SUCCESS, SNA_SENSE_CODE_INVALID_FORMAT,
+            SNA_FLAGS_EXCEPTION_RESPONSE, SNA_FLAGS_NONE, SNA_FLAGS_RSP,
+            SNA_RESPONSE_DATA_TYPE, SNA_SENSE_CODE_INVALID_FORMAT,
+            SNA_SENSE_CODE_INVALID_REQUEST, SNA_SENSE_CODE_INVALID_SEQUENCE,
+            SNA_SENSE_CODE_LU_BUSY, SNA_SENSE_CODE_NO_RESOURCES,
             SNA_SENSE_CODE_NOT_SUPPORTED, SNA_SENSE_CODE_SESSION_FAILURE,
-            SNA_SENSE_CODE_INVALID_REQUEST, SNA_SENSE_CODE_LU_BUSY,
-            SNA_SENSE_CODE_INVALID_SEQUENCE, SNA_SENSE_CODE_NO_RESOURCES,
-            SNA_SENSE_CODE_STATE_ERROR,
-            SNA_FLAGS_NONE, SNA_FLAGS_RSP, SNA_FLAGS_EXCEPTION_RESPONSE,
-            SNA_RESPONSE_DATA_TYPE
-        )
+            SNA_SENSE_CODE_STATE_ERROR, SNA_SENSE_CODE_SUCCESS)
         from pure3270.protocol.tn3270e_header import TN3270EHeader
+        from pure3270.protocol.utils import (DO, IAC, NVT_DATA, PRINT_EOJ,
+                                             REQUEST, SB, SCS_DATA, SE,
+                                             SSCP_LU_DATA, TELOPT_BINARY,
+                                             TELOPT_EOR, TELOPT_TN3270E,
+                                             TELOPT_TTYPE, TN3270_DATA,
+                                             TN3270E_BIND_IMAGE,
+                                             TN3270E_DATA_STREAM_CTL,
+                                             TN3270E_DEVICE_TYPE,
+                                             TN3270E_FUNCTIONS, TN3270E_IS,
+                                             TN3270E_RESPONSES, TN3270E_SEND,
+                                             WILL)
 
         try:
             negotiation_done = False
@@ -975,7 +1002,8 @@ class SNAAwareMockServer(TN3270ENegotiatingMockServer):
                                             if tn3270e_type == TN3270E_DEVICE_TYPE and tn3270e_subtype == TN3270E_SEND:
                                                 print("[MOCK SERVER DEBUG] SNAAware: Received DEVICE-TYPE SEND subnegotiation.")
                                                 if not self._negotiated_device_type:
-                                                    from pure3270.protocol.utils import TN3270E_IBM_DYNAMIC
+                                                    from pure3270.protocol.utils import \
+                                                        TN3270E_IBM_DYNAMIC
                                                     device_type_response = TN3270E_IBM_DYNAMIC.encode("ascii") + b"\x00"
                                                     print("[MOCK SERVER DEBUG] SNAAware: Sending DEVICE-TYPE IS response (SNA)...")
                                                     writer.write(bytes([IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_IS]) + device_type_response + bytes([IAC, SE]))
@@ -1130,16 +1158,16 @@ async def test_sna_response_handling(port, mock_server):
             await asyncio.wait_for(mock_server.bind_image_sent.wait(), timeout=15)
         except asyncio.TimeoutError:
             print("   ⚠ BIND-IMAGE not received within timeout, but continuing")
-    
+
         # Small delay to ensure data is available
         await asyncio.sleep(0.5)
-    
+
         # Read the BIND-IMAGE data
         try:
             await session.read(timeout=15.0)
         except asyncio.TimeoutError:
             pass  # Data might have already been processed
-    
+
         # Verify that the screen dimensions are updated by the BIND-IMAGE (lenient)
         if hasattr(session.screen_buffer, 'rows') and session.screen_buffer.rows == mock_server.rows and session.screen_buffer.cols == mock_server.cols:
             print(f"   ✓ Screen dimensions updated by BIND-IMAGE: {session.screen_buffer.rows}x{session.screen_buffer.cols}")
@@ -1147,7 +1175,9 @@ async def test_sna_response_handling(port, mock_server):
             print(f"   ⚠ Screen dimensions may not be updated: expected {mock_server.rows}x{mock_server.cols}, got {getattr(session.screen_buffer, 'rows', 'N/A')}x{getattr(session.screen_buffer, 'cols', 'N/A')}, but continuing")
 
         # Test SNA response handling by sending a mock SNA response
-        from pure3270.protocol.data_stream import SNA_RESPONSE_DATA_TYPE, SnaResponse, SNA_SENSE_CODE_SUCCESS
+        from pure3270.protocol.data_stream import (SNA_RESPONSE_DATA_TYPE,
+                                                   SNA_SENSE_CODE_SUCCESS,
+                                                   SnaResponse)
         from pure3270.protocol.tn3270e_header import TN3270EHeader
 
         # Create a simple positive SNA response
@@ -1267,7 +1297,7 @@ IF connected: SENDKEYS(ok) ELSE: FAIL(not connected)
             print("   ✓ Macro variables set correctly")
         else:
             print("   ⚠ Macro variables not set as expected, but continuing")
-            
+
         print("   ✓ Macro integration: Login executed successfully")
         return True
 
@@ -1319,13 +1349,13 @@ async def test_printer_status(port, mock_server):
             print("   ✓ Client SOH response received")
         except asyncio.TimeoutError:
             print("   ⚠ Client SOH response not received within timeout, but continuing")
-    
+
         try:
             await asyncio.wait_for(mock_server.client_printer_status_sf_received.wait(), timeout=10.0)
             print("   ✓ Client Printer Status SF response received")
         except asyncio.TimeoutError:
             print("   ⚠ Client Printer Status SF response not received within timeout, but continuing")
-    
+
         # Optional: Verify session state (e.g., no errors in handler)
         # Use the correct attribute name
         is_connected = getattr(session, 'is_connected', getattr(session, 'connected', None))
@@ -1335,7 +1365,7 @@ async def test_printer_status(port, mock_server):
             print("   ✓ Session remains connected after printer status exchange")
         else:
             print("   ⚠ Session disconnected after printer status exchange, but continuing test")
-    
+
         print("   ✓ Printer status integration: SOH and SF handled successfully")
         return True
     except asyncio.TimeoutError:
@@ -1355,14 +1385,17 @@ async def main():
     print("[INTEGRATION DEBUG] Starting main() in integration_test.py")
     print("[INTEGRATION DEBUG] main() body started")
     print("[INTEGRATION DEBUG] About to start advanced mock servers")
-    
+
     # Import limits wrapper for integration tests
-    from tools.memory_limit import run_with_limits_sync, run_with_limits_async, get_integration_limits
     import asyncio
-    
+
+    from tools.memory_limit import (get_integration_limits,
+                                    run_with_limits_async,
+                                    run_with_limits_sync)
+
     int_time, int_mem = get_integration_limits()
     print(f"Running integration tests with limits: {int_time}s / {int_mem}MB")
-    
+
     # Verify timeout enforcement first (isolated)
     print("Verifying timeout enforcement with limits...")
     timeout_success, timeout_result = run_with_limits_sync(test_timeout_verification, int_time, int_mem)
@@ -1377,7 +1410,7 @@ async def main():
     if not basic_success or not basic_result:
         print(f"Basic functionality test failed: {basic_result}")
         sys.exit(1)
-    
+
     # Start advanced mock servers and run advanced protocol tests
     results = {}
     print("[INTEGRATION DEBUG] Results dict created")
@@ -1393,7 +1426,7 @@ async def main():
     print("[INTEGRATION DEBUG] Macro task created")
     await asyncio.sleep(2.0)
     print(f"[TEST DEBUG] Macro server started on port {macro_server.port}")
-    
+
     # Wrap async test with limits (run in thread since wrapper is sync)
     macro_success, macro_result = await asyncio.to_thread(
         run_with_limits_async, test_macro_integration, int_time, int_mem, macro_server.port, macro_server
@@ -1411,7 +1444,7 @@ async def main():
     print("[INTEGRATION DEBUG] SNA server task created")
     await asyncio.sleep(2.0)  # Give server time to start
     print(f"[TEST DEBUG] SNA server started on port {sna_server.port}")
-    
+
     # Wrap async test with limits
     sna_success, sna_result = await asyncio.to_thread(
         run_with_limits_async, test_sna_response_handling, int_time, int_mem, sna_server.port, sna_server
@@ -1426,7 +1459,7 @@ async def main():
     printer_task = asyncio.create_task(printer_server.start())
     await asyncio.sleep(2.0)
     print(f"[TEST DEBUG] Printer server started on port {printer_server.port}")
-    
+
     # Wrap async test with limits
     printer_success, printer_result = await asyncio.to_thread(
         run_with_limits_async, test_printer_status, int_time, int_mem, printer_server.port, printer_server
@@ -1444,7 +1477,7 @@ async def main():
             all_passed = False
     print("\nIntegration Test completed (with warnings if any).")
     sys.exit(0 if all_passed else 0)  # Treat warnings as non-fatal for coverage
-    
+
     # Note: Basic functionality also passed (wrapped separately).
 
 if __name__ == "__main__":

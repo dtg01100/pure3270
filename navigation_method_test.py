@@ -3,17 +3,18 @@
 import platform
 import resource
 
+
 def set_memory_limit(max_memory_mb: int):
     """
     Set maximum memory limit for the current process.
-    
+
     Args:
         max_memory_mb: Maximum memory in megabytes
     """
     # Only works on Unix systems
     if platform.system() != 'Linux':
         return None
-    
+
     try:
         max_memory_bytes = max_memory_mb * 1024 * 1024
         # RLIMIT_AS limits total virtual memory
@@ -30,8 +31,8 @@ Test script to verify navigation method availability in pure3270.
 This test doesn't require a real TN3270 server connection.
 """
 
-import sys
 import os
+import sys
 
 # Add the current directory to the path so we can import pure3270
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
