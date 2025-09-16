@@ -11,7 +11,7 @@ This demonstrates the full cycle of:
 """
 
 import asyncio
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 from unittest.mock import AsyncMock, MagicMock, patch
 
 # Import pure3270
@@ -415,11 +415,11 @@ async def demonstrate_content_driven_navigation():
             "code": '''
 async def adaptive_menu_navigation(session):
     """Navigate menus by reading available options."""
-    
+
     # Read current screen
     screen_text = session.screen_buffer.to_text()
     lines = screen_text.split(chr(10))
-    
+
     # Build menu map from screen content
     menu_map = {}
     for line in lines:
@@ -431,7 +431,7 @@ async def adaptive_menu_navigation(session):
                 option_text = option_parts[1].strip()
                 menu_map[option_text.lower()] = option_num
                 print(f"Found menu option: {option_num}. {option_text}")
-    
+
     # Navigate to specific option based on content
     target_options = ["report", "query", "generate"]
     for target in target_options:
@@ -441,7 +441,7 @@ async def adaptive_menu_navigation(session):
                 await session.insert_text(menu_num)
                 await session.enter()
                 return True
-    
+
     # If no target found, try first available option
     if menu_map:
         first_option = list(menu_map.values())[0]
@@ -449,7 +449,7 @@ async def adaptive_menu_navigation(session):
         await session.insert_text(first_option)
         await session.enter()
         return True
-    
+
     return False
 ''',
         },
@@ -459,21 +459,21 @@ async def adaptive_menu_navigation(session):
             "code": '''
 async def intelligent_field_filling(session, data_dict):
     """Fill fields by reading their labels and context."""
-    
+
     # Get current screen text
     screen_text = session.screen_buffer.to_text()
     lines = screen_text.split(chr(10))
-    
+
     # Create field mapping based on labels
     field_mapping = {}
-    
+
     for i, line in enumerate(lines[:-1]):  # Don't check last line
         line_upper = line.upper()
-        
+
         # Look for common field labels
         label_indicators = [
             ('CUSTOMER', 'customer_id'),
-            ('NAME', 'customer_name'), 
+            ('NAME', 'customer_name'),
             ('ADDRESS', 'address'),
             ('PHONE', 'phone'),
             ('EMAIL', 'email'),
@@ -482,7 +482,7 @@ async def intelligent_field_filling(session, data_dict):
             ('PRICE', 'price'),
             ('TOTAL', 'total')
         ]
-        
+
         for label_indicator, data_key in label_indicators:
             if label_indicator in line_upper:
                 # Field is typically on next line or nearby
@@ -495,7 +495,7 @@ async def intelligent_field_filling(session, data_dict):
                         'data_value': data_dict.get(data_key, '')
                     }
                     print(f"Mapped {data_key} to line {field_line}")
-    
+
     # Fill the mapped fields
     for data_key, field_info in field_mapping.items():
         if field_info['data_value']:
@@ -503,7 +503,7 @@ async def intelligent_field_filling(session, data_dict):
             await session.move_cursor(field_info['field_line'], 24)
             await session.insert_text(field_info['data_value'])
             print(f"Filled {data_key}: {field_info['data_value']}")
-    
+
     return len(field_mapping) > 0
 ''',
         },
@@ -513,7 +513,7 @@ async def intelligent_field_filling(session, data_dict):
             "code": '''
 async def error_detective_navigation(session, operation_func):
     """Execute operations with intelligent error detection and recovery."""
-    
+
     max_attempts = 3
     for attempt in range(max_attempts):
         # Execute the operation
@@ -526,15 +526,15 @@ async def error_detective_navigation(session, operation_func):
                 continue
             else:
                 raise
-        
+
         # Read screen to check for errors
         screen_text = session.screen_buffer.to_text().upper()
         lines = screen_text.split(chr(10))
-        
+
         # Check for various error conditions
         error_detected = False
         error_type = None
-        
+
         for line in lines:
             if 'ERROR' in line:
                 error_detected = True
@@ -556,36 +556,36 @@ async def error_detective_navigation(session, operation_func):
                 error_type = 'not_found'
                 print(f"Not found error: {line.strip()}")
                 break
-        
+
         # Take corrective action based on error type
         if error_detected:
             if attempt < max_attempts - 1:
                 print(f"Attempt {attempt + 1}: Taking corrective action for {error_type}")
-                
+
                 if error_type == 'invalid_input':
                     # Clear input and try with different data
                     await session.field_end()
                     await session.erase_eof()
                     # Modify input data for next attempt
                     print("Cleared invalid input, will retry")
-                    
+
                 elif error_type == 'timeout':
                     # Wait and retry
                     print("Timeout occurred, waiting before retry")
                     await asyncio.sleep(2)
-                    
+
                 elif error_type == 'not_found':
                     # Go back and try different path
                     await session.pf(3)  # PF3 is commonly "go back"
                     print("Going back to previous screen")
                     await asyncio.sleep(1)
-                    
+
                 else:
                     # Generic error recovery
                     await session.enter()  # Often clears error messages
                     print("Sent Enter to clear error message")
                     await asyncio.sleep(1)
-                
+
                 continue  # Try again
             else:
                 print(f"All {max_attempts} attempts failed")
@@ -594,7 +594,7 @@ async def error_detective_navigation(session, operation_func):
             # No error detected, operation successful
             print("Operation completed successfully")
             return result
-    
+
     raise RuntimeError(f"Operation failed after {max_attempts} attempts")
 ''',
         },

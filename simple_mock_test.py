@@ -1,5 +1,6 @@
 import platform
 import resource
+
 from tools.memory_limit import set_memory_limit
 
 # Set memory limit for the script
@@ -8,14 +9,14 @@ set_memory_limit(500)
 def set_memory_limit(max_memory_mb: int):
     """
     Set maximum memory limit for the current process.
-    
+
     Args:
         max_memory_mb: Maximum memory in megabytes
     """
     # Only works on Unix systems
     if platform.system() != 'Linux':
         return None
-    
+
     try:
         max_memory_bytes = max_memory_mb * 1024 * 1024
         # RLIMIT_AS limits total virtual memory
@@ -29,8 +30,8 @@ Simple test script focusing on mock server functionality only.
 """
 
 import asyncio
-import sys
 import os
+import sys
 
 # Add the current directory to the path so we can import pure3270
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))

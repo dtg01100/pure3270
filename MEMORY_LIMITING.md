@@ -77,15 +77,15 @@ def test_manual_memory_limiting():
     if platform.system() == 'Linux':
         # Save original limits
         original_limit = resource.getrlimit(resource.RLIMIT_AS)
-        
+
         try:
             # Set a limit of 50MB
             max_memory_bytes = 50 * 1024 * 1024
             resource.setrlimit(resource.RLIMIT_AS, (max_memory_bytes, max_memory_bytes))
-            
+
             # Test code here
             # If memory usage exceeds 50MB, a MemoryError will be raised
-            
+
         finally:
             # Restore original limits
             try:

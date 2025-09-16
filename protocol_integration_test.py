@@ -1,16 +1,18 @@
 import platform
 import resource
+
+
 def set_memory_limit(max_memory_mb: int):
     """
     Set maximum memory limit for the current process.
-    
+
     Args:
         max_memory_mb: Maximum memory in megabytes
     """
     # Only works on Unix systems
     if platform.system() != 'Linux':
         return None
-    
+
     try:
         max_memory_bytes = max_memory_mb * 1024 * 1024
         # RLIMIT_AS limits total virtual memory
@@ -24,13 +26,14 @@ Protocol-level integration tests for pure3270.
 """
 
 import asyncio
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 import pure3270
-from pure3270.protocol.tn3270_handler import TN3270Handler
-from pure3270.protocol.data_stream import DataStreamParser, DataStreamSender
 from pure3270.emulation.screen_buffer import ScreenBuffer
+from pure3270.protocol.data_stream import DataStreamParser, DataStreamSender
+from pure3270.protocol.tn3270_handler import TN3270Handler
 
 
 class TestProtocolIntegration:

@@ -1,5 +1,6 @@
 import asyncio
 
+
 async def safe_read(reader, n, timeout=1.0):
     """Read up to n bytes from reader with a timeout. Returns b'' on EOF, None on timeout."""
     try:

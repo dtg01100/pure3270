@@ -1,16 +1,18 @@
 import platform
 import resource
+
+
 def set_memory_limit(max_memory_mb: int):
     """
     Set maximum memory limit for the current process.
-    
+
     Args:
         max_memory_mb: Maximum memory in megabytes
     """
     # Only works on Unix systems
     if platform.system() != 'Linux':
         return None
-    
+
     try:
         max_memory_bytes = max_memory_mb * 1024 * 1024
         # RLIMIT_AS limits total virtual memory
@@ -312,19 +314,19 @@ async def manage_multiple_sessions():
     # Create multiple concurrent sessions
     session1 = AsyncSession('mainframe1.example.com', 23)
     session2 = AsyncSession('mainframe2.example.com', 23)
-    
+
     # Connect both concurrently
     await asyncio.gather(
         session1.connect(),
         session2.connect()
     )
-    
+
     # Perform operations concurrently
     await asyncio.gather(
         perform_user_tasks(session1),
         perform_system_tasks(session2)
     )
-    
+
     # Disconnect both
     await asyncio.gather(
         session1.disconnect(),

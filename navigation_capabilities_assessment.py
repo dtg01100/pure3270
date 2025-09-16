@@ -285,18 +285,18 @@ async def demonstrate_async_navigation():
 async def navigate_mainframe_workflow():
     session = AsyncSession('mainframe.example.com', 23)
     await session.connect()
-    
+
     # Login sequence
     await session.move_cursor(4, 16)
     await session.insert_text('username')
-    await session.move_cursor(5, 16) 
+    await session.move_cursor(5, 16)
     await session.insert_text('password')
     await session.enter()
-    
+
     # Navigate to application
     await session.insert_text('APP1')
     await session.enter()
-    
+
     # Perform operations concurrently
     tasks = [
         session.move_cursor(10, 20),
@@ -304,7 +304,7 @@ async def navigate_mainframe_workflow():
         fetch_external_data()  # Other async operation
     ]
     await asyncio.gather(*tasks)
-    
+
     await session.disconnect()
 """
     )

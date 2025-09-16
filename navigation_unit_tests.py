@@ -15,24 +15,23 @@ import resource
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from tools.memory_limit import run_with_limits_sync, get_unit_limits
-
 # Import pure3270
 import pure3270
 from pure3270 import AsyncSession
+from tools.memory_limit import get_unit_limits, run_with_limits_sync
 
 
 def set_memory_limit(max_memory_mb: int):
     """
     Set maximum memory limit for the current process.
-    
+
     Args:
         max_memory_mb: Maximum memory in megabytes
     """
     # Only works on Unix systems
     if platform.system() != 'Linux':
         return None
-    
+
     try:
         max_memory_bytes = max_memory_mb * 1024 * 1024
         # RLIMIT_AS limits total virtual memory
@@ -310,7 +309,7 @@ def run_single_test(test, unit_time, unit_mem):
     test_class = test.__class__
     method_name = test._testMethodName
     instance = test_class(methodName=method_name)
-    
+
     def wrapped_test():
         instance.setUp()
         try:
@@ -322,7 +321,7 @@ def run_single_test(test, unit_time, unit_mem):
             raise e
         finally:
             instance.tearDown()
-    
+
     success, res = run_with_limits_sync(wrapped_test, unit_time, unit_mem)
     return success and res
 
@@ -404,7 +403,8 @@ class TestSNAandPrinterUnit(unittest.TestCase):
 
     def test_sna_response_positive(self):
         """Test positive SNA response parsing and validation."""
-        from pure3270.protocol.data_stream import SnaResponse, SNA_SENSE_CODE_SUCCESS
+        from pure3270.protocol.data_stream import (SNA_SENSE_CODE_SUCCESS,
+                                                   SnaResponse)
         sna = SnaResponse(0x01, 0x00, SNA_SENSE_CODE_SUCCESS)
         self.assertTrue(sna.is_positive())
         self.assertFalse(sna.is_negative())
@@ -413,7 +413,8 @@ class TestSNAandPrinterUnit(unittest.TestCase):
 
     def test_sna_response_negative(self):
         """Test negative SNA response parsing and validation."""
-        from pure3270.protocol.data_stream import SnaResponse, SNA_SENSE_CODE_INVALID_REQUEST
+        from pure3270.protocol.data_stream import (
+            SNA_SENSE_CODE_INVALID_REQUEST, SnaResponse)
         sna = SnaResponse(0x01, 0x04, SNA_SENSE_CODE_INVALID_REQUEST)
         self.assertFalse(sna.is_positive())
         self.assertTrue(sna.is_negative())

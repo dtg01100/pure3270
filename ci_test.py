@@ -3,17 +3,18 @@
 import platform
 import resource
 
+
 def set_memory_limit(max_memory_mb: int):
     """
     Set maximum memory limit for the current process.
-    
+
     Args:
         max_memory_mb: Maximum memory in megabytes
     """
     # Only works on Unix systems
     if platform.system() != 'Linux':
         return None
-    
+
     try:
         max_memory_bytes = max_memory_mb * 1024 * 1024
         # RLIMIT_AS limits total virtual memory
@@ -31,9 +32,9 @@ This script runs a comprehensive set of tests that don't require full setup.
 """
 
 import asyncio
-import sys
-import os
 import logging
+import os
+import sys
 
 # Configure logging to show debug messages
 logging.basicConfig(level=logging.DEBUG, format='%(levelname)s:%(name)s:%(message)s')
@@ -51,7 +52,7 @@ def test_imports():
     print("Testing imports...")
     try:
         import pure3270
-        from pure3270 import Session, AsyncSession
+        from pure3270 import AsyncSession, Session
         from pure3270.patching import enable_replacement
 
         print("  ✓ All imports successful")
@@ -66,7 +67,7 @@ def test_class_creation():
     print("Testing class creation...")
     try:
         import pure3270
-        from pure3270 import Session, AsyncSession
+        from pure3270 import AsyncSession, Session
 
         # Test Session creation
         session = Session()
@@ -88,14 +89,14 @@ def test_mock_connectivity():
     try:
         # For CI/CD tests, we just check that the mock server class can be imported
         # and that we can create an AsyncSession instance
-        from integration_test import MockServer
         import pure3270
+        from integration_test import MockServer
         from pure3270 import AsyncSession
 
         # Create instances to verify they work
         mock_server = MockServer()
         session = AsyncSession("dummy.host", 23)
-        
+
         print("  ✓ Mock server and AsyncSession creation successful")
         return True
     except Exception as e:
@@ -182,7 +183,7 @@ async def main():
     """Run all CI/CD tests."""
     print("=== Pure3270 CI/CD Test Suite ===\n")
 
-    from tools.memory_limit import run_with_limits_sync, get_unit_limits
+    from tools.memory_limit import get_unit_limits, run_with_limits_sync
 
     unit_time, unit_mem = get_unit_limits()
 
