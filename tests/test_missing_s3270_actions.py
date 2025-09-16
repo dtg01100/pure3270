@@ -1,6 +1,8 @@
 import platform
-import pytest
 from unittest.mock import AsyncMock, patch
+
+import pytest
+
 from pure3270.session import AsyncSession
 
 

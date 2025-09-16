@@ -5,51 +5,37 @@ Handles Telnet negotiation and TN3270E subnegotiation.
 
 import asyncio
 import logging
-from typing import Optional, TYPE_CHECKING, List
-from enum import Enum # Import Enum for state management
-from .data_stream import DataStreamParser, SnaResponse, BindImage # Import SnaResponse and BindImage
-from .utils import (
-    send_iac,
-    send_subnegotiation,
-    TN3270E_DEVICE_TYPE,
-    TN3270E_FUNCTIONS,
-    TN3270E_IS,
-    TN3270E_REQUEST,
-    TN3270E_SEND,
-    TN3270E_BIND_IMAGE,
-    TN3270E_DATA_STREAM_CTL,
-    TN3270E_RESPONSES,
-    TN3270E_SCS_CTL_CODES,
-    TN3270E_SYSREQ,
-    TN3270E_IBM_DYNAMIC,
-    TN3270E_SYSREQ_MESSAGE_TYPE,
-    TN3270E_SYSREQ_ATTN,
-    TN3270E_SYSREQ_BREAK,
-    TN3270E_SYSREQ_CANCEL,
-    TN3270E_SYSREQ_RESTART,
-    TN3270E_SYSREQ_PRINT,
-    TN3270E_SYSREQ_LOGOFF,
-    TELOPT_TTYPE, TELOPT_BINARY, TELOPT_EOR, TELOPT_TN3270E,
-    DO, DONT, WILL, WONT,
-    TN3270E_RSF_POSITIVE_RESPONSE,
-    TN3270E_RSF_NEGATIVE_RESPONSE,
-    TN3270E_RSF_ERROR_RESPONSE,
-    SNA_RESPONSE, # Import SNA_RESPONSE
-    TELOPT_OLD_ENVIRON as TELOPT_TERMINAL_LOCATION, # Alias for RFC 1646 (TELOPT 36)
-    TELOPT_BIND_UNIT, # TELOPT 48
-)
-from .exceptions import NegotiationError, ProtocolError, ParseError
-from .errors import handle_drain, safe_socket_operation, raise_negotiation_error
-from ..emulation.screen_buffer import ScreenBuffer
-from .utils import QUERY_REPLY_CHARACTERISTICS
-from .data_stream import (
-    SNA_SENSE_CODE_SUCCESS, SNA_SENSE_CODE_INVALID_FORMAT,
-    SNA_SENSE_CODE_NOT_SUPPORTED, SNA_SENSE_CODE_SESSION_FAILURE,
-    SNA_SENSE_CODE_INVALID_REQUEST, SNA_SENSE_CODE_LU_BUSY,
-    SNA_SENSE_CODE_INVALID_SEQUENCE, SNA_SENSE_CODE_NO_RESOURCES,
-    SNA_SENSE_CODE_STATE_ERROR
-)
+from enum import Enum  # Import Enum for state management
+from typing import TYPE_CHECKING, List, Optional
 
+from ..emulation.screen_buffer import ScreenBuffer
+from .data_stream import (  # Import SnaResponse and BindImage
+    SNA_SENSE_CODE_INVALID_FORMAT, SNA_SENSE_CODE_INVALID_REQUEST,
+    SNA_SENSE_CODE_INVALID_SEQUENCE, SNA_SENSE_CODE_LU_BUSY,
+    SNA_SENSE_CODE_NO_RESOURCES, SNA_SENSE_CODE_NOT_SUPPORTED,
+    SNA_SENSE_CODE_SESSION_FAILURE, SNA_SENSE_CODE_STATE_ERROR,
+    SNA_SENSE_CODE_SUCCESS, BindImage, DataStreamParser, SnaResponse)
+from .errors import (handle_drain, raise_negotiation_error,
+                     safe_socket_operation)
+from .exceptions import NegotiationError, ParseError, ProtocolError
+from .utils import SNA_RESPONSE  # Import SNA_RESPONSE
+from .utils import TELOPT_BIND_UNIT  # TELOPT 48
+from .utils import (DO, DONT, QUERY_REPLY_CHARACTERISTICS, TELOPT_BINARY,
+                    TELOPT_EOR)
+from .utils import \
+    TELOPT_OLD_ENVIRON as \
+    TELOPT_TERMINAL_LOCATION  # Alias for RFC 1646 (TELOPT 36)
+from .utils import (TELOPT_TN3270E, TELOPT_TTYPE, TN3270E_BIND_IMAGE,
+                    TN3270E_DATA_STREAM_CTL, TN3270E_DEVICE_TYPE,
+                    TN3270E_FUNCTIONS, TN3270E_IBM_DYNAMIC, TN3270E_IS,
+                    TN3270E_REQUEST, TN3270E_RESPONSES,
+                    TN3270E_RSF_ERROR_RESPONSE, TN3270E_RSF_NEGATIVE_RESPONSE,
+                    TN3270E_RSF_POSITIVE_RESPONSE, TN3270E_SCS_CTL_CODES,
+                    TN3270E_SEND, TN3270E_SYSREQ, TN3270E_SYSREQ_ATTN,
+                    TN3270E_SYSREQ_BREAK, TN3270E_SYSREQ_CANCEL,
+                    TN3270E_SYSREQ_LOGOFF, TN3270E_SYSREQ_MESSAGE_TYPE,
+                    TN3270E_SYSREQ_PRINT, TN3270E_SYSREQ_RESTART, WILL, WONT,
+                    send_iac, send_subnegotiation)
 
 if TYPE_CHECKING:
     from .tn3270_handler import TN3270Handler
@@ -57,7 +43,12 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 from .tn3270e_header import TN3270EHeader
-from .utils import TN3270_DATA, SCS_DATA, RESPONSE, BIND_IMAGE, UNBIND, NVT_DATA, REQUEST, SSCP_LU_DATA, PRINT_EOJ, TN3270E_RSF_NO_RESPONSE, TN3270E_RSF_ERROR_RESPONSE, TN3270E_RSF_ALWAYS_RESPONSE, TN3270E_RSF_POSITIVE_RESPONSE, TN3270E_RSF_NEGATIVE_RESPONSE
+from .utils import (BIND_IMAGE, NVT_DATA, PRINT_EOJ, REQUEST, RESPONSE,
+                    SCS_DATA, SSCP_LU_DATA, TN3270_DATA,
+                    TN3270E_RSF_ALWAYS_RESPONSE, TN3270E_RSF_ERROR_RESPONSE,
+                    TN3270E_RSF_NEGATIVE_RESPONSE, TN3270E_RSF_NO_RESPONSE,
+                    TN3270E_RSF_POSITIVE_RESPONSE, UNBIND)
+
 
 class SnaSessionState(Enum):
     """Represents the current state of the SNA session."""
@@ -176,7 +167,7 @@ class Negotiator:
     async def _handle_tn3270e_response(self, header: TN3270EHeader) -> None:
         """
         Handles an incoming TN3270E header, correlating it with pending requests.
-    
+
         Args:
             header: The received TN3270EHeader object.
         """
@@ -257,7 +248,7 @@ class Negotiator:
         self._device_type_is_event.clear()
         self._functions_is_event.clear()
         self._negotiation_complete = asyncio.Event()  # New event for full negotiation completion
-        
+
         logger.info("[NEGOTIATION] Starting TN3270E negotiation: waiting for server DEVICE-TYPE SEND.")
 
         try:
@@ -266,18 +257,21 @@ class Negotiator:
                 logger.debug(f"[NEGOTIATION] Waiting for full TN3270E negotiation with timeout {timeout}s...")
                 await asyncio.wait_for(self._negotiation_complete.wait(), timeout=timeout)
                 logger.info(f"[NEGOTIATION] TN3270E negotiation complete: device={self.negotiated_device_type}, functions=0x{self.negotiated_functions:02x}")
-        
+
                 # Add SNA response handling post-BIND for printer LU types
                 if self.is_printer_session:
                     logger.debug("[NEGOTIATION] Printer session: awaiting SNA response post-BIND")
                     # Stub for SNA response handling in printer session
                     if self.parser:
                         # Simulate a positive SNA response for BIND in printer session
-                        from .data_stream import SnaResponse, SNA_COMMAND_RESPONSE, SNA_FLAGS_RSP, SNA_SENSE_CODE_SUCCESS
+                        from .data_stream import (SNA_COMMAND_RESPONSE,
+                                                  SNA_FLAGS_RSP,
+                                                  SNA_SENSE_CODE_SUCCESS,
+                                                  SnaResponse)
                         sna_response = SnaResponse(SNA_COMMAND_RESPONSE, SNA_FLAGS_RSP, SNA_SENSE_CODE_SUCCESS)
                         self._handle_sna_response(sna_response)
                     logger.debug("[NEGOTIATION] SNA response for printer BIND handled (stub)")
-            
+
                 # If ASCII mode was set (e.g., due to a WONT), do not mark TN3270E as negotiated.
                 if getattr(self, "_ascii_mode", False):
                     logger.info("[NEGOTIATION] ASCII mode active; skipping TN3270E negotiated flag.")
@@ -285,7 +279,7 @@ class Negotiator:
                 else:
                     self.negotiated_tn3270e = True
                     logger.info("[NEGOTIATION] TN3270E negotiation successful.")
-        
+
         except asyncio.TimeoutError:
             logger.warning(
                 "[NEGOTIATION] TN3270E negotiation timed out. Falling back to ASCII/VT100 mode."
@@ -500,14 +494,14 @@ class Negotiator:
     def _parse_tn3270e_subnegotiation(self, data: bytes):
         """
         Flexible entry point for TN3270E subnegotiation parsing.
-    
+
         This wrapper supports being called from synchronous test code as well as
         awaited from async code. It dispatches the real work to
         _parse_tn3270e_subnegotiation_async and, when possible, schedules it on the
         running loop (returning the scheduled Task). If no running loop exists it
         will run the coroutine to completion synchronously via asyncio.run and
         return a completed awaitable.
-    
+
         For negotiation messages (DEVICE-TYPE / FUNCTIONS) we provide a fast-path
         synchronous handler so synchronous test code that calls this wrapper
         without awaiting still observes immediate state changes (negotiated flags
@@ -515,12 +509,12 @@ class Negotiator:
         by a 5-byte TN3270E header, parse and dispatch that header synchronously so
         tests that supply TELOPT + header bytes observe immediate correlation.
         """
-        import inspect
         import asyncio
+        import inspect
         if len(data) < 2:
             logger.warning(f"Invalid TN3270E subnegotiation data: {data.hex()}")
             return None
-    
+
         # If the data begins with TELOPT_TN3270E and the following bytes could be
         # a 5-byte TN3270E header, only parse it as a header when the first byte
         # after TELOPT looks like a TN3270E DATA-TYPE (not a negotiation message
@@ -552,7 +546,7 @@ class Negotiator:
                         logger.debug(f"About to call _handle_tn3270e_response from wrapper with header from data: {data[1:6].hex() if len(data) >= 6 else data.hex()}")
                         try:
                             res = self._handle_tn3270e_response(header)
-    
+
                             if inspect.isawaitable(res):
                                 try:
                                     loop = asyncio.get_running_loop()
@@ -717,7 +711,7 @@ class Negotiator:
             await self._handle_sysreq_subnegotiation(message_payload)
         else:
             logger.debug(f"Unhandled TN3270E subnegotiation type: 0x{message_type:02x}")
-        
+
         # Check if both events are set to complete negotiation
         if self._device_type_is_event.is_set() and self._functions_is_event.is_set():
             self._negotiation_complete.set()
@@ -1007,16 +1001,16 @@ class Negotiator:
         if bind_image.cols:
             self.screen_buffer.cols = bind_image.cols
             self.screen_cols = bind_image.cols
-        
+
         new_size = self.screen_rows * self.screen_cols
         self.screen_buffer.buffer = bytearray(b"\x40" * new_size)
         self.screen_buffer.attributes = bytearray(new_size * 3)
         logger.info(f"Reinitialized buffer and attributes for new size: {new_size}")
-        
+
         # Log query reply IDs if present
         if hasattr(bind_image, 'query_reply_ids') and bind_image.query_reply_ids:
             logger.info(f"BIND-IMAGE specifies Query Reply IDs: {bind_image.query_reply_ids}")
-        
+
         logger.info(f"Updated screen dimensions from BIND-IMAGE: {self.screen_rows}x{self.screen_cols}")
 
     async def _handle_terminal_location_subnegotiation(self, data: bytes) -> None:
@@ -1039,7 +1033,7 @@ class Negotiator:
                 null_pos = lu_name_bytes.find(0x00)
                 if null_pos != -1:
                     lu_name_bytes = lu_name_bytes[:null_pos]
-                
+
                 try:
                     lu_name = lu_name_bytes.decode("ascii").strip()
                     self.lu_name = lu_name

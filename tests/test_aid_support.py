@@ -1,7 +1,9 @@
-import pytest
 import platform
-from unittest.mock import patch, AsyncMock
-from pure3270.session import Session, AsyncSession
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+from pure3270.session import AsyncSession, Session
 
 
 @pytest.mark.skipif(platform.system() != 'Linux', reason="Memory limiting only supported on Linux")

@@ -1,7 +1,8 @@
 import platform
-import pytest
-from unittest.mock import patch
 import sys
+from unittest.mock import patch
+
+import pytest
 
 from pure3270 import enable_replacement
 from pure3270.patching.patching import MonkeyPatchManager, Pure3270PatchError

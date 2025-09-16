@@ -6,23 +6,22 @@ import asyncio
 import logging
 import os
 import re
-from .session_manager import SessionManager
 from contextlib import asynccontextmanager
-from typing import Optional, Any, Dict, List, Union
-from .protocol.tn3270_handler import TN3270Handler
-from .emulation.screen_buffer import ScreenBuffer
-from .emulation.buffer_writer import BufferWriter
-from .protocol.exceptions import NegotiationError
-from .protocol.data_stream import DataStreamParser
+from typing import Any, Dict, List, Optional, Union
+
 from pure3270.patching import enable_replacement
-from pure3270.protocol.utils import (
-    TN3270E_SYSREQ_ATTN,
-    TN3270E_SYSREQ_BREAK,
-    TN3270E_SYSREQ_CANCEL,
-    TN3270E_SYSREQ_RESTART,
-    TN3270E_SYSREQ_PRINT,
-    TN3270E_SYSREQ_LOGOFF,
-)
+from pure3270.protocol.utils import (TN3270E_SYSREQ_ATTN, TN3270E_SYSREQ_BREAK,
+                                     TN3270E_SYSREQ_CANCEL,
+                                     TN3270E_SYSREQ_LOGOFF,
+                                     TN3270E_SYSREQ_PRINT,
+                                     TN3270E_SYSREQ_RESTART)
+
+from .emulation.buffer_writer import BufferWriter
+from .emulation.screen_buffer import ScreenBuffer
+from .protocol.data_stream import DataStreamParser
+from .protocol.exceptions import NegotiationError
+from .protocol.tn3270_handler import TN3270Handler
+from .session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +53,7 @@ class SessionManager:
     ) -> None:
         """
         Establish the socket connection.
-        
+
         Overrides host/port/ssl if provided.
         """
         if host is not None:
@@ -85,7 +84,9 @@ class SessionManager:
         """Perform Telnet negotiation (TTYPE, BINARY, etc.)."""
         await negotiator.negotiate()
 
-    async def perform_tn3270_negotiation(self, negotiator, timeout: Optional[float] = None) -> None:
+    async def perform_tn3270_negotiation(
+        self, negotiator, timeout: Optional[float] = None
+    ) -> None:
         """Perform TN3270/TN3270E subnegotiation."""
         await negotiator._negotiate_tn3270(timeout=timeout)
 
@@ -756,7 +757,9 @@ class AsyncSession:
             logger.debug(
                 f"Replacing existing handler with object ID: {id(self._handler)}"
             )
-        self._handler = TN3270Handler(self._transport.reader, self._transport.writer, self.screen_buffer)
+        self._handler = TN3270Handler(
+            self._transport.reader, self._transport.writer, self.screen_buffer
+        )
         logger.debug(f"New handler created with object ID: {id(self._handler)}")
         # Set the LU name on the handler if configured
         if self._lu_name:
@@ -807,19 +810,19 @@ class AsyncSession:
     async def read(self, timeout: float = 5.0) -> bytes:
         """
         Read data asynchronously with timeout.
-    
+
         Args:
             timeout: Read timeout in seconds (default 5.0).
-    
+
         Returns:
             Received bytes.
-    
+
         Raises:
             asyncio.TimeoutError: If timeout exceeded.
         """
         if not self._connected or not self._handler:
             raise SessionError("Session not connected.")
-    
+
         data = await self._handler.receive_data(timeout)
         # If the handler is a test/mock, it may not run the data stream parser.
         # Ensure the session attempts to parse incoming 3270 data so tests that
@@ -910,7 +913,7 @@ class AsyncSession:
             source: File path or macro script string.
         """
         if isinstance(source, str) and os.path.isfile(source):
-            with open(source, 'r') as f:
+            with open(source, "r") as f:
                 content = f.read()
         else:
             content = source
@@ -922,10 +925,10 @@ class AsyncSession:
         current_commands: List[str] = []
 
         for line in lines:
-            if re.match(r'^DEFINE\s+\w+\s*$', line, re.IGNORECASE):
+            if re.match(r"^DEFINE\s+\w+\s*$", line, re.IGNORECASE):
                 if current_name:
                     macros[current_name] = current_commands
-                name_match = re.match(r'^DEFINE\s+(\w+)', line, re.IGNORECASE)
+                name_match = re.match(r"^DEFINE\s+(\w+)", line, re.IGNORECASE)
                 if name_match:
                     current_name = name_match.group(1).upper()
                     current_commands = []
@@ -943,7 +946,7 @@ class AsyncSession:
     async def execute_macro(
         self,
         name_or_script: Union[str, List[str]],
-        vars_: Optional[Dict[str, Any]] = None
+        vars_: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Execute a macro by name or script with DSL support.
@@ -982,7 +985,6 @@ class AsyncSession:
         else:
             commands = name_or_script
 
-
         results = {"success": True, "output": [], "vars": vars_.copy()}
         i = 0
         loop_count = 0
@@ -995,44 +997,58 @@ class AsyncSession:
             # Substitute variables dynamically
             cmd = cmd_original
             for k, v in vars_.items():
-                cmd = re.sub(rf'\$\{{{re.escape(k)}}}', str(v), cmd)
+                cmd = re.sub(rf"\$\{{{re.escape(k)}}}", str(v), cmd)
             if loop_count > max_loops:
                 raise MacroError("Macro loop limit exceeded")
             try:
-                if re.match(r'WAIT\s*\(', cmd, re.IGNORECASE):
+                if re.match(r"WAIT\s*\(", cmd, re.IGNORECASE):
                     m = re.match(
-                        r'WAIT\s*\(\s*(aid|pattern)\s*=\s*([^\),]+?)(?:\s*,\s*timeout\s*=\s*(\d+(?:\.\d+)?))?\s*\)',
-                        cmd, re.IGNORECASE
+                        r"WAIT\s*\(\s*(aid|pattern)\s*=\s*([^\),]+?)(?:\s*,\s*timeout\s*=\s*(\d+(?:\.\d+)?))?\s*\)",
+                        cmd,
+                        re.IGNORECASE,
                     )
                     if m:
                         typ = m.group(1).lower()
-                        val = m.group(2).strip().strip('"\'')
+                        val = m.group(2).strip().strip("\"'")
                         timeout = float(m.group(3) or 5)
-                        if typ == 'aid':
-                            aid_val = self.aid_map.get(val.upper(), int(val, 16) if val.startswith('0x') else None)
+                        if typ == "aid":
+                            aid_val = self.aid_map.get(
+                                val.upper(),
+                                int(val, 16) if val.startswith("0x") else None,
+                            )
                             if aid_val is None:
                                 raise ValueError(f"Unknown AID: {val}")
-                            await asyncio.wait_for(self._wait_for_aid(aid_val), timeout=timeout)
-                        elif typ == 'pattern':
+                            await asyncio.wait_for(
+                                self._wait_for_aid(aid_val), timeout=timeout
+                            )
+                        elif typ == "pattern":
                             pat = re.compile(val)
-                            await asyncio.wait_for(self._wait_for_pattern(pat), timeout=timeout)
+                            await asyncio.wait_for(
+                                self._wait_for_pattern(pat), timeout=timeout
+                            )
                         results["output"].append(f"WAIT {typ}={val} succeeded")
                     else:
                         raise MacroError(f"Invalid WAIT syntax: {cmd}")
-                elif re.match(r'SENDKEYS\s*\(', cmd, re.IGNORECASE):
-                    m = re.match(r'SENDKEYS\s*\(\s*([^,\)]+?)(?:\s*,\s*keys\s*=\s*([^\)]+))?\s*\)', cmd, re.IGNORECASE)
+                elif re.match(r"SENDKEYS\s*\(", cmd, re.IGNORECASE):
+                    m = re.match(
+                        r"SENDKEYS\s*\(\s*([^,\)]+?)(?:\s*,\s*keys\s*=\s*([^\)]+))?\s*\)",
+                        cmd,
+                        re.IGNORECASE,
+                    )
                     if m:
-                        text = m.group(1).strip().strip('"\'')
+                        text = m.group(1).strip().strip("\"'")
                         key = m.group(2).strip() if m.group(2) else None
                         if text:
                             await self.insert_text(text)
                         if key:
                             await self.key(key)
-                        results["output"].append(f"SENDKEYS executed: {text or ''} {key or ''}")
+                        results["output"].append(
+                            f"SENDKEYS executed: {text or ''} {key or ''}"
+                        )
                     else:
                         raise MacroError(f"Invalid SENDKEYS syntax: {cmd}")
-                elif re.match(r'IF\s+', cmd_original, re.IGNORECASE):
-                    m = re.match(r'IF\s+(.+?)\s*:?\s*$', cmd_original, re.IGNORECASE)
+                elif re.match(r"IF\s+", cmd_original, re.IGNORECASE):
+                    m = re.match(r"IF\s+(.+?)\s*:?\s*$", cmd_original, re.IGNORECASE)
                     if m:
                         cond_str = m.group(1).strip()
                         i += 1  # Move past IF line
@@ -1041,10 +1057,12 @@ class AsyncSession:
                         found_else = False
                         while i < len(commands):
                             inner_original = commands[i].strip()
-                            if re.match(r'END\s+IF', inner_original, re.IGNORECASE):
+                            if re.match(r"END\s+IF", inner_original, re.IGNORECASE):
                                 i += 1
                                 break
-                            if not found_else and re.match(r'ELSE\s*:?', inner_original, re.IGNORECASE):
+                            if not found_else and re.match(
+                                r"ELSE\s*:?", inner_original, re.IGNORECASE
+                            ):
                                 found_else = True
                                 i += 1  # Skip ELSE line
                                 break
@@ -1060,7 +1078,7 @@ class AsyncSession:
                             else_block = []
                             while i < len(commands):
                                 inner_original = commands[i].strip()
-                                if re.match(r'END\s+IF', inner_original, re.IGNORECASE):
+                                if re.match(r"END\s+IF", inner_original, re.IGNORECASE):
                                     i += 1
                                     break
                                 else_block.append(commands[i])
@@ -1071,8 +1089,8 @@ class AsyncSession:
                                 if not sub_res["success"]:
                                     results["success"] = False
                         continue  # i already advanced
-                elif re.match(r'CALL\s+\w+', cmd, re.IGNORECASE):
-                    m = re.match(r'CALL\s+(\w+)', cmd, re.IGNORECASE)
+                elif re.match(r"CALL\s+\w+", cmd, re.IGNORECASE):
+                    m = re.match(r"CALL\s+(\w+)", cmd, re.IGNORECASE)
                     if m:
                         macro_name = m.group(1).upper()
                         if macro_name in self._macros:
@@ -1084,25 +1102,27 @@ class AsyncSession:
                             raise MacroError(f"Macro '{macro_name}' not defined")
                     else:
                         raise MacroError(f"Invalid CALL syntax: {cmd}")
-                elif re.match(r'SET\s+\w+\s*=', cmd, re.IGNORECASE):
-                    m = re.match(r'SET\s+(\w+)\s*=\s*(.*)', cmd, re.IGNORECASE)
+                elif re.match(r"SET\s+\w+\s*=", cmd, re.IGNORECASE):
+                    m = re.match(r"SET\s+(\w+)\s*=\s*(.*)", cmd, re.IGNORECASE)
                     if m:
                         var_name = m.group(1)
-                        var_val = m.group(2).strip().strip('"\'')
+                        var_val = m.group(2).strip().strip("\"'")
                         vars_[var_name] = var_val
                         results["output"].append(f"SET {var_name} = {var_val}")
                     else:
                         raise MacroError(f"Invalid SET syntax: {cmd}")
-                elif re.match(r'^LOAD\s+RESOURCE\s+', cmd, re.IGNORECASE):
+                elif re.match(r"^LOAD\s+RESOURCE\s+", cmd, re.IGNORECASE):
                     parts = cmd.split(maxsplit=2)
                     if len(parts) == 3:
-                        file_path = parts[2].strip().strip('"\'')
+                        file_path = parts[2].strip().strip("\"'")
                         await self.load_resource_definitions(file_path)
                         results["output"].append(f"Loaded resources from {file_path}")
                     else:
                         raise MacroError(f"Invalid Load Resource syntax: {cmd}")
-                elif re.match(r'SYSREQ\s*\(', cmd, re.IGNORECASE):
-                    m = re.match(r'SYSREQ\s*\(\s*"?([^"\)]+)"?\s*\)', cmd, re.IGNORECASE)
+                elif re.match(r"SYSREQ\s*\(", cmd, re.IGNORECASE):
+                    m = re.match(
+                        r'SYSREQ\s*\(\s*"?([^"\)]+)"?\s*\)', cmd, re.IGNORECASE
+                    )
                     if m:
                         arg = m.group(1).strip()
                         await self.sys_req(arg)
@@ -1137,19 +1157,19 @@ class AsyncSession:
     def _evaluate_condition(self, cond: str, vars_: Dict[str, Any]) -> bool:
         """Evaluate condition string."""
         cond_lower = cond.lower()
-        if 'aid==' in cond_lower:
-            parts = cond_lower.split('==')
+        if "aid==" in cond_lower:
+            parts = cond_lower.split("==")
             expected = parts[1].strip()
             expected_aid = self.aid_map.get(expected.upper())
             return self._last_aid == expected_aid
-        elif 'screen.match(' in cond_lower:
+        elif "screen.match(" in cond_lower:
             m = re.search(r'screen\.match\s*\(\s*["\']([^"\']+)["\']\s*\)', cond_lower)
             if m:
                 pat_str = m.group(1)
                 return bool(re.search(pat_str, self.screen.to_text()))
-        elif 'connected' in cond_lower:
+        elif "connected" in cond_lower:
             return self.connected
-        elif 'var ' in cond_lower and '==' in cond_lower:
+        elif "var " in cond_lower and "==" in cond_lower:
             m = re.match(r'var\s+(\w+)\s*==\s*(["\']?)([^"\']+)\\2', cond_lower)
             if m:
                 var_name = m.group(1)
@@ -1157,7 +1177,9 @@ class AsyncSession:
                 return vars_.get(var_name) == var_val
         return False
 
-    async def _execute_sub_macro(self, sub_script: str, vars_: Dict[str, Any], results: Dict) -> Dict:
+    async def _execute_sub_macro(
+        self, sub_script: str, vars_: Dict[str, Any], results: Dict
+    ) -> Dict:
         """Execute sub-script."""
         sub_results = await self.execute_macro(sub_script, vars_)
         results["output"].extend(sub_results["output"])
@@ -1354,8 +1376,8 @@ class AsyncSession:
         if not self._connected or not self.handler:
             raise SessionError("Session not connected.")
 
-        from .protocol.data_stream import DataStreamSender
         from .emulation.ebcdic import translate_ascii_to_ebcdic
+        from .protocol.data_stream import DataStreamSender
 
         sender = DataStreamSender()
 
@@ -1823,7 +1845,7 @@ class AsyncSession:
             # Allow basic navigation on screen buffer even without connection
             if not self.screen_buffer:
                 raise SessionError("Session not connected.")
-                
+
             # Perform local screen buffer navigation
             row, col = self.screen_buffer.get_position()
             row += 1
@@ -1989,7 +2011,9 @@ class AsyncSession:
         """Select field at cursor (s3270 CursorSelect() action)."""
         if self.screen_buffer:
             cursor_pos = self.screen_buffer.get_position()
-            field = self.screen_buffer.get_field_at_position(cursor_pos[0], cursor_pos[1])
+            field = self.screen_buffer.get_field_at_position(
+                cursor_pos[0], cursor_pos[1]
+            )
             if field:
                 field.selected = True
                 logger.debug(f"Selected field at ({field.start[0]}, {field.start[1]})")

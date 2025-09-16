@@ -5,9 +5,10 @@ This module provides VT100 escape sequence parsing to support ASCII terminal emu
 as a fallback when TN3270 negotiation fails, matching s3270 behavior.
 """
 
-import re
 import logging
+import re
 from typing import List, Tuple
+
 from .utils import BaseStringParser, ParseError
 
 logger = logging.getLogger(__name__)

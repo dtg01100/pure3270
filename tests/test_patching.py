@@ -1,16 +1,14 @@
-import platform
-import pytest
 import builtins
-import sys
 import importlib
-from unittest.mock import MagicMock, Mock, patch as mock_patch
-from pure3270.patching.patching import (
-    MonkeyPatchManager,
-    enable_replacement,
-    patch,
-    Pure3270PatchError,
-)
+import platform
+import sys
+from unittest.mock import MagicMock, Mock
+from unittest.mock import patch as mock_patch
 
+import pytest
+
+from pure3270.patching.patching import (MonkeyPatchManager, Pure3270PatchError,
+                                        enable_replacement, patch)
 
 # Store the original import function at module level before any mocking
 _original_import = builtins.__import__
@@ -149,8 +147,9 @@ class TestPatchContext:
 # Tests for real integration with p3270 (since installed)
 def test_real_patching_integration(caplog):
     pytest.importorskip("p3270", reason="p3270 not available for integration test")
-    from pure3270 import enable_replacement
     from p3270 import P3270Client as P3270Session
+
+    from pure3270 import enable_replacement
 
     # Configure caplog to capture INFO level messages
     with caplog.at_level("INFO"):
@@ -208,7 +207,7 @@ def test_performance_patching():
         raise
     except ImportError:
         pytest.skip("pytest-benchmark not installed")
-    
+
     def apply_patches():
         manager = MonkeyPatchManager()
         manager.apply_patches(strict_version=False)

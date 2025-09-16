@@ -9,14 +9,14 @@ For real usage, replace 'mock-host' with a valid TN3270 host (e.g., a test IBM m
 If p3270 is not installed, it will simulate with mocks and log warnings.
 """
 
-import logging
-import time
 import argparse
 import asyncio
-from pure3270.protocol.tn3270_handler import TN3270Handler
+import logging
+import time
 
 # Setup logging to see patching logs
 from pure3270 import setup_logging
+from pure3270.protocol.tn3270_handler import TN3270Handler
 
 setup_logging(level="DEBUG")
 

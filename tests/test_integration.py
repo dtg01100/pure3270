@@ -1,6 +1,8 @@
 import platform
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from pure3270.emulation.screen_buffer import Field
 
 
@@ -82,7 +84,7 @@ class TestIntegration:
             def __init__(self, screen_buffer, negotiator=None):
                 self.screen = screen_buffer
                 self.negotiator = negotiator
-            
+
             def parse(self, data, data_type=0x00):
                 # Simulate parsing IC order
                 if b'\x0F' in data: # Assuming 0x0F is IC
@@ -99,7 +101,7 @@ class TestIntegration:
                 Field((2, 0), (2, 5), protected=True),
                 Field((3, 0), (3, 5), protected=False)  # Input field 2
             ]
-            
+
             # Test IC order: move to first input field (1,0)
             mock_handler.receive_data.return_value = b'\x05\x0F' # Write + IC
             await async_session.read()

@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Tuple
 
+
 class BufferWriter(ABC):
     """
     Abstract base class consolidating write operations, cursor management,

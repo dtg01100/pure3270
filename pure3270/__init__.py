@@ -3,14 +3,15 @@ pure3270 package init.
 Exports core classes and functions for 3270 terminal emulation.
 """
 
-import logging
-import sys
 import argparse
-import json
-import os
 import datetime
-from .session import Session, AsyncSession
+import json
+import logging
+import os
+import sys
+
 from .patching import enable_replacement
+from .session import AsyncSession, Session
 
 
 class JSONFormatter(logging.Formatter):

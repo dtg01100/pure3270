@@ -3,29 +3,18 @@
 import asyncio
 import logging
 import time
-from typing import Optional, List, Tuple
+from typing import List, Optional, Tuple
+
+from .exceptions import ParseError, ProtocolError
 from .tn3270e_header import TN3270EHeader
-from .utils import (
-    SCS_DATA,
-    TN3270E_RSF_NO_RESPONSE,
-    TN3270E_RSF_ERROR_RESPONSE,
-    TN3270E_RSF_ALWAYS_RESPONSE,
-    TN3270E_RSF_POSITIVE_RESPONSE,
-    TN3270E_RSF_NEGATIVE_RESPONSE,
-    PRINT_EOJ,
-    TN3270E_DEVICE_TYPE,
-    TN3270E_FUNCTIONS,
-    TN3270E_IS,
-    TN3270E_REQUEST,
-    TN3270E_SEND,
-    TN3270E_BIND_IMAGE,
-    TN3270E_DATA_STREAM_CTL,
-    TN3270E_RESPONSES,
-    TN3270E_SCS_CTL_CODES,
-    TN3270E_SYSREQ,
-    TN3270E_IBM_DYNAMIC,
-)
-from .exceptions import ProtocolError, ParseError
+from .utils import (PRINT_EOJ, SCS_DATA, TN3270E_BIND_IMAGE,
+                    TN3270E_DATA_STREAM_CTL, TN3270E_DEVICE_TYPE,
+                    TN3270E_FUNCTIONS, TN3270E_IBM_DYNAMIC, TN3270E_IS,
+                    TN3270E_REQUEST, TN3270E_RESPONSES,
+                    TN3270E_RSF_ALWAYS_RESPONSE, TN3270E_RSF_ERROR_RESPONSE,
+                    TN3270E_RSF_NEGATIVE_RESPONSE, TN3270E_RSF_NO_RESPONSE,
+                    TN3270E_RSF_POSITIVE_RESPONSE, TN3270E_SCS_CTL_CODES,
+                    TN3270E_SEND, TN3270E_SYSREQ)
 
 logger = logging.getLogger(__name__)
 

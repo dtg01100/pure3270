@@ -1,6 +1,6 @@
 """Enhanced exceptions for pure3270 with contextual information."""
 
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 
 class EnhancedSessionError(Exception):

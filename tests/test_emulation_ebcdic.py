@@ -1,10 +1,9 @@
-import pytest
 import platform
-from pure3270.emulation.ebcdic import (
-    EBCDICCodec,
-    translate_ebcdic_to_ascii,
-    translate_ascii_to_ebcdic,
-)
+
+import pytest
+
+from pure3270.emulation.ebcdic import (EBCDICCodec, translate_ascii_to_ebcdic,
+                                       translate_ebcdic_to_ascii)
 
 
 @pytest.mark.skipif(platform.system() != 'Linux', reason="Memory limiting only supported on Linux")

@@ -1,13 +1,16 @@
 import asyncio
 import time
+
 from integration_test import BindImageMockServer
+
 
 async def capture(timeout=6.0):
     server = BindImageMockServer()
     server_task = asyncio.create_task(server.start())
     await asyncio.sleep(0.1)  # give server time to start
 
-    from pure3270.protocol.utils import IAC, SB, SE, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_SEND
+    from pure3270.protocol.utils import (IAC, SB, SE, TELOPT_TN3270E,
+                                         TN3270E_DEVICE_TYPE, TN3270E_SEND)
 
     reader = writer = None
     collected = bytearray()

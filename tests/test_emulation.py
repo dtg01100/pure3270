@@ -1,8 +1,9 @@
-import pytest
 import platform
 from unittest.mock import patch  # noqa: F401
 
-from pure3270.emulation.screen_buffer import ScreenBuffer, Field
+import pytest
+
+from pure3270.emulation.screen_buffer import Field, ScreenBuffer
 
 
 @pytest.mark.skipif(platform.system() != 'Linux', reason="Memory limiting only supported on Linux")
@@ -285,7 +286,7 @@ def test_move_cursor_to_first_input_field(screen_buffer):
         Field((2, 0), (2, 5), protected=True), # Protected field
         Field((3, 0), (3, 5), protected=False)  # Input field 2
     ]
-    
+
     screen_buffer.move_cursor_to_first_input_field()
     assert screen_buffer.cursor_row == 1
     assert screen_buffer.cursor_col == 0
@@ -296,7 +297,7 @@ def test_move_cursor_to_first_input_field_no_input_fields(screen_buffer):
         Field((0, 0), (0, 5), protected=True),
         Field((1, 0), (1, 5), protected=True)
     ]
-    
+
     # Cursor should remain at its current position (default 0,0) or not change
     screen_buffer.move_cursor_to_first_input_field()
     assert screen_buffer.cursor_row == 0
@@ -310,7 +311,7 @@ def test_move_cursor_to_next_input_field(screen_buffer):
         Field((2, 0), (2, 5), protected=True),
         Field((3, 0), (3, 5), protected=False)  # Input field 2
     ]
-    
+
     # Set initial cursor position before the first input field
     screen_buffer.set_position(0, 0)
     screen_buffer.move_cursor_to_next_input_field()
@@ -335,7 +336,7 @@ def test_move_cursor_to_next_input_field_no_input_fields(screen_buffer):
         Field((0, 0), (0, 5), protected=True),
         Field((1, 0), (1, 5), protected=True)
     ]
-    
+
     # Cursor should remain at its current position (default 0,0) or not change
     screen_buffer.move_cursor_to_next_input_field()
     assert screen_buffer.cursor_row == 0
@@ -348,7 +349,7 @@ def test_move_cursor_to_next_input_field_single_input_field_wraps_around(screen_
         Field((1, 0), (1, 5), protected=False), # Only input field
         Field((2, 0), (2, 5), protected=True)
     ]
-    
+
     # Set cursor to the single input field
     screen_buffer.set_position(1, 0)
     screen_buffer.move_cursor_to_next_input_field()

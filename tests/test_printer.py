@@ -1,17 +1,15 @@
-import platform
-import pytest
 import asyncio
+import platform
 from unittest.mock import AsyncMock, MagicMock, patch
-from pure3270.protocol.printer import PrinterSession, PrinterJob
+
+import pytest
+
+from pure3270.protocol.printer import PrinterJob, PrinterSession
 from pure3270.protocol.tn3270e_header import TN3270EHeader
-from pure3270.protocol.utils import (
-    SCS_DATA,
-    TN3270E_RSF_ERROR_RESPONSE,
-    TN3270E_RSF_NEGATIVE_RESPONSE,
-    TN3270E_RESPONSES,
-    TN3270E_SCS_CTL_CODES,
-    PRINT_EOJ,
-)
+from pure3270.protocol.utils import (PRINT_EOJ, SCS_DATA, TN3270E_RESPONSES,
+                                     TN3270E_RSF_ERROR_RESPONSE,
+                                     TN3270E_RSF_NEGATIVE_RESPONSE,
+                                     TN3270E_SCS_CTL_CODES)
 
 
 @pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")

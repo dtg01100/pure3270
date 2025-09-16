@@ -1,9 +1,11 @@
 import platform
-import pytest
-from pure3270.protocol.negotiator import Negotiator
-from pure3270.protocol.data_stream import DataStreamParser
-from pure3270.emulation.screen_buffer import ScreenBuffer
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+from pure3270.emulation.screen_buffer import ScreenBuffer
+from pure3270.protocol.data_stream import DataStreamParser
+from pure3270.protocol.negotiator import Negotiator
 
 
 @pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")

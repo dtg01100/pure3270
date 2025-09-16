@@ -10,9 +10,9 @@ import asyncio
 import functools
 import logging
 import ssl
-from typing import Optional, Callable, Any
+from typing import Any, Callable, Optional
 
-from .exceptions import ProtocolError, NegotiationError
+from .exceptions import NegotiationError, ProtocolError
 
 logger = logging.getLogger(__name__)
 

@@ -1,11 +1,13 @@
-import pytest
 import asyncio
-import subprocess
 import platform
-from unittest.mock import AsyncMock, MagicMock, patch, ANY, mock_open
-from pure3270.session import Session, AsyncSession, SessionError, MacroError
-from pure3270.emulation.screen_buffer import ScreenBuffer, Field
+import subprocess
+from unittest.mock import ANY, AsyncMock, MagicMock, mock_open, patch
+
+import pytest
+
+from pure3270.emulation.screen_buffer import Field, ScreenBuffer
 from pure3270.protocol.tn3270_handler import TN3270Handler
+from pure3270.session import AsyncSession, MacroError, Session, SessionError
 
 
 @pytest.fixture
@@ -18,7 +20,9 @@ def sync_session():
     return Session("localhost", 23)
 
 
-@pytest.mark.skipif(platform.system() != 'Linux', reason="Memory limiting only supported on Linux")
+@pytest.mark.skipif(
+    platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+)
 @pytest.mark.asyncio
 class TestAsyncSession:
     async def test_init(self, async_session, memory_limit_500mb):

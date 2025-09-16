@@ -1,8 +1,10 @@
 import platform
-import pytest
-from unittest.mock import patch, MagicMock
-from pure3270.protocol.ssl_wrapper import SSLWrapper, SSLError
 import ssl
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from pure3270.protocol.ssl_wrapper import SSLError, SSLWrapper
 
 
 @pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")

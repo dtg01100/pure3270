@@ -3,13 +3,15 @@ import time
 
 from integration_test import BindImageMockServer
 
+
 async def capture():
     server = BindImageMockServer()
     server_task = asyncio.create_task(server.start())
     await asyncio.sleep(0.1)
 
     # Import telnet/tn3270 constants from package
-    from pure3270.protocol.utils import IAC, WILL, DO, TELOPT_TN3270E, TELOPT_TTYPE, TELOPT_BINARY, TELOPT_EOR
+    from pure3270.protocol.utils import (DO, IAC, TELOPT_BINARY, TELOPT_EOR,
+                                         TELOPT_TN3270E, TELOPT_TTYPE, WILL)
 
     reader, writer = await asyncio.open_connection('localhost', server.port)
     try:

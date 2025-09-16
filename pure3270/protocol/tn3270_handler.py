@@ -4,24 +4,29 @@ Handles negotiation, data sending/receiving, and protocol specifics.
 """
 
 import asyncio
-import ssl
 import logging
 import re
+import ssl
 from typing import Optional
-from ..session_manager import SessionManager
-from .data_stream import DataStreamParser, SnaResponse # Import SnaResponse
+
+from ..emulation.printer_buffer import PrinterBuffer  # Import PrinterBuffer
 from ..emulation.screen_buffer import ScreenBuffer
-from ..emulation.printer_buffer import PrinterBuffer # Import PrinterBuffer
-from .utils import send_iac, send_subnegotiation, TN3270_DATA, TN3270E_SYSREQ, TN3270E_SYSREQ_MESSAGE_TYPE, TN3270E_SYSREQ_ATTN, TN3270E_SYSREQ_BREAK, TN3270E_SYSREQ_CANCEL, TN3270E_SYSREQ_RESTART, TN3270E_SYSREQ_PRINT, TN3270E_SYSREQ_LOGOFF, TELOPT_TN3270E
-from .exceptions import NegotiationError, ProtocolError, ParseError
-from .errors import handle_drain, safe_socket_operation, raise_protocol_error
+from ..session_manager import SessionManager
+from .data_stream import DataStreamParser, SnaResponse  # Import SnaResponse
+from .errors import handle_drain, raise_protocol_error, safe_socket_operation
+from .exceptions import NegotiationError, ParseError, ProtocolError
 from .negotiator import Negotiator
 from .tn3270e_header import TN3270EHeader
+from .utils import (TELOPT_TN3270E, TN3270_DATA, TN3270E_SYSREQ,
+                    TN3270E_SYSREQ_ATTN, TN3270E_SYSREQ_BREAK,
+                    TN3270E_SYSREQ_CANCEL, TN3270E_SYSREQ_LOGOFF,
+                    TN3270E_SYSREQ_MESSAGE_TYPE, TN3270E_SYSREQ_PRINT,
+                    TN3270E_SYSREQ_RESTART, send_iac, send_subnegotiation)
 
 logger = logging.getLogger(__name__)
- 
+
 import inspect
- 
+
 # Expose VT100Parser symbol at module level so tests can patch it before runtime.
 # Tests expect `pure3270.protocol.tn3270_handler.VT100Parser` to exist.
 VT100Parser = None  # Will be set at runtime when vt100_parser is imported
@@ -76,35 +81,35 @@ def _call_maybe_schedule(func, *args, **kwargs):
                 # If even that fails, ignore to preserve test-oriented sync behavior
                 pass
     return result
- 
- 
+
+
 class _AwaitableResult:
     """A small wrapper that is both awaitable and tuple/unpackable.
- 
+
     Allows callers to either do:
         cleaned_data, ascii_mode = handler._process_telnet_stream(data)
     or:
         cleaned_data, ascii_mode = await handler._process_telnet_stream(data)
- 
+
     Tests in the suite sometimes await the call and sometimes call it synchronously.
     """
     def __init__(self, result_tuple):
         self._result = tuple(result_tuple)
- 
+
     def __iter__(self):
         return iter(self._result)
- 
+
     def __len__(self):
         return len(self._result)
- 
+
     def __getitem__(self, idx):
         return self._result[idx]
- 
+
     def __await__(self):
         async def _wrap():
             return self._result
         return _wrap().__await__()
- 
+
     def __repr__(self):
         return f"_AwaitableResult({self._result!r})"
 
@@ -175,7 +180,7 @@ class TN3270Handler:
     ):
         """
         Initialize the TN3270 handler.
-        
+
         Args:
             reader: Asyncio stream reader (can be None for testing).
             writer: Asyncio stream writer (can be None for testing).
@@ -184,7 +189,7 @@ class TN3270Handler:
             host: Target host for connection.
             port: Target port for connection.
             is_printer_session: True if this handler is for a printer session.
-            
+
         Raises:
             ValueError: If reader or writer is None (when not in test mode).
         """
@@ -196,7 +201,7 @@ class TN3270Handler:
         self.screen_buffer = screen_buffer if screen_buffer is not None else ScreenBuffer()
         self.printer_buffer = PrinterBuffer() if is_printer_session else None # Initialize PrinterBuffer if it's a printer session
         self._transport: Optional[SessionManager] = None
-        
+
         # Initialize negotiator first, then pass it to the parser
         self.negotiator = Negotiator(self.writer, None, self.screen_buffer, self) # Pass None for parser initially
         self.negotiator.is_printer_session = is_printer_session # Set printer session after initialization
@@ -216,48 +221,55 @@ class TN3270Handler:
         await self.negotiator.negotiate()
         print(f"[HANDLER DEBUG] Telnet negotiation completed on handler {id(self)}")
 
-    
 
-    async def _negotiate_tn3270(self) -> None:
+
+    async def _reader_loop(self):
+        """
+        Background reader loop used during TN3270 negotiation.
+        Extracted to a separate method so tests can patch `handler._reader_loop`.
+        """
+        try:
+            # Keep reading until the negotiator signals full completion
+            while not self.negotiator._negotiation_complete.is_set():
+                if self.reader is None:
+                    break
+                data = await asyncio.wait_for(self.reader.read(4096), timeout=1.0)
+                if not data:
+                    # Avoid busy loop if reader returns empty bytes
+                    await asyncio.sleep(0.01)
+                    continue
+                # Process telnet stream synchronously; this will schedule negotiator tasks
+                result = self._process_telnet_stream(data)
+                # If the result is awaitable, await it to ensure completion
+                if inspect.isawaitable(result):
+                    await result
+        except asyncio.CancelledError:
+            # Normal cancellation when negotiation completes
+            pass
+        except StopAsyncIteration:
+            # AsyncMock.reader.read may raise StopAsyncIteration when its side_effect
+            # sequence is exhausted in tests. Treat this as end-of-stream and exit.
+            pass
+        except Exception:
+            logger.exception("Exception in negotiation reader loop", exc_info=True)
+            # Reraise to propagate to caller
+            raise
+
+    async def _negotiate_tn3270(self, timeout: float = 10.0) -> None:
         """
         Negotiate TN3270E subnegotiation.
 
         Reads incoming telnet responses while negotiation is in progress so that
         negotiator events get set when subnegotiations/commands arrive.
+
+        Args:
+            timeout: Maximum time to wait for negotiation responses.
         """
         print(f"[HANDLER DEBUG] Starting TN3270E subnegotiation on handler {id(self)}")
 
-        async def _reader_loop():
-            try:
-                # Keep reading until the negotiator signals full completion
-                while not self.negotiator._negotiation_complete.is_set():
-                    if self.reader is None:
-                        break
-                    data = await asyncio.wait_for(self.reader.read(4096), timeout=1.0)
-                    if not data:
-                        # Avoid busy loop if reader returns empty bytes
-                        await asyncio.sleep(0.01)
-                        continue
-                    # Process telnet stream synchronously; this will schedule negotiator tasks
-                    result = self._process_telnet_stream(data)
-                    # If the result is awaitable, await it to ensure completion
-                    if inspect.isawaitable(result):
-                        await result
-            except asyncio.CancelledError:
-                # Normal cancellation when negotiation completes
-                pass
-            except StopAsyncIteration:
-                # AsyncMock.reader.read may raise StopAsyncIteration when its side_effect
-                # sequence is exhausted in tests. Treat this as end-of-stream and exit.
-                pass
-            except Exception:
-                logger.exception("Exception in negotiation reader loop", exc_info=True)
-                # Reraise to propagate to caller
-                raise
-
-        reader_task = asyncio.create_task(_reader_loop())
+        reader_task = asyncio.create_task(self._reader_loop())
         try:
-            await self.negotiator._negotiate_tn3270()
+            await self.negotiator._negotiate_tn3270(timeout=timeout)
             # Ensure handler reflects ASCII fallback if negotiator switched modes
             try:
                 if getattr(self.negotiator, "_ascii_mode", False):
@@ -381,8 +393,8 @@ class TN3270Handler:
             logger.debug("In ASCII mode, checking for TN3270E data")
             # Check if this is TN3270E data even in ASCII mode
             from .tn3270e_header import TN3270EHeader
-            from .utils import TN3270_DATA, SCS_DATA, PRINTER_STATUS_DATA_TYPE
-            
+            from .utils import PRINTER_STATUS_DATA_TYPE, SCS_DATA, TN3270_DATA
+
             # Prepare defaults in case the 5-byte prefix is not a valid TN3270E header
             data_type = TN3270_DATA
             header_len = 0
@@ -413,18 +425,10 @@ class TN3270Handler:
                 # matches a known TN3270E data type. This avoids mis-parsing ASCII
                 # VT100 streams (which can start with ESC '[') as binary headers.
                 if tn3270e_header:
-                    from .utils import (
-                        TN3270_DATA,
-                        SCS_DATA,
-                        PRINTER_STATUS_DATA_TYPE,
-                        BIND_IMAGE,
-                        UNBIND,
-                        NVT_DATA,
-                        REQUEST,
-                        SSCP_LU_DATA,
-                        PRINT_EOJ,
-                        SNA_RESPONSE,
-                    )
+                    from .utils import (BIND_IMAGE, NVT_DATA, PRINT_EOJ,
+                                        PRINTER_STATUS_DATA_TYPE, REQUEST,
+                                        SCS_DATA, SNA_RESPONSE, SSCP_LU_DATA,
+                                        TN3270_DATA, UNBIND)
 
                     valid_types = {
                         TN3270_DATA,
@@ -467,7 +471,7 @@ class TN3270Handler:
                             self.parser.parse(data_to_process, data_type=data_type)
 
                         return processed_data
-            
+
             logger.debug("No TN3270E header found, parsing VT100 data")
             # In ASCII mode, parse VT100 escape sequences and update screen buffer
             try:
@@ -487,7 +491,9 @@ class TN3270Handler:
         logger.debug("In TN3270 mode, parsing 3270 data")
         # Extract TN3270E header for data type and sequence number
         from .tn3270e_header import TN3270EHeader
-        from .utils import TN3270_DATA, SCS_DATA, PRINTER_STATUS_DATA_TYPE, SNA_RESPONSE as SNA_RESPONSE_TYPE
+        from .utils import PRINTER_STATUS_DATA_TYPE, SCS_DATA
+        from .utils import SNA_RESPONSE as SNA_RESPONSE_TYPE
+        from .utils import TN3270_DATA
 
         data_type = TN3270_DATA # Default to TN3270_DATA
         header_len = 0
@@ -524,27 +530,27 @@ class TN3270Handler:
         """
         Process raw Telnet stream, handle IAC sequences, and return 3270 data.
         This also detects VT100 sequences for s3270 compatibility.
-    
+
         Args:
             raw_data: Raw bytes received from the connection.
-    
+
         Returns:
             Tuple of (cleaned_3270_data, ascii_mode_detected).
         """
-        from .utils import IAC, SB, SE, WILL, WONT, DO, DONT, EOR, BRK
+        from .utils import BRK, DO, DONT, EOR, IAC, SB, SE, WILL, WONT
         TN3270E = TELOPT_TN3270E  # Use the imported constant
-    
+
         cleaned_data = bytearray()
         i = 0
         ascii_mode_detected = False
-    
+
         # Add any previously incomplete data to the beginning of the current raw_data
         full_data = self._telnet_buffer + raw_data
         self._telnet_buffer = b""  # Clear the buffer
-    
+
         logger.debug(f"[TELNET] Processing raw Telnet stream: {raw_data.hex()}")
         logger.debug(f"[TELNET] Full data (with buffer): {full_data.hex()}")
-    
+
         while i < len(full_data):
             if full_data[i] == IAC:
                 if i + 1 < len(full_data):
@@ -563,9 +569,9 @@ class TN3270Handler:
                             # Found IAC SE
                             sub_option = full_data[i + 2] if i + 2 < j else None
                             sub_data = full_data[i + 3 : j]
-    
+
                             logger.info(f"[TELNET] Received IAC SB (subnegotiation): option=0x{sub_option:02x}, data={sub_data.hex()}")
-    
+
                             # Pass all subnegotiations to the negotiator for handling
                             if sub_option is not None:
                                 # If this is TN3270E option, tests expect the
@@ -619,7 +625,7 @@ class TN3270Handler:
             else:
                 cleaned_data.append(full_data[i])
                 i += 1
-    
+
         # Detect VT100 sequences in the *original* raw data for s3270 compatibility.
         try:
             if not ascii_mode_detected and self._detect_vt100_sequences(raw_data):
@@ -627,7 +633,7 @@ class TN3270Handler:
         except Exception:
             # If detection fails for any reason, don't raise — leave ascii_mode_detected as-is
             pass
-    
+
         result = (bytes(cleaned_data), ascii_mode_detected)
         return _AwaitableResult(result)
 
@@ -684,7 +690,7 @@ class TN3270Handler:
     async def send_sysreq_command(self, command_code: int) -> None:
         """
         Send a SYSREQ command to the host.
- 
+
         Args:
             command_code: The byte code representing the SYSREQ command.
         """
@@ -692,15 +698,15 @@ class TN3270Handler:
             raise ProtocolError("Not connected")
         if self.writer is None:
             raise ProtocolError("Writer is None; cannot send SYSREQ command.")
- 
-        from .utils import IAC, IP, BREAK, EOR
- 
+
+        from .utils import BREAK, EOR, IAC, IP
+
         fallback_map = {
             TN3270E_SYSREQ_ATTN: bytes([IAC, IP]),  # IAC IP for ATTN
             TN3270E_SYSREQ_BREAK: bytes([IAC, BREAK]),  # IAC BREAK for BREAK
             # For TN3270E BREAK, could use EOR if context requires, but default to BREAK
         }
- 
+
         if self.negotiator.negotiated_tn3270e and (self.negotiator.negotiated_functions & TN3270E_SYSREQ):
             # Use TN3270E SYSREQ
             sub_data = bytes([TN3270E_SYSREQ_MESSAGE_TYPE, command_code])
@@ -731,7 +737,7 @@ class TN3270Handler:
         if self.writer is None:
             raise_protocol_error("Writer is None; cannot send BREAK command.")
 
-        from .utils import IAC, BRK
+        from .utils import BRK, IAC
         send_iac(self.writer, bytes([BRK]))
         await self.writer.drain()
         logger.debug("Sent Telnet BREAK command (IAC BRK)")

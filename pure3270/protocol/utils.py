@@ -187,8 +187,8 @@ def send_iac(writer, data: bytes) -> None:
 
     # If writer.write returned an awaitable (e.g., AsyncMock), ensure it's awaited or scheduled.
     try:
-        import inspect
         import asyncio
+        import inspect
 
         if inspect.isawaitable(res):
             try:
@@ -230,8 +230,8 @@ def send_subnegotiation(writer, opt: bytes, data: bytes) -> None:
 
     # If writer.write returned an awaitable (e.g., AsyncMock), ensure it's awaited or scheduled.
     try:
-        import inspect
         import asyncio
+        import inspect
 
         if inspect.isawaitable(res):
             try:
@@ -296,46 +296,6 @@ def strip_telnet_iac(
 
 from typing import Optional
 
-class ParseError(Exception):
-    """Error during parsing."""
-    pass
-
-class BaseParser:
-    def __init__(self, data: bytes):
-        self._data = data
-        self._pos = 0
-
-    def has_more(self) -> bool:
-        return self._pos < len(self._data)
-
-    def remaining(self) -> int:
-        return len(self._data) - self._pos
-
-    def peek_byte(self) -> int:
-        if not self.has_more():
-            raise ParseError("Peek at EOF")
-        return self._data[self._pos]
-
-    def read_byte(self) -> int:
-        if not self.has_more():
-            raise ParseError("Unexpected end of data stream")
-        byte = self._data[self._pos]
-        self._pos += 1
-        return byte
-
-    def read_u16(self) -> int:
-        high = self.read_byte()
-        low = self.read_byte()
-        return struct.unpack('>H', bytes([high, low]))[0]
-
-    def read_fixed(self, length: int) -> bytes:
-        if self.remaining() < length:
-            raise ParseError("Insufficient data for fixed length read")
-        start = self._pos
-        self._pos += length
-        return self._data[start:self._pos]
-
-from typing import Optional
 
 class ParseError(Exception):
     """Error during parsing."""

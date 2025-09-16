@@ -3,7 +3,7 @@ Wrapper class to make pure3270 compatible with p3270's S3270 interface.
 """
 
 import logging
-from typing import Optional, Any
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -141,12 +141,12 @@ class Pure3270S3270Wrapper:
         # Parse connection parameters from command
         # Examples: Connect(B:hostname), Connect(L:lu@hostname)
         logger.info(f"Handling connect command: {cmd}")
-        
+
         # Parse the hostname from the command
         # Format is Connect(B:hostname) or Connect(L:lu@hostname)
         hostname = "localhost"  # Default
         port = 23  # Default
-        
+
         try:
             # Extract the parameter from inside the parentheses
             if "(" in cmd and ")" in cmd:
@@ -160,18 +160,18 @@ class Pure3270S3270Wrapper:
                 # Handle plain hostname
                 else:
                     hostname = param
-                    
+
                 # Check if hostname includes port
                 if ":" in hostname:
                     host_parts = hostname.split(":")
                     hostname = host_parts[0]
                     port = int(host_parts[1])
-                    
+
         except Exception as e:
             logger.warning(f"Error parsing hostname from connect command: {e}")
-        
+
         logger.info(f"Connecting to hostname: {hostname}, port: {port}")
-        
+
         # Actually connect to the host
         try:
             self._session.connect(host=hostname, port=port)

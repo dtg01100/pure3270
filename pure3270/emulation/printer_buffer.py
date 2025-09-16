@@ -3,6 +3,7 @@ Printer buffer and rendering logic for 3287 printer emulation.
 """
 import logging
 from typing import Optional, Tuple
+
 from .buffer_writer import BufferWriter
 
 logger = logging.getLogger(__name__)
@@ -53,8 +54,8 @@ class PrinterBuffer(BufferWriter):
             self._current_line.append(char)
             self.cursor_col += 1
         # Ignore other controls and non-printable for now
-    
-    
+
+
     def set_attribute(
         self,
         attr: int,
@@ -65,13 +66,13 @@ class PrinterBuffer(BufferWriter):
         Set attribute at position. Printer buffer does not support attributes.
         """
         pass
-    
-    
+
+
     def get_content(self) -> str:
         """Retrieve the buffer content as a string."""
         return self.get_rendered_output()
-    
-    
+
+
     def write_scs_data(self, data: bytes):
         """Processes incoming SCS data."""
         # This is a simplified implementation.

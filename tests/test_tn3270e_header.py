@@ -1,12 +1,11 @@
 import platform
+
 import pytest
+
 from pure3270.protocol.tn3270e_header import TN3270EHeader
-from pure3270.protocol.utils import (
-    TN3270_DATA,
-    SCS_DATA,
-    TN3270E_RSF_NO_RESPONSE,
-    TN3270E_RSF_ERROR_RESPONSE,
-)
+from pure3270.protocol.utils import (SCS_DATA, TN3270_DATA,
+                                     TN3270E_RSF_ERROR_RESPONSE,
+                                     TN3270E_RSF_NO_RESPONSE)
 
 
 @pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")

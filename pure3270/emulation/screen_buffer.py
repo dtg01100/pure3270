@@ -1,12 +1,142 @@
 """Screen buffer management for 3270 emulation."""
 
-from typing import List, Tuple, Optional
 import logging
 import re
-from .ebcdic import EmulationEncoder
-from collections import namedtuple
+from typing import List, Optional, Tuple
 
-Field = namedtuple('Field', ['start', 'end', 'protected', 'numeric', 'modified', 'selected', 'intensity', 'color', 'background', 'validation', 'outlining', 'character_set', 'sfe_highlight', 'content'])
+from .ebcdic import EmulationEncoder, EBCDICCodec
+
+class Field:
+    """A simple Field object that mirrors the previous namedtuple API with
+    convenient defaults and helper methods used by tests.
+
+    It intentionally implements `get_content`, `set_content`, and `_replace`
+    to be compatible with test expectations. `content` is stored as raw
+    EBCDIC bytes; `get_content`/`set_content` use the `EBCDICCodec` by default
+    but will fall back to `EmulationEncoder` when the codec isn't present.
+    """
+
+    def __init__(
+        self,
+        start=(0, 0),
+        end=(0, 0),
+        protected=False,
+        numeric=False,
+        modified=False,
+        selected=False,
+        intensity=0,
+        color=0,
+        background=0,
+        validation=0,
+        outlining=0,
+        character_set=0,
+        sfe_highlight=0,
+        content: bytes = b"",
+    ):
+        # Normalize start/end coordinates so that start <= end (lexicographically).
+        try:
+            s_row, s_col = int(start[0]), int(start[1])
+            e_row, e_col = int(end[0]), int(end[1])
+        except Exception:
+            s_row, s_col = 0, 0
+            e_row, e_col = 0, 0
+
+        if (s_row, s_col) <= (e_row, e_col):
+            self.start = (s_row, s_col)
+            self.end = (e_row, e_col)
+        else:
+            # Swap so the public invariant holds: start <= end
+            self.start = (e_row, e_col)
+            self.end = (s_row, s_col)
+
+        self.protected = bool(protected)
+        self.numeric = bool(numeric)
+        self.modified = bool(modified)
+        self.selected = bool(selected)
+        self.intensity = int(intensity)
+        self.color = int(color)
+        self.background = int(background)
+        self.validation = int(validation)
+        self.outlining = int(outlining)
+        self.character_set = int(character_set)
+        self.sfe_highlight = int(sfe_highlight)
+        # Ensure content is bytes
+        self.content = bytes(content) if content is not None else b""
+
+    def get_content(self, codec: Optional[EBCDICCodec] = None) -> str:
+        """Return decoded content as a Unicode string.
+
+        Accepts an optional `codec` for decoding; if not provided we use
+        `EBCDICCodec()` when available, otherwise `EmulationEncoder`.
+        """
+        if codec is None:
+            try:
+                codec = EBCDICCodec()
+            except Exception:
+                codec = None
+        if codec is not None:
+            # Compatibility: some codecs return (text, length)
+            try:
+                res = codec.decode(self.content)
+                if isinstance(res, tuple):
+                    return res[0]
+                return res
+            except Exception:
+                pass
+        # Fallback
+        return EmulationEncoder.decode(self.content)
+
+    def set_content(self, text: str, codec: Optional[EBCDICCodec] = None) -> None:
+        """Set the field content from a Unicode string and mark modified.
+
+        Uses optional `codec` for encoding; falls back to `EmulationEncoder`.
+        """
+        if codec is None:
+            try:
+                codec = EBCDICCodec()
+            except Exception:
+                codec = None
+        if codec is not None:
+            try:
+                res = codec.encode(text)
+                if isinstance(res, tuple):
+                    self.content = res[0]
+                else:
+                    self.content = res
+                self.modified = True
+                return
+            except Exception:
+                pass
+        self.content = EmulationEncoder.encode(text)
+        self.modified = True
+
+    def _replace(self, **kwargs):
+        """Return a new Field with replaced attributes (compatible with namedtuple._replace)."""
+        params = {
+            'start': self.start,
+            'end': self.end,
+            'protected': self.protected,
+            'numeric': self.numeric,
+            'modified': self.modified,
+            'selected': self.selected,
+            'intensity': self.intensity,
+            'color': self.color,
+            'background': self.background,
+            'validation': self.validation,
+            'outlining': self.outlining,
+            'character_set': self.character_set,
+            'sfe_highlight': self.sfe_highlight,
+            'content': self.content,
+        }
+        params.update(kwargs)
+        # Constructing a new Field will run the normalization logic in __init__
+        return Field(**params)
+
+    def __repr__(self):
+        return (
+            f"Field(start={self.start}, end={self.end}, protected={self.protected}, "
+            f"numeric={self.numeric}, modified={self.modified}, content={self.content!r})"
+        )
 
 from .buffer_writer import BufferWriter
 
@@ -55,11 +185,11 @@ class ScreenBuffer(BufferWriter):
     def write_char(
         self,
         ebcdic_byte: int,
-        row: int,
-        col: int,
+        row: Optional[int] = None,
+        col: Optional[int] = None,
         protected: bool = False,
         circumvent_protection: bool = False,
-    ):
+    ) -> None:
         """
         Write an EBCDIC character to the buffer at position.
 
@@ -69,6 +199,10 @@ class ScreenBuffer(BufferWriter):
         :param protected: Protection attribute to set.
         :param circumvent_protection: If True, write even to protected fields.
         """
+        # If row/col not provided, use current cursor position
+        if row is None or col is None:
+            row, col = self.get_position()
+
         if 0 <= row < self.rows and 0 <= col < self.cols:
             pos = row * self.cols + col
             attr_offset = pos * 3
@@ -82,12 +216,12 @@ class ScreenBuffer(BufferWriter):
             )
 
             # Update field content and mark as modified if this position belongs to a field
-            self._update_field_content(row, col, ebcdic_byte)
+            self._update_field_content(int(row), int(col), ebcdic_byte)
 
     def _update_field_content(self, row: int, col: int, ebcdic_byte: int):
         """
         Update the field content when a character is written to a position.
-    
+
         :param row: Row position.
         :param col: Column position.
         :param ebcdic_byte: EBCDIC byte value written.
@@ -96,7 +230,7 @@ class ScreenBuffer(BufferWriter):
         for idx, field in enumerate(self.fields):
             start_row, start_col = field.start
             end_row, end_col = field.end
-    
+
             # Check if the position is within this field
             if start_row <= row <= end_row and (
                 start_row != end_row or (start_col <= col <= end_col)
@@ -104,7 +238,7 @@ class ScreenBuffer(BufferWriter):
                 # Position is within this field, mark as modified
                 new_field = field._replace(modified=True)
                 self.fields[idx] = new_field
-    
+
                 # For now, we'll just mark the field as modified
                 # A more complete implementation would update the field's content buffer
                 break
@@ -254,7 +388,7 @@ class ScreenBuffer(BufferWriter):
     def to_text(self) -> str:
         """
         Convert screen buffer to Unicode text string.
-        
+
         :return: Multi-line string representation.
         """
         lines = []
@@ -267,7 +401,7 @@ class ScreenBuffer(BufferWriter):
     def get_field_content(self, field_index: int) -> str:
         """
         Get content of a specific field.
-    
+
         :param field_index: Index in fields list.
         :return: Unicode string content.
         """
@@ -318,10 +452,6 @@ class ScreenBuffer(BufferWriter):
             if start_row <= row <= end_row and start_col <= col <= end_col:
                 return field
         return None
-
-    def get_field_at(self, pos: Tuple[int, int]) -> Optional[Field]:
-        """Get the field at the given position (row, col)."""
-        return self.get_field_at_position(pos[0], pos[1])
 
     def get_field_at_cursor(self) -> Optional[Field]:
         """Get the field at the current cursor position."""
@@ -403,7 +533,7 @@ class ScreenBuffer(BufferWriter):
         """
         current_pos_linear = self.cursor_row * self.cols + self.cursor_col
         next_input_field = None
-        
+
         # Sort fields by their linear start position to ensure correct traversal
         sorted_fields = sorted(self.fields, key=lambda f: f.start[0] * self.cols + f.start[1])
 
@@ -413,7 +543,7 @@ class ScreenBuffer(BufferWriter):
             if field_start_linear > current_pos_linear and not field.protected:
                 next_input_field = field
                 break
-        
+
         if next_input_field:
             self.cursor_row, self.cursor_col = next_input_field.start
             logger.debug(f"Cursor moved to next input field at {self.cursor_row},{self.cursor_col}")
@@ -423,16 +553,17 @@ class ScreenBuffer(BufferWriter):
                 if not field.protected:
                     next_input_field = field
                     break
-            
+
             if next_input_field:
                 self.cursor_row, self.cursor_col = next_input_field.start
                 logger.debug(f"Cursor wrapped around to first input field at {self.cursor_row},{self.cursor_col}")
             else:
                 logger.debug("No input fields found for PT order, or no next field after wrap-around.")
 
-    def set_attribute(self, attr: int) -> None:
-        """Set field attribute at current cursor position."""
-        row, col = self.get_position()
+    def set_attribute(self, attr: int, row: Optional[int] = None, col: Optional[int] = None) -> None:
+        """Set field attribute at specified or current position."""
+        if row is None or col is None:
+            row, col = self.get_position()
         pos = row * self.cols + col
         if 0 <= pos < self.size:
             self.attributes[pos * 3] = attr
@@ -455,7 +586,7 @@ class ScreenBuffer(BufferWriter):
         """Insert graphic ellipsis characters."""
         # Graphic ellipsis is typically represented as '...' or similar
         ellipsis_char = ord('.')  # ASCII period
-        
+
         for _ in range(count):
             self.write_char(ellipsis_char, self.cursor_row, self.cursor_col)
             self.cursor_col += 1

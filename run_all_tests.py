@@ -8,11 +8,11 @@ Supports configurable unit and integration timeouts and memory limits via CLI ar
 --int-mem INT (default: 200) - Memory limit for integration tests (MB)
 """
 
+import argparse
 import asyncio
+import os
 import subprocess
 import sys
-import os
-import argparse
 
 
 def run_command(cmd, timeout=300, env=None):

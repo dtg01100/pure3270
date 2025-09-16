@@ -1,9 +1,10 @@
 import platform
-import pytest
 from unittest.mock import AsyncMock, MagicMock
-from pure3270.protocol.utils import send_iac, send_subnegotiation, strip_telnet_iac
 
+import pytest
 
+from pure3270.protocol.utils import (send_iac, send_subnegotiation,
+                                     strip_telnet_iac)
 
 
 def test_send_iac(mock_sync_writer, memory_limit_500mb):

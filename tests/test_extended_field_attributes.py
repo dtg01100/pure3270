@@ -1,6 +1,8 @@
-import pytest
 import platform
-from pure3270.emulation.screen_buffer import ScreenBuffer, Field
+
+import pytest
+
+from pure3270.emulation.screen_buffer import Field, ScreenBuffer
 
 
 @pytest.mark.skipif(platform.system() != 'Linux', reason="Memory limiting only supported on Linux")

@@ -1,5 +1,7 @@
-import pytest
 import platform
+
+import pytest
+
 from pure3270.protocol.data_stream import DataStreamParser
 
 

@@ -14,7 +14,7 @@ Enable SSL for secure connections (port 992 typically).
 """
 
 # Setup logging to see session events
-from pure3270 import setup_logging, Session
+from pure3270 import Session, setup_logging
 
 setup_logging(level="INFO")
 

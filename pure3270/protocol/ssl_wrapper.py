@@ -1,7 +1,7 @@
 """SSL/TLS wrapper for secure TN3270 connections using stdlib ssl module."""
 
-import ssl
 import logging
+import ssl
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ class SSLWrapper:
 
         :param telnet_connection: The telnet connection object (e.g., from asyncio.open_connection).
         :return: Wrapped connection.
-        
+
         Note: This is a stub; asyncio.open_connection handles SSL natively via ssl parameter.
         """
         # Since asyncio supports SSL natively, this method is for compatibility or custom wrapping.

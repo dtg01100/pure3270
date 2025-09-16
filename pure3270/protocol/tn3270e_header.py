@@ -1,26 +1,15 @@
 """TN3270E message header structure for pure3270."""
 
-import struct
 import logging
+import struct
 from typing import Optional
-from .utils import (
-    TN3270_DATA,
-    SCS_DATA,
-    RESPONSE,
-    BIND_IMAGE,
-    UNBIND,
-    NVT_DATA,
-    REQUEST,
-    SSCP_LU_DATA,
-    PRINT_EOJ,
-    SNA_RESPONSE,
-    PRINTER_STATUS_DATA_TYPE,
-    TN3270E_RSF_NO_RESPONSE,
-    TN3270E_RSF_ERROR_RESPONSE,
-    TN3270E_RSF_ALWAYS_RESPONSE,
-    TN3270E_RSF_POSITIVE_RESPONSE,
-    TN3270E_RSF_NEGATIVE_RESPONSE,
-)
+
+from .utils import (BIND_IMAGE, NVT_DATA, PRINT_EOJ, PRINTER_STATUS_DATA_TYPE,
+                    REQUEST, RESPONSE, SCS_DATA, SNA_RESPONSE, SSCP_LU_DATA,
+                    TN3270_DATA, TN3270E_RSF_ALWAYS_RESPONSE,
+                    TN3270E_RSF_ERROR_RESPONSE, TN3270E_RSF_NEGATIVE_RESPONSE,
+                    TN3270E_RSF_NO_RESPONSE, TN3270E_RSF_POSITIVE_RESPONSE,
+                    UNBIND)
 
 logger = logging.getLogger(__name__)
 

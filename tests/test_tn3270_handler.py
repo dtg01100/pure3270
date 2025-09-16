@@ -1,18 +1,19 @@
-import platform
-import pytest
 import asyncio
+import platform
 from unittest.mock import AsyncMock, MagicMock, patch
-from pure3270.protocol.tn3270_handler import (
-    TN3270Handler,
-    ProtocolError,
-    NegotiationError,
-)
-from pure3270.protocol.ssl_wrapper import SSLWrapper
+
+import pytest
+
 from pure3270.protocol.negotiator import SnaSessionState
+from pure3270.protocol.ssl_wrapper import SSLWrapper
+from pure3270.protocol.tn3270_handler import (NegotiationError, ProtocolError,
+                                              TN3270Handler)
 from pure3270.protocol.tn3270e_header import TN3270EHeader
 
 
-@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
+@pytest.mark.skipif(
+    platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+)
 class TestTN3270Handler:
     @pytest.mark.asyncio
     @patch("asyncio.open_connection")
@@ -25,7 +26,9 @@ class TestTN3270Handler:
         with patch.object(
             tn3270_handler.negotiator, "_read_iac", return_value=b"\xff\xfd\x18"
         ):
-            with patch.object(tn3270_handler.negotiator, '_negotiate_tn3270', return_value=None):
+            with patch.object(
+                tn3270_handler.negotiator, "_negotiate_tn3270", return_value=None
+            ):
                 await tn3270_handler.connect()
         mock_open.assert_called_with(tn3270_handler.host, tn3270_handler.port, ssl=None)
         assert tn3270_handler.reader == mock_reader
@@ -45,7 +48,9 @@ class TestTN3270Handler:
         with patch.object(
             tn3270_handler.negotiator, "_read_iac", return_value=b"\xff\xfd\x18"
         ):
-            with patch.object(tn3270_handler.negotiator, '_negotiate_tn3270', new_callable=AsyncMock):
+            with patch.object(
+                tn3270_handler.negotiator, "_negotiate_tn3270", new_callable=AsyncMock
+            ):
                 await tn3270_handler.connect()
         mock_open.assert_called_with(
             tn3270_handler.host, tn3270_handler.port, ssl=ssl_context
@@ -162,7 +167,9 @@ class TestTN3270Handler:
         assert tn3270_handler.is_connected() is False
 
     @pytest.mark.asyncio
-    async def test_tn3270e_negotiation_with_fallback(self, tn3270_handler, memory_limit_500mb):
+    async def test_tn3270e_negotiation_with_fallback(
+        self, tn3270_handler, memory_limit_500mb
+    ):
         """
         Ported from s3270 test case 2: TN3270E negotiation with fallback.
         Input subnegotiation for TN3270E (e.g., BIND-IMAGE); output fallback to basic TN3270,
@@ -188,7 +195,9 @@ class TestTN3270Handler:
         # No NegotiationError raised
 
     @pytest.mark.asyncio
-    async def test_send_scs_data_printer_session(self, tn3270_handler, memory_limit_500mb):
+    async def test_send_scs_data_printer_session(
+        self, tn3270_handler, memory_limit_500mb
+    ):
         tn3270_handler._connected = True
         tn3270_handler.negotiator.is_printer_session = True
         tn3270_handler.writer = AsyncMock()
@@ -200,7 +209,9 @@ class TestTN3270Handler:
         tn3270_handler.writer.drain.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_send_scs_data_not_printer_session(self, tn3270_handler, memory_limit_500mb):
+    async def test_send_scs_data_not_printer_session(
+        self, tn3270_handler, memory_limit_500mb
+    ):
         tn3270_handler._connected = True
         tn3270_handler.is_printer_session = False
 
@@ -208,7 +219,9 @@ class TestTN3270Handler:
             await tn3270_handler.send_scs_data(b"printer data")
 
     @pytest.mark.asyncio
-    async def test_send_print_eoj_printer_session(self, tn3270_handler, memory_limit_500mb):
+    async def test_send_print_eoj_printer_session(
+        self, tn3270_handler, memory_limit_500mb
+    ):
         tn3270_handler._connected = True
         tn3270_handler.negotiator.is_printer_session = True
         tn3270_handler.writer = AsyncMock()
@@ -221,7 +234,9 @@ class TestTN3270Handler:
         tn3270_handler.writer.drain.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_send_print_eoj_not_printer_session(self, tn3270_handler, memory_limit_500mb):
+    async def test_send_print_eoj_not_printer_session(
+        self, tn3270_handler, memory_limit_500mb
+    ):
         tn3270_handler._connected = True
         tn3270_handler.is_printer_session = False
 
@@ -237,14 +252,24 @@ class TestTN3270Handler:
 
     @pytest.mark.asyncio
     @pytest.mark.asyncio
-    async def test_process_telnet_stream_iac_do_dont_will_wont(self, tn3270_handler, memory_limit_500mb):
-        from pure3270.protocol.utils import IAC, DO, DONT, WILL, WONT, EOR, TELOPT_BINARY as BINARY # Use alias for clarity
+    async def test_process_telnet_stream_iac_do_dont_will_wont(
+        self, tn3270_handler, memory_limit_500mb
+    ):
+        from pure3270.protocol.utils import DO, DONT, EOR, IAC
+        from pure3270.protocol.utils import \
+            TELOPT_BINARY as BINARY  # Use alias for clarity
+        from pure3270.protocol.utils import WILL, WONT
+
         tn3270_handler.writer = AsyncMock()
-        tn3270_handler.negotiator.writer = tn3270_handler.writer # Ensure negotiator has the mock writer
+        tn3270_handler.negotiator.writer = (
+            tn3270_handler.writer
+        )  # Ensure negotiator has the mock writer
 
         # Test DO
         data = bytes([IAC, DO, BINARY])
-        with patch.object(tn3270_handler.negotiator, 'handle_iac_command') as mock_handle_iac:
+        with patch.object(
+            tn3270_handler.negotiator, "handle_iac_command"
+        ) as mock_handle_iac:
             result = await tn3270_handler._process_telnet_stream(data)
             cleaned_data, ascii_mode = result
             mock_handle_iac.assert_called_once_with(DO, BINARY)
@@ -253,7 +278,9 @@ class TestTN3270Handler:
 
         # Test DONT
         data = bytes([IAC, DONT, BINARY])
-        with patch.object(tn3270_handler.negotiator, 'handle_iac_command') as mock_handle_iac:
+        with patch.object(
+            tn3270_handler.negotiator, "handle_iac_command"
+        ) as mock_handle_iac:
             result = await tn3270_handler._process_telnet_stream(data)
             cleaned_data, ascii_mode = result
             mock_handle_iac.assert_called_once_with(DONT, BINARY)
@@ -262,7 +289,9 @@ class TestTN3270Handler:
 
         # Test WILL
         data = bytes([IAC, WILL, BINARY])
-        with patch.object(tn3270_handler.negotiator, 'handle_iac_command') as mock_handle_iac:
+        with patch.object(
+            tn3270_handler.negotiator, "handle_iac_command"
+        ) as mock_handle_iac:
             result = await tn3270_handler._process_telnet_stream(data)
             cleaned_data, ascii_mode = result
             mock_handle_iac.assert_called_once_with(WILL, BINARY)
@@ -271,7 +300,9 @@ class TestTN3270Handler:
 
         # Test WONT
         data = bytes([IAC, WONT, BINARY])
-        with patch.object(tn3270_handler.negotiator, 'handle_iac_command') as mock_handle_iac:
+        with patch.object(
+            tn3270_handler.negotiator, "handle_iac_command"
+        ) as mock_handle_iac:
             result = await tn3270_handler._process_telnet_stream(data)
             cleaned_data, ascii_mode = result
             mock_handle_iac.assert_called_once_with(WONT, BINARY)
@@ -279,8 +310,11 @@ class TestTN3270Handler:
             assert not ascii_mode
 
     @pytest.mark.asyncio
-    async def test_process_telnet_stream_incomplete_iac(self, tn3270_handler, memory_limit_500mb):
-        from pure3270.protocol.utils import IAC, DO
+    async def test_process_telnet_stream_incomplete_iac(
+        self, tn3270_handler, memory_limit_500mb
+    ):
+        from pure3270.protocol.utils import DO, IAC
+
         # Incomplete IAC sequence
         data = bytes([IAC, DO])
         result = await tn3270_handler._process_telnet_stream(data)
@@ -290,17 +324,20 @@ class TestTN3270Handler:
         assert tn3270_handler._telnet_buffer == data
 
         # Complete the sequence
-        data_completion = bytes([0x01]) # Some option
+        data_completion = bytes([0x01])  # Some option
         result = await tn3270_handler._process_telnet_stream(data_completion)
         cleaned_data, ascii_mode = result
-        assert tn3270_handler._telnet_buffer == b"" # Buffer should be cleared
+        assert tn3270_handler._telnet_buffer == b""  # Buffer should be cleared
         # The command would have been handled by negotiator, so cleaned_data is still empty
         assert cleaned_data == b""
         assert not ascii_mode
 
     @pytest.mark.asyncio
-    async def test_process_telnet_stream_incomplete_subnegotiation(self, tn3270_handler, memory_limit_500mb):
+    async def test_process_telnet_stream_incomplete_subnegotiation(
+        self, tn3270_handler, memory_limit_500mb
+    ):
         from pure3270.protocol.utils import IAC, SB, TN3270E
+
         # Incomplete subnegotiation sequence
         data = bytes([IAC, SB, TN3270E])
         result = await tn3270_handler._process_telnet_stream(data)
@@ -310,8 +347,10 @@ class TestTN3270Handler:
         assert tn3270_handler._telnet_buffer == data
 
         # Complete the sequence
-        data_completion = bytes([0x01, 0x02, IAC, 0xF0]) # Some sub-data and IAC SE
-        with patch.object(tn3270_handler.negotiator, '_parse_tn3270e_subnegotiation') as mock_parse_sub:
+        data_completion = bytes([0x01, 0x02, IAC, 0xF0])  # Some sub-data and IAC SE
+        with patch.object(
+            tn3270_handler.negotiator, "_parse_tn3270e_subnegotiation"
+        ) as mock_parse_sub:
             result = await tn3270_handler._process_telnet_stream(data_completion)
             cleaned_data, ascii_mode = result
             mock_parse_sub.assert_called_once_with(bytes([TN3270E, 0x01, 0x02]))
@@ -320,19 +359,24 @@ class TestTN3270Handler:
             assert tn3270_handler._telnet_buffer == b""
 
     @pytest.mark.asyncio
-    async def test_receive_data_tn3270e_header_extraction(self, tn3270_handler, memory_limit_500mb):
-        from pure3270.protocol.data_stream import TN3270_DATA, SCS_DATA
+    async def test_receive_data_tn3270e_header_extraction(
+        self, tn3270_handler, memory_limit_500mb
+    ):
+        from pure3270.protocol.data_stream import SCS_DATA, TN3270_DATA
         from pure3270.protocol.tn3270e_header import TN3270EHeader
+
         # Mock a TN3270E header with SCS_DATA type
         mock_header = MagicMock(spec=TN3270EHeader)
         mock_header.data_type = SCS_DATA
         mock_header.seq_number = 123
         mock_header.request_flag = 0
         mock_header.response_flag = 0x00  # NO_RESPONSE
-        mock_header_bytes = b"\x00\x00\x00\x00\x00" # Dummy bytes, actual value doesn't matter for this test
+        mock_header_bytes = b"\x00\x00\x00\x00\x00"  # Dummy bytes, actual value doesn't matter for this test
 
-        with patch('pure3270.protocol.tn3270e_header.TN3270EHeader.from_bytes', return_value=mock_header), \
-             patch.object(tn3270_handler.parser, 'parse') as mock_parse_data_stream:
+        with patch(
+            "pure3270.protocol.tn3270e_header.TN3270EHeader.from_bytes",
+            return_value=mock_header,
+        ), patch.object(tn3270_handler.parser, "parse") as mock_parse_data_stream:
 
             tn3270_handler.reader = AsyncMock()
             # Simulate receiving TN3270E header + actual data + IAC EOR
@@ -344,15 +388,22 @@ class TestTN3270Handler:
             # Verify that from_bytes was called with the correct header length
             TN3270EHeader.from_bytes.assert_called_once_with(test_data[:5])
             # Verify that parser.parse was called with the data type from the header and correct data
-            mock_parse_data_stream.assert_called_once_with(b"actual data", data_type=SCS_DATA)
+            mock_parse_data_stream.assert_called_once_with(
+                b"actual data", data_type=SCS_DATA
+            )
             # Verify that the returned data is the processed data (without IAC EOR)
             assert received_data == test_data
 
     @pytest.mark.asyncio
-    async def test_receive_data_no_tn3270e_header(self, tn3270_handler, memory_limit_500mb):
+    async def test_receive_data_no_tn3270e_header(
+        self, tn3270_handler, memory_limit_500mb
+    ):
         from pure3270.protocol.data_stream import TN3270_DATA
-        with patch('pure3270.protocol.tn3270e_header.TN3270EHeader.from_bytes', return_value=None), \
-             patch.object(tn3270_handler.parser, 'parse') as mock_parse_data_stream:
+
+        with patch(
+            "pure3270.protocol.tn3270e_header.TN3270EHeader.from_bytes",
+            return_value=None,
+        ), patch.object(tn3270_handler.parser, "parse") as mock_parse_data_stream:
 
             tn3270_handler.reader = AsyncMock()
             # Simulate receiving data without TN3270E header + IAC EOR
@@ -364,73 +415,100 @@ class TestTN3270Handler:
             # Verify that from_bytes was called (and returned None)
             TN3270EHeader.from_bytes.assert_called_once()
             # Verify that parser.parse was called with default TN3270_DATA type and full data
-            mock_parse_data_stream.assert_called_once_with(test_data, data_type=TN3270_DATA)
+            mock_parse_data_stream.assert_called_once_with(
+                test_data, data_type=TN3270_DATA
+            )
             # Verify that the returned data is the processed data (without IAC EOR)
             assert received_data == test_data
 
     @pytest.mark.asyncio
-    async def test_receive_data_ascii_mode_detection(self, tn3270_handler, memory_limit_500mb):
+    async def test_receive_data_ascii_mode_detection(
+        self, tn3270_handler, memory_limit_500mb
+    ):
         # Simulate VT100 sequence to trigger ASCII mode detection
-        vt100_data = b"\x1b[H\x1b[2JVT100 test" # ESC H, ESC 2J (clear screen), then text
+        vt100_data = (
+            b"\x1b[H\x1b[2JVT100 test"  # ESC H, ESC 2J (clear screen), then text
+        )
 
         tn3270_handler.reader = AsyncMock()
-        tn3270_handler.reader.read.return_value = vt100_data + b"\xff\x19" # Add EOR
+        tn3270_handler.reader.read.return_value = vt100_data + b"\xff\x19"  # Add EOR
 
         # Patch the local import in receive_data
-        with patch('pure3270.protocol.tn3270_handler.VT100Parser') as MockVT100Parser, \
-             patch.object(tn3270_handler.negotiator, 'set_ascii_mode') as mock_set_ascii_mode:
+        with patch(
+            "pure3270.protocol.tn3270_handler.VT100Parser"
+        ) as MockVT100Parser, patch.object(
+            tn3270_handler.negotiator, "set_ascii_mode"
+        ) as mock_set_ascii_mode:
 
             await tn3270_handler.receive_data()
 
             mock_set_ascii_mode.assert_called_once()
             MockVT100Parser.return_value.parse.assert_called_once_with(vt100_data)
-            assert tn3270_handler.negotiator._ascii_mode is True # Should be set by set_ascii_mode
+            assert (
+                tn3270_handler.negotiator._ascii_mode is True
+            )  # Should be set by set_ascii_mode
 
     @pytest.mark.asyncio
-    async def test_receive_data_incomplete_telnet_sequence_buffering(self, tn3270_handler, memory_limit_500mb):
-        from pure3270.protocol.utils import IAC, DO, TELOPT_BINARY
+    async def test_receive_data_incomplete_telnet_sequence_buffering(
+        self, tn3270_handler, memory_limit_500mb
+    ):
+        from pure3270.protocol.utils import DO, IAC, TELOPT_BINARY
+
         # First read: incomplete IAC sequence
         tn3270_handler.reader = AsyncMock()
         tn3270_handler.reader.read.side_effect = [
-            bytes([IAC, DO]), # Incomplete DO command
-            bytes([TELOPT_BINARY, IAC, 0x19]) # Complete the DO command, and add a WILL EOR
+            bytes([IAC, DO]),  # Incomplete DO command
+            bytes(
+                [TELOPT_BINARY, IAC, 0x19]
+            ),  # Complete the DO command, and add a WILL EOR
         ]
 
         # First receive call
-        with patch.object(tn3270_handler.negotiator, 'handle_iac_command') as mock_handle_iac:
+        with patch.object(
+            tn3270_handler.negotiator, "handle_iac_command"
+        ) as mock_handle_iac:
             received_data_1 = await tn3270_handler.receive_data()
-            assert tn3270_handler._telnet_buffer == bytes([IAC, DO]) # Buffer should hold incomplete sequence
-            assert received_data_1 == b"" # No 3270 data yet
+            assert tn3270_handler._telnet_buffer == bytes(
+                [IAC, DO]
+            )  # Buffer should hold incomplete sequence
+            assert received_data_1 == b""  # No 3270 data yet
             mock_handle_iac.assert_not_called()
 
             # Second receive call
             received_data_2 = await tn3270_handler.receive_data()
             mock_handle_iac.assert_called_once_with(DO, TELOPT_BINARY)
-            assert tn3270_handler._telnet_buffer == b"" # Buffer should be cleared
-            assert received_data_2 == b"" # Still no 3270 data, only IAC handling
+            assert tn3270_handler._telnet_buffer == b""  # Buffer should be cleared
+            assert received_data_2 == b""  # Still no 3270 data, only IAC handling
 
     @pytest.mark.asyncio
     async def test_send_printer_status_sf(self, tn3270_handler, memory_limit_500mb):
-        from pure3270.protocol.data_stream import STRUCTURED_FIELD, PRINTER_STATUS_SF_TYPE
+        from pure3270.protocol.data_stream import (PRINTER_STATUS_SF_TYPE,
+                                                   STRUCTURED_FIELD)
+
         tn3270_handler._connected = True
         tn3270_handler.writer = AsyncMock()
         tn3270_handler.writer.drain = AsyncMock()
-        status_code = 0x01 # Example: Device End
+        status_code = 0x01  # Example: Device End
 
         await tn3270_handler.send_printer_status_sf(status_code)
 
         expected_sf_payload = bytes([PRINTER_STATUS_SF_TYPE, status_code])
-        expected_sf = bytes([STRUCTURED_FIELD]) + (len(expected_sf_payload) + 2).to_bytes(2, 'big') + expected_sf_payload
+        expected_sf = (
+            bytes([STRUCTURED_FIELD])
+            + (len(expected_sf_payload) + 2).to_bytes(2, "big")
+            + expected_sf_payload
+        )
         tn3270_handler.writer.write.assert_called_once_with(expected_sf)
         tn3270_handler.writer.drain.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_send_soh_message(self, tn3270_handler, memory_limit_500mb):
         from pure3270.protocol.data_stream import SOH, SOH_DEVICE_END
+
         tn3270_handler._connected = True
         tn3270_handler.writer = AsyncMock()
         tn3270_handler.writer.drain = AsyncMock()
-        status_code = SOH_DEVICE_END # Example: Device End
+        status_code = SOH_DEVICE_END  # Example: Device End
 
         await tn3270_handler.send_soh_message(status_code)
 
@@ -438,37 +516,40 @@ class TestTN3270Handler:
         tn3270_handler.writer.write.assert_called_once_with(expected_soh_message)
         tn3270_handler.writer.drain.assert_awaited_once()
 
-
     @pytest.mark.asyncio
     async def test_send_break(self, tn3270_handler, memory_limit_500mb):
         tn3270_handler._connected = True
         mock_writer = AsyncMock()
         mock_writer.drain = AsyncMock()
         tn3270_handler.writer = mock_writer
-        
+
         await tn3270_handler.send_break()
-        
+
         # Should send IAC BRK
-        from pure3270.protocol.utils import IAC, BRK
+        from pure3270.protocol.utils import BRK, IAC
+
         mock_writer.write.assert_called_once_with(bytes([IAC, BRK]))
         mock_writer.drain.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_send_break_not_connected(self, tn3270_handler, memory_limit_500mb):
         tn3270_handler._connected = False
-        
+
         with pytest.raises(ProtocolError, match="Not connected"):
             await tn3270_handler.send_break()
 
     @pytest.mark.asyncio
-    async def test_process_telnet_stream_iac_brk(self, tn3270_handler, memory_limit_500mb):
-        from pure3270.protocol.utils import IAC, BRK
+    async def test_process_telnet_stream_iac_brk(
+        self, tn3270_handler, memory_limit_500mb
+    ):
+        from pure3270.protocol.utils import BRK, IAC
+
         tn3270_handler.writer = AsyncMock()
         tn3270_handler.negotiator.writer = tn3270_handler.writer
 
         # Test BRK command
         data = bytes([IAC, BRK])
-        with patch('pure3270.protocol.tn3270_handler.logger') as mock_logger:
+        with patch("pure3270.protocol.tn3270_handler.logger") as mock_logger:
             cleaned_data, ascii_mode = await tn3270_handler._process_telnet_stream(data)
             mock_logger.debug.assert_called_with("Received IAC BRK")
             assert cleaned_data == b""

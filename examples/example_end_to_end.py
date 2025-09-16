@@ -11,7 +11,6 @@ Run: python examples/example_end_to_end.py
 """
 
 import argparse
-
 import time
 
 # Setup logging

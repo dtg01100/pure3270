@@ -4,8 +4,8 @@ SessionManager for pure3270, handling connection setup, teardown, and negotiatio
 
 import asyncio
 import logging
-from typing import Optional, Any
 from asyncio import StreamReader, StreamWriter
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ class SessionManager:
     ) -> None:
         """
         Establish the socket connection.
-        
+
         Overrides host/port/ssl if provided.
         """
         if host is not None:
@@ -50,9 +50,12 @@ class SessionManager:
             raise ValueError(
                 "Host must be provided either at initialization or in setup_connection call."
             )
-        self.reader, self.writer = await asyncio.open_connection(
-            self.host, self.port, ssl=self.ssl_context
-        )
+        try:
+            self.reader, self.writer = await asyncio.open_connection(
+                self.host, self.port, ssl=self.ssl_context
+            )
+        except Exception as e:
+            raise ConnectionError(f"Connection failed: {str(e)}") from e
         self.connected = True
 
     async def teardown_connection(self) -> None:
@@ -69,5 +72,8 @@ class SessionManager:
         await negotiator.negotiate()
 
     async def perform_tn3270_negotiation(self, negotiator, timeout: Optional[float] = None) -> None:
-        """Perform TN3270/TN3270E subnegotiation."""
-        await negotiator._negotiate_tn3270(timeout=timeout)
+        """Perform TN3270 negotiation using the handler's method if available."""
+        if negotiator.handler and hasattr(negotiator.handler, '_negotiate_tn3270'):
+            await negotiator.handler._negotiate_tn3270(timeout=timeout)
+        else:
+            await negotiator._negotiate_tn3270(timeout=timeout)

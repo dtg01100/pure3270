@@ -1,7 +1,9 @@
-import pytest
 import platform
 import sys
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 from pure3270 import main
 
 

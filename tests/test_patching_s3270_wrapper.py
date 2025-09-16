@@ -3,10 +3,11 @@
 Tests for the s3270 wrapper functionality.
 """
 
-import platform
-import pytest
-from unittest.mock import Mock, patch, MagicMock
 import logging
+import platform
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
 
 # Set up logging for tests
 logging.basicConfig(level=logging.DEBUG)

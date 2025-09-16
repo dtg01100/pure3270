@@ -1,18 +1,19 @@
-import pytest
 import asyncio
 import platform
 import resource
-from unittest.mock import AsyncMock, MagicMock, Mock, patch as mock_patch  # noqa: F401
+from unittest.mock import AsyncMock, MagicMock, Mock
+from unittest.mock import patch as mock_patch  # noqa: F401
 
-from pure3270.emulation.screen_buffer import ScreenBuffer
+import pytest
+
 from pure3270.emulation.ebcdic import EBCDICCodec
-from pure3270.protocol.tn3270_handler import TN3270Handler
-from pure3270.protocol.ssl_wrapper import SSLWrapper
+from pure3270.emulation.screen_buffer import ScreenBuffer
+from pure3270.patching.patching import MonkeyPatchManager, PatchContext
 from pure3270.protocol.data_stream import DataStreamParser, DataStreamSender
 from pure3270.protocol.negotiator import Negotiator
+from pure3270.protocol.ssl_wrapper import SSLWrapper
+from pure3270.protocol.tn3270_handler import TN3270Handler
 from pure3270.session import AsyncSession, Session
-
-from pure3270.patching.patching import MonkeyPatchManager, PatchContext
 
 
 @pytest.fixture
@@ -86,17 +87,17 @@ def tn3270_handler():
 def set_memory_limit(max_memory_mb: int):
     """
     Set maximum memory limit for the current process.
-    
+
     Args:
         max_memory_mb: Maximum memory in megabytes
-        
+
     Raises:
         Exception: If memory limit cannot be set
     """
     # Only works on Unix systems
     if platform.system() != 'Linux':
         return None
-    
+
     try:
         max_memory_bytes = max_memory_mb * 1024 * 1024
         # RLIMIT_AS limits total virtual memory
@@ -109,14 +110,14 @@ def set_memory_limit(max_memory_mb: int):
 @pytest.fixture
 def memory_limit_500mb():
     """Pytest fixture to limit memory to 500MB for a test.
-    
+
     This is suitable for most tests that need memory limiting but don't have
     particularly high memory requirements.
     """
     if platform.system() != 'Linux':
         yield None
         return
-    
+
     original_limit = resource.getrlimit(resource.RLIMIT_AS)
     limit = set_memory_limit(500)
     yield limit
@@ -129,14 +130,14 @@ def memory_limit_500mb():
 @pytest.fixture
 def memory_limit_100mb():
     """Pytest fixture to limit memory to 100MB for a test.
-    
+
     This is suitable for performance tests or tests that should be
     particularly memory-conscious.
     """
     if platform.system() != 'Linux':
         yield None
         return
-    
+
     original_limit = resource.getrlimit(resource.RLIMIT_AS)
     limit = set_memory_limit(100)
     yield limit
@@ -182,6 +183,7 @@ def pytest_collection_modifyitems(config, items):
     """Automatically apply timeout markers to tests based on their type (unit vs integration)."""
     timeout_unit = config.getoption("--timeout-unit")
 import warnings
+
 
 @pytest.fixture(autouse=True, scope="function")
 def memory_limit_autouse(request, pytestconfig):

@@ -1,20 +1,28 @@
-import pytest
 import platform
-from unittest.mock import patch, MagicMock
-from pure3270.protocol.data_stream import ParseError, BIND_SF_TYPE
-from pure3270.protocol.utils import (
-    TN3270_DATA, SCS_DATA, RESPONSE, BIND_IMAGE, UNBIND, NVT_DATA, REQUEST, SSCP_LU_DATA, PRINT_EOJ,
-    SNA_RESPONSE # Import SNA_RESPONSE
-)
-from pure3270.protocol.data_stream import (
-    SNA_RESPONSE_DATA_TYPE, SNA_COMMAND_RESPONSE, SNA_DATA_RESPONSE,
-    SNA_SENSE_CODE_SUCCESS, SNA_SENSE_CODE_INVALID_FORMAT,
-    SNA_SENSE_CODE_NOT_SUPPORTED, SNA_SENSE_CODE_SESSION_FAILURE,
-    SnaResponse, # Import SnaResponse class
-    PRINTER_STATUS_DATA_TYPE, PRINTER_STATUS_SF_TYPE, SOH,
-    SOH_SUCCESS, SOH_DEVICE_END, SOH_INTERVENTION_REQUIRED,
-    SNA_RESPONSE_SF_TYPE
-)
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from pure3270.protocol.data_stream import \
+    SnaResponse  # Import SnaResponse class
+from pure3270.protocol.data_stream import (BIND_SF_TYPE,
+                                           PRINTER_STATUS_DATA_TYPE,
+                                           PRINTER_STATUS_SF_TYPE,
+                                           SNA_COMMAND_RESPONSE,
+                                           SNA_DATA_RESPONSE,
+                                           SNA_RESPONSE_DATA_TYPE,
+                                           SNA_RESPONSE_SF_TYPE,
+                                           SNA_SENSE_CODE_INVALID_FORMAT,
+                                           SNA_SENSE_CODE_NOT_SUPPORTED,
+                                           SNA_SENSE_CODE_SESSION_FAILURE,
+                                           SNA_SENSE_CODE_SUCCESS, SOH,
+                                           SOH_DEVICE_END,
+                                           SOH_INTERVENTION_REQUIRED,
+                                           SOH_SUCCESS, ParseError)
+from pure3270.protocol.utils import SNA_RESPONSE  # Import SNA_RESPONSE
+from pure3270.protocol.utils import (BIND_IMAGE, NVT_DATA, PRINT_EOJ, REQUEST,
+                                     RESPONSE, SCS_DATA, SSCP_LU_DATA,
+                                     TN3270_DATA, UNBIND)
 
 
 @pytest.mark.skipif(platform.system() != 'Linux', reason="Memory limiting only supported on Linux")
@@ -79,7 +87,7 @@ class TestDataStreamParser:
         bind_data_payload = b"\x01\x02\x03\x04" # Example BIND data
         sf_length = 1 + len(bind_data_payload) # SF_Type + payload length
         sample_data = b"\x3C" + sf_length.to_bytes(2, 'big') + BIND_SF_TYPE.to_bytes(1, 'big') + bind_data_payload
-        
+
         with patch.object(data_stream_parser, '_handle_bind_sf') as mock_handle_bind_sf:
             data_stream_parser.parse(sample_data)
             mock_handle_bind_sf.assert_called_once_with(bind_data_payload)
@@ -185,13 +193,14 @@ class TestDataStreamParser:
         bind_data_payload = b"\x01\x02\x03\x04" # Example BIND data
         sf_length = 1 + len(bind_data_payload) # SF_Type + payload length
         sample_data = b"\x3C" + sf_length.to_bytes(2, 'big') + BIND_SF_TYPE.to_bytes(1, 'big') + bind_data_payload
-        
+
         with patch.object(data_stream_parser, '_handle_bind_sf') as mock_handle_bind_sf:
             data_stream_parser.parse(sample_data, data_type=BIND_IMAGE)
             mock_handle_bind_sf.assert_called_once_with(bind_data_payload)
-        
+
     def test_parse_bind_image_structured_field_detailed(self, data_stream_parser):
-        from pure3270.protocol.data_stream import BIND_SF_SUBFIELD_PSC, BIND_SF_SUBFIELD_QUERY_REPLY_IDS, BindImage
+        from pure3270.protocol.data_stream import (
+            BIND_SF_SUBFIELD_PSC, BIND_SF_SUBFIELD_QUERY_REPLY_IDS, BindImage)
 
         # BIND-IMAGE with PSC (rows=24, cols=80) and Query Reply IDs (0x02)
         # PSC subfield: Length (6), ID (0x01), Rows (0x0018), Cols (0x0050)
@@ -266,7 +275,8 @@ class TestDataStreamSender:
         assert stream == b"\x40\x01"
 
     def test_build_query_sf(self, data_stream_sender):
-        from pure3270.protocol.data_stream import QUERY_REPLY_CHARACTERISTICS, STRUCTURED_FIELD
+        from pure3270.protocol.data_stream import (QUERY_REPLY_CHARACTERISTICS,
+                                                   STRUCTURED_FIELD)
         query_type = QUERY_REPLY_CHARACTERISTICS
         expected_sf = bytes([
             STRUCTURED_FIELD,  # SF identifier
@@ -314,6 +324,7 @@ def test_parse_sample_write(data_stream_parser, sample_write_stream):
 
     def test_parse_sna_response_data_type_positive(self, data_stream_parser):
         from pure3270.protocol.data_stream import SNA_FLAGS_NONE, SNA_FLAGS_RSP
+
         # SNA Response: Type (1 byte), Flags (1 byte), Sense Code (2 bytes), Data (optional)
         # Positive response: Sense Code 0x0000, Flags 0x08 (RSP)
         sna_payload = bytes([SNA_COMMAND_RESPONSE, SNA_FLAGS_RSP, (SNA_SENSE_CODE_SUCCESS >> 8) & 0xFF, SNA_SENSE_CODE_SUCCESS & 0xFF, 0xDE, 0xAD])
@@ -331,7 +342,9 @@ def test_parse_sample_write(data_stream_parser, sample_write_stream):
             assert not sna_response.is_negative()
 
     def test_parse_sna_response_data_type_negative(self, data_stream_parser):
-        from pure3270.protocol.data_stream import SNA_FLAGS_EXCEPTION_RESPONSE, SNA_FLAGS_RSP
+        from pure3270.protocol.data_stream import (
+            SNA_FLAGS_EXCEPTION_RESPONSE, SNA_FLAGS_RSP)
+
         # Negative response: Sense Code 0x1002 (Not Supported), Flags 0x88 (RSP | ER)
         sna_payload = bytes([SNA_COMMAND_RESPONSE, SNA_FLAGS_RSP | SNA_FLAGS_EXCEPTION_RESPONSE, (SNA_SENSE_CODE_NOT_SUPPORTED >> 8) & 0xFF, SNA_SENSE_CODE_NOT_SUPPORTED & 0xFF])
         with patch.object(data_stream_parser.negotiator, '_handle_sna_response') as mock_handle_sna_response:
@@ -348,6 +361,7 @@ def test_parse_sample_write(data_stream_parser, sample_write_stream):
 
     def test_parse_sna_response_data_type_incomplete(self, data_stream_parser):
         from pure3270.protocol.data_stream import SNA_FLAGS_NONE
+
         # Incomplete SNA response (only type byte)
         sna_payload = bytes([SNA_COMMAND_RESPONSE])
         with patch.object(data_stream_parser.negotiator, '_handle_sna_response') as mock_handle_sna_response:
@@ -363,6 +377,7 @@ def test_parse_sample_write(data_stream_parser, sample_write_stream):
 
     def test_parse_sna_response_data_type_only_type_and_flags(self, data_stream_parser):
         from pure3270.protocol.data_stream import SNA_FLAGS_RSP
+
         # SNA Response with only type and flags, no sense code
         sna_payload = bytes([SNA_DATA_RESPONSE, SNA_FLAGS_RSP])
         with patch.object(data_stream_parser.negotiator, '_handle_sna_response') as mock_handle_sna_response:
@@ -377,13 +392,15 @@ def test_parse_sample_write(data_stream_parser, sample_write_stream):
             assert sna_response.data == b""
 
     def test_parse_sna_response_structured_field(self, data_stream_parser):
-        from pure3270.protocol.data_stream import SNA_RESPONSE_SF_TYPE, SNA_FLAGS_RSP
+        from pure3270.protocol.data_stream import (SNA_FLAGS_RSP,
+                                                   SNA_RESPONSE_SF_TYPE)
+
         # Structured field: 0x3C (SF_ID), Length (2 bytes), SF_Type (1 byte), Data
         # SNA_RESPONSE_SF_TYPE is 0x01
         sna_response_payload = bytes([SNA_COMMAND_RESPONSE, SNA_FLAGS_RSP, (SNA_SENSE_CODE_SUCCESS >> 8) & 0xFF, SNA_SENSE_CODE_SUCCESS & 0xFF])
         sf_length = 1 + len(sna_response_payload) # SF_Type + payload length
         sample_data = b"\x3C" + sf_length.to_bytes(2, 'big') + SNA_RESPONSE_SF_TYPE.to_bytes(1, 'big') + sna_response_payload
-        
+
         with patch.object(data_stream_parser.negotiator, '_handle_sna_response') as mock_handle_sna_response:
             data_stream_parser.parse(sample_data, data_type=TN3270_DATA) # Parse as regular TN3270 data stream
             mock_handle_sna_response.assert_called_once()
@@ -452,7 +469,7 @@ def test_parse_sample_write(data_stream_parser, sample_write_stream):
         sna_response_payload = bytes([SNA_COMMAND_RESPONSE, (SNA_SENSE_CODE_SUCCESS >> 8) & 0xFF, SNA_SENSE_CODE_SUCCESS & 0xFF])
         sf_length = 1 + len(sna_response_payload) # SF_Type + payload length
         sample_data = b"\x3C" + sf_length.to_bytes(2, 'big') + SNA_RESPONSE_SF_TYPE.to_bytes(1, 'big') + sna_response_payload
-        
+
         with patch.object(data_stream_parser.negotiator, '_handle_sna_response') as mock_handle_sna_response:
             data_stream_parser.parse(sample_data, data_type=TN3270_DATA) # Parse as regular TN3270 data stream
             mock_handle_sna_response.assert_called_once()

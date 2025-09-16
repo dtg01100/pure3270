@@ -1,24 +1,20 @@
-import platform
-import pytest
 import asyncio
+import platform
 from unittest.mock import AsyncMock, MagicMock, patch
-from pure3270.protocol.negotiator import Negotiator
-from pure3270.protocol.data_stream import DataStreamParser
+
+import pytest
+
 from pure3270.emulation.screen_buffer import ScreenBuffer
+from pure3270.protocol.data_stream import DataStreamParser
 from pure3270.protocol.exceptions import NegotiationError, ProtocolError
-from pure3270.protocol.utils import (
-    TN3270E_DEVICE_TYPE,
-    TN3270E_FUNCTIONS,
-    TN3270E_IS,
-    TN3270E_REQUEST,
-    TN3270E_SEND,
-    TN3270E_BIND_IMAGE,
-    TN3270E_DATA_STREAM_CTL,
-    TN3270E_RESPONSES,
-    TN3270E_SCS_CTL_CODES,
-    TN3270E_SYSREQ,
-    TN3270E_IBM_DYNAMIC,
-)
+from pure3270.protocol.negotiator import Negotiator
+from pure3270.protocol.utils import (TN3270E_BIND_IMAGE,
+                                     TN3270E_DATA_STREAM_CTL,
+                                     TN3270E_DEVICE_TYPE, TN3270E_FUNCTIONS,
+                                     TN3270E_IBM_DYNAMIC, TN3270E_IS,
+                                     TN3270E_REQUEST, TN3270E_RESPONSES,
+                                     TN3270E_SCS_CTL_CODES, TN3270E_SEND,
+                                     TN3270E_SYSREQ)
 
 
 @pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
@@ -37,11 +33,11 @@ class TestNegotiatorMissingCoverage:
         with patch.object(negotiator, '_handle_tn3270e_response', return_value=None) as mock_handle:
             negotiator._parse_tn3270e_subnegotiation(b"")
             mock_handle.assert_not_called()
-        
+
         with patch.object(negotiator, '_handle_tn3270e_response', return_value=None) as mock_handle:
             negotiator._parse_tn3270e_subnegotiation(b"\x00")
             mock_handle.assert_not_called()
-        
+
         with patch.object(negotiator, '_handle_tn3270e_response', return_value=None) as mock_handle:
             negotiator._parse_tn3270e_subnegotiation(b"\xff\xff\xff")
             mock_handle.assert_not_called()
