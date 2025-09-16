@@ -221,18 +221,20 @@ class ScreenBuffer(BufferWriter):
         if 0 <= row < self.rows and 0 <= col < self.cols:
             pos = row * self.cols + col
             attr_offset = pos * 3
-            is_protected = bool(self.attributes[attr_offset] & 0x40)  # Bit 6: protected
-            if is_protected and not circumvent_protection:
-                return  # Skip writing to protected field
-            self.buffer[pos] = ebcdic_byte
-            # Set full attributes: protection (bit 6 in byte 0), fg=0xF0 (default), bg=0xF0 (default)
-            self.attributes[attr_offset : attr_offset + 3] = bytes(
-                [0x40 if protected else 0, 0xF0, 0xF0]
-            )
+            # Check that attr_offset is within bounds of attributes array
+            if attr_offset + 2 < len(self.attributes):
+                is_protected = bool(self.attributes[attr_offset] & 0x40)  # Bit 6: protected
+                if is_protected and not circumvent_protection:
+                    return  # Skip writing to protected field
+                self.buffer[pos] = ebcdic_byte
+                # Set full attributes: protection (bit 6 in byte 0), fg=0xF0 (default), bg=0xF0 (default)
+                self.attributes[attr_offset : attr_offset + 3] = bytes(
+                    [0x40 if protected else 0, 0xF0, 0xF0]
+                )
 
-            # Update field content and mark as modified if this position belongs to a field
-            self._update_field_content(int(row), int(col), ebcdic_byte)
-            self._detect_fields()
+                # Update field content and mark as modified if this position belongs to a field
+                self._update_field_content(int(row), int(col), ebcdic_byte)
+                self._detect_fields()
 
     def _update_field_content(self, row: int, col: int, ebcdic_byte: int):
         """
@@ -251,8 +253,11 @@ class ScreenBuffer(BufferWriter):
             if start_row <= row <= end_row and (
                 start_row != end_row or (start_col <= col <= end_col)
             ):
-                # Position is within this field, update content and mark as modified
-                new_content = field.content + bytes([ebcdic_byte])
+                # Position is within this field
+                # Recalculate the field content from the buffer to ensure consistency
+                start_idx = start_row * self.cols + start_col
+                end_idx = end_row * self.cols + end_col
+                new_content = bytes(self.buffer[start_idx:end_idx + 1])
                 new_field = field._replace(content=new_content, modified=True)
                 self.fields[idx] = new_field
                 break
@@ -415,14 +420,18 @@ class ScreenBuffer(BufferWriter):
         if 0 <= row < self.rows and 0 <= col < self.cols:
             pos = row * self.cols + col
             attr_offset = pos * 3 + 2  # Assume byte 2 for modified
-            self.attributes[attr_offset] = 0x01 if modified else 0x00
+            # Check that attr_offset is within bounds
+            if attr_offset < len(self.attributes):
+                self.attributes[attr_offset] = 0x01 if modified else 0x00
 
     def is_position_modified(self, row: int, col: int) -> bool:
         """Check if position is modified."""
         if 0 <= row < self.rows and 0 <= col < self.cols:
             pos = row * self.cols + col
             attr_offset = pos * 3 + 2
-            return bool(self.attributes[attr_offset])
+            # Check that attr_offset is within bounds
+            if attr_offset < len(self.attributes):
+                return bool(self.attributes[attr_offset])
         return False
 
     def __repr__(self) -> str:

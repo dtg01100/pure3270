@@ -16,7 +16,7 @@ from .data_stream import (  # Import SnaResponse and BindImage
     SNA_SENSE_CODE_SESSION_FAILURE, SNA_SENSE_CODE_STATE_ERROR,
     SNA_SENSE_CODE_SUCCESS, BindImage, DataStreamParser, SnaResponse)
 from .errors import (handle_drain, raise_negotiation_error,
-                     safe_socket_operation)
+                     raise_protocol_error, safe_socket_operation)
 from .exceptions import NegotiationError, ParseError, ProtocolError
 from .utils import SNA_RESPONSE  # Import SNA_RESPONSE
 from .utils import TELOPT_BIND_UNIT  # TELOPT 48
@@ -580,28 +580,6 @@ class Negotiator:
                 f"Unhandled TN3270E subnegotiation: type=0x{tn3270e_type:02x}, subtype=0x{tn3270e_subtype:02x}"
             )
 
-    async def handle_subnegotiation(self, option: int, data: bytes) -> None:
-        """
-        Handle general Telnet subnegotiation.
-
-        Args:
-            option: The Telnet option.
-            data: The subnegotiation data.
-        """
-        logger.debug(
-            f"Handling subnegotiation: option=0x{option:02x}, data={data.hex()}"
-        )
-
-        if option == TELOPT_TN3270E:
-            await self._parse_tn3270e_subnegotiation(data)
-        elif option == TELOPT_TTYPE:
-            # Handle TTYPE subnegotiation
-            if len(data) >= 1 and data[0] == 0:  # IS
-                terminal_type = data[1:].rstrip(b'\x00').decode('ascii', errors='ignore')
-                logger.info(f"[NEGOTIATION] Received TTYPE IS: {terminal_type}")
-        else:
-            logger.debug(f"Unhandled subnegotiation option: 0x{option:02x}")
-
     @handle_drain
     async def _send_lu_name_is(self) -> None:
         """
@@ -1025,11 +1003,7 @@ class Negotiator:
 
                 logger.info(f"Server enabled functions: 0x{function_bits:02x}")
                 self.negotiated_functions = function_bits
-            else:
-                # Empty functions IS - treat as no functions supported
-                logger.warning("Received empty FUNCTIONS IS; no functions supported")
-                self.negotiated_functions = 0
-
+                
                 # Log specific functions
                 if function_bits & TN3270E_BIND_IMAGE:
                     logger.debug("BIND-IMAGE function enabled")
@@ -1045,6 +1019,10 @@ class Negotiator:
                     logger.info(
                         "IBM-DYNAMIC negotiated, consider dynamic screen sizing."
                     )
+            else:
+                # Empty functions IS - treat as no functions supported
+                logger.warning("Received empty FUNCTIONS IS; no functions supported")
+                self.negotiated_functions = 0
             self._functions_is_event.set()
             # Check if both events are set to complete negotiation
             if (

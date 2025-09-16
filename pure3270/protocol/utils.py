@@ -14,6 +14,7 @@ WONT = 0xFC
 DO = 0xFD
 DONT = 0xFE
 IP = 0xF7  # Interrupt Process
+AO = 0xF5  # Abort Output
 BRK = 0xF3  # Break Process
 BREAK = 0xF3
 # Telnet Options

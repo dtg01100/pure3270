@@ -41,8 +41,8 @@ class SessionManager:
         self.host = host
         self.port = port
         self.ssl_context = ssl_context
-        self.reader: Optional[StreamReader] = None
-        self.writer: Optional[StreamWriter] = None
+        self.reader: Optional[asyncio.StreamReader] = None
+        self.writer: Optional[asyncio.StreamWriter] = None
         self.connected: bool = False
 
     async def setup_connection(
@@ -193,8 +193,6 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        if self.handler is None:
-            raise NotConnectedError
         if not self._async_session.connected:
             asyncio.run(self._async_session.connect())
         asyncio.run(self._async_session.send(data))
@@ -214,8 +212,6 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        if self.handler is None:
-            raise NotConnectedError
         if not self._async_session.connected:
             asyncio.run(self._async_session.connect())
         return asyncio.run(self._async_session.read(timeout))
@@ -241,8 +237,6 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        if self.handler is None:
-            raise NotConnectedError
         if not self._async_session.connected:
             asyncio.run(self._async_session.connect())
         return asyncio.run(self._async_session.execute_macro(macro, vars))
@@ -870,9 +864,6 @@ class AsyncSession:
         if not self._connected or self._handler is None:
             raise NotConnectedError("Session not connected.")
 
-        if not self._connected or not self._handler:
-            raise SessionError("Session not connected.")
-
         async def _perform_send():
             await self._handler.send_data(data)
 
@@ -893,9 +884,6 @@ class AsyncSession:
         """
         if not self._connected or self._handler is None:
             raise NotConnectedError("Session not connected.")
-
-        if not self._connected or not self._handler:
-            raise SessionError("Session not connected.")
 
         async def _perform_read():
             return await self._handler.receive_data(timeout)

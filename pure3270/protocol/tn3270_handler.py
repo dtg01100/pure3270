@@ -832,7 +832,7 @@ class TN3270Handler:
         if self.writer is None:
             raise ProtocolError("Writer is None; cannot send SYSREQ command.")
 
-        from .utils import BREAK, EOR, IAC, IP
+        from .utils import AO, BREAK, EOR, IAC, IP
 
         fallback_map = {
             TN3270E_SYSREQ_ATTN: bytes([IAC, IP]),  # IAC IP for ATTN
