@@ -4,11 +4,13 @@ Handles negotiation, data sending/receiving, and protocol specifics.
 """
 
 import asyncio
+import inspect
 import logging
 import re
 import ssl as std_ssl
 from typing import (Any, Awaitable, Callable, Iterable, Optional, Tuple,
                     TypeVar, Union, cast)
+from unittest.mock import Mock as _Mock
 
 from ..emulation.printer_buffer import PrinterBuffer  # Import PrinterBuffer
 from ..emulation.screen_buffer import ScreenBuffer
@@ -26,9 +28,6 @@ from .utils import (TELOPT_TN3270E, TN3270_DATA, TN3270E_SYSREQ,
                     TN3270E_SYSREQ_RESTART, send_iac, send_subnegotiation)
 
 logger = logging.getLogger(__name__)
-
-import inspect
-from unittest.mock import Mock as _Mock
 
 # Expose VT100Parser symbol at module level so tests can patch it before runtime.
 # Tests expect `pure3270.protocol.tn3270_handler.VT100Parser` to exist.

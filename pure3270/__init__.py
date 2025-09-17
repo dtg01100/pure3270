@@ -11,6 +11,7 @@ import os
 import sys
 
 from .patching import enable_replacement
+from .protocol.exceptions import MacroError
 from .session import AsyncSession, Session
 
 
@@ -112,8 +113,6 @@ def main() -> None:
 if __name__ == "__main__":
     main()
 
-
-from .protocol.exceptions import MacroError
 
 __all__ = [
     "Session",

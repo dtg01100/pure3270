@@ -19,37 +19,34 @@ from .data_stream import (  # Import SnaResponse and BindImage
 from .errors import (handle_drain, raise_negotiation_error,
                      raise_protocol_error, safe_socket_operation)
 from .exceptions import NegotiationError, ParseError, ProtocolError
+from .tn3270e_header import TN3270EHeader
 from .trace_recorder import TraceRecorder  # Optional diagnostic recorder
 from .utils import SNA_RESPONSE  # Import SNA_RESPONSE
 from .utils import TELOPT_BIND_UNIT  # TELOPT 48
-from .utils import (DO, DONT, QUERY_REPLY_CHARACTERISTICS, TELOPT_BINARY,
-                    TELOPT_EOR)
+from .utils import (BIND_IMAGE, DO, DONT, NVT_DATA, PRINT_EOJ,
+                    QUERY_REPLY_CHARACTERISTICS, REQUEST, RESPONSE, SCS_DATA,
+                    SSCP_LU_DATA, TELOPT_BINARY, TELOPT_EOR)
 from .utils import \
     TELOPT_OLD_ENVIRON as \
     TELOPT_TERMINAL_LOCATION  # Alias for RFC 1646 (TELOPT 36)
-from .utils import (TELOPT_TN3270E, TELOPT_TTYPE, TN3270E_BIND_IMAGE,
-                    TN3270E_DATA_STREAM_CTL, TN3270E_DEVICE_TYPE,
-                    TN3270E_FUNCTIONS, TN3270E_IBM_DYNAMIC, TN3270E_IS,
-                    TN3270E_REQUEST, TN3270E_RESPONSES,
+from .utils import (TELOPT_TN3270E, TELOPT_TTYPE, TN3270_DATA,
+                    TN3270E_BIND_IMAGE, TN3270E_DATA_STREAM_CTL,
+                    TN3270E_DEVICE_TYPE, TN3270E_FUNCTIONS,
+                    TN3270E_IBM_DYNAMIC, TN3270E_IS, TN3270E_REQUEST,
+                    TN3270E_RESPONSES, TN3270E_RSF_ALWAYS_RESPONSE,
                     TN3270E_RSF_ERROR_RESPONSE, TN3270E_RSF_NEGATIVE_RESPONSE,
-                    TN3270E_RSF_POSITIVE_RESPONSE, TN3270E_SCS_CTL_CODES,
-                    TN3270E_SEND, TN3270E_SYSREQ, TN3270E_SYSREQ_ATTN,
-                    TN3270E_SYSREQ_BREAK, TN3270E_SYSREQ_CANCEL,
-                    TN3270E_SYSREQ_LOGOFF, TN3270E_SYSREQ_MESSAGE_TYPE,
-                    TN3270E_SYSREQ_PRINT, TN3270E_SYSREQ_RESTART, WILL, WONT,
-                    send_iac, send_subnegotiation)
+                    TN3270E_RSF_NO_RESPONSE, TN3270E_RSF_POSITIVE_RESPONSE,
+                    TN3270E_SCS_CTL_CODES, TN3270E_SEND, TN3270E_SYSREQ,
+                    TN3270E_SYSREQ_ATTN, TN3270E_SYSREQ_BREAK,
+                    TN3270E_SYSREQ_CANCEL, TN3270E_SYSREQ_LOGOFF,
+                    TN3270E_SYSREQ_MESSAGE_TYPE, TN3270E_SYSREQ_PRINT,
+                    TN3270E_SYSREQ_RESTART, UNBIND, WILL, WONT, send_iac,
+                    send_subnegotiation)
 
 if TYPE_CHECKING:
     from .tn3270_handler import TN3270Handler
 
 logger = logging.getLogger(__name__)
-
-from .tn3270e_header import TN3270EHeader
-from .utils import (BIND_IMAGE, NVT_DATA, PRINT_EOJ, REQUEST, RESPONSE,
-                    SCS_DATA, SSCP_LU_DATA, TN3270_DATA,
-                    TN3270E_RSF_ALWAYS_RESPONSE, TN3270E_RSF_ERROR_RESPONSE,
-                    TN3270E_RSF_NEGATIVE_RESPONSE, TN3270E_RSF_NO_RESPONSE,
-                    TN3270E_RSF_POSITIVE_RESPONSE, UNBIND)
 
 
 class SnaSessionState(Enum):

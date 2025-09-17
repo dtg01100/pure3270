@@ -154,13 +154,13 @@ def install_package():
     """Install the package in editable mode."""
     print_section("Installing Package")
 
-    success, stdout, stderr = run_command(
+    success, _, _ = run_command(
         ["pip", "install", "-e", ".[test]"], "Package installation"
     )
 
     if not success:
         print_warning("Installation with [test] extras failed, trying basic install")
-        success, stdout, stderr = run_command(
+        success, _, _ = run_command(
             ["pip", "install", "-e", "."], "Basic package installation"
         )
 
@@ -175,7 +175,7 @@ def run_unit_tests(fast_mode: bool = False):
     if fast_mode:
         cmd.extend(["-x"])  # Stop on first failure
 
-    success, stdout, stderr = run_command(cmd, "Unit tests")
+    success, _, _ = run_command(cmd, "Unit tests")
     return success
 
 
@@ -193,7 +193,7 @@ def run_integration_tests(fast_mode: bool = False):
     if fast_mode:
         cmd.extend(["-x"])  # Stop on first failure
 
-    success, stdout, stderr = run_command(cmd, "Integration tests")
+    success, _, _ = run_command(cmd, "Integration tests")
     return success
 
 
@@ -302,7 +302,7 @@ def run_coverage_tests(missing_tools: List[str]):
     if Path("integration_test.py").exists():
         cmd.append("integration_test.py")
 
-    success, stdout, stderr = run_command(cmd, "Coverage analysis")
+    success, _, _ = run_command(cmd, "Coverage analysis")
 
     if success and "coverage.xml" in os.listdir("."):
         print_success("Coverage report generated: coverage.xml")
@@ -318,9 +318,7 @@ def run_quick_smoke_test():
         print_warning("quick_test.py not found, skipping smoke test")
         return True
 
-    success, stdout, stderr = run_command(
-        ["python", "quick_test.py"], "Quick smoke test"
-    )
+    success, _, _ = run_command(["python", "quick_test.py"], "Quick smoke test")
     return success
 
 

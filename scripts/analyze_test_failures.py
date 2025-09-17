@@ -1,7 +1,19 @@
 #!/usr/bin/env python3
 import json
 import os
-import xml.etree.ElementTree as ET
+
+try:
+    import defusedxml.ElementTree as ET
+except ImportError:
+    # Fallback with warning - defusedxml not available
+    import warnings
+    import xml.etree.ElementTree as ET  # nosec B405
+
+    warnings.warn(
+        "defusedxml not available - using potentially unsafe XML parser. "
+        "Install defusedxml for better security: pip install defusedxml",
+        UserWarning,
+    )
 from argparse import ArgumentParser
 
 from openai import OpenAI
@@ -9,7 +21,7 @@ from openai import OpenAI
 
 def parse_pytest_xml(xml_file):
     """Parse pytest XML report."""
-    tree = ET.parse(xml_file)
+    tree = ET.parse(xml_file)  # nosec B314
     root = tree.getroot()
     failures = []
     for testcase in root.findall(".//testcase"):

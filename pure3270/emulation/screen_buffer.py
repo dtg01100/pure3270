@@ -4,6 +4,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
+from .buffer_writer import BufferWriter
 from .ebcdic import EBCDICCodec, EmulationEncoder
 
 
@@ -138,8 +139,6 @@ class Field:
             f"numeric={self.numeric}, modified={self.modified}, content={self.content!r})"
         )
 
-
-from .buffer_writer import BufferWriter
 
 logger = logging.getLogger(__name__)
 

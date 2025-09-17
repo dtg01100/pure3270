@@ -3,10 +3,11 @@
 """Script to check for new Python releases and update testing matrix."""
 
 import json
+import shutil
 import subprocess
 import sys
 from datetime import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import requests
 
@@ -15,7 +16,7 @@ PYTHON_RELEASES_URL = "https://endoflife.date/api/python.json"
 
 def get_latest_python_versions() -> List[Dict[str, Any]]:
     """Fetch latest Python versions from endoflife.date API."""
-    response = requests.get(PYTHON_RELEASES_URL)
+    response = requests.get(PYTHON_RELEASES_URL, timeout=30)  # 30 second timeout
     response.raise_for_status()
     return response.json()
 
@@ -66,7 +67,7 @@ def update_ci_matrix(new_versions: List[str]) -> None:
         print("Matrix not found or no update needed")
 
 
-def check_for_new_releases(current_versions: List[str]) -> bool:
+def check_for_new_releases(current_versions: List[str]) -> Tuple[bool, str, int]:
     """Check if there are new Python releases."""
     releases = get_latest_python_versions()
     latest_stable = releases[0]["v"]  # First is latest
@@ -76,14 +77,16 @@ def check_for_new_releases(current_versions: List[str]) -> bool:
 
     if latest_minor > current_max_minor:
         print(f"New Python release detected: {latest_stable}")
-        return True
-    return False
+        return True, latest_stable, current_max_minor
+    return False, latest_stable, current_max_minor
 
 
 def main():
     """Main entry point."""
     current = get_supported_versions()
-    if check_for_new_releases(current):
+    has_updates, latest_stable, current_max_minor = check_for_new_releases(current)
+
+    if has_updates:
         # Update matrix
         new_versions = current + [
             f"3.{minor}" for minor in range(current_max_minor + 1, 13)

@@ -9,16 +9,19 @@ exclude_dirs:
 # Disable noisy rules not relevant to this project footprint
 skips:
   - B101  # asserts (used in tests)
+  - B110  # try/except/pass - used extensively for robust protocol handling
+  - B112  # try/except/continue - used for connection retry patterns
   - B201  # flask debug (not used)
   - B301  # pickle / shelve etc
   - B307  # eval usage patterns
-  - B308
-  - B310
-  - B311
-  - B323
-  - B324
-  - B325
-  - B602
-  - B604
-  - B607
-  - B608
+  - B308  # mark_safe
+  - B310  # urllib_urlopen
+  - B311  # random
+  - B323  # unverified_context
+  - B324  # hashlib_insecure_functions
+  - B404  # subprocess import - used in controlled CI/testing scripts
+  - B602  # subprocess_popen_with_shell_equals_true
+  - B603  # subprocess_without_shell_equals_true - used in controlled CI/testing scripts
+  - B604  # any_other_function_with_shell_equals_true
+  - B607  # start_process_with_partial_path
+  - B608  # hardcoded_sql_expressions
