@@ -454,7 +454,8 @@ This is a breaking change for users still on Python {', '.join(eol_versions)}. C
                 "gh", "issue", "create",
                 "--title", f"🚨 Remove EOL Python {', '.join(eol_versions)} from testing matrix",
                 "--body", pr_body,
-                "--label", "copilot-task,python-compatibility,breaking-change,security"
+                "--label", "copilot-task,python-compatibility,breaking-change,security",
+                "--assignee", "@copilot"
             ], check=True)
             
             print(f"✅ Created Copilot issue for EOL Python {', '.join(eol_versions)} removal")
@@ -634,7 +635,7 @@ def main():
                     f"- **Automated testing:** {'Enabled' if test_triggered else 'Requires manual intervention'}"
                 )
                 try:
-                    subprocess.run(["gh", "issue", "create", "--title", issue_title, "--body", issue_body, "--label", "python-compatibility,enhancement"], check=True)
+                    subprocess.run(["gh", "issue", "create", "--title", issue_title, "--body", issue_body, "--label", "python-compatibility,enhancement", "--assignee", "@copilot"], check=True)
                     print(f"✅ Created comprehensive tracking issue for Python {', '.join(suggested_versions)}")
                 except subprocess.CalledProcessError:
                     print("❌ Could not create issue (may need authentication)")
@@ -688,7 +689,8 @@ def main():
                         "gh", "issue", "create", 
                         "--title", eol_issue_title, 
                         "--body", eol_issue_body, 
-                        "--label", "breaking-change,security,python-compatibility,eol"
+                        "--label", "breaking-change,security,python-compatibility,eol",
+                        "--assignee", "@copilot"
                     ], check=True)
                     print(f"✅ Created EOL tracking issue for Python {', '.join(eol_versions)}")
                 except subprocess.CalledProcessError:

@@ -202,7 +202,8 @@ Pure3270 should work seamlessly with Python ${{ github.event.inputs.python_versi
 #github-pull-request_copilot-coding-agent" \
             --label "copilot-task" \
             --label "python-compatibility" \
-            --label "automated"
+            --label "automated" \
+            --assignee "@copilot"
         }
         
         echo "✅ Copilot task created for Python ${{ github.event.inputs.python_version }} fixes"
@@ -268,4 +269,4 @@ Pure3270 should work seamlessly with Python ${{ github.event.inputs.python_versi
           fi
         fi
 
-        gh issue create --title "$TITLE" --body "$BODY" --label "python-compatibility"
+        gh issue create --title "$TITLE" --body "$BODY" --label "python-compatibility" --assignee "@copilot"

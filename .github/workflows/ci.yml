@@ -180,6 +180,7 @@ jobs:
           --label "copilot-task" \
           --label "ci-failure" \
           --label "python-compatibility" \
-          --label "automated"
+          --label "automated" \
+          --assignee "@copilot"
         
         echo "✅ Copilot task created for Python ${{ matrix.python-version }} CI failures"
