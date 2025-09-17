@@ -116,7 +116,7 @@ def get_p3270_version() -> Optional[str]:
         return importlib.metadata.version("p3270")
     except Exception:
         try:
-            import p3270
+            import p3270  # type: ignore[import-untyped]
 
             return getattr(p3270, "__version__", None)
         except Exception:
