@@ -84,7 +84,12 @@ class TestAsyncSession:
         await async_session.connect()
 
         mock_open.assert_called_once()
-        mock_handler.assert_called_once_with(mock_reader, mock_writer, ANY)
+        # Check that handler was called with reader, writer, and screen buffer as first 3 args
+        mock_handler.assert_called_once()
+        call_args = mock_handler.call_args
+        assert call_args[0][0] == mock_reader  # First positional arg is reader
+        assert call_args[0][1] == mock_writer  # Second positional arg is writer
+        assert call_args[0][2] is not None     # Third positional arg is screen buffer
         assert async_session.connected is True
 
     @patch("pure3270.session.asyncio.open_connection")
@@ -126,7 +131,12 @@ class TestAsyncSession:
         await async_session.send(b"test data")
 
         mock_open.assert_called_once()
-        mock_handler.assert_called_once_with(mock_reader, mock_writer, ANY)
+        # Check that handler was called with reader, writer, and screen buffer as first 3 args
+        mock_handler.assert_called_once()
+        call_args = mock_handler.call_args
+        assert call_args[0][0] == mock_reader  # First positional arg is reader
+        assert call_args[0][1] == mock_writer  # Second positional arg is writer
+        assert call_args[0][2] is not None     # Third positional arg is screen buffer
         mock_handler.return_value.send_data.assert_called_once_with(b"test data")
         assert async_session.connected is True
 
@@ -163,7 +173,12 @@ class TestAsyncSession:
 
         assert data == b"test"
         mock_open.assert_called_once()
-        mock_handler.assert_called_once_with(mock_reader, mock_writer, ANY)
+        # Check that handler was called with reader, writer, and screen buffer as first 3 args
+        mock_handler.assert_called_once()
+        call_args = mock_handler.call_args
+        assert call_args[0][0] == mock_reader  # First positional arg is reader
+        assert call_args[0][1] == mock_writer  # Second positional arg is writer
+        assert call_args[0][2] is not None     # Third positional arg is screen buffer
         handler_instance.receive_data.assert_called_once_with(5.0)
         assert async_session.connected is True
 
