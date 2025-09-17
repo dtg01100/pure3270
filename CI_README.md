@@ -287,6 +287,44 @@ To add new tests that should run both locally and in GitHub Actions:
 3. **Add Shortcut**: Add a new command to `ci.sh` if needed
 4. **Update Documentation**: Update this README
 
+## CI Parity Checklist (GA ↔ Local)
+
+Use this short checklist whenever you change tests, add new checks, or adjust tooling:
+
+- Quick smoke present in both:
+    - Local: `python quick_test.py` runs inside `run_full_ci.py`
+    - GA: quick step in `ci.yml` and `quick-ci.yml`
+- Unit tests selection matches:
+    - Local: `pytest tests/ -v -m "not integration"`
+    - GA: same invocation in `ci.yml` and `quick-ci.yml`
+- Integration tests alignment:
+    - Local: `integration_test.py` via `run_full_ci.py` (skippable)
+    - GA: executed in `ci.yml` when present
+- Static analysis parity:
+    - Tools: `mypy`, `pylint`, `flake8`, `bandit`
+    - Local: `run_full_ci.py` > Static Analysis section
+    - GA: `ci.yml` and `static-analysis.yml`
+- Macro DSL guard enabled in both:
+    - Local: `python tools/forbid_macros.py`
+    - GA: dedicated step in workflows
+- Pre-commit hooks (format/isort/etc.)
+    - Local: `pre-commit run --all-files` via `run_full_ci.py`
+    - GA: pre-commit step in `ci.yml`
+- Coverage settings match when enabled:
+    - Local: pytest-cov in `run_full_ci.py`
+    - GA: coverage step and Codecov upload in `ci.yml`
+- Python versions list documented and consistent:
+    - GA matrices cover 3.8–3.13
+    - Keep any version change reflected here and in workflows
+- Document intentional deltas:
+    - If GA diverges (env limits, speed), document in `CI_README.md` with rationale
+
+Before merging changes that affect CI:
+
+1. Run `python run_full_ci.py` locally and ensure it’s green
+2. Verify `.github/workflows/*.yml` reflect the same groups/flags
+3. Update `all_test_files.txt` if helper scripts depend on it
+
 ## Performance
 
 Typical run times on modern hardware:
