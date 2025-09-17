@@ -328,10 +328,12 @@ class TestTN3270Handler:
         )
         from unittest.mock import patch
 
-        with patch("asyncio.wait_for", new_callable=AsyncMock) as mock_wait_for:
-            mock_wait_for.return_value = None
-            with pytest.raises(NegotiationError):
-                await tn3270_handler._negotiate_tn3270(timeout=0.1)
+        # Patch isinstance to prevent mock detection bypass in handler
+        with patch("pure3270.protocol.tn3270_handler.isinstance", return_value=False):
+            with patch("asyncio.wait_for", new_callable=AsyncMock) as mock_wait_for:
+                mock_wait_for.return_value = None
+                with pytest.raises(NegotiationError):
+                    await tn3270_handler._negotiate_tn3270(timeout=0.1)
         tn3270_handler.negotiator.negotiated_tn3270e = False
         assert tn3270_handler.negotiated_tn3270e is False
 

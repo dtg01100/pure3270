@@ -13,14 +13,14 @@ from pure3270.protocol.tn3270_handler import TN3270Handler
 
 def test_parse_error(caplog, memory_limit_500mb):
     parser = DataStreamParser(ScreenBuffer())
-    with caplog.at_level("ERROR"):
-        with pytest.raises(ParseError):
-            parser.parse(b"\xf5")  # Incomplete
-    assert "Unexpected end" in caplog.text
+    # Critical parse errors like "Incomplete WCC order" are re-raised immediately without logging
+    with pytest.raises(ParseError) as exc_info:
+        parser.parse(b"\xf5")  # Incomplete
+    assert "Incomplete WCC order" in str(exc_info.value)
 
 
 def test_protocol_error(caplog, memory_limit_500mb):
-    handler = TN3270Handler("host", 23)
+    handler = TN3270Handler(None, None, None, host="host", port=23)
     handler.writer = None
     with caplog.at_level("ERROR"):
         with pytest.raises(Exception):  # Catch ProtocolError
