@@ -220,12 +220,15 @@ class TestAsyncSession:
         await async_session.close()
         assert async_session.connected is False
 
-    def test_connected(self):
+    @pytest.mark.asyncio
+    async def test_connected(self):
+        import asyncio
         # Use a minimal session without mocked connected property
         session = AsyncSession("localhost", 23)
         assert session.connected is False
         session.connected = True
         assert session.connected is True
+        await asyncio.sleep(0)
 
     async def test_managed_context(self, async_session):
         async_session.connected = True
