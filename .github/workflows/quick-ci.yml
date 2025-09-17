@@ -23,9 +23,21 @@ jobs:
         python -m pip install --upgrade pip
         pip install -e '.[test]'
 
+    - name: Install quick tools
+      run: |
+        pip install flake8
+
+    - name: Quick smoke test
+      run: |
+        python quick_test.py
+
     - name: Run unit and property tests
       run: |
         pytest tests/ -v --tb=short -m "not integration"
+
+    - name: Macro DSL guard (fast)
+      run: |
+        python tools/forbid_macros.py
 
     - name: Upload test results
       if: always()
