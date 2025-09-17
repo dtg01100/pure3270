@@ -14,6 +14,7 @@ The Python release monitor has been significantly enhanced to provide **fully au
 ### Automatic Fix Triggers
 - **CI Failures**: When new Python version tests fail in CI, Copilot automatically creates fix PRs
 - **Dedicated Testing**: New version testing workflow triggers Copilot for any compatibility issues
+- **EOL Version Removal**: Automatic detection and removal of End-of-Life Python versions
 - **Smart Analysis**: Copilot receives detailed error context and specific fix requirements
 
 ### Fix Scope
@@ -23,6 +24,8 @@ Copilot will automatically address:
 - **Type annotation** fixes requiring `from __future__ import annotations`
 - **Dependency updates** in `pyproject.toml` and `setup.py`
 - **CI configuration** updates for proper Python version support
+- **EOL version removal** with breaking change management
+- **Documentation updates** for supported Python versions
 
 ### Fix Quality Assurance
 - **Comprehensive problem descriptions** provide full context to Copilot
@@ -103,6 +106,14 @@ The main script now creates tracking issues that include:
 4. **PR Creation**: Copilot creates automated fix PR within 5-15 minutes
 5. **Review Process**: User reviews and tests Copilot fixes
 6. **Integration**: Merge fixes after validation
+
+### When EOL Versions Detected:
+1. **EOL Detection**: Script identifies End-of-Life Python versions in CI matrix
+2. **Security Alert**: Creates breaking change issue with security warnings
+3. **Copilot PR**: Automatically creates PR to remove EOL versions
+4. **Documentation**: Updates all references to removed versions
+5. **Migration Guidance**: Provides upgrade instructions for users
+6. **Review & Merge**: Human review of breaking changes before integration
 
 ### When Tests Pass:
 1. **Success Reporting**: Creates success issues with compatibility confirmation

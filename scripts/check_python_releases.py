@@ -271,19 +271,19 @@ def update_ci_matrix(new_versions: List[str]) -> None:
         except Exception as e:
             print(f"Error updating {workflow_file}: {e}")
 
-def check_for_new_releases(current_versions: List[str]) -> tuple[bool, str, List[str]]:
-    """Check if there are new Python releases.
+def check_for_new_releases(current_versions: List[str]) -> tuple[bool, str, List[str], List[str]]:
+    """Check if there are new Python releases and EOL versions.
     
     Returns:
-        tuple: (has_new_release, latest_version, suggested_new_versions)
+        tuple: (has_changes, latest_version, suggested_new_versions, eol_versions)
     """
     releases = get_latest_python_versions()
     if not releases:
-        return False, "unknown", []
+        return False, "unknown", [], []
     
     latest_stable = releases[0]["v"]  # First is latest    
     # Get all active versions from online source
-    active_versions = {release["v"] for release in releases}
+    active_versions = {release["v"] for release in releases if not release.get("eol", False)}
     
     # Check for EOL versions in current matrix
     eol_versions = []
@@ -292,8 +292,8 @@ def check_for_new_releases(current_versions: List[str]) -> tuple[bool, str, List
             eol_versions.append(version)
     
     if eol_versions:
-        print(f"⚠️  Warning: End-of-life Python versions detected in CI matrix: {eol_versions}")
-        print("    Consider removing these versions or updating to supported versions.")
+        print(f"⚠️  EOL Python versions detected in CI matrix: {eol_versions}")
+        print("    These versions should be removed to maintain security support.")
     
     # Extract minor version numbers for comparison
     try:
@@ -306,25 +306,27 @@ def check_for_new_releases(current_versions: List[str]) -> tuple[bool, str, List
         for release in releases:
             version = release["v"]
             if version.startswith("3.") and version not in current_versions:
-                # Only add stable versions
-                if not any(x in version for x in ["a", "b", "rc"]) and "." in version:
+                # Only add stable, non-EOL versions
+                if not any(x in version for x in ["a", "b", "rc"]) and "." in version and not release.get("eol", False):
                     minor_version = int(version.split('.')[1])
                     if minor_version > current_max_minor:
                         new_versions.append(version)
         
+        has_changes = bool(new_versions or eol_versions)
+        
         if new_versions:
             new_versions.sort(key=lambda x: tuple(map(int, x.split("."))))
-            print(f"New Python releases detected: {new_versions}")
-            return True, latest_stable, new_versions
+            print(f"🆕 New Python releases detected: {new_versions}")
+        
+        if has_changes:
+            return True, latest_stable, new_versions, eol_versions
         else:
-            print(f"No new releases. Latest: {latest_stable}, Current max: 3.{current_max_minor}")
-            if eol_versions:
-                print(f"Note: Consider updating from EOL versions {eol_versions} to maintain security support.")
-            return False, latest_stable, []
+            print(f"No changes needed. Latest: {latest_stable}, Current max: 3.{current_max_minor}")
+            return False, latest_stable, [], []
             
     except (ValueError, IndexError) as e:
         print(f"Error parsing version numbers: {e}")
-        return False, latest_stable, []
+        return False, latest_stable, [], []
 
 def trigger_test_workflow(new_versions: List[str]) -> bool:
     """Trigger CI test workflow for new Python versions."""
@@ -375,7 +377,92 @@ def trigger_test_workflow(new_versions: List[str]) -> bool:
         return False
 
 
-def trigger_copilot_fix_for_python_errors(python_version: str, error_details: str, test_output: str = "") -> bool:
+def create_eol_removal_pr(eol_versions: List[str], current_versions: List[str]) -> bool:
+    """Create a Copilot PR to remove EOL Python versions from the testing matrix."""
+    if not shutil.which("gh"):
+        print("gh CLI not available, cannot create EOL removal PR")
+        return False
+    
+    if not eol_versions:
+        return False
+    
+    # Calculate the updated matrix without EOL versions
+    updated_versions = [v for v in current_versions if v not in eol_versions]
+    
+    try:
+        # Create comprehensive Copilot task for EOL removal
+        pr_title = f"🚨 Remove EOL Python {', '.join(eol_versions)} from testing matrix"
+        
+        pr_body = f"""## Automated EOL Python Version Removal
+
+Python versions **{', '.join(eol_versions)}** have reached End of Life and should be removed from the testing matrix for security and maintenance reasons.
+
+### Changes Required
+
+**Files to Update:**
+- `.github/workflows/ci.yml` - Remove {', '.join(eol_versions)} from matrix
+- `.github/workflows/python-release-monitor.yml` - Update if needed
+- `pyproject.toml` - Update python_requires and classifiers
+- `setup.py` - Update python_requires if present
+- `README.md` - Update supported Python versions documentation
+- Any other documentation mentioning Python {', '.join(eol_versions)} support
+
+**Updated Matrix Should Be:**
+```yaml
+python-version: [{', '.join(f'"{v}"' for v in updated_versions)}]
+```
+
+**Validation Requirements:**
+- All existing tests must continue to pass
+- CI workflows should run successfully with updated matrix
+- Documentation should be consistent across all files
+- No references to EOL versions should remain
+
+**Why This Matters:**
+- 🔒 **Security**: EOL versions no longer receive security updates
+- 🛠️ **Maintenance**: Reduces testing burden and CI costs
+- 📦 **Dependencies**: Many packages will drop support for EOL versions
+- 🎯 **Focus**: Concentrate effort on actively supported versions
+
+**Breaking Change Notice:**
+This is a breaking change for users still on Python {', '.join(eol_versions)}. Consider:
+- Adding migration guidance in commit message
+- Updating changelog with upgrade instructions
+- Mentioning alternative Python versions to use
+
+#github-pull-request_copilot-coding-agent"""
+
+        # Try to create the PR using gh CLI
+        result = subprocess.run([
+            "gh", "api", "repos/{owner}/{repo}".replace("{owner}/{repo}", "dtg01100/pure3270"),
+            "--method", "POST",
+            "--field", f"title={pr_title}",
+            "--field", f"body={pr_body}",
+            "--field", "head=copilot/remove-eol-python-" + "-".join(eol_versions),
+            "--field", "base=main",
+            "--field", "draft=true"
+        ], capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            print(f"✅ Created Copilot PR for EOL Python {', '.join(eol_versions)} removal")
+            return True
+        else:
+            # Fallback to creating an issue if PR creation fails
+            print(f"⚠️ PR creation failed, creating issue instead...")
+            
+            issue_result = subprocess.run([
+                "gh", "issue", "create",
+                "--title", f"🚨 Remove EOL Python {', '.join(eol_versions)} from testing matrix",
+                "--body", pr_body,
+                "--label", "copilot-task,python-compatibility,breaking-change,security"
+            ], check=True)
+            
+            print(f"✅ Created Copilot issue for EOL Python {', '.join(eol_versions)} removal")
+            return True
+            
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Failed to create EOL removal task: {e}")
+        return False
     """Trigger GitHub Copilot coding agent to fix Python version compatibility errors."""
     try:
         # Create a comprehensive problem statement for Copilot
@@ -452,9 +539,10 @@ def main():
         current = get_supported_versions()
         print(f"Current supported versions: {current}")
         
-        has_new_release, latest_stable, suggested_versions = check_for_new_releases(current)
+        has_changes, latest_stable, suggested_versions, eol_versions = check_for_new_releases(current)
         
-        if has_new_release and suggested_versions:
+        # Handle new versions
+        if suggested_versions:
             # Use the suggested versions directly
             new_versions = current + suggested_versions
             # Remove duplicates and sort
@@ -554,10 +642,72 @@ def main():
                     print("gh CLI not available, skipping issue creation")
             else:
                 print(f"📋 Skipping issue creation - no changes committed for Python {', '.join(suggested_versions)}")
+        
+        # Handle EOL versions
+        if eol_versions:
+            print(f"\n🚨 Processing EOL Python versions: {eol_versions}")
+            
+            # Create Copilot PR for automatic EOL removal
+            eol_pr_created = create_eol_removal_pr(eol_versions, current)
+            
+            if eol_pr_created:
+                print(f"✅ Copilot will automatically create PR to remove EOL Python {', '.join(eol_versions)}")
+            else:
+                print(f"⚠️ Manual removal required for EOL Python {', '.join(eol_versions)}")
+                
+            # Create tracking issue for EOL removal
+            if shutil.which("gh"):
+                eol_issue_title = f"🚨 Remove EOL Python {', '.join(eol_versions)} from testing matrix"
+                eol_issue_body = (
+                    f"⚠️ **BREAKING CHANGE**: Python {', '.join(eol_versions)} has reached End of Life\n\n"
+                    f"**Security Impact:**\n"
+                    f"- Python {', '.join(eol_versions)} no longer receives security updates\n"
+                    f"- Using EOL versions exposes projects to security vulnerabilities\n"
+                    f"- Most Python packages will drop support for EOL versions\n\n"
+                    f"**Required Actions:**\n"
+                    f"- ✅ Remove Python {', '.join(eol_versions)} from CI testing matrix\n"
+                    f"- ✅ Update pyproject.toml python_requires constraint\n"
+                    f"- ✅ Update documentation and README\n"
+                    f"- ✅ Add migration guidance for users\n\n"
+                    f"**Automated Process:**\n"
+                    f"- {'🤖 Copilot PR created automatically' if eol_pr_created else '⚠️ Manual removal required'}\n"
+                    f"- 📋 This issue tracks the removal process\n"
+                    f"- 🔄 Review and merge PR after validation\n\n"
+                    f"**Migration Guidance:**\n"
+                    f"Users on Python {', '.join(eol_versions)} should upgrade to:\n"
+                    f"- **Recommended**: Python {latest_stable} (latest stable)\n"
+                    f"- **Minimum**: Python 3.9+ (still supported)\n\n"
+                    f"**Timeline:**\n"
+                    f"- **Detected**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
+                    f"- **Action**: Immediate removal recommended\n"
+                    f"- **Impact**: Breaking change for users on EOL versions"
+                )
+                
+                try:
+                    subprocess.run([
+                        "gh", "issue", "create", 
+                        "--title", eol_issue_title, 
+                        "--body", eol_issue_body, 
+                        "--label", "breaking-change,security,python-compatibility,eol"
+                    ], check=True)
+                    print(f"✅ Created EOL tracking issue for Python {', '.join(eol_versions)}")
+                except subprocess.CalledProcessError:
+                    print("❌ Could not create EOL tracking issue")
+        
+        # Summary message
+        if not suggested_versions and not eol_versions:
+            print("✅ Python testing matrix is up to date - no changes needed.")
         else:
-            print("No new Python versions to update.")
+            summary_items = []
+            if suggested_versions:
+                summary_items.append(f"🆕 Added Python {', '.join(suggested_versions)}")
+            if eol_versions:
+                summary_items.append(f"🚨 Removing EOL Python {', '.join(eol_versions)}")
+            print(f"📋 Summary: {' | '.join(summary_items)}")
             
     except Exception as e:
+        print(f"Error in main: {e}")
+        sys.exit(1)
         print(f"Error in main: {e}")
         sys.exit(1)
 
