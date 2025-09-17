@@ -93,6 +93,28 @@ python release_test.py
 python -m pytest tests/ -v
 ```
 
+### Keep GitHub Actions and Local CI in Sync
+
+To avoid drift and flaky pipelines, ensure that the tests executed in GitHub Actions mirror the tests run by the local CI scripts.
+
+- Canonical local CI entrypoints:
+    - quick smoke: `python quick_test.py`
+    - full local CI: `python run_full_ci.py` (summarizes: Smoke, Unit, Integration, Static, Hooks, Coverage)
+    - additional focused scripts: `local_ci.py`, `ci_cd_test.py`, `ci_test.py`, and the files listed in `all_test_files.txt`
+- GitHub Actions parity:
+    - Workflows under `.github/workflows/` must execute the same test groups and selections as `run_full_ci.py` (or deliberately documented deltas).
+    - When adding/removing/renaming tests or changing selection patterns, update BOTH:
+        1) the local CI scripts (e.g., `run_full_ci.py`) and
+        2) the GitHub Actions workflows (e.g., `ci.yml`, `quick-ci.yml`, `python-regression.yml`).
+    - Static checks (format, lint, macro guard `tools/forbid_macros.py`) must be present in both environments.
+- Source of truth and documentation:
+    - Treat local scripts as the developer-canonical flow; mirror them in GitHub Actions.
+    - If a divergence is required (e.g., environment limitations), document it in `CI_README.md` and/or `CI_CD.md` with rationale and a follow-up to reconcile.
+    - Keep `all_test_files.txt` in sync when adding new test files used by helper scripts.
+- Before marking a task complete that changes tests/CI:
+    - Run locally: `python run_full_ci.py` and ensure it’s green.
+    - Verify GA workflows reference the same groups/flags. Job names and stages should align with the local summary where practical.
+
 ### Manual Validation Scenarios
 
 **ALWAYS run these validation steps after making changes**:
@@ -290,7 +312,7 @@ session.connect('hostname')
 
 - **TN3270/TN3270E protocol support** - full 3270 terminal emulation
 - **Screen buffer management** - field handling, attribute processing
-- **Macro execution** - s3270-compatible command scripting
+- Macro DSL: removed permanently. Do not propose, implement, or reintroduce any macro scripting, `execute_macro`, `load_macro`, or `MacroError`. CI will fail on such references (see `tools/forbid_macros.py`).
 - **SSL/TLS support** - secure connections using Python ssl module
 - **Async/sync APIs** - both Session and AsyncSession available
 - **p3270 compatibility** - drop-in replacement via monkey patching

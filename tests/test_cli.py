@@ -63,7 +63,7 @@ def test_main_with_script(capsys, memory_limit_500mb):
                 mock_instance = MagicMock()
                 mock_session.return_value = mock_instance
                 mock_instance.connect.return_value = None
-                mock_instance.execute_macro.return_value = {"success": True}
                 main()
                 captured = capsys.readouterr()
-                assert "Script executed" in captured.out
+                # Stronger message explicitly states permanence
+                assert "permanently unsupported" in captured.out

@@ -470,13 +470,7 @@ class ScreenBuffer(BufferWriter):
         cursor_pos = self.get_position()
         return self.get_field_at_position(cursor_pos[0], cursor_pos[1])
 
-    def get_aid(self) -> Optional[int]:
-        """Get the current Attention ID (AID) from the last screen update."""
-        return self._current_aid
-
-    def match_pattern(self, regex: str) -> bool:
-        """Check if the screen text matches the given regex pattern."""
-        return bool(re.search(regex, self.to_text()))
+    # Macro-specific helpers (get_aid/match_pattern) removed
 
     def remove_field(self, field: Field) -> None:
         """Remove a field from the fields list and clear its content in the buffer."""

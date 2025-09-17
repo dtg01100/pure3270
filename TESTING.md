@@ -105,7 +105,6 @@ The test suite verifies:
 - Navigation method availability
 - p3270 library patching
 - Session management
-- Macro execution
 - Screen buffer operations
 - Basic functionality
 - CLI functionality

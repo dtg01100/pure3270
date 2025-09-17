@@ -1,36 +1,7 @@
 Advanced Usage
 ==============
 
-Macro Scripting DSL
--------------------
-
-Pure3270 supports a powerful macro DSL for automation:
-
-Commands:
-- ``WAIT(AID=ENTER, timeout=5)`` - Wait for AID response
-- ``WAIT(pattern="welcome", timeout=5)`` - Wait for screen pattern
-- ``SENDKEYS("hello ${user}")`` - Send text with variable substitution
-- ``IF aid==ENTER: SENDKEYS(hello) ELSE: FAIL(error)`` - Conditional execution
-- ``CALL MACRONAME`` - Call nested macro
-- ``SET var = value`` - Set variable
-- ``SYSREQ(ATN)`` - Send system request
-
-Example macro:
-.. code-block:: text
-
-    DEFINE LOGIN
-    SENDKEYS("user123")
-    key TAB
-    SENDKEYS("${password}")
-    key ENTER
-    WAIT(pattern="Welcome", timeout=10)
-    END
-
-Loading and executing:
-.. code-block:: python
-
-    session.load_macro("login.macro")
-    result = session.execute_macro("LOGIN", {"password": "secret"})
+Macro scripting/DSL has been removed and is not supported. It will not be reintroduced.
 
 Printer Sessions
 ----------------
@@ -84,5 +55,4 @@ Performance Optimization
 
 - Use buffer pools for large data streams
 - Batch AID submissions
-- Async macro execution for parallel operations
 - Memory limits via RLIMIT_AS for resource-constrained environments

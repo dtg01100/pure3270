@@ -237,6 +237,14 @@ def run_static_analysis(missing_tools: List[str]):
     else:
         print_warning("Skipping Flake8 (not installed)")
 
+    # Forbid macro DSL reintroduction
+    forbid_script = Path("tools/forbid_macros.py")
+    if forbid_script.exists():
+        success, _, _ = run_command([sys.executable, str(forbid_script)], "Forbid macro DSL references")
+        all_passed = all_passed and success
+    else:
+        print_warning("forbid_macros.py not found; skipping macro DSL guard")
+
     return all_passed
 
 

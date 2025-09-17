@@ -11,7 +11,6 @@ import os
 import sys
 
 from .patching import enable_replacement
-from .protocol.exceptions import MacroError
 from .session import AsyncSession, Session
 
 
@@ -73,32 +72,17 @@ def main() -> None:
         session.connect(args.host, port=args.port, ssl_context=args.ssl)
         print(f"Connected to {args.host}:{args.port}")
 
+        # Interactive CLI macro support has been removed.
         if args.script:
-            # Execute script file
-            with open(args.script, "r") as f:
-                commands = [line.strip() for line in f if line.strip()]
-            result = session.execute_macro(";".join(commands))
-            print("Script executed:", result)
-        else:
-            # Interactive mode
             print(
-                "Enter commands (e.g., 'String(hello)', 'key Enter'). Type 'quit' to exit."
+                "Macro scripting/DSL has been removed from pure3270 and will not return. "
+                "Script execution via macro DSL is permanently unsupported."
             )
-            # Only enter blocking input loop when running interactively
-            if sys.stdin.isatty():
-                while True:
-                    try:
-                        command = input("> ").strip()
-                        if command.lower() in ("quit", "exit"):
-                            break
-                        result = session.execute_macro(command)
-                        print("Result:", result)
-                    except KeyboardInterrupt:
-                        break
-                    except Exception as e:
-                        print(f"Error: {e}")
-            else:
-                print("Non-interactive session: skipping interactive prompt.")
+        else:
+            print(
+                "Macro scripting/DSL has been removed from pure3270 and will not return. "
+                "Interactive macro DSL is permanently unsupported."
+            )
 
     except Exception as e:
         if hasattr(e, "context") and e.context:
@@ -119,5 +103,4 @@ __all__ = [
     "AsyncSession",
     "enable_replacement",
     "setup_logging",
-    "MacroError",
 ]
