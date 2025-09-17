@@ -26,6 +26,17 @@ def monkey_patch_manager():
     return MonkeyPatchManager()
 
 
+@pytest.fixture
+def mock_p3270():
+    """Mock p3270 module for version testing."""
+    mock_module = Mock()
+    mock_module.__version__ = "0.1.0"
+    # Mock P3270Client and other key components
+    mock_module.P3270Client = Mock()
+    mock_module.S3270 = Mock()
+    return mock_module
+
+
 @pytest.mark.skipif(
     platform.system() != "Linux", reason="Memory limiting only supported on Linux"
 )

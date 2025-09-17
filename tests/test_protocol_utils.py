@@ -6,6 +6,17 @@ import pytest
 from pure3270.protocol.utils import send_iac, send_subnegotiation, strip_telnet_iac
 
 
+@pytest.fixture
+def mock_sync_writer():
+    """Mock synchronous writer for protocol utility tests."""
+    from unittest.mock import Mock
+
+    writer = Mock()
+    writer.write.return_value = None
+    writer.flush.return_value = None
+    return writer
+
+
 def test_send_iac(mock_sync_writer, memory_limit_500mb):
     data = b"\xfb\x01"  # WILL ECHO
     send_iac(mock_sync_writer, data)
