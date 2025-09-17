@@ -53,10 +53,9 @@ def ssl_wrapper():
 def async_session():
     """Fixture providing an AsyncSession."""
     session = AsyncSession()
-    # Mock the screen buffer
-    session.screen = Mock(spec=ScreenBuffer)
-    session.screen.buffer = bytearray(b"\x40" * (24 * 80))
-    session.screen.fields = []
+    # Mock the screen buffer using property setter
+    mock_screen = Mock(spec=ScreenBuffer)
+    session.screen = mock_screen
     return session
 
 

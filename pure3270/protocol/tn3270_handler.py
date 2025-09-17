@@ -963,6 +963,7 @@ class TN3270Handler:
         _, writer = self._require_streams()
 
         from .utils import IAC
+
         BREAK = 0xF3  # Telnet BRK command value
         send_iac(writer, bytes([BREAK]))
         logger.debug("Sent Telnet BREAK command (IAC BRK)")

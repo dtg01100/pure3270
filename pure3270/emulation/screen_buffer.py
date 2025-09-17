@@ -238,7 +238,9 @@ class ScreenBuffer(BufferWriter):
                 )
 
                 # Update field content and mark as modified if this position belongs to a field
-                modified_field_found = self._update_field_content(int(row), int(col), ebcdic_byte)
+                modified_field_found = self._update_field_content(
+                    int(row), int(col), ebcdic_byte
+                )
                 # Only detect new fields if we didn't update an existing one
                 if not modified_field_found:
                     self._detect_fields()
