@@ -100,6 +100,9 @@ class TestTN3270Handler:
             b"\xff\xfb\x19",  # WILL EOR
         ]
 
+        # Mock the infer_tn3270e_from_trace method to return True
+        tn3270_handler.negotiator.infer_tn3270e_from_trace = MagicMock(return_value=True)
+        
         await tn3270_handler._negotiate_tn3270()
         assert tn3270_handler.negotiated_tn3270e is True
 

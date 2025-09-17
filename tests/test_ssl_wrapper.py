@@ -58,6 +58,12 @@ class TestSSLWrapper:
 
     def test_get_context(self, ssl_wrapper, memory_limit_500mb):
         with patch.object(ssl_wrapper, "create_context") as mock_create:
+            # Mock create_context to actually set the context
+            def mock_set_context():
+                ssl_wrapper.context = MagicMock()
+                return ssl_wrapper.context
+            mock_create.side_effect = mock_set_context
+            
             context = ssl_wrapper.get_context()
         mock_create.assert_called_once()
         assert context == ssl_wrapper.context
