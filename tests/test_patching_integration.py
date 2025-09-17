@@ -37,7 +37,7 @@ def test_real_p3270_patching(memory_limit_500mb):
         # Any other exception indicates a problem with our patching
         raise e
     if created:
-        session.close()
+        session.disconnect()
     manager.unpatch()
 
 

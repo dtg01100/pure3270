@@ -366,8 +366,8 @@ class TestTN3270Handler:
         tn3270_handler.reader = AsyncMock()
         tn3270_handler.reader.read.return_value = data + b"\xff\x19"  # Add EOR marker
         received = await tn3270_handler.receive_data()
-        # The handler currently returns the full data including EOR marker
-        assert received == data + b"\xff\x19"
+        # The handler strips EOR markers and returns only the data payload
+        assert received == data
 
     async def test_receive_data_not_connected(self, tn3270_handler, memory_limit_500mb):
         tn3270_handler.reader = None
