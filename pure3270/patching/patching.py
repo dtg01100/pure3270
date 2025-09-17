@@ -8,7 +8,7 @@ import logging
 import sys
 import types
 from contextlib import contextmanager
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Generator, Optional, Set
 from unittest.mock import patch as mock_patch
 
 from pure3270.patching.s3270_wrapper import Pure3270S3270Wrapper
@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class Pure3270PatchError(Exception):
     """Raised on patching errors."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
         logger.error(args[0] if args else str(self))
 
@@ -39,10 +39,10 @@ class MonkeyPatchManager:
             patches: Dictionary of patches to apply (module_name: patch_functions).
         """
         self.patches = patches or {}
-        self.applied = set()
-        self.originals = {}
-        self.patched = {}
-        self.selective_patches = {}
+        self.applied: Set[str] = set()
+        self.originals: Dict[str, Any] = {}
+        self.patched: Dict[str, Any] = {}
+        self.selective_patches: Dict[str, Any] = {}
         logger.info("Initialized MonkeyPatchManager")
 
     def apply(self, module_name: str) -> bool:
@@ -89,7 +89,7 @@ class MonkeyPatchManager:
         original = getattr(obj, method_name, None)
         if asyncio.iscoroutinefunction(original):
 
-            def wrapped(*args, **kwargs):
+            def wrapped(*args: Any, **kwargs: Any) -> Any:
                 loop = asyncio.get_event_loop()
                 return loop.run_in_executor(None, lambda: new_method(*args, **kwargs))
 
@@ -130,7 +130,7 @@ class MonkeyPatchManager:
         expected_version: str = "0.1.6",
     ) -> None:
         try:
-            import p3270
+            import p3270  # type: ignore[import-untyped]
 
             version_compatible = self._check_version_compatibility(
                 p3270, expected_version
@@ -150,7 +150,8 @@ class MonkeyPatchManager:
                 # Patch the S3270 class at module level
                 original = getattr(p3270, "S3270", None)
                 self._store_original("p3270.S3270", original)
-                from pure3270.patching.s3270_wrapper import Pure3270S3270Wrapper
+                from pure3270.patching.s3270_wrapper import \
+                    Pure3270S3270Wrapper
 
                 setattr(p3270, "S3270", Pure3270S3270Wrapper)
                 logger.info("Patched Session")
@@ -184,13 +185,15 @@ class MonkeyPatchManager:
                 obj_name, method = key.rsplit(".", 1)
                 # Try to reconstruct the object from the name
                 try:
+                    obj: Any = None
                     if obj_name in sys.modules:
                         obj = sys.modules[obj_name]
                     else:
                         # For class methods, try to find the class
                         parts = obj_name.split(".")
-                        obj = sys.modules.get(parts[0])
-                        if obj and len(parts) > 1:
+                        base_module = sys.modules.get(parts[0])
+                        if base_module is not None and len(parts) > 1:
+                            obj = base_module
                             for part in parts[1:]:
                                 obj = getattr(obj, part, None)
                                 if obj is None:
@@ -210,7 +213,9 @@ class MonkeyPatchManager:
 
 
 @contextmanager
-def PatchContext(patches: Optional[Dict[str, Any]] = None):
+def PatchContext(
+    patches: Optional[Dict[str, Any]] = None
+) -> Generator[MonkeyPatchManager, None, None]:
     """
     Context manager for temporary patching.
 

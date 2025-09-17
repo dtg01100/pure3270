@@ -3,9 +3,9 @@ SessionManager for pure3270, handling connection setup, teardown, and negotiatio
 """
 
 import asyncio
+import inspect
 import logging
 from asyncio import StreamReader, StreamWriter
-import inspect
 from contextlib import suppress
 from typing import Any, Optional
 
@@ -69,7 +69,7 @@ class SessionManager:
         self.reader = None
         self.connected = False
 
-    async def perform_telnet_negotiation(self, negotiator) -> None:
+    async def perform_telnet_negotiation(self, negotiator: Any) -> None:
         """Perform Telnet negotiation (TTYPE, BINARY, etc.)."""
         if not hasattr(negotiator, "negotiate"):
             return
@@ -85,7 +85,7 @@ class SessionManager:
         # else synchronous -> already executed
 
     async def perform_tn3270_negotiation(
-        self, negotiator, timeout: Optional[float] = None
+        self, negotiator: Any, timeout: Optional[float] = None
     ) -> None:
         """Perform TN3270 negotiation using the handler's method if available."""
         # Prefer the handler implementation when available (it manages a reader loop)

@@ -2,7 +2,7 @@
 
 import logging
 import ssl
-from typing import Optional
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +71,7 @@ class SSLWrapper:
             logger.error(f"SSL context creation failed: {e}")
             raise SSLError(f"SSL context creation failed: {e}")
 
-    def wrap_connection(self, telnet_connection):
+    def wrap_connection(self, telnet_connection: Any) -> Any:
         """
         Wrap an existing telnet connection with SSL (if asyncio doesn't handle natively).
 
@@ -90,6 +90,7 @@ class SSLWrapper:
         """Get the SSLContext (create if not exists)."""
         if self.context is None:
             self.create_context()
+        assert self.context is not None, "Context should be created by create_context"
         return self.context
 
     def decrypt(self, encrypted_data: bytes) -> bytes:

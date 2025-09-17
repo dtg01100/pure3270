@@ -2,7 +2,7 @@
 
 import logging
 import re
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from .ebcdic import EBCDICCodec, EmulationEncoder
 
@@ -19,21 +19,21 @@ class Field:
 
     def __init__(
         self,
-        start=(0, 0),
-        end=(0, 0),
-        protected=False,
-        numeric=False,
-        modified=False,
-        selected=False,
-        intensity=0,
-        color=0,
-        background=0,
-        validation=0,
-        outlining=0,
-        character_set=0,
-        sfe_highlight=0,
+        start: Tuple[int, int] = (0, 0),
+        end: Tuple[int, int] = (0, 0),
+        protected: bool = False,
+        numeric: bool = False,
+        modified: bool = False,
+        selected: bool = False,
+        intensity: int = 0,
+        color: int = 0,
+        background: int = 0,
+        validation: int = 0,
+        outlining: int = 0,
+        character_set: int = 0,
+        sfe_highlight: int = 0,
         content: bytes = b"",
-    ):
+    ) -> None:
         # Normalize start/end coordinates so that start <= end (lexicographically).
         try:
             s_row, s_col = int(start[0]), int(start[1])
@@ -79,10 +79,10 @@ class Field:
             # Compatibility: some codecs return (text, length)
             try:
                 res = codec.decode(self.content)
-                if isinstance(res, tuple):
-                    return res[0]
-                return res
+                # Handle both tuple and non-tuple results
+                return str(res[0] if isinstance(res, tuple) else res)
             except Exception:
+                # If codec fails, fall through to fallback below
                 pass
         # Fallback
         return EmulationEncoder.decode(self.content)
@@ -100,18 +100,17 @@ class Field:
         if codec is not None:
             try:
                 res = codec.encode(text)
-                if isinstance(res, tuple):
-                    self.content = res[0]
-                else:
-                    self.content = res
+                # Handle both tuple and non-tuple results
+                self.content = bytes(res[0] if isinstance(res, tuple) else res)
                 self.modified = True
                 return
             except Exception:
+                # If codec fails, fall through to fallback below
                 pass
         self.content = EmulationEncoder.encode(text)
         self.modified = True
 
-    def _replace(self, **kwargs):
+    def _replace(self, **kwargs: Any) -> "Field":
         """Return a new Field with replaced attributes (compatible with namedtuple._replace)."""
         params = {
             "start": self.start,
@@ -131,9 +130,9 @@ class Field:
         }
         params.update(kwargs)
         # Constructing a new Field will run the normalization logic in __init__
-        return Field(**params)
+        return Field(**params)  # type: ignore[arg-type]
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"Field(start={self.start}, end={self.end}, protected={self.protected}, "
             f"numeric={self.numeric}, modified={self.modified}, content={self.content!r})"
@@ -169,7 +168,7 @@ class ScreenBuffer(BufferWriter):
         # Attributes buffer: 3 bytes per position (protection, foreground, background/highlight)
         self.attributes = bytearray([0] * (self.rows * self.cols * 3))
         # Extended attributes: dictionary mapping (row, col) to another dictionary of ext_attr_type: value
-        self._extended_attributes = {}
+        self._extended_attributes: Dict[Tuple[int, int], Dict[str, Any]] = {}
         # List of fields
         self.fields: List[Field] = []
         # Cursor position
@@ -180,7 +179,7 @@ class ScreenBuffer(BufferWriter):
         self._default_numeric = False
         self._current_aid = None
 
-    def clear(self):
+    def clear(self) -> None:
         """Clear the screen buffer and reset fields."""
         self.buffer = bytearray(b"\x40" * self.size)
         self.attributes = bytearray([0] * len(self.attributes))
@@ -243,7 +242,7 @@ class ScreenBuffer(BufferWriter):
                 self._update_field_content(int(row), int(col), ebcdic_byte)
                 self._detect_fields()
 
-    def _update_field_content(self, row: int, col: int, ebcdic_byte: int):
+    def _update_field_content(self, row: int, col: int, ebcdic_byte: int) -> None:
         """
         Update the field content when a character is written to a position.
 
@@ -269,7 +268,7 @@ class ScreenBuffer(BufferWriter):
                 self.fields[idx] = new_field
                 break
 
-    def update_from_stream(self, data: bytes):
+    def update_from_stream(self, data: bytes) -> None:
         """
         Update buffer from a 3270 data stream (basic implementation).
 
@@ -304,7 +303,7 @@ class ScreenBuffer(BufferWriter):
         # Update fields (basic detection)
         self._detect_fields()
 
-    def _detect_fields(self):
+    def _detect_fields(self) -> None:
         logger.debug("Starting _detect_fields")
         self.fields = []
         field_start_idx = -1
@@ -426,7 +425,7 @@ class ScreenBuffer(BufferWriter):
                 modified.append((field.start, content))
         return modified
 
-    def set_modified(self, row: int, col: int, modified: bool = True):
+    def set_modified(self, row: int, col: int, modified: bool = True) -> None:
         """Set modified flag for position."""
         if 0 <= row < self.rows and 0 <= col < self.cols:
             pos = row * self.cols + col
@@ -496,7 +495,9 @@ class ScreenBuffer(BufferWriter):
         """Update field detection and attributes."""
         self._detect_fields()
 
-    def set_extended_attribute(self, row: int, col: int, attr_type: str, value: int):
+    def set_extended_attribute(
+        self, row: int, col: int, attr_type: str, value: int
+    ) -> None:
         """
         Set an extended attribute for a specific position.
 
@@ -512,7 +513,7 @@ class ScreenBuffer(BufferWriter):
             self._extended_attributes[pos_tuple][attr_type] = value
             # Removed self.update_fields() here, will be called once after data stream parsing
 
-    def move_cursor_to_first_input_field(self):
+    def move_cursor_to_first_input_field(self) -> None:
         """
         Moves the cursor to the beginning of the first unprotected, non-skipped, non-autoskip field.
         """
@@ -536,7 +537,7 @@ class ScreenBuffer(BufferWriter):
             # For now, we'll just log and keep the current position.
             logger.debug("No input fields found for IC order.")
 
-    def move_cursor_to_next_input_field(self):
+    def move_cursor_to_next_input_field(self) -> None:
         """
         Moves the cursor to the beginning of the next unprotected, non-skipped, non-autoskip field.
         Wraps around to the first field if no next field is found.

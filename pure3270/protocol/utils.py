@@ -1,7 +1,17 @@
-"""Utility functions for TN3270 protocol handling."""
+"""Utility functions for TN3270/TN3270E protocol handling.
 
+Typing notes:
+- Writer parameters are annotated as ``Optional[asyncio.StreamWriter]`` to reflect
+    possibility of absent writer during teardown.
+- ``_schedule_if_awaitable`` centralizes best-effort handling of AsyncMock.write
+    returning an awaitable to avoid repeated inline inspection logic.
+"""
+
+import asyncio
+import inspect
 import logging
 import struct
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +192,27 @@ QUERY_REPLY_PROCEDURE = 0x11
 QUERY_REPLY_GRID = 0x12
 
 
-def send_iac(writer, data: bytes) -> None:
+def _schedule_if_awaitable(maybe_awaitable: Any) -> None:
+    """Best-effort scheduling or execution of an awaitable.
+
+    Avoids un-awaited coroutine warnings when mocks return coroutines.
+    Intentionally swallows all exceptions; this helper is non-critical.
+    """
+    try:
+        if inspect.isawaitable(maybe_awaitable):
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(maybe_awaitable)  # type: ignore[arg-type]
+            except RuntimeError:
+                try:
+                    asyncio.run(maybe_awaitable)  # type: ignore[arg-type]
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+
+def send_iac(writer: Optional[asyncio.StreamWriter], data: bytes) -> None:
     """
     Send IAC command.
 
@@ -195,37 +225,17 @@ def send_iac(writer, data: bytes) -> None:
 
     # Call write; AsyncMock.write may return a coroutine that needs awaiting.
     try:
-        res = writer.write(bytes([IAC]) + data)
+        writer.write(bytes([IAC]) + data)
     except Exception:
-        # Ensure any unexpected writer errors don't crash callers/tests.
         try:
             writer.write(bytes([IAC]) + data)
         except Exception:
             return
 
-    # If writer.write returned an awaitable (e.g., AsyncMock), ensure it's awaited or scheduled.
-    try:
-        import asyncio
-        import inspect
 
-        if inspect.isawaitable(res):
-            try:
-                loop = asyncio.get_running_loop()
-                # Schedule the awaitable so tests using AsyncMock don't trigger "coroutine was never awaited"
-                loop.create_task(res)
-            except RuntimeError:
-                # No running loop; run to completion synchronously to avoid warnings.
-                try:
-                    asyncio.run(res)
-                except Exception:
-                    # Best-effort only — if this fails, don't propagate to callers.
-                    pass
-    except Exception:
-        # If inspect/imports fail for any reason, ignore — best-effort only.
-        pass
-
-
-def send_subnegotiation(writer, opt: bytes, data: bytes) -> None:
+def send_subnegotiation(
+    writer: Optional[asyncio.StreamWriter], opt: bytes, data: bytes
+) -> None:
     """
     Send subnegotiation.
 
@@ -239,29 +249,12 @@ def send_subnegotiation(writer, opt: bytes, data: bytes) -> None:
 
     sub = bytes([IAC, SB]) + opt + data + bytes([IAC, SE])
     try:
-        res = writer.write(sub)
+        writer.write(sub)
     except Exception:
         try:
             writer.write(sub)
         except Exception:
             return
-
-    # If writer.write returned an awaitable (e.g., AsyncMock), ensure it's awaited or scheduled.
-    try:
-        import asyncio
-        import inspect
-
-        if inspect.isawaitable(res):
-            try:
-                loop = asyncio.get_running_loop()
-                loop.create_task(res)
-            except RuntimeError:
-                try:
-                    asyncio.run(res)
-                except Exception:
-                    pass
-    except Exception:
-        pass
 
 
 def strip_telnet_iac(
@@ -313,9 +306,6 @@ def strip_telnet_iac(
     return clean_data
 
 
-from typing import Optional
-
-
 class ParseError(Exception):
     """Error during parsing."""
 
@@ -324,8 +314,8 @@ class ParseError(Exception):
 
 class BaseParser:
     def __init__(self, data: bytes):
-        self._data = data
-        self._pos = 0
+        self._data: bytes = data
+        self._pos: int = 0
 
     def has_more(self) -> bool:
         return self._pos < len(self._data)
@@ -348,7 +338,8 @@ class BaseParser:
     def read_u16(self) -> int:
         high = self.read_byte()
         low = self.read_byte()
-        return struct.unpack(">H", bytes([high, low]))[0]
+        result = struct.unpack(">H", bytes([high, low]))[0]
+        return int(result)
 
     def read_fixed(self, length: int) -> bytes:
         if self.remaining() < length:
@@ -360,8 +351,8 @@ class BaseParser:
 
 class BaseStringParser:
     def __init__(self, text: str):
-        self._text = text
-        self._pos = 0
+        self._text: str = text
+        self._pos: int = 0
 
     def has_more(self) -> bool:
         return self._pos < len(self._text)

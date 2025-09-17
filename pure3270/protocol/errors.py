@@ -10,14 +10,17 @@ import asyncio
 import functools
 import logging
 import ssl
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, TypeVar
 
 from .exceptions import NegotiationError, ProtocolError
 
 logger = logging.getLogger(__name__)
 
+# Type variable for generic function decoration
+F = TypeVar("F", bound=Callable[..., Any])
 
-def handle_drain(func: Callable) -> Callable:
+
+def handle_drain(func: F) -> F:
     """
     Decorator to handle exceptions during writer.drain() calls.
 
@@ -27,7 +30,7 @@ def handle_drain(func: Callable) -> Callable:
     """
 
     @functools.wraps(func)
-    async def wrapper(*args, **kwargs):
+    async def wrapper(*args: Any, **kwargs: Any) -> Any:
         result = await func(*args, **kwargs)
         # Assume last operation is drain; catch and log
         try:
@@ -37,7 +40,7 @@ def handle_drain(func: Callable) -> Callable:
             logger.warning(f"Failed to drain writer in {func.__name__}: {e}")
         return result
 
-    return wrapper
+    return wrapper  # type: ignore[return-value]
 
 
 class safe_socket_operation:
@@ -48,19 +51,19 @@ class safe_socket_operation:
     ProtocolError with original message. Use for connect, read/write ops.
     """
 
-    def __enter__(self):
+    def __enter__(self) -> "safe_socket_operation":
         return self
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "safe_socket_operation":
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> bool:
         if exc_type in (OSError, ssl.SSLError, asyncio.TimeoutError):
             logger.error(f"Socket/SSL operation failed: {exc_val}", exc_info=True)
             raise ProtocolError(f"Protocol operation failed: {exc_val}")
         return False
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> Any:
         return self.__aexit__(exc_type, exc_val, exc_tb)
 
 

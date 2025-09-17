@@ -4,9 +4,10 @@ Handles Telnet negotiation and TN3270E subnegotiation.
 """
 
 import asyncio
+import inspect
 import logging
 from enum import Enum  # Import Enum for state management
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Any, Awaitable, Dict, List, Optional
 
 from ..emulation.screen_buffer import ScreenBuffer
 from .data_stream import (  # Import SnaResponse and BindImage
@@ -137,7 +138,7 @@ class Negotiator:
         )
         self.negotiated_functions: int = 0
         self._next_seq_number: int = 0  # For outgoing SEQ-NUMBER
-        self._pending_requests = (
+        self._pending_requests: Dict[int, Any] = (
             {}
         )  # To store pending requests for response correlation
         self._device_type_is_event = asyncio.Event()
@@ -154,9 +155,9 @@ class Negotiator:
         # Internal flag to signal forced failure (e.g., server refusal when fallback disabled)
         self._forced_failure: bool = False
         # Buffer to accumulate negotiation bytes when inference is needed (e.g., tests)
-        self._negotiation_trace: bytes | None = None
+        self._negotiation_trace = None  # type: Optional[bytes]
         # Optional trace recorder for diagnostics / tests
-        self.recorder: Optional[TraceRecorder] = recorder
+        self.recorder = recorder  # type: Optional[TraceRecorder]
 
     # ------------------------------------------------------------------
     # Recorder helpers
@@ -217,7 +218,7 @@ class Negotiator:
             pass
         return False
 
-    def _maybe_schedule_coro(self, coro) -> None:
+    def _maybe_schedule_coro(self, coro: Awaitable[object]) -> None:
         """
         Schedule a coroutine to run in the running event loop if one exists.
 
@@ -226,10 +227,11 @@ class Negotiator:
         """
         try:
             loop = asyncio.get_running_loop()
-            loop.create_task(coro)
+            # Cast to Coroutine for create_task
+            loop.create_task(coro)  # type: ignore[arg-type]
         except RuntimeError:
             # No running event loop; run synchronously for tests
-            asyncio.run(coro)
+            asyncio.run(coro)  # type: ignore[arg-type]
 
     def _get_next_seq_number(self) -> int:
         """Get the next sequential number for TN3270E requests."""
@@ -573,7 +575,8 @@ class Negotiator:
             ParseError: If IAC parsing fails.
         """
         if self.handler:
-            return await self.handler._read_iac()
+            result = await self.handler._read_iac()  # type: ignore[attr-defined]
+            return bytes(result)
         raise NotImplementedError("Handler required for reading IAC")
 
     async def handle_iac_command(self, command: int, option: int) -> None:
@@ -638,13 +641,13 @@ class Negotiator:
                 self._record_telnet("out", WONT, option)
             # Attempt to drain if available; if writer.drain is a MagicMock/AsyncMock
             # tests will handle awaiting it; otherwise await to flush network buffers.
-            if hasattr(self.writer, "drain"):
+            if self.writer is not None and hasattr(self.writer, "drain"):
                 await self.writer.drain()
         elif command == DONT:
             logger.info(f"[NEGOTIATION] Received IAC DONT {option:#x}")
             send_iac(self.writer, bytes([WONT, option]))
             self._record_telnet("out", WONT, option)
-            if hasattr(self.writer, "drain"):
+            if self.writer is not None and hasattr(self.writer, "drain"):
                 await self.writer.drain()
         elif command == WILL:
             logger.info(f"[NEGOTIATION] Received IAC WILL {option:#x}")
@@ -689,13 +692,13 @@ class Negotiator:
                 )
                 send_iac(self.writer, bytes([DONT, option]))
                 self._record_telnet("out", DONT, option)
-            if hasattr(self.writer, "drain"):
+            if self.writer is not None and hasattr(self.writer, "drain"):
                 await self.writer.drain()
         elif command == WONT:
             logger.info(f"[NEGOTIATION] Received IAC WONT {option:#x}")
             send_iac(self.writer, bytes([DONT, option]))
             self._record_telnet("out", DONT, option)
-            if hasattr(self.writer, "drain"):
+            if self.writer is not None and hasattr(self.writer, "drain"):
                 await self.writer.drain()
             # If the remote explicitly refuses TN3270E (or related terminal/location option),
             # immediately fallback so negotiation doesn't hang waiting for TN3270E subnegotiation replies.
@@ -767,7 +770,8 @@ class Negotiator:
             except Exception:
                 pass
         logger.debug(f"Sent TERMINAL-LOCATION IS with LU name: {self._lu_name}")
-        await self.writer.drain()  # Ensure the data is sent immediately
+        if self.writer is not None:
+            await self.writer.drain()  # Ensure the data is sent immediately
 
     def is_printer_session_active(self) -> bool:
         """
@@ -796,7 +800,7 @@ class Negotiator:
         return bool(self.negotiated_functions & TN3270E_DATA_STREAM_CTL)
 
     async def handle_subnegotiation(self, option: int, data: bytes) -> None:
-        print(
+        logger.debug(
             f"Negotiator: handle_subnegotiation called with option=0x{option:02x}, data={data.hex()}"
         )
         logger.debug(
@@ -822,7 +826,7 @@ class Negotiator:
                 f"Unhandled subnegotiation option: 0x{option:02x} with data: {data.hex()}"
             )
 
-    def _parse_tn3270e_subnegotiation(self, data: bytes):
+    def _parse_tn3270e_subnegotiation(self, data: bytes) -> Optional[Awaitable[None]]:
         """
         Flexible entry point for TN3270E subnegotiation parsing.
 
@@ -840,9 +844,6 @@ class Negotiator:
         by a 5-byte TN3270E header, parse and dispatch that header synchronously so
         tests that supply TELOPT + header bytes observe immediate correlation.
         """
-        import asyncio
-        import inspect
-
         if len(data) < 2:
             logger.warning(f"Invalid TN3270E subnegotiation data: {data.hex()}")
             return None
@@ -951,8 +952,8 @@ class Negotiator:
                 return None
 
             class _CompletedAwaitable:
-                def __await__(self_inner):
-                    async def _ret():
+                def __await__(self_inner: Any) -> Any:
+                    async def _ret() -> Any:
                         return result
 
                     return _ret().__await__()
@@ -1155,6 +1156,7 @@ class Negotiator:
         device_type_bytes = device_type.encode("ascii") + b"\x00"
         sub_data = bytes([TN3270E_DEVICE_TYPE, TN3270E_IS]) + device_type_bytes
         send_subnegotiation(self.writer, bytes([TELOPT_TN3270E]), sub_data)
+        assert self.writer is not None  # Already checked above
         await self.writer.drain()
         logger.info(f"Sent DEVICE-TYPE IS: {device_type}")
         self._device_type_is_event.set()
@@ -1229,6 +1231,7 @@ class Negotiator:
         functions_byte = bytes([self.supported_functions])
         sub_data = bytes([TN3270E_FUNCTIONS, TN3270E_IS]) + functions_byte
         send_subnegotiation(self.writer, bytes([TELOPT_TN3270E]), sub_data)
+        assert self.writer is not None  # Already checked above
         await self.writer.drain()
         logger.info(f"Sent FUNCTIONS IS: 0x{self.supported_functions:02x}")
         self._functions_is_event.set()
@@ -1259,12 +1262,10 @@ class Negotiator:
 
     @handle_drain
     async def _send_supported_functions(self) -> None:
-        # Log the outgoing supported functions
-        print(
+        """Send our supported functions to the server."""
+        logger.debug(
             f"Negotiator: _send_supported_functions called. Supported functions: 0x{self.supported_functions:02x}"
         )
-        logger.info("[DEBUG] Entering _send_supported_functions")
-        """Send our supported functions to the server."""
         if self.writer is None:
             raise_protocol_error("Cannot send functions: writer is None")
 
@@ -1277,27 +1278,20 @@ class Negotiator:
 
         if function_bytes:
             sub_data = bytes([TN3270E_FUNCTIONS, TN3270E_SEND] + function_bytes)
-            logger.info(f"[DEBUG] About to send FUNCTIONS SEND: {sub_data.hex()}")
-            print(
-                f"[CLIENT DEBUG] About to send FUNCTIONS SEND subnegotiation: {sub_data.hex()}"
-            )
-            print(f"[CLIENT DEBUG] Full SB: IAC SB TN3270E {sub_data.hex()} IAC SE")
+            logger.debug(f"About to send FUNCTIONS SEND: {sub_data.hex()}")
             send_subnegotiation(self.writer, bytes([0x28]), sub_data)
-            print(
-                f"[CLIENT DEBUG] FUNCTIONS SEND subnegotiation sent via send_subnegotiation."
-            )
             logger.debug(f"Sent supported functions: 0x{self.supported_functions:02x}")
-            await self.writer.drain()
+            if self.writer is not None:
+                await self.writer.drain()
             await asyncio.sleep(0.01)  # Yield to allow server to process
-            print(
-                f"[CLIENT DEBUG] writer.drain() completed after sending FUNCTIONS SEND."
+            logger.debug(
+                "writer.drain() completed after sending FUNCTIONS SEND (supported functions)."
             )
-            logger.info("[DEBUG] writer.drain() completed after sending FUNCTIONS SEND")
         else:
-            print(f"[CLIENT DEBUG] No function bytes to send, skipping FUNCTIONS SEND.")
-        logger.info("[DEBUG] Exiting _send_supported_functions")
+            logger.debug("No function bytes to send; skipping FUNCTIONS SEND.")
+        logger.debug("Exiting _send_supported_functions")
 
-    async def _send_query_sf(self, writer, query_type: int) -> None:
+    async def _send_query_sf(self, writer: Any, query_type: int) -> None:
         """
         Sends a Query Structured Field to the host.
         """
@@ -1358,7 +1352,7 @@ class Negotiator:
             logger.debug("SNA Response: Positive acknowledgment.")
             # Call handler method for state update
             if self.handler:
-                self.handler._update_session_state_from_sna_response(sna_response)
+                self.handler._update_session_state_from_sna_response(sna_response)  # type: ignore[attr-defined]
         elif sna_response.is_negative():
             logger.warning(
                 f"SNA Response: Negative acknowledgment. Sense Code: {sna_response.get_sense_code_name()}"

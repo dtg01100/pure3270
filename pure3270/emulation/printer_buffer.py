@@ -3,7 +3,7 @@ Printer buffer and rendering logic for 3287 printer emulation.
 """
 
 import logging
-from typing import Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from .buffer_writer import BufferWriter
 
@@ -11,13 +11,14 @@ logger = logging.getLogger(__name__)
 
 
 class PrinterBuffer(BufferWriter):
-    def __init__(self, max_lines: int = 10000, auto_reset: bool = False):
+    def __init__(self, max_lines: int = 10000, auto_reset: bool = False) -> None:
         self.max_lines = max_lines
         self.auto_reset = auto_reset
-        self._buffer = []
+        self._buffer: List[str] = []
+        self._current_line: List[str] = []
         self.reset()
 
-    def reset(self):
+    def reset(self) -> None:
         """Resets the printer buffer."""
         self._buffer = []
         self._current_line = []
@@ -30,7 +31,7 @@ class PrinterBuffer(BufferWriter):
         col: Optional[int] = None,
         protected: bool = False,
         circumvent_protection: bool = False,
-    ):
+    ) -> None:
         """
         Write an EBCDIC character to the printer buffer.
         Supports positioned writes by padding with spaces or adding empty lines.
@@ -71,7 +72,7 @@ class PrinterBuffer(BufferWriter):
         """Retrieve the buffer content as a string."""
         return self.get_rendered_output()
 
-    def write_scs_data(self, data: bytes):
+    def write_scs_data(self, data: bytes) -> None:
         """Processes incoming SCS data."""
         # This is a simplified implementation.
         # Full implementation would involve parsing SCS commands like text,
@@ -84,13 +85,13 @@ class PrinterBuffer(BufferWriter):
         if len(self._buffer) > self.max_lines:
             self._buffer = self._buffer[-self.max_lines :]
 
-    def _new_line(self):
+    def _new_line(self) -> None:
         """Adds the current line to the buffer and starts a new one."""
         self._flush_current_line()
         self.cursor_row += 1
         self.cursor_col = 0
 
-    def _flush_current_line(self):
+    def _flush_current_line(self) -> None:
         """Flushes the current line to the buffer."""
         if self._current_line:
             self._buffer.append("".join(self._current_line))
@@ -105,21 +106,21 @@ class PrinterBuffer(BufferWriter):
             self.reset()
         return output
 
-    def get_buffer_content(self) -> list:
+    def get_buffer_content(self) -> List[str]:
         """Returns the raw buffer content (list of lines)."""
         return self._buffer + ["".join(self._current_line)]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.get_rendered_output()
 
-    def __enter__(self):
+    def __enter__(self) -> "PrinterBuffer":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> bool:
         self.reset()
         return True
 
-    def update_status(self, status_code: int):
+    def update_status(self, status_code: int) -> None:
         """
         Updates the printer's internal status with the given status code.
 
@@ -144,7 +145,7 @@ class PrinterBuffer(BufferWriter):
         """
         return getattr(self, "_status", 0x00)
 
-    def end_job(self):
+    def end_job(self) -> None:
         """
         Ends the current print job.
         This method can be expanded to handle end-of-job processing.

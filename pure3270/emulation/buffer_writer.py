@@ -10,7 +10,7 @@ class BufferWriter(ABC):
     and content retrieval for screen, printer, and session buffers.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.cursor_row = 0
         self.cursor_col = 0
 

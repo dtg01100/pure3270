@@ -3,66 +3,32 @@
 import logging
 import struct
 import traceback
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import (TYPE_CHECKING, Any, Callable, Dict, Iterable, List,
+                    Optional, Tuple, Union, cast)
 
 from ..emulation.printer_buffer import PrinterBuffer  # Import PrinterBuffer
 from ..emulation.screen_buffer import ScreenBuffer  # Import ScreenBuffer
-from .utils import (
-    BIND_IMAGE,
-    NVT_DATA,
-    PRINT_EOJ,
-    PRINTER_STATUS_DATA_TYPE,
-    QUERY_REPLY_CHARACTERISTICS,
-    QUERY_REPLY_COLOR,
-    QUERY_REPLY_DBCS_ASIA,
-    QUERY_REPLY_DBCS_EUROPE,
-    QUERY_REPLY_DBCS_MIDDLE_EAST,
-    QUERY_REPLY_DDM,
-    QUERY_REPLY_DEVICE_TYPE,
-    QUERY_REPLY_EXTENDED_ATTRIBUTES,
-    QUERY_REPLY_FORMAT_STORAGE,
-    QUERY_REPLY_GRAPHICS,
-    QUERY_REPLY_GRID,
-    QUERY_REPLY_HIGHLIGHTING,
-    QUERY_REPLY_LINE_TYPE,
-    QUERY_REPLY_OEM_AUXILIARY_DEVICE,
-    QUERY_REPLY_PROCEDURE,
-    QUERY_REPLY_RPQ_NAMES,
-    QUERY_REPLY_SEGMENT,
-    QUERY_REPLY_SF,
-    QUERY_REPLY_TRANSPARENCY,
-    REQUEST,
-    RESPONSE,
-    SCS_DATA,
-)
+from .utils import (BIND_IMAGE, NVT_DATA, PRINT_EOJ, PRINTER_STATUS_DATA_TYPE,
+                    QUERY_REPLY_CHARACTERISTICS, QUERY_REPLY_COLOR,
+                    QUERY_REPLY_DBCS_ASIA, QUERY_REPLY_DBCS_EUROPE,
+                    QUERY_REPLY_DBCS_MIDDLE_EAST, QUERY_REPLY_DDM,
+                    QUERY_REPLY_DEVICE_TYPE, QUERY_REPLY_EXTENDED_ATTRIBUTES,
+                    QUERY_REPLY_FORMAT_STORAGE, QUERY_REPLY_GRAPHICS,
+                    QUERY_REPLY_GRID, QUERY_REPLY_HIGHLIGHTING,
+                    QUERY_REPLY_LINE_TYPE, QUERY_REPLY_OEM_AUXILIARY_DEVICE,
+                    QUERY_REPLY_PROCEDURE, QUERY_REPLY_RPQ_NAMES,
+                    QUERY_REPLY_SEGMENT, QUERY_REPLY_SF,
+                    QUERY_REPLY_TRANSPARENCY, REQUEST, RESPONSE, SCS_DATA)
 from .utils import SNA_RESPONSE as SNA_RESPONSE_TYPE
-from .utils import (
-    SSCP_LU_DATA,
-    TN3270_DATA,
-    TN3270E_BIND_IMAGE,
-    TN3270E_DATA_STREAM_CTL,
-    TN3270E_DATA_TYPES,
-    TN3270E_DEVICE_TYPE,
-    TN3270E_FUNCTIONS,
-    TN3270E_IBM_3278_2,
-    TN3270E_IBM_3278_3,
-    TN3270E_IBM_3278_4,
-    TN3270E_IBM_3278_5,
-    TN3270E_IBM_3279_2,
-    TN3270E_IBM_3279_3,
-    TN3270E_IBM_3279_4,
-    TN3270E_IBM_3279_5,
-    TN3270E_IBM_DYNAMIC,
-    TN3270E_IS,
-    TN3270E_REQUEST,
-    TN3270E_RESPONSES,
-    TN3270E_SCS_CTL_CODES,
-    TN3270E_SEND,
-    TN3270E_SYSREQ,
-    UNBIND,
-    BaseParser,
-    ParseError,
-)
+from .utils import (SSCP_LU_DATA, TN3270_DATA, TN3270E_BIND_IMAGE,
+                    TN3270E_DATA_STREAM_CTL, TN3270E_DATA_TYPES,
+                    TN3270E_DEVICE_TYPE, TN3270E_FUNCTIONS, TN3270E_IBM_3278_2,
+                    TN3270E_IBM_3278_3, TN3270E_IBM_3278_4, TN3270E_IBM_3278_5,
+                    TN3270E_IBM_3279_2, TN3270E_IBM_3279_3, TN3270E_IBM_3279_4,
+                    TN3270E_IBM_3279_5, TN3270E_IBM_DYNAMIC, TN3270E_IS,
+                    TN3270E_REQUEST, TN3270E_RESPONSES, TN3270E_SCS_CTL_CODES,
+                    TN3270E_SEND, TN3270E_SYSREQ, UNBIND, BaseParser,
+                    ParseError)
 
 if TYPE_CHECKING:
     from ..emulation.printer_buffer import PrinterBuffer
@@ -123,7 +89,7 @@ class BindImage:
         self.cols = cols
         self.query_reply_ids = query_reply_ids if query_reply_ids is not None else []
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return (
             f"BindImage(rows={self.rows}, cols={self.cols}, "
             f"query_reply_ids={self.query_reply_ids})"
@@ -221,15 +187,17 @@ class SnaResponse:
         self.sense_code = sense_code
         self.data = data
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         flags_str = f"0x{self.flags:02x}" if self.flags is not None else "None"
         sense_code_str = (
             f"0x{self.sense_code:04x}" if self.sense_code is not None else "None"
         )
         if isinstance(self.data, BindImage):
             data_str = str(self.data)
+        elif isinstance(self.data, (bytes, bytearray)):
+            data_str = self.data.hex()
         else:
-            data_str = self.data.hex() if self.data else "None"
+            data_str = "None" if self.data is None else repr(self.data)
         return (
             f"SnaResponse(type=0x{self.response_type:02x}, "
             f"flags={flags_str}, "
@@ -240,16 +208,18 @@ class SnaResponse:
     def is_positive(self) -> bool:
         """Check if the response is positive."""
         # A response is positive if it's not an exception response and sense code is success or None
-        return (
-            self.flags is None or not (self.flags & SNA_FLAGS_EXCEPTION_RESPONSE)
-        ) and (self.sense_code is None or self.sense_code == SNA_SENSE_CODE_SUCCESS)
+        flags_ok = self.flags is None or not (self.flags & SNA_FLAGS_EXCEPTION_RESPONSE)
+        sense_ok = self.sense_code is None or self.sense_code == SNA_SENSE_CODE_SUCCESS
+        return bool(flags_ok and sense_ok)
 
     def is_negative(self) -> bool:
         """Check if the response is negative."""
         # A response is negative if it's an exception response or has a non-success sense code
-        return (
-            self.flags is not None and (self.flags & SNA_FLAGS_EXCEPTION_RESPONSE)
-        ) or (self.sense_code is not None and self.sense_code != SNA_SENSE_CODE_SUCCESS)
+        if self.flags is not None and (self.flags & SNA_FLAGS_EXCEPTION_RESPONSE):
+            return True
+        if self.sense_code is not None and self.sense_code != SNA_SENSE_CODE_SUCCESS:
+            return True
+        return False
 
     def get_sense_code_name(self) -> str:
         """Get a human-readable name for the sense code."""
@@ -264,9 +234,10 @@ class SnaResponse:
             SNA_SENSE_CODE_NO_RESOURCES: "NO_RESOURCES",
             SNA_SENSE_CODE_STATE_ERROR: "STATE_ERROR",
         }
-        return sense_names.get(
-            self.sense_code, f"UNKNOWN_SENSE(0x{self.sense_code:04x})"
-        )
+        code = self.sense_code
+        if code is None:
+            return "NO_SENSE_CODE"
+        return sense_names.get(code, f"UNKNOWN_SENSE(0x{code:04x})")
 
     def get_response_type_name(self) -> str:
         """Get a human-readable name for the response type."""
@@ -312,7 +283,7 @@ class DataStreamParser:
         screen_buffer: "ScreenBuffer",
         printer_buffer: Optional["PrinterBuffer"] = None,
         negotiator: Optional["Negotiator"] = None,
-    ):
+    ) -> None:
         """
         Initialize the DataStreamParser.
 
@@ -320,19 +291,21 @@ class DataStreamParser:
         :param printer_buffer: PrinterBuffer to update for printer sessions.
         :param negotiator: Negotiator instance for communicating dimension updates.
         """
-        self.screen = screen_buffer
-        self.printer = printer_buffer
-        self.negotiator = negotiator
-        self.parser = None
-        self.wcc = None  # Write Control Character
-        self.aid = None  # Attention ID
+        self.screen: ScreenBuffer = screen_buffer
+        self.printer: Optional[PrinterBuffer] = printer_buffer
+        self.negotiator: Optional["Negotiator"] = negotiator
+        # Core parsing state (BaseParser defined in utils)
+        self.parser: Optional[BaseParser] = None
+        self.wcc: Optional[int] = None  # Write Control Character
+        self.aid: Optional[int] = None  # Attention ID
         self._is_scs_data_stream = (
             False  # Flag to indicate if the current stream is SCS data
         )
-        self._data = b""
-        self._pos = 0
+        self._data: bytes = b""
+        self._pos: int = 0
 
-        self._order_handlers = {
+        # Map of order byte -> handler callable. Some handlers take a byte argument (WCC/AID/etc.).
+        self._order_handlers: Dict[int, Callable[..., None]] = {
             WCC: self._handle_wcc_with_byte,
             SBA: self._handle_sba,
             SF: self._handle_sf,
@@ -346,7 +319,8 @@ class DataStreamParser:
             EOA: self._handle_eoa,
             AID: self._handle_aid_with_byte,
             READ_PARTITION: self._handle_read_partition,
-            SFE: self._handle_sfe,
+            # Wrap _handle_sfe to satisfy Callable[..., None] mapping
+            SFE: cast(Callable[..., None], lambda: self._handle_sfe()),
             STRUCTURED_FIELD: self._handle_structured_field,
             BIND: self._handle_bind,
             DATA_STREAM_CTL: self._handle_data_stream_ctl,
@@ -419,7 +393,17 @@ class DataStreamParser:
             try:
                 sna_response = self._parse_sna_response(data)
                 if self.negotiator:
-                    self.negotiator.handle_sna_response(sna_response)
+                    handler = getattr(self.negotiator, "_handle_sna_response", None)
+                    if handler is not None:
+                        try:
+                            handler_callable = cast(
+                                Callable[[SnaResponse], None], handler
+                            )
+                            handler_callable(sna_response)
+                        except Exception:
+                            logger.warning(
+                                "Negotiator _handle_sna_response raised", exc_info=True
+                            )
             except ParseError as e:
                 logger.warning(
                     f"Failed to parse SNA response variant: {e}, consuming data"
@@ -448,7 +432,7 @@ class DataStreamParser:
             self._handle_scs_data(data)
             return
 
-        # Mirror parser-visible state for tests and external inspection
+        # Initialize parser-visible state for tests and external inspection
         self._data = data
         self._pos = 0
         self.parser = BaseParser(data)
@@ -457,10 +441,11 @@ class DataStreamParser:
         self.screen.set_position(0, 0)
 
         try:
-            while self.parser.has_more():
+            parser = self._ensure_parser()
+            while parser.has_more():
                 pos_before = self._pos
                 try:
-                    order = self.parser.read_byte()
+                    order = parser.read_byte()
                 except ParseError:
                     stream_trace = self._data[
                         max(0, pos_before - 5) : self._pos + 5
@@ -490,11 +475,11 @@ class DataStreamParser:
                         self._order_handlers[order](ctl_code)
                     else:
                         self._order_handlers[order]()
-                    self._pos = self.parser._pos
+                    self._pos = parser._pos
                 else:
                     # Treat unknown bytes as text data
                     self._write_text_byte(order)
-                    self._pos = self.parser._pos
+                    self._pos = parser._pos
 
             logger.debug("Data stream parsing completed successfully")
         except ParseError as e:
@@ -598,7 +583,9 @@ class DataStreamParser:
         row = min(row, self.screen.rows - 1)
         col = min(col, self.screen.cols - 1)
         self.screen.set_position(row, col)
-        self._pos = self.parser._pos
+        # Sync tracked position using ensured parser (avoids Optional access)
+        parser = self._ensure_parser()
+        self._pos = parser._pos
         logger.debug(f"Set buffer address to ({row}, {col})")
 
     def _handle_sf(self) -> None:
@@ -612,7 +599,8 @@ class DataStreamParser:
         row, col = self.screen.get_position()
         self.screen.set_attribute(attr)
         self.screen.set_position(row, col + 1)
-        self._pos = self.parser._pos
+        parser = self._ensure_parser()
+        self._pos = parser._pos
         logger.debug(f"Start field with attribute 0x{attr:02x}")
 
     def _handle_ra(self) -> None:
@@ -652,10 +640,8 @@ class DataStreamParser:
 
     def _handle_rmf(self) -> None:
         """Handle Repeat to Modified Field (RMF)."""
-        assert (
-            self.parser is not None
-        ), "Parser must be initialized before calling _handle_rmf"
-        if self.parser.remaining() < 2:
+        parser = self._ensure_parser()
+        if parser.remaining() < 2:
             logger.warning("Incomplete RMF order")
             return
         repeat_count = self._read_byte()
@@ -682,10 +668,8 @@ class DataStreamParser:
 
     def _handle_ge(self) -> None:
         """Handle Graphic Escape (GE)."""
-        assert (
-            self.parser is not None
-        ), "Parser must be initialized before calling _handle_ge"
-        if self.parser.remaining() < 1:
+        parser = self._ensure_parser()
+        if parser.remaining() < 1:
             logger.warning("Incomplete GE order")
             return
         graphic_byte = self._read_byte()
@@ -705,10 +689,8 @@ class DataStreamParser:
 
     def _handle_scs(self) -> None:
         """Handle SCS control codes order."""
-        assert (
-            self.parser is not None
-        ), "Parser must be initialized before calling _handle_scs"
-        if self.parser.has_more():
+        parser = self._ensure_parser()
+        if parser.has_more():
             code = self._read_byte()
             logger.debug(f"SCS control code: 0x{code:02x} - stub implementation")
             # TODO: Implement SCS handling if needed
@@ -748,11 +730,11 @@ class DataStreamParser:
         logger.debug("Read Partition - not implemented")
         # Would trigger read from keyboard, but for parser, just log
 
-    def _handle_sfe(self, sf_data: Optional[bytes] = None) -> dict:
+    def _handle_sfe(self, sf_data: Optional[bytes] = None) -> Dict[int, int]:
         """Handle Start Field Extended (order or SF payload)."""
         if self.screen is None:
             raise ParseError("Screen buffer not initialized")
-        attrs = {}
+        attrs: Dict[int, int] = {}
         if sf_data is not None:
             # Handle as SF payload: parse length, then fixed number of type-value pairs
             parser = BaseParser(sf_data)
@@ -785,10 +767,8 @@ class DataStreamParser:
             return attrs
 
         # Original order handling: parse length, then fixed pairs
-        assert (
-            self.parser is not None
-        ), "Parser must be initialized before calling _handle_sfe"
-        if not self.parser.has_more():
+        parser = self._ensure_parser()
+        if not parser.has_more():
             return attrs
         try:
             length = self._read_byte()
@@ -796,7 +776,7 @@ class DataStreamParser:
             raise ParseError("Incomplete SFE order length")
         num_pairs = length // 2
         for _ in range(num_pairs):
-            if self.parser.remaining() < 2:
+            if parser.remaining() < 2:
                 break
             try:
                 attr_type = self._read_byte()
@@ -1109,7 +1089,12 @@ class DataStreamParser:
         sense_code = None
         if parser.remaining() >= 2:
             sense_code = parser.read_u16()
-        data_part = parser.read_fixed(parser.remaining()) if parser.has_more() else None
+        # Allow data_part to later hold a BindImage instance
+        data_part: Union[bytes, BindImage, None]
+        if parser.has_more():
+            data_part = parser.read_fixed(parser.remaining())
+        else:
+            data_part = None
 
         # Enhanced parsing for specific types
         if response_type == BIND_SF_TYPE and data_part:

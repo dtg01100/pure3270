@@ -3,7 +3,7 @@ Wrapper class to make pure3270 compatible with p3270's S3270 interface.
 """
 
 import logging
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class Pure3270S3270Wrapper:
 
     numOfInstances = 0
 
-    def __init__(self, args, encoding="latin1"):
+    def __init__(self, args: List[str], encoding: str = "latin1") -> None:
         """
         Initialize the wrapper.
 
@@ -29,8 +29,8 @@ class Pure3270S3270Wrapper:
         """
         self.args = args
         self.encoding = encoding
-        self.buffer = None
-        self.statusMsg = None
+        self.buffer: Optional[str] = None
+        self.statusMsg: Optional[str] = None
 
         # Create our pure3270 session
         from pure3270.session import Session
@@ -495,18 +495,18 @@ class Pure3270S3270Wrapper:
 
     def _create_status(
         self,
-        keyboard="U",
-        screen="F",
-        field="U",
-        connection_state="C(hostname)",
-        emulator="I",
-        model="2",
-        rows="24",
-        cols="80",
-        cursor_row="0",
-        cursor_col="0",
-        win_id="0x0",
-        exec_time="-",
+        keyboard: str = "U",
+        screen: str = "F",
+        field: str = "U",
+        connection_state: str = "C(hostname)",
+        emulator: str = "I",
+        model: str = "2",
+        rows: str = "24",
+        cols: str = "80",
+        cursor_row: str = "0",
+        cursor_col: str = "0",
+        win_id: str = "0x0",
+        exec_time: str = "-",
     ) -> str:
         """
         Create a status message compatible with s3270 format.
@@ -534,7 +534,7 @@ class Pure3270S3270Wrapper:
         """Create an error status message."""
         return self._create_status(keyboard="E", connection_state="N")
 
-    def check(self, doNotCheck=False) -> bool:
+    def check(self, doNotCheck: bool = False) -> bool:
         """
         Check the result of the executed command.
 

@@ -1,3 +1,4 @@
+# This file has been renamed to avoid module name clash with archived reference version.
 #!/usr/bin/env python3
 """Script to check for new Python releases and update testing matrix."""
 

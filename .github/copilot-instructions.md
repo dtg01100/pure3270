@@ -221,7 +221,7 @@ python -m black pure3270/ && python run_all_tests.py
 
 ### Core Package
 - **Zero runtime dependencies** - uses Python standard library only
-- **Python 3.8+ required** - supports up to Python 3.13
+- **Python 3.11+ required** - supports up to Python 3.13 (EOL versions <3.11 dropped)
 - **No external binaries needed** - pure Python implementation
 
 ### Development Dependencies (Optional)

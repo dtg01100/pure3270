@@ -28,7 +28,8 @@ def _decode_cp037(data: bytes) -> str:
     # Prefer `ebcdic.decode` where available
     try:
         if ebcdic is not None and hasattr(ebcdic, "decode"):
-            return ebcdic.decode("cp037", data)
+            result = ebcdic.decode("cp037", data)
+            return str(result) if result is not None else ""
     except Exception:
         logger.debug(
             "ebcdic.decode failed, falling back to codecs.decode", exc_info=True
@@ -48,21 +49,24 @@ def _encode_cp037(text: str | bytes) -> bytes:
     Prefer the optional `ebcdic` package when available. Errors are handled
     with replacement so encoding does not raise.
     """
-    if text is None:
-        return b""
     # If bytes were provided, attempt to decode as latin-1 to preserve raw
     # byte values rather than failing on non-UTF-8 content.
     if isinstance(text, (bytes, bytearray)):
         try:
             # latin-1 maps bytes 1:1 to unicode codepoints
-            text = bytes(text).decode("latin-1")
+            if isinstance(text, (bytes, bytearray)):
+                text_bytes: bytes | bytearray = text
+                text = text_bytes.decode("latin-1")
         except Exception:
-            text = bytes(text).decode("latin-1", errors="replace")
+            if isinstance(text, (bytes, bytearray)):
+                text_bytes = text
+                text = text_bytes.decode("latin-1", errors="replace")
     if text == "":
         return b""
     try:
         if ebcdic is not None and hasattr(ebcdic, "encode"):
-            return ebcdic.encode("cp037", text)
+            result = ebcdic.encode("cp037", text)
+            return bytes(result) if result is not None else b""
     except Exception:
         logger.debug(
             "ebcdic.encode failed, falling back to builtin encode", exc_info=True
@@ -101,7 +105,7 @@ def translate_ascii_to_ebcdic(text: str) -> bytes:
     return _encode_cp037(text)
 
 
-def get_p3270_version():
+def get_p3270_version() -> Optional[str]:
     """Get p3270 version for patching.
 
     Returns the installed `p3270` package version string or `None`.
@@ -141,7 +145,7 @@ class EBCDICCodec:
     punctuation and other characters fall back to the 'unknown' mapping.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Build a forward table (byte -> unicode char). Prefer the cp037
         # decoder but normalize non-printable/unmapped results to 'z', except
         # for the NUL (0x00) byte which should remain as '\x00'.
@@ -173,7 +177,7 @@ class EBCDICCodec:
         # Convenience alias used in tests
         self.ebcdic_translate = self.decode
 
-    def decode(self, data: bytes):
+    def decode(self, data: bytes) -> tuple[str, int]:
         """Decode raw EBCDIC bytes to (string, length).
 
         Unknown or non-printable bytes yield the character 'z' (per tests).
@@ -188,7 +192,7 @@ class EBCDICCodec:
                 out_chars.append("z")
         return ("".join(out_chars), len(out_chars))
 
-    def encode(self, text: str | bytes):
+    def encode(self, text: str | bytes) -> tuple[bytes, int]:
         """Encode text to EBCDIC bytes, returning (bytes, length).
 
         Accepts either `str` or `bytes`. If `bytes` are provided they are
@@ -200,9 +204,12 @@ class EBCDICCodec:
             return (b"", 0)
         if isinstance(text, (bytes, bytearray)):
             try:
-                text = bytes(text).decode("latin-1")
+                text_bytes: bytes | bytearray = text
+                text = text_bytes.decode("latin-1")
             except Exception:
-                text = bytes(text).decode("latin-1", errors="replace")
+                if isinstance(text, (bytes, bytearray)):
+                    text_bytes = text
+                    text = text_bytes.decode("latin-1", errors="replace")
         out = bytearray()
         for ch in text:
             b = self._unicode_to_ebcdic_table.get(ch)

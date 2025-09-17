@@ -3,30 +3,18 @@
 import asyncio
 import logging
 import time
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from .exceptions import ParseError, ProtocolError
 from .tn3270e_header import TN3270EHeader
-from .utils import (
-    PRINT_EOJ,
-    SCS_DATA,
-    TN3270E_BIND_IMAGE,
-    TN3270E_DATA_STREAM_CTL,
-    TN3270E_DEVICE_TYPE,
-    TN3270E_FUNCTIONS,
-    TN3270E_IBM_DYNAMIC,
-    TN3270E_IS,
-    TN3270E_REQUEST,
-    TN3270E_RESPONSES,
-    TN3270E_RSF_ALWAYS_RESPONSE,
-    TN3270E_RSF_ERROR_RESPONSE,
-    TN3270E_RSF_NEGATIVE_RESPONSE,
-    TN3270E_RSF_NO_RESPONSE,
-    TN3270E_RSF_POSITIVE_RESPONSE,
-    TN3270E_SCS_CTL_CODES,
-    TN3270E_SEND,
-    TN3270E_SYSREQ,
-)
+from .utils import (PRINT_EOJ, SCS_DATA, TN3270E_BIND_IMAGE,
+                    TN3270E_DATA_STREAM_CTL, TN3270E_DEVICE_TYPE,
+                    TN3270E_FUNCTIONS, TN3270E_IBM_DYNAMIC, TN3270E_IS,
+                    TN3270E_REQUEST, TN3270E_RESPONSES,
+                    TN3270E_RSF_ALWAYS_RESPONSE, TN3270E_RSF_ERROR_RESPONSE,
+                    TN3270E_RSF_NEGATIVE_RESPONSE, TN3270E_RSF_NO_RESPONSE,
+                    TN3270E_RSF_POSITIVE_RESPONSE, TN3270E_SCS_CTL_CODES,
+                    TN3270E_SEND, TN3270E_SYSREQ)
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +85,7 @@ class PrinterJob:
 class PrinterSession:
     """TN3270E printer session handler."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the printer session."""
         self.is_active = False
         self.current_job: Optional[PrinterJob] = None
@@ -189,7 +177,7 @@ class PrinterSession:
         """Get the list of completed jobs."""
         return self.completed_jobs.copy()
 
-    def get_job_statistics(self) -> dict:
+    def get_job_statistics(self) -> Dict[str, Any]:
         """Get printer job statistics."""
         active_job = 1 if self.current_job else 0
         completed_count = len(self.completed_jobs)

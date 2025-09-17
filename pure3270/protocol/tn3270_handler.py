@@ -6,8 +6,9 @@ Handles negotiation, data sending/receiving, and protocol specifics.
 import asyncio
 import logging
 import re
-import ssl
-from typing import Optional
+import ssl as std_ssl
+from typing import (Any, Awaitable, Callable, Iterable, Optional, Tuple,
+                    TypeVar, Union, cast)
 
 from ..emulation.printer_buffer import PrinterBuffer  # Import PrinterBuffer
 from ..emulation.screen_buffer import ScreenBuffer
@@ -27,13 +28,16 @@ from .utils import (TELOPT_TN3270E, TN3270_DATA, TN3270E_SYSREQ,
 logger = logging.getLogger(__name__)
 
 import inspect
+from unittest.mock import Mock as _Mock
 
 # Expose VT100Parser symbol at module level so tests can patch it before runtime.
 # Tests expect `pure3270.protocol.tn3270_handler.VT100Parser` to exist.
 VT100Parser = None  # Will be set at runtime when vt100_parser is imported
 
+T = TypeVar("T")
 
-async def _call_maybe_await(func, *args, **kwargs):
+
+async def _call_maybe_await(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
     """Call func(*args, **kwargs) and await the result if it's awaitable.
 
     This allows negotiator methods to be either sync or async (or mocked
@@ -51,7 +55,7 @@ async def _call_maybe_await(func, *args, **kwargs):
     return result
 
 
-def _call_maybe_schedule(func, *args, **kwargs):
+def _call_maybe_schedule(func: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
     """
     Call func(*args, **kwargs). If it returns an awaitable, schedule it
     on the running event loop (if present) and return immediately.
@@ -68,7 +72,7 @@ def _call_maybe_schedule(func, *args, **kwargs):
 
     if inspect.isawaitable(result):
 
-        async def _wrap_and_await(coro):
+        async def _wrap_and_await(coro: Any) -> Any:
             return await coro
 
         try:
@@ -97,25 +101,25 @@ class _AwaitableResult:
     Tests in the suite sometimes await the call and sometimes call it synchronously.
     """
 
-    def __init__(self, result_tuple):
-        self._result = tuple(result_tuple)
+    def __init__(self, result_tuple: Iterable[Any]):
+        self._result: Tuple[Any, ...] = tuple(result_tuple)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterable[Any]:
         return iter(self._result)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._result)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Any:
         return self._result[idx]
 
-    def __await__(self):
-        async def _wrap():
+    def __await__(self) -> Any:
+        async def _wrap() -> Tuple[Any, ...]:
             return self._result
 
         return _wrap().__await__()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"_AwaitableResult({self._result!r})"
 
 
@@ -126,11 +130,29 @@ class TN3270Handler:
     Manages stream I/O, negotiation, and data parsing for 3270 emulation.
     """
 
+    # --- Attribute declarations for static type checking ---
+    reader: Optional[asyncio.StreamReader]
+    writer: Optional[asyncio.StreamWriter]
+    host: str
+    port: int
+    ssl_context: Optional[std_ssl.SSLContext]
+    ssl: bool
+    screen_buffer: ScreenBuffer
+    printer_buffer: Optional[PrinterBuffer]
+    negotiator: Negotiator
+    parser: DataStreamParser
+    _transport: Optional[SessionManager]
+    _connected: bool
+    _telnet_buffer: bytes
+    _negotiation_trace: bytes  # accumulated negotiation bytes (set lazily)
+    recorder: Optional[TraceRecorder]
+    _ascii_mode: bool
+
     async def connect(
         self,
         host: Optional[str] = None,
         port: Optional[int] = None,
-        ssl_context: Optional[ssl.SSLContext] = None,
+        ssl_context: Optional[std_ssl.SSLContext] = None,
     ) -> None:
         """Connect the handler."""
         # If already have reader/writer (from fixture), validate and mark as connected
@@ -181,7 +203,7 @@ class TN3270Handler:
                     self.negotiator, timeout=10.0
                 )
                 logger.info("[HANDLER] Negotiation complete")
-        except (ssl.SSLError, asyncio.TimeoutError, ConnectionError) as e:
+        except (std_ssl.SSLError, asyncio.TimeoutError, ConnectionError) as e:
             raise ConnectionError(f"Connection error: {e}")
 
     def __init__(
@@ -189,7 +211,7 @@ class TN3270Handler:
         reader: Optional[asyncio.StreamReader],
         writer: Optional[asyncio.StreamWriter],
         screen_buffer: Optional[ScreenBuffer] = None,
-        ssl_context: Optional[ssl.SSLContext] = None,
+        ssl_context: Optional[std_ssl.SSLContext] = None,
         host: str = "localhost",
         port: int = 23,
         is_printer_session: bool = False,  # New parameter for printer session
@@ -224,7 +246,7 @@ class TN3270Handler:
         self.printer_buffer = (
             PrinterBuffer() if is_printer_session else None
         )  # Initialize PrinterBuffer if it's a printer session
-        self._transport: Optional[SessionManager] = None
+        self._transport = None
         self._connected = False
 
         # Initialize negotiator first, then pass it to the parser
@@ -247,8 +269,13 @@ class TN3270Handler:
         # Now update the negotiator with the parser instance
         self.negotiator.parser = self.parser
         self._telnet_buffer = b""  # Buffer for incomplete Telnet sequences
+        self._negotiation_trace = b""  # Initialize negotiation trace buffer
+        self.recorder = recorder
+        self._ascii_mode = False
 
-    async def _retry_operation(self, operation, max_retries=3):
+    async def _retry_operation(
+        self, operation: Callable[[], Awaitable[T]], max_retries: int = 3
+    ) -> T:
         """
         Retry an async operation with exponential backoff on transient errors.
 
@@ -275,6 +302,10 @@ class TN3270Handler:
                     raise
             except (asyncio.CancelledError, NegotiationError):
                 raise  # Don't retry on these
+        # Should not reach here; safeguard for type checker
+        raise RuntimeError(
+            "Operation failed after retries without raising expected exception"
+        )
 
     # --- Negotiation helpers -------------------------------------------------
 
@@ -290,7 +321,7 @@ class TN3270Handler:
         await self.negotiator.negotiate()
         logger.debug(f"Telnet negotiation completed on handler {id(self)}")
 
-    async def _reader_loop(self):
+    async def _reader_loop(self) -> None:
         """
         Background reader loop used during TN3270 negotiation.
         Extracted to a separate method so tests can patch `handler._reader_loop`.
@@ -304,10 +335,8 @@ class TN3270Handler:
                 if not data:
                     raise EOFError("Stream ended")
                 # Accumulate negotiation trace for fallback logic when negotiator is mocked
-                try:
-                    self._negotiation_trace += data  # type: ignore[attr-defined]
-                except AttributeError:
-                    self._negotiation_trace = data  # type: ignore[attr-defined]
+                # Accumulate negotiation bytes (attribute pre-declared)
+                self._negotiation_trace += data
                 # Avoid busy loop if reader returns empty bytes
                 await asyncio.sleep(0.1)
                 # Process telnet stream synchronously; this will schedule negotiator tasks
@@ -339,7 +368,7 @@ class TN3270Handler:
         """
         logger.debug(f"Starting TN3270E subnegotiation on handler {id(self)}")
 
-        async def _perform_negotiate():
+        async def _perform_negotiate() -> None:
             # If the negotiator is a Mock (test fixture replacement), perform a lightweight
             # inline negotiation by reading the queued side_effect data directly.
             try:
@@ -365,11 +394,13 @@ class TN3270Handler:
                             break
                     if hasattr(self.negotiator, "infer_tn3270e_from_trace"):
                         try:
-                            self.negotiator.negotiated_tn3270e = self.negotiator.infer_tn3270e_from_trace(trace)  # type: ignore[attr-defined]
+                            self.negotiator.negotiated_tn3270e = (
+                                self.negotiator.infer_tn3270e_from_trace(trace)
+                            )
                         except Exception:
                             self.negotiator.negotiated_tn3270e = False
                     # Store trace for potential inspection
-                    self._negotiation_trace = trace  # type: ignore[attr-defined]
+                    self._negotiation_trace = trace
                     return
             except Exception:
                 # Fall through to normal path if any issue
@@ -416,6 +447,17 @@ class TN3270Handler:
         """
         self.negotiator.set_ascii_mode()
 
+    def _require_streams(self) -> Tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+        """Internal helper to assert reader/writer presence and return narrowed types."""
+        if self.reader is None:
+            raise_protocol_error("Not connected")
+        if self.writer is None:
+            raise_protocol_error("Not connected")
+        # mypy narrowing
+        return cast(asyncio.StreamReader, self.reader), cast(
+            asyncio.StreamWriter, self.writer
+        )
+
     @handle_drain
     async def send_data(self, data: bytes) -> None:
         """
@@ -427,8 +469,7 @@ class TN3270Handler:
         Raises:
             ProtocolError: If writer is None or send fails.
         """
-        if self.writer is None:
-            raise_protocol_error("Not connected")
+        _, writer = self._require_streams()
 
         # If DATA-STREAM-CTL is active, prepend TN3270EHeader
         if self.negotiator.is_data_stream_ctl_active:
@@ -451,9 +492,9 @@ class TN3270Handler:
         else:
             data_to_send = data
 
-        async def _perform_send():
-            await _call_maybe_await(self.writer.write, data_to_send)
-            await _call_maybe_await(self.writer.drain)
+        async def _perform_send() -> None:
+            await _call_maybe_await(writer.write, data_to_send)
+            await _call_maybe_await(writer.drain)
 
         await self._retry_operation(_perform_send)
 
@@ -472,13 +513,13 @@ class TN3270Handler:
             ProtocolError: If reader is None.
         """
         logger.debug(f"receive_data called on handler {id(self)}")
-        if self.reader is None:
-            raise_protocol_error("Not connected")
+        reader, _ = self._require_streams()
 
-        async def _perform_read():
+        async def _perform_read() -> bytes:  # type: ignore[return]
             async with safe_socket_operation():
                 logger.debug(f"Attempting to read data with timeout {timeout}")
-                return await asyncio.wait_for(self.reader.read(4096), timeout=timeout)
+                result = await asyncio.wait_for(reader.read(4096), timeout=timeout)
+                return result
 
         data = await self._retry_operation(_perform_read)
         logger.debug(f"Received {len(data)} bytes of data: {data.hex()}")
@@ -674,7 +715,7 @@ class TN3270Handler:
             # Continue with raw data if parsing fails
         return processed_data
 
-    async def _process_telnet_stream(self, raw_data: bytes) -> tuple[bytes, bool]:
+    async def _process_telnet_stream(self, raw_data: bytes) -> Tuple[bytes, bool]:
         """Parse a Telnet stream chunk.
 
         Handles IAC command sequences, (sub)negotiations, buffering of incomplete
@@ -816,11 +857,10 @@ class TN3270Handler:
         if not self.negotiator.is_printer_session:
             raise_protocol_error("Not a printer session")
 
-        if self.writer is None:
-            raise_protocol_error("Writer is None; cannot send SCS data.")
+        _, writer = self._require_streams()
 
         # Send SCS data
-        await _call_maybe_await(self.writer.write, scs_data)
+        await _call_maybe_await(writer.write, scs_data)
         logger.debug(f"Sent {len(scs_data)} bytes of SCS data")
 
     @handle_drain
@@ -836,14 +876,13 @@ class TN3270Handler:
         """
         if not self._connected:
             raise_protocol_error("Not connected")
-        if self.writer is None:
-            raise_protocol_error("Writer is None; cannot send printer status SF.")
+        _, writer = self._require_streams()
 
         from .data_stream import DataStreamSender
 
         sender = DataStreamSender()
         status_sf = sender.build_printer_status_sf(status_code)
-        await _call_maybe_await(self.writer.write, status_sf)
+        await _call_maybe_await(writer.write, status_sf)
         logger.debug(f"Sent Printer Status SF: 0x{status_code:02x}")
 
     async def send_sysreq_command(self, command_code: int) -> None:
@@ -855,8 +894,7 @@ class TN3270Handler:
         """
         if not self._connected:
             raise ProtocolError("Not connected")
-        if self.writer is None:
-            raise ProtocolError("Writer is None; cannot send SYSREQ command.")
+        _, writer = self._require_streams()
 
         from .utils import AO, BREAK, EOR, IAC, IP
 
@@ -873,15 +911,15 @@ class TN3270Handler:
         ):
             # Use TN3270E SYSREQ
             sub_data = bytes([TN3270E_SYSREQ_MESSAGE_TYPE, command_code])
-            send_subnegotiation(self.writer, bytes([TELOPT_TN3270E]), sub_data)
-            await self.writer.drain()
+            send_subnegotiation(writer, bytes([TELOPT_TN3270E]), sub_data)
+            await writer.drain()
             logger.debug(f"Sent TN3270E SYSREQ command: 0x{command_code:02x}")
         else:
             # Fallback to IAC sequences
             fallback = fallback_map.get(command_code)
             if fallback:
-                send_iac(self.writer, fallback)
-                await self.writer.drain()
+                send_iac(writer, fallback)
+                await writer.drain()
                 logger.debug(f"Sent fallback IAC for SYSREQ 0x{command_code:02x}")
             else:
                 raise_protocol_error(
@@ -898,12 +936,11 @@ class TN3270Handler:
         """
         if not self._connected:
             raise_protocol_error("Not connected")
-        if self.writer is None:
-            raise_protocol_error("Writer is None; cannot send BREAK command.")
+        _, writer = self._require_streams()
 
         from .utils import BREAK, IAC
 
-        send_iac(self.writer, bytes([BREAK]))
+        send_iac(writer, bytes([BREAK]))
         logger.debug("Sent Telnet BREAK command (IAC BRK)")
 
     @handle_drain
@@ -919,14 +956,13 @@ class TN3270Handler:
         """
         if not self._connected:
             raise_protocol_error("Not connected")
-        if self.writer is None:
-            raise_protocol_error("Writer is None; cannot send SOH message.")
+        _, writer = self._require_streams()
 
         from .data_stream import DataStreamSender
 
         sender = DataStreamSender()
         soh_message = sender.build_soh_message(status_code)
-        await _call_maybe_await(self.writer.write, soh_message)
+        await _call_maybe_await(writer.write, soh_message)
         logger.debug(f"Sent SOH message with status: 0x{status_code:02x}")
 
     async def send_print_eoj(self) -> None:
@@ -947,12 +983,9 @@ class TN3270Handler:
         sender = DataStreamSender()
         eoj_command = sender.build_scs_ctl_codes(0x01)  # PRINT_EOJ
 
-        if self.writer is None:
-            raise_protocol_error("Writer is None; cannot send PRINT-EOJ.")
-
-        await _call_maybe_await(self.writer.write, eoj_command)
-
-        await _call_maybe_await(self.writer.drain)
+        _, writer = self._require_streams()
+        await _call_maybe_await(writer.write, eoj_command)
+        await _call_maybe_await(writer.drain)
         logger.debug("Sent PRINT-EOJ command")
 
     async def close(self) -> None:
@@ -1018,22 +1051,25 @@ class TN3270Handler:
 
     @property
     def negotiated_tn3270e(self) -> bool:
-        """Get TN3270E negotiation status."""
-        try:
-            value = self.negotiator.negotiated_tn3270e
-            # If it's a Mock (test fixture overrides negotiator), coerce to bool default False
-            if isinstance(value, bool):
-                return value
-            # MagicMock/Mock: treat unset state as False; if it has real boolean value use bool()
-            from unittest.mock import Mock as _Mock
+        """Return whether TN3270E was negotiated.
 
-            if isinstance(value, _Mock):
-                # If mock has been explicitly set to True/False, _extract should reflect that
-                # For safety, return False when mock has no real value attribute
-                if value._mock_wraps is not None:
-                    return bool(value._mock_wraps)
-                # Fallback: False so tests expecting boolean comparison succeed
-                return False
+        This is defensive because tests sometimes substitute mocks for the
+        negotiator and its attributes. We coerce anything truthy to bool while
+        safely handling mocks and unexpected values.
+        """
+        value: object = False
+        try:  # Attribute access may fail on partial mocks
+            value = getattr(self.negotiator, "negotiated_tn3270e", False)
+        except Exception:
+            return False
+        # Unwrap mock wrappers if present
+        if isinstance(value, _Mock):
+            wrapped = getattr(value, "_mock_wraps", None)
+            if wrapped is not None:
+                value = wrapped
+            else:
+                value = False
+        try:
             return bool(value)
         except Exception:
             return False
@@ -1079,10 +1115,10 @@ class TN3270Handler:
         # Prefer direct internal attribute for dynamic test mutation visibility
         state = getattr(self.negotiator, "_sna_session_state", None)
         if state is not None and hasattr(state, "value"):
-            return state.value
+            return str(state.value)
         # Fallback to property if internal not present
         try:
-            return self.negotiator.current_sna_session_state.value  # type: ignore[attr-defined]
+            return str(self.negotiator.current_sna_session_state.value)
         except Exception:
             return "UNKNOWN"
 
