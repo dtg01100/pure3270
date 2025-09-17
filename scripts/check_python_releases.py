@@ -465,6 +465,10 @@ def main():
             # Update CI matrix
             update_ci_matrix(new_versions)
             
+            # Track if we successfully made changes and triggered workflows
+            changes_committed = False
+            test_triggered = False
+            
             # Only commit if we're in a git repository and have changes to commit
             try:
                 result = subprocess.run(["git", "status", "--porcelain"], 
@@ -474,6 +478,7 @@ def main():
                     commit_msg = f"Update Python testing matrix to include {', '.join(suggested_versions)}"
                     subprocess.run(["git", "commit", "-m", commit_msg], check=True)
                     print("Changes committed successfully")
+                    changes_committed = True
                     
                     # Only push if we have push permissions
                     try:
@@ -494,10 +499,12 @@ def main():
                 print(f"Git operations failed: {e}")
                 test_triggered = False
             
-            # Create enhanced issue if gh CLI is available
-            if shutil.which("gh"):
-                issue_title = f"Python {', '.join(suggested_versions)} Compatibility Testing"
-                test_status = "✅ Automated tests triggered" if test_triggered else "⚠️ Manual testing required"
+            # Only create issue if we actually have new versions AND successfully made changes
+            if suggested_versions and (changes_committed or test_triggered):
+                # Create enhanced issue if gh CLI is available
+                if shutil.which("gh"):
+                    issue_title = f"Python {', '.join(suggested_versions)} Compatibility Testing"
+                    test_status = "✅ Automated tests triggered" if test_triggered else "⚠️ Manual testing required"
                 workflows_info = ""
                 if test_triggered:
                     workflows_info = f"""
@@ -543,8 +550,10 @@ def main():
                     print(f"✅ Created comprehensive tracking issue for Python {', '.join(suggested_versions)}")
                 except subprocess.CalledProcessError:
                     print("❌ Could not create issue (may need authentication)")
+                else:
+                    print("gh CLI not available, skipping issue creation")
             else:
-                print("gh CLI not available, skipping issue creation")
+                print(f"📋 Skipping issue creation - no changes committed for Python {', '.join(suggested_versions)}")
         else:
             print("No new Python versions to update.")
             
