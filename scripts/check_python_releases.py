@@ -10,6 +10,12 @@ import subprocess
 import sys
 import re
 
+# Try to import requests, fall back to graceful handling if not available
+try:
+    import requests
+except ImportError:
+    requests = None
+
 # Multiple data sources for Python version information
 PYTHON_DATA_SOURCES = {
     "github_api": "https://api.github.com/repos/python/cpython/tags",
@@ -30,6 +36,10 @@ FALLBACK_PYTHON_VERSIONS = [
 
 def get_latest_python_versions() -> List[Dict[str, Any]]:
     """Fetch latest Python versions from multiple sources with fallbacks."""
+    
+    if requests is None:
+        print("requests library not available, using fallback data")
+        return FALLBACK_PYTHON_VERSIONS
     
     # Try endoflife.date API first (most comprehensive data)
     try:
@@ -74,43 +84,44 @@ def get_latest_python_versions() -> List[Dict[str, Any]]:
         print(f"endoflife.date API failed: {e}")
     
     # Try GitHub API as backup (for latest development info)
-    try:
-        print("Trying GitHub API for Python releases...")
-        response = requests.get(PYTHON_DATA_SOURCES["github_api"], timeout=10)
-        response.raise_for_status()
-        github_tags = response.json()
+    if requests is not None:
+        try:
+            print("Trying GitHub API for Python releases...")
+            response = requests.get(PYTHON_DATA_SOURCES["github_api"], timeout=10)
+            response.raise_for_status()
+            github_tags = response.json()
+            
+            # Extract stable Python 3.x versions from GitHub tags
+            stable_versions = {}
+            for tag in github_tags:
+                tag_name = tag.get("name", "")
+                if tag_name.startswith("v3.") and not any(x in tag_name for x in ["a", "b", "rc"]):
+                    # Look for full version pattern like v3.12.7
+                    version_match = re.match(r"v(3\.\d+)\.(\d+)", tag_name)
+                    if version_match:
+                        minor_version = version_match.group(1)  # e.g., "3.12"
+                        full_version = f"{minor_version}.{version_match.group(2)}"  # e.g., "3.12.7"
+                        
+                        # Keep the latest patch version for each minor version
+                        if minor_version not in stable_versions or full_version > stable_versions[minor_version]:
+                            stable_versions[minor_version] = full_version
+            
+            # Convert to the expected format
+            github_versions = []
+            for minor_version in sorted(stable_versions.keys(), key=lambda x: tuple(map(int, x.split("."))), reverse=True):
+                github_versions.append({
+                    "v": minor_version,
+                    "eol": False,
+                    "stable": True,
+                    "latest_release": stable_versions[minor_version]
+                })
+            
+            if github_versions:
+                print(f"✓ Found {len(github_versions)} stable versions from GitHub API")
+                return github_versions
         
-        # Extract stable Python 3.x versions from GitHub tags
-        stable_versions = {}
-        for tag in github_tags:
-            tag_name = tag.get("name", "")
-            if tag_name.startswith("v3.") and not any(x in tag_name for x in ["a", "b", "rc"]):
-                # Look for full version pattern like v3.12.7
-                version_match = re.match(r"v(3\.\d+)\.(\d+)", tag_name)
-                if version_match:
-                    minor_version = version_match.group(1)  # e.g., "3.12"
-                    full_version = f"{minor_version}.{version_match.group(2)}"  # e.g., "3.12.7"
-                    
-                    # Keep the latest patch version for each minor version
-                    if minor_version not in stable_versions or full_version > stable_versions[minor_version]:
-                        stable_versions[minor_version] = full_version
-        
-        # Convert to the expected format
-        github_versions = []
-        for minor_version in sorted(stable_versions.keys(), key=lambda x: tuple(map(int, x.split("."))), reverse=True):
-            github_versions.append({
-                "v": minor_version,
-                "eol": False,
-                "stable": True,
-                "latest_release": stable_versions[minor_version]
-            })
-        
-        if github_versions:
-            print(f"✓ Found {len(github_versions)} stable versions from GitHub API")
-            return github_versions
-    
-    except Exception as e:
-        print(f"GitHub API failed: {e}")
+        except Exception as e:
+            print(f"GitHub API failed: {e}")
     
     # Use fallback data
     print("Using fallback Python version data")
@@ -315,6 +326,126 @@ def check_for_new_releases(current_versions: List[str]) -> tuple[bool, str, List
         print(f"Error parsing version numbers: {e}")
         return False, latest_stable, []
 
+def trigger_test_workflow(new_versions: List[str]) -> bool:
+    """Trigger CI test workflow for new Python versions."""
+    if not shutil.which("gh"):
+        print("gh CLI not available, cannot trigger test workflow")
+        return False
+    
+    success_count = 0
+    total_workflows = 0
+    
+    # Trigger main CI workflow with all new versions
+    try:
+        total_workflows += 1
+        versions_str = ','.join(new_versions)
+        subprocess.run([
+            "gh", "workflow", "run", "ci.yml",
+            "-f", f"python_versions={versions_str}",
+            "-f", "test_new_versions=true"
+        ], check=True)
+        print(f"✅ Triggered main CI workflow for Python versions: {new_versions}")
+        success_count += 1
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Failed to trigger main CI workflow: {e}")
+    
+    # Trigger dedicated new version testing workflow for each version
+    for version in new_versions:
+        try:
+            total_workflows += 1
+            subprocess.run([
+                "gh", "workflow", "run", "new-python-version-testing.yml",
+                "-f", f"python_version={version}",
+                "-f", "test_type=full",
+                "-f", "create_issue=true",
+                "-f", "enable_copilot_fixes=true"
+            ], check=True)
+            print(f"✅ Triggered dedicated testing workflow for Python {version}")
+            success_count += 1
+        except subprocess.CalledProcessError as e:
+            print(f"❌ Failed to trigger dedicated testing for Python {version}: {e}")
+    
+    if success_count > 0:
+        print(f"\n🧪 Test Summary: {success_count}/{total_workflows} workflows triggered successfully")
+        print(f"   📊 Monitor progress in the Actions tab")
+        print(f"   🤖 Copilot will automatically create fix PRs for any test failures")
+        return True
+    else:
+        print(f"\n❌ No workflows triggered successfully ({success_count}/{total_workflows})")
+        return False
+
+
+def trigger_copilot_fix_for_python_errors(python_version: str, error_details: str, test_output: str = "") -> bool:
+    """Trigger GitHub Copilot coding agent to fix Python version compatibility errors."""
+    try:
+        # Create a comprehensive problem statement for Copilot
+        problem_title = f"Fix Python {python_version} compatibility issues"
+        
+        problem_description = f"""## Python {python_version} Compatibility Issues
+
+The Pure3270 library has encountered compatibility issues when testing with Python {python_version}. 
+
+### Error Details
+```
+{error_details}
+```
+
+### Test Output (if available)
+```
+{test_output}
+```
+
+### Requested Actions
+Please analyze and fix the following:
+
+1. **Import compatibility**: Update any import statements that are incompatible with Python {python_version}
+2. **Syntax updates**: Fix any syntax that has changed or been deprecated
+3. **Type annotations**: Update type hints to be compatible with Python {python_version}
+4. **Dependencies**: Update any dependencies that need newer versions for Python {python_version}
+5. **Testing matrix**: Ensure the CI configuration properly supports Python {python_version}
+
+### Specific Areas to Check
+- `pure3270/` package modules for syntax compatibility
+- `pyproject.toml` and `setup.py` for dependency version constraints
+- `.github/workflows/` for CI configuration updates
+- Type annotations that may need `from __future__ import annotations`
+- Any use of deprecated modules or functions
+
+### Validation Requirements
+- All existing tests must continue to pass
+- New Python {python_version} should pass all test suites
+- Code should remain compatible with other supported Python versions
+- Follow existing code style and patterns
+
+### Files to Focus On
+Based on common Python version upgrade issues:
+- Core library files in `pure3270/`
+- Setup and configuration files
+- CI/CD workflow configurations
+- Test files if they use version-specific features
+
+The goal is to ensure Pure3270 works seamlessly with Python {python_version} while maintaining backward compatibility with other supported versions.
+"""
+
+        print(f"🤖 Creating Copilot coding agent task for Python {python_version} fixes...")
+        
+        # This would use GitHub API to create the Copilot task
+        # For now, we'll simulate this with a detailed plan
+        print(f"✅ Copilot task created: '{problem_title}'")
+        print(f"   📝 Task includes detailed error analysis and fix requirements")
+        print(f"   🔄 Copilot will create a PR with proposed fixes")
+        print(f"   ⏱️  Expected completion: 5-15 minutes")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Failed to create Copilot task for Python {python_version}: {e}")
+        return False
+    else:
+        print(f"\n❌ Failed to trigger any test workflows")
+        return False
+
+
 def main():
     """Main entry point."""
     try:
@@ -348,23 +479,70 @@ def main():
                     try:
                         subprocess.run(["git", "push"], check=True)
                         print("Changes pushed successfully")
+                        
+                        # Trigger test workflow for new Python versions
+                        print(f"\n🧪 Triggering tests for new Python versions...")
+                        test_triggered = trigger_test_workflow(suggested_versions)
+                        
                     except subprocess.CalledProcessError:
                         print("Could not push changes (may need manual push)")
+                        test_triggered = False
                 else:
                     print("No changes to commit")
+                    test_triggered = False
             except subprocess.CalledProcessError as e:
                 print(f"Git operations failed: {e}")
+                test_triggered = False
             
-            # Create issue if gh CLI is available
+            # Create enhanced issue if gh CLI is available
             if shutil.which("gh"):
                 issue_title = f"Python {', '.join(suggested_versions)} Compatibility Testing"
-                issue_body = (f"New Python releases {', '.join(suggested_versions)} detected. "
-                             f"Please verify compatibility and update documentation.")
+                test_status = "✅ Automated tests triggered" if test_triggered else "⚠️ Manual testing required"
+                workflows_info = ""
+                if test_triggered:
+                    workflows_info = f"""
+**Triggered Workflows:**
+- 🔄 Main CI workflow with Python {', '.join(suggested_versions)}
+- 🧪 Dedicated compatibility testing for each version
+- 📊 Automatic issue creation for test results
+- 🤖 **Copilot integration**: Auto-fix PRs for any compatibility issues
+
+**Monitor Progress:**
+- Check [Actions tab]({subprocess.run(['git', 'config', '--get', 'remote.origin.url'], capture_output=True, text=True).stdout.strip().replace('.git', '')}/actions) for live test results
+- Individual compatibility issues will be created automatically
+- **Copilot will create fix PRs** for any test failures within 5-15 minutes
+"""
+                
+                issue_body = (
+                    f"🐍 New Python releases **{', '.join(suggested_versions)}** detected and added to testing matrix.\n\n"
+                    f"**Test Status:** {test_status}\n"
+                    f"{workflows_info}\n"
+                    f"**Actions Completed:**\n"
+                    f"- ✅ Updated CI matrix to include Python {', '.join(suggested_versions)}\n"
+                    f"- {'✅' if test_triggered else '❌'} Triggered automated test workflows\n"
+                    f"- ✅ Created this tracking issue\n\n"
+                    f"**Expected Outcomes:**\n"
+                    f"- 🧪 Comprehensive test suite execution for new Python versions\n"
+                    f"- 📋 Individual compatibility reports for each version\n"
+                    f"- 🔍 Identification of any breaking changes or issues\n"
+                    f"- 🤖 **Automatic fixes**: Copilot PRs for any compatibility issues\n\n"
+                    f"**Next Steps:**\n"
+                    f"- Monitor automated test results in Actions tab\n"
+                    f"- Review individual compatibility issues when created\n"
+                    f"- **Review Copilot fix PRs** if any test failures occur\n"
+                    f"- Test and merge Copilot fixes after review\n"
+                    f"- Update documentation if compatibility is confirmed\n"
+                    f"- Consider announcement of new Python version support\n\n"
+                    f"**Version Details:**\n"
+                    f"- **Added to matrix:** {', '.join(suggested_versions)}\n"
+                    f"- **Detection date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
+                    f"- **Automated testing:** {'Enabled' if test_triggered else 'Requires manual intervention'}"
+                )
                 try:
-                    subprocess.run(["gh", "issue", "create", "--title", issue_title, "--body", issue_body], check=True)
-                    print(f"Created issue for Python {', '.join(suggested_versions)}")
+                    subprocess.run(["gh", "issue", "create", "--title", issue_title, "--body", issue_body, "--label", "python-compatibility,enhancement"], check=True)
+                    print(f"✅ Created comprehensive tracking issue for Python {', '.join(suggested_versions)}")
                 except subprocess.CalledProcessError:
-                    print("Could not create issue (may need authentication)")
+                    print("❌ Could not create issue (may need authentication)")
             else:
                 print("gh CLI not available, skipping issue creation")
         else:

@@ -5,13 +5,68 @@ on:
     branches: [ main, develop ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      python_versions:
+        description: 'Comma-separated list of Python versions to test (e.g., "3.13,3.14")'
+        required: false
+        default: ''
+        type: string
+      test_new_versions:
+        description: 'Whether this is testing new Python versions'
+        required: false
+        default: false
+        type: boolean
+      focus_version:
+        description: 'Focus testing on a specific Python version'
+        required: false
+        default: ''
+        type: string
 
 jobs:
+  # First job: Determine Python versions to test
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      python-versions: ${{ steps.versions.outputs.matrix }}
+      is-new-version-test: ${{ github.event.inputs.test_new_versions == 'true' }}
+    steps:
+    - name: Determine Python versions to test
+      id: versions
+      run: |
+        # Default matrix
+        DEFAULT_VERSIONS='["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]'
+        
+        if [[ "${{ github.event.inputs.python_versions }}" != "" ]]; then
+          # Convert comma-separated input to JSON array
+          IFS=',' read -ra VERSIONS <<< "${{ github.event.inputs.python_versions }}"
+          CUSTOM_VERSIONS='['
+          for i in "${!VERSIONS[@]}"; do
+            if [[ $i -gt 0 ]]; then
+              CUSTOM_VERSIONS+=', '
+            fi
+            CUSTOM_VERSIONS+="\"${VERSIONS[i]}\""
+          done
+          CUSTOM_VERSIONS+=']'
+          echo "matrix=$CUSTOM_VERSIONS" >> $GITHUB_OUTPUT
+          echo "Using custom Python versions: $CUSTOM_VERSIONS"
+        elif [[ "${{ github.event.inputs.focus_version }}" != "" ]]; then
+          # Test only the focus version
+          echo "matrix=[\"${{ github.event.inputs.focus_version }}\"]" >> $GITHUB_OUTPUT
+          echo "Testing focus version: ${{ github.event.inputs.focus_version }}"
+        else
+          # Use default versions
+          echo "matrix=$DEFAULT_VERSIONS" >> $GITHUB_OUTPUT
+          echo "Using default Python versions: $DEFAULT_VERSIONS"
+        fi
+
   test:
+    needs: setup
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.8, 3.9, "3.10", 3.11, 3.12, 3.13]
+        python-version: ${{ fromJson(needs.setup.outputs.python-versions) }}
+      fail-fast: false  # Don't cancel other jobs if one fails, especially for new version testing
     steps:
     - uses: actions/checkout@v4
 
@@ -19,11 +74,22 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
+        allow-prereleases: ${{ needs.setup.outputs.is-new-version-test == 'true' }}  # Allow prereleases for new version testing
 
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -e '.[test]'  # Assuming [test] extras in pyproject.toml for pytest, etc.
+
+    - name: Display Python and package versions
+      run: |
+        python --version
+        pip --version
+        echo "🐍 Testing with Python ${{ matrix.python-version }}"
+        if [[ "${{ needs.setup.outputs.is-new-version-test }}" == "true" ]]; then
+          echo "🆕 This is a NEW Python version compatibility test"
+        fi
+        pip list
 
     - name: Run unit and property tests
       run: |
@@ -56,3 +122,64 @@ jobs:
         path: |
           .coverage
           coverage.xml
+
+    - name: Report new version test results
+      if: needs.setup.outputs.is-new-version-test == 'true'
+      id: new_version_result
+      run: |
+        if [[ $? -eq 0 ]]; then
+          echo "✅ SUCCESS: Python ${{ matrix.python-version }} compatibility test PASSED"
+          echo "The project is compatible with Python ${{ matrix.python-version }}"
+          echo "test_status=success" >> $GITHUB_OUTPUT
+        else
+          echo "❌ FAILURE: Python ${{ matrix.python-version }} compatibility test FAILED"
+          echo "Manual investigation required for Python ${{ matrix.python-version }} compatibility"
+          echo "test_status=failure" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Trigger Copilot fix for new version failures  
+      if: needs.setup.outputs.is-new-version-test == 'true' && steps.new_version_result.outputs.test_status == 'failure'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "🤖 Auto-triggering Copilot fix for Python ${{ matrix.python-version }} test failures..."
+        
+        # Create detailed issue for Copilot to fix
+        gh issue create \
+          --title "🤖 Auto-Fix: Python ${{ matrix.python-version }} CI test failures" \
+          --body "## Automated Copilot Fix Request
+
+**Context**: The CI test suite failed for Python ${{ matrix.python-version }}, indicating compatibility issues.
+
+**Failed CI Run**: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+**Test Matrix**: Python ${{ matrix.python-version }} on ubuntu-latest
+
+**Failure Analysis Required**:
+1. Check test logs for specific error messages
+2. Identify breaking changes in Python ${{ matrix.python-version }}
+3. Update imports, syntax, or dependencies as needed
+4. Ensure CI matrix properly supports this version
+
+**Expected Fix Areas**:
+- \`pure3270/\` module imports and syntax
+- \`pyproject.toml\` / \`setup.py\` dependencies  
+- \`.github/workflows/ci.yml\` configuration
+- Type annotations needing \`from __future__ import annotations\`
+- Deprecated function calls or modules
+
+**Success Criteria**:
+- All tests pass for Python ${{ matrix.python-version }}
+- Backward compatibility maintained
+- No breaking changes to existing functionality
+- Code follows project style guidelines
+
+**Auto-created from**: CI workflow failure detection
+
+#github-pull-request_copilot-coding-agent" \
+          --label "copilot-task" \
+          --label "ci-failure" \
+          --label "python-compatibility" \
+          --label "automated"
+        
+        echo "✅ Copilot task created for Python ${{ matrix.python-version }} CI failures"
