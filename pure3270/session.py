@@ -683,43 +683,44 @@ class AsyncSession:
         self.color_palette = [(0, 0, 0)] * 16
         self.font = "fixed"
         self.keymap: Optional[str] = None
-        self._resource_mtime: float = 0.0
+        self._resource_mtime = 0.0
         self.keyboard_disabled: bool = False
         self._macros: Dict[str, List[str]] = {}
         self.variables: Dict[str, str] = {}
         self._last_aid: Optional[int] = None
+        # Case-insensitive AID map
         self.aid_map = {
-            "ENTER": 0x7D,
-            "PF1": 0xF1,
-            "PF2": 0xF2,
-            "PF3": 0xF3,
-            "PF4": 0xF4,
-            "PF5": 0xF5,
-            "PF6": 0xF6,
-            "PF7": 0xF7,
-            "PF8": 0xF8,
-            "PF9": 0xF9,
-            "PF10": 0x7A,
-            "PF11": 0x7B,
-            "PF12": 0x7C,
-            "PF13": 0xC1,
-            "PF14": 0xC2,
-            "PF15": 0xC3,
-            "PF16": 0xC4,
-            "PF17": 0xC5,
-            "PF18": 0xC6,
-            "PF19": 0xC7,
-            "PF20": 0xC8,
-            "PF21": 0xC9,
-            "PF22": 0xCA,
-            "PF23": 0xCB,
-            "PF24": 0xCC,
-            "PA1": 0x6C,
-            "PA2": 0x6E,
-            "PA3": 0x6B,
-            "CLEAR": 0x6D,
-            "ATTN": 0x7E,
-            "RESET": 0x7F,
+            "enter": 0x7D,
+            "pf1": 0xF1,
+            "pf2": 0xF2,
+            "pf3": 0xF3,
+            "pf4": 0xF4,
+            "pf5": 0xF5,
+            "pf6": 0xF6,
+            "pf7": 0xF7,
+            "pf8": 0xF8,
+            "pf9": 0xF9,
+            "pf10": 0x7A,
+            "pf11": 0xF0,
+            "pf12": 0x7B,
+            "pf13": 0x7C,
+            "pf14": 0xC1,
+            "pf15": 0xC2,
+            "pf16": 0xC3,
+            "pf17": 0xC4,
+            "pf18": 0xC5,
+            "pf19": 0xC6,
+            "pf20": 0xC7,
+            "pf21": 0xC8,
+            "pf22": 0xC9,
+            "pf23": 0x4A,
+            "pf24": 0x4B,
+            "clear": 0x6D,
+            "reset": 0x6E,
+            "pa1": 0x6C,
+            "pa2": 0x6B,
+            "pa3": 0x6A,
+            # Add more as needed
         }
         self.aid_bytes = set(self.aid_map.values())
         self._patching_enabled = False
@@ -1043,7 +1044,8 @@ class AsyncSession:
         if isinstance(name_or_script, str) and name_or_script in self._macros:
             commands = self._macros[name_or_script]
         elif isinstance(name_or_script, str):
-            commands = [name_or_script]
+            # Handle semicolon-separated commands
+            commands = [cmd.strip() for cmd in name_or_script.split(';') if cmd.strip()]
         else:
             commands = name_or_script
 
@@ -1188,30 +1190,40 @@ class AsyncSession:
                     else:
                         raise MacroError(f"Invalid SET syntax: {cmd}")
                 elif re.match(r"^LOAD\s+RESOURCE\s+", cmd, re.IGNORECASE):
-                    parts = cmd.split(maxsplit=2)
-                    if len(parts) == 3:
-                        file_path = parts[2].strip().strip("\"'")
-                        await self.load_resource_definitions(file_path)
-                        results["output"].append(f"Loaded resources from {file_path}")
+                    m = re.match(r"LOAD\s+RESOURCE\s+(.+)", cmd, re.IGNORECASE)
+                    if m:
+                        resource_file = m.group(1).strip().strip("\"'")
+                        await self.load_resource_definitions(resource_file)
+                        results["output"].append(f"Loaded resources from {resource_file}")
                     else:
                         raise MacroError(f"Invalid Load Resource syntax: {cmd}")
-                elif re.match(r"SYSREQ\s*\(", cmd, re.IGNORECASE):
-                    m = re.match(
-                        r'SYSREQ\s*\(\s*"?([^"\)]+)"?\s*\)', cmd, re.IGNORECASE
-                    )
+                # Handle LoadResource(filename) syntax - more flexible parsing
+                elif re.match(r"LOADRESOURCE\s*\(", cmd, re.IGNORECASE):
+                    # Extract filename from LoadResource(filename) or LoadResource filename
+                    m = re.search(r"LOADRESOURCE\s*\(\s*['\"]?([^'\");\s]+)['\"]?\s*\)", cmd, re.IGNORECASE)
                     if m:
-                        arg = m.group(1).strip()
-                        await self.sys_req(arg)
-                        results["output"].append(f"SysReq executed: {arg}")
-                    else:
-                        raise MacroError(f"Invalid SYSREQ syntax: {cmd}")
+                        resource_file = m.group(1).strip()
+                        await self.load_resource_definitions(resource_file)
+                        results["output"].append(f"Loaded resources from {resource_file}")
+                        i += 1
+                        continue
+                    # Fallback for LoadResource filename without parentheses
+                    parts = cmd.lower().split()
+                    if parts[0] == "loadresource" and len(parts) > 1:
+                        resource_file = " ".join(parts[1:]).strip().strip("\"'").rstrip(");")
+                        await self.load_resource_definitions(resource_file)
+                        results["output"].append(f"Loaded resources from {resource_file}")
+                        i += 1
+                        continue
                 elif cmd.lower().startswith("key "):
-                    # Handle key commands like "key Enter", "key PF3", etc.
+                    # Handle key commands like "key Enter", "key PF3", etc. - case insensitive
                     key_name = cmd[4:].strip().lower()
                     aid = self.aid_map.get(key_name)
                     if aid is not None:
                         await self.submit(aid)
                         results["output"].append(f"Key sent: {key_name}")
+                        i += 1
+                        continue
                     else:
                         raise MacroError(f"Unsupported key: {key_name}")
                 elif cmd.lower().startswith("macro "):
@@ -1229,14 +1241,14 @@ class AsyncSession:
                     raise MacroError(f"Unknown macro command", context={"command": cmd})
             except asyncio.TimeoutError as e:
                 results["success"] = False
-                results["output"].append(f"Timeout in '{cmd}': {e}")
+                results["output"].append(f"Timeout in '{cmd_original}': {e}")
             except Exception as e:
                 if hasattr(e, "context") and e.context:
-                    logger.error(f"Error in '{cmd}': {e} (Context: {e.context})")
+                    logger.error(f"Error in '{cmd_original}': {e} (Context: {e.context})")
                 else:
-                    logger.error(f"Error in '{cmd}': {e}")
+                    logger.error(f"Error in '{cmd_original}': {e}")
                 results["success"] = False
-                results["output"].append(f"Error in '{cmd}': {str(e)}")
+                results["output"].append(f"Error in '{cmd_original}': {str(e)}")
             i += 1
             loop_count += 1
         self.variables.update(vars_)
@@ -1350,20 +1362,9 @@ class AsyncSession:
             "pf8": 0xF8,
             "pf9": 0xF9,
             "pf10": 0x7A,
-            "pf11": 0x7B,
-            "pf12": 0x7C,
-            "pf13": 0xC1,
-            "pf14": 0xC2,
-            "pf15": 0xC3,
-            "pf16": 0xC4,
-            "pf17": 0xC5,
-            "pf18": 0xC6,
-            "pf19": 0xC7,
-            "pf20": 0xC8,
-            "pf21": 0xC9,
-            "pf22": 0xCA,
-            "pf23": 0xCB,
-            "pf24": 0xCC,
+            "pf11": 0xF0,
+            "pf12": 0x7B,
+            "pf13": 0x7C,
             "pa1": 0x6C,
             "pa2": 0x6E,
             "pa3": 0x6B,
@@ -1510,20 +1511,9 @@ class AsyncSession:
             "pf8": 0xF8,
             "pf9": 0xF9,
             "pf10": 0x7A,
-            "pf11": 0x7B,
-            "pf12": 0x7C,
-            "pf13": 0xC1,
-            "pf14": 0xC2,
-            "pf15": 0xC3,
-            "pf16": 0xC4,
-            "pf17": 0xC5,
-            "pf18": 0xC6,
-            "pf19": 0xC7,
-            "pf20": 0xC8,
-            "pf21": 0xC9,
-            "pf22": 0xCA,
-            "pf23": 0xCB,
-            "pf24": 0xCC,
+            "pf11": 0xF0,
+            "pf12": 0x7B,
+            "pf13": 0x7C,
             "pa1": 0x6C,
             "pa2": 0x6E,
             "pa3": 0x6B,
@@ -1593,9 +1583,6 @@ class AsyncSession:
                         await self.submit(aid)
                     else:
                         raise MacroError(f"Unsupported key: {key_name}")
-                elif command.startswith("Key("):
-                    key_name = command[4:-1].strip().lower()
-                    await self.key(key_name)
                 elif command.startswith("Execute("):
                     cmd = command[8:-1].strip()
                     result = await self.execute(cmd)
@@ -1683,8 +1670,24 @@ class AsyncSession:
                     file = command[9:-1]
                     await self.transfer(file)
                 elif command.startswith("LoadResource("):
-                    file_path = command[12:-1].strip()
-                    await self.load_resource_definitions(file_path)
+                    # Parse LoadResource command
+                    m = re.match(r"LOADRESOURCE\s*\(\s*['\"]?([^'\")]+)['\"]?\s*\)", command, re.IGNORECASE)
+                    if m:
+                        resource_file = m.group(1).strip()
+                        await self.load_resource_definitions(resource_file)
+                        continue
+                    # Handle LoadResource(filename) syntax - more flexible parsing
+                    m = re.search(r"LOADRESOURCE\s*\(\s*['\"]?([^'\");\s]+)['\"]?\s*\)", command, re.IGNORECASE)
+                    if m:
+                        resource_file = m.group(1).strip()
+                        await self.load_resource_definitions(resource_file)
+                        continue
+                    # Fallback for LoadResource filename without parentheses
+                    parts = command.lower().split()
+                    if parts[0] == "loadresource" and len(parts) > 1:
+                        resource_file = " ".join(parts[1:]).strip().strip("\"'").rstrip(");")
+                        await self.load_resource_definitions(resource_file)
+                        continue
                 elif command.startswith("Wait("):
                     condition = command[5:-1]
                     await self.wait_condition(condition)
@@ -1730,7 +1733,7 @@ class AsyncSession:
             }
             aid = aid_map.get(n, 0xF1)  # Default to PF1
 
-        if not self.connected or not self.handler:
+        if not self.connected or not self._handler:
             raise SessionError("Session not connected.")
 
         await self.submit(aid)
@@ -1752,7 +1755,7 @@ class AsyncSession:
         aid_map = {1: 0x6C, 2: 0x6E, 3: 0x6B}  # Standard PA1-PA3 AIDs
         aid = aid_map[n]
 
-        if not self.connected or not self.handler:
+        if not self.connected or not self._handler:
             raise SessionError("Session not connected.")
 
         await self.submit(aid)

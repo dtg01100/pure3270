@@ -18,6 +18,14 @@ from pure3270.patching.patching import (
 _original_import = builtins.__import__
 
 
+@pytest.fixture
+def monkey_patch_manager():
+    """Fixture for MonkeyPatchManager instance."""
+    from pure3270.patching.patching import MonkeyPatchManager
+
+    return MonkeyPatchManager()
+
+
 @pytest.mark.skipif(
     platform.system() != "Linux", reason="Memory limiting only supported on Linux"
 )
