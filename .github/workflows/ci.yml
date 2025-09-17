@@ -145,38 +145,40 @@ jobs:
         echo "🤖 Auto-triggering Copilot fix for Python ${{ matrix.python-version }} test failures..."
         
         # Create detailed issue for Copilot to fix
+        ISSUE_BODY="## Automated Copilot Fix Request
+
+        **Context**: The CI test suite failed for Python ${{ matrix.python-version }}, indicating compatibility issues.
+
+        **Failed CI Run**: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+        **Test Matrix**: Python ${{ matrix.python-version }} on ubuntu-latest
+
+        **Failure Analysis Required**:
+        1. Check test logs for specific error messages
+        2. Identify breaking changes in Python ${{ matrix.python-version }}
+        3. Update imports, syntax, or dependencies as needed
+        4. Ensure CI matrix properly supports this version
+
+        **Expected Fix Areas**:
+        - pure3270/ module imports and syntax
+        - pyproject.toml / setup.py dependencies  
+        - .github/workflows/ci.yml configuration
+        - Type annotations needing from __future__ import annotations
+        - Deprecated function calls or modules
+
+        **Success Criteria**:
+        - All tests pass for Python ${{ matrix.python-version }}
+        - Backward compatibility maintained
+        - No breaking changes to existing functionality
+        - Code follows project style guidelines
+
+        **Auto-created from**: CI workflow failure detection
+
+        #github-pull-request_copilot-coding-agent"
+
         gh issue create \
           --title "🤖 Auto-Fix: Python ${{ matrix.python-version }} CI test failures" \
-          --body "## Automated Copilot Fix Request
-
-**Context**: The CI test suite failed for Python ${{ matrix.python-version }}, indicating compatibility issues.
-
-**Failed CI Run**: [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-
-**Test Matrix**: Python ${{ matrix.python-version }} on ubuntu-latest
-
-**Failure Analysis Required**:
-1. Check test logs for specific error messages
-2. Identify breaking changes in Python ${{ matrix.python-version }}
-3. Update imports, syntax, or dependencies as needed
-4. Ensure CI matrix properly supports this version
-
-**Expected Fix Areas**:
-- \`pure3270/\` module imports and syntax
-- \`pyproject.toml\` / \`setup.py\` dependencies  
-- \`.github/workflows/ci.yml\` configuration
-- Type annotations needing \`from __future__ import annotations\`
-- Deprecated function calls or modules
-
-**Success Criteria**:
-- All tests pass for Python ${{ matrix.python-version }}
-- Backward compatibility maintained
-- No breaking changes to existing functionality
-- Code follows project style guidelines
-
-**Auto-created from**: CI workflow failure detection
-
-#github-pull-request_copilot-coding-agent" \
+          --body "$ISSUE_BODY" \
           --label "copilot-task" \
           --label "ci-failure" \
           --label "python-compatibility" \
