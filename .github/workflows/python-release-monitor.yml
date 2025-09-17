@@ -2,64 +2,93 @@ name: Python Release Monitor
 
 on:
   schedule:
-    # Check for new Python releases daily
+    # Check for new Python releases daily at 8 AM UTC
     - cron: '0 8 * * *'
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
   check-python-releases:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
     steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install requests
+        # Note: requests is used for API calls, but script has fallback mechanisms
+        # if external APIs are blocked by firewall/DNS restrictions
+
     - name: Check for new Python releases
       id: check_releases
       run: |
-        # Get latest Python versions from official source
-        LATEST_RELEASES=$(curl -s https://www.python.org/ftp/python/ | grep -o '>[0-9]*\.[0-9]*\.[0-9]*/<' | sed 's/[<>\/]//g' | sort -V | tail -5)
-        echo "latest_releases=$LATEST_RELEASES" >> $GITHUB_OUTPUT
+        cd ${{ github.workspace }}
+        echo "Running Python release check..."
+        python scripts/check_python_releases.py
+        
+        # Capture any changes made to workflow files
+        if git diff --quiet .github/workflows/; then
+          echo "no_changes=true" >> $GITHUB_OUTPUT
+          echo "No workflow changes detected"
+        else
+          echo "no_changes=false" >> $GITHUB_OUTPUT
+          changed_files=$(git diff --name-only .github/workflows/)
+          echo "changed_files=$changed_files" >> $GITHUB_OUTPUT
+          echo "Changed files: $changed_files"
+        fi
 
-        # Get currently supported versions
-        SUPPORTED_VERSIONS="3.8 3.9 3.10 3.11 3.12 3.13"
-        echo "supported_versions=$SUPPORTED_VERSIONS" >> $GITHUB_OUTPUT
+    - name: Commit and push changes
+      if: steps.check_releases.outputs.no_changes == 'false'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add .github/workflows/
+        git commit -m "Auto-update Python version matrix with new releases" -m "Updated by python-release-monitor workflow"
+        git push
 
-        # Check if any new major/minor versions exist
-        NEW_VERSIONS=""
-        for release in $LATEST_RELEASES; do
-          MAJOR_MINOR=$(echo $release | cut -d. -f1,2)
-          if ! echo $SUPPORTED_VERSIONS | grep -q "$MAJOR_MINOR"; then
-            NEW_VERSIONS="$NEW_VERSIONS $release"
-          fi
-        done
-        echo "new_versions=$NEW_VERSIONS" >> $GITHUB_OUTPUT
-
-    - name: Create issue for new Python versions
-      if: steps.check_releases.outputs.new_versions != ''
+    - name: Create issue for manual review
+      if: steps.check_releases.outputs.no_changes == 'false'
       uses: actions/github-script@v7
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
-          const newVersions = '${{ steps.check_releases.outputs.new_versions }}';
-          const supportedVersions = '${{ steps.check_releases.outputs.supported_versions }}';
-
-          const issueTitle = 'New Python Release Available - Update Testing Matrix';
+          const changedFiles = '${{ steps.check_releases.outputs.changed_files }}';
+          
+          const issueTitle = 'Python Version Matrix Updated - Manual Review Required';
           const issueBody = `
-          ## New Python Releases Detected
+          ## Python Version Matrix Updated
 
-          The following new Python releases have been detected:
-          ${newVersions}
+          The automated Python release monitor has detected new Python versions and updated the testing matrix.
 
-          Current supported versions: ${supportedVersions}
+          ### Changes Made
+          \`\`\`
+          ${changedFiles}
+          \`\`\`
 
-          ## Action Items
-
-          - [ ] Evaluate compatibility with new Python versions
-          - [ ] Update testing matrix in CI workflows
-          - [ ] Update pyproject.toml classifiers
+          ### Action Items
+          - [ ] Review the updated CI workflow files
+          - [ ] Verify compatibility with new Python versions
+          - [ ] Update pyproject.toml classifiers if needed
           - [ ] Update documentation
           - [ ] Consider deprecating older versions if needed
 
-          ## Next Steps
-
-          Please review and update the testing configuration to include these new versions.
+          ### Next Steps
+          Please review the changes and ensure the new Python versions are properly tested.
+          The workflow files have been automatically updated but may need manual adjustments.
+          
+          _This issue was created automatically by the python-release-monitor workflow._
           `;
 
           await github.rest.issues.create({
@@ -67,5 +96,5 @@ jobs:
             repo: context.repo.repo,
             title: issueTitle,
             body: issueBody,
-            labels: ['python-version', 'maintenance']
+            labels: ['python-version', 'maintenance', 'auto-generated']
           });
