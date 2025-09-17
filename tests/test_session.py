@@ -176,9 +176,9 @@ class TestAsyncSession:
 
     async def test_close(self, async_session):
         # Remove the connected property mock for this test to allow real behavior
-        if hasattr(type(async_session), 'connected'):
-            delattr(type(async_session), 'connected')
-        
+        if hasattr(type(async_session), "connected"):
+            delattr(type(async_session), "connected")
+
         async_session._handler = AsyncMock()
         async_session._handler.close = AsyncMock()
         async_session.connected = True
@@ -192,9 +192,9 @@ class TestAsyncSession:
 
     async def test_close_no_handler(self, async_session):
         # Remove the connected property mock for this test to allow real behavior
-        if hasattr(type(async_session), 'connected'):
-            delattr(type(async_session), 'connected')
-        
+        if hasattr(type(async_session), "connected"):
+            delattr(type(async_session), "connected")
+
         await async_session.close()
         assert async_session.connected is False
 
@@ -254,7 +254,7 @@ class TestAsyncSession:
             mock_reader.read.return_value = b"\x28\x00\x01\x00"
             mock_handler.return_value.set_ascii_mode = AsyncMock()
             await session.connect()
-        
+
         # Mock the submit method instead of send
         session.submit = AsyncMock()
 
@@ -283,10 +283,10 @@ class TestAsyncSession:
             mock_reader.read.return_value = b"\x28\x00\x01\x00"
             mock_handler.return_value.set_ascii_mode = AsyncMock()
             await session.connect()
-        
-        # Mock the submit method 
+
+        # Mock the submit method
         session.submit = AsyncMock()
-        
+
         # Store the sub macro first
         session._macros["sub_macro"] = ["key Enter"]
 

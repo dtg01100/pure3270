@@ -51,23 +51,23 @@ class TestProtocolIntegration:
         writer.drain = AsyncMock()
 
         # Test that negotiator has the expected methods and properties
-        assert hasattr(handler.negotiator, '_parse_tn3270e_subnegotiation')
-        assert hasattr(handler.negotiator, 'handle_subnegotiation')
-        assert hasattr(handler.negotiator, '_device_type_is_event')
-        assert hasattr(handler.negotiator, '_functions_is_event')
+        assert hasattr(handler.negotiator, "_parse_tn3270e_subnegotiation")
+        assert hasattr(handler.negotiator, "handle_subnegotiation")
+        assert hasattr(handler.negotiator, "_device_type_is_event")
+        assert hasattr(handler.negotiator, "_functions_is_event")
 
         # Test subnegotiation parsing directly
         # Format: tn3270e_type + tn3270e_subtype + payload
         device_type_data = b"\x00\x02IBM-3279-4-E\x00"  # 0x00=DEVICE_TYPE, 0x02=IS, "IBM-3279-4-E" + null terminator
         result = handler.negotiator._parse_tn3270e_subnegotiation(device_type_data)
         # The method returns a Task if called from async context, or runs synchronously
-        if hasattr(result, '__await__'):
+        if hasattr(result, "__await__"):
             await result
         assert handler.negotiator.negotiated_device_type == "IBM-3279-4-E"
 
         functions_data = b"\x01\x02\x15"  # 0x01=FUNCTIONS, 0x02=IS, 0x15=functions byte
         result = handler.negotiator._parse_tn3270e_subnegotiation(functions_data)
-        if hasattr(result, '__await__'):
+        if hasattr(result, "__await__"):
             await result
         assert handler.negotiator.negotiated_functions == 0x15
 

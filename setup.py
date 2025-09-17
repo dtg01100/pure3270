@@ -21,6 +21,7 @@ setup(
             "pytest-cov >= 5.0",
             "flake8 >= 7.0",
             "black >= 24.0",
+            "isort >= 5.13",
         ],
         "test": [
             "pytest >= 7.0",
@@ -29,6 +30,7 @@ setup(
             "pytest-cov >= 5.0",
             "flake8 >= 7.0",
             "black >= 24.0",
+            "isort >= 5.13",
         ],
     },
     python_requires=">=3.8",

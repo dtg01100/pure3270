@@ -174,26 +174,28 @@ Deactivate with `deactivate` when done.
 
 Pure3270 includes a comprehensive test suite that runs entirely in Python without external dependencies:
 
-### Test Scripts
+### Modern CI System
+- **CI Shell Script** (`ci.sh`): Main entry point for all CI operations with make-like interface
+- **Comprehensive CI Runner** (`run_full_ci.py`): Python CI runner matching GitHub Actions exactly
+- **Local CI Wrapper** (`local_ci.py`): Python wrapper with common CI presets
 - **Quick Smoke Test** (`quick_test.py`): Fast test (<10 seconds) for basic functionality
-- **Integration Test** (`integration_test.py`): Comprehensive test (~30 seconds) covering all core functionality
-- **CI/CD Test** (`ci_test.py`): Lightweight tests for CI/CD pipelines
-- **Comprehensive Test** (`comprehensive_test.py`): Thorough testing including navigation method verification
 - **Navigation Method Test** (`navigation_method_test.py`): Specific test for navigation method availability
-- **Release Validation Test** (`release_test.py`): Comprehensive test suite for release validation
 
 ### Running Tests
-All tests can be run without Docker or external services:
+All tests can be run using the modern CI system:
 
 ```bash
-# Run unit tests
+# Quick CI tests (recommended)
+./ci.sh
+
+# Full CI suite (matches GitHub Actions)
+./ci.sh full
+
+# Format code
+./ci.sh format
+
+# Unit tests only
 python -m pytest tests/
-
-# Run integration tests
-python integration_test.py
-
-# Run all tests
-python run_all_tests.py
 ```
 
 ### GitHub Actions

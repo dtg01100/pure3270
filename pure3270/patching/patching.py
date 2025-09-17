@@ -214,7 +214,7 @@ class MonkeyPatchManager:
 
 @contextmanager
 def PatchContext(
-    patches: Optional[Dict[str, Any]] = None
+    patches: Optional[Dict[str, Any]] = None,
 ) -> Generator[MonkeyPatchManager, None, None]:
     """
     Context manager for temporary patching.

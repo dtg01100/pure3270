@@ -28,6 +28,7 @@ test = [
     "pytest-benchmark >= 4.0",
     "flake8 >= 7.0",
     "black >= 24.0",
+    "isort >= 5.13",
     "pytest-cov >= 5.0",
     "p3270 >= 0.1.6",
     "pytest-timeout >= 2.1",

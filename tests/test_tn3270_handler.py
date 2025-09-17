@@ -178,9 +178,7 @@ class TestTN3270Handler:
         assert tn3270_handler.is_connected() is False
 
     @pytest.mark.asyncio
-    async def test_tn3270e_negotiation_with_fallback(
-        self, tn3270_handler
-    ):
+    async def test_tn3270e_negotiation_with_fallback(self, tn3270_handler):
         """
         Ported from s3270 test case 2: TN3270E negotiation with fallback.
         Input subnegotiation for TN3270E (e.g., BIND-IMAGE); output fallback to basic TN3270,
@@ -206,9 +204,7 @@ class TestTN3270Handler:
         # No NegotiationError raised
 
     @pytest.mark.asyncio
-    async def test_send_scs_data_printer_session(
-        self, tn3270_handler
-    ):
+    async def test_send_scs_data_printer_session(self, tn3270_handler):
         tn3270_handler._connected = True
         tn3270_handler.negotiator.is_printer_session = True
         tn3270_handler.writer = AsyncMock()
@@ -220,9 +216,7 @@ class TestTN3270Handler:
         tn3270_handler.writer.drain.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_send_scs_data_not_printer_session(
-        self, tn3270_handler
-    ):
+    async def test_send_scs_data_not_printer_session(self, tn3270_handler):
         tn3270_handler._connected = True
         tn3270_handler.is_printer_session = False
 
@@ -230,9 +224,7 @@ class TestTN3270Handler:
             await tn3270_handler.send_scs_data(b"printer data")
 
     @pytest.mark.asyncio
-    async def test_send_print_eoj_printer_session(
-        self, tn3270_handler
-    ):
+    async def test_send_print_eoj_printer_session(self, tn3270_handler):
         tn3270_handler._connected = True
         tn3270_handler.negotiator.is_printer_session = True
         tn3270_handler.writer = AsyncMock()
@@ -245,9 +237,7 @@ class TestTN3270Handler:
         tn3270_handler.writer.drain.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_send_print_eoj_not_printer_session(
-        self, tn3270_handler
-    ):
+    async def test_send_print_eoj_not_printer_session(self, tn3270_handler):
         tn3270_handler._connected = True
         tn3270_handler.is_printer_session = False
 
@@ -262,9 +252,7 @@ class TestTN3270Handler:
         assert tn3270_handler.is_printer_session_active() is True
 
     @pytest.mark.asyncio
-    async def test_process_telnet_stream_iac_do_dont_will_wont(
-        self, tn3270_handler
-    ):
+    async def test_process_telnet_stream_iac_do_dont_will_wont(self, tn3270_handler):
         from pure3270.protocol.utils import DO, DONT, EOR, IAC
         from pure3270.protocol.utils import \
             TELOPT_BINARY as BINARY  # Use alias for clarity
@@ -320,9 +308,7 @@ class TestTN3270Handler:
             assert not ascii_mode
 
     @pytest.mark.asyncio
-    async def test_process_telnet_stream_incomplete_iac(
-        self, tn3270_handler
-    ):
+    async def test_process_telnet_stream_incomplete_iac(self, tn3270_handler):
         from pure3270.protocol.utils import DO, IAC
 
         # Incomplete IAC sequence
@@ -369,9 +355,7 @@ class TestTN3270Handler:
             assert tn3270_handler._telnet_buffer == b""
 
     @pytest.mark.asyncio
-    async def test_receive_data_tn3270e_header_extraction(
-        self, tn3270_handler
-    ):
+    async def test_receive_data_tn3270e_header_extraction(self, tn3270_handler):
         from pure3270.protocol.data_stream import SCS_DATA, TN3270_DATA
         from pure3270.protocol.tn3270e_header import TN3270EHeader
 
@@ -405,9 +389,7 @@ class TestTN3270Handler:
             assert received_data == test_data
 
     @pytest.mark.asyncio
-    async def test_receive_data_no_tn3270e_header(
-        self, tn3270_handler
-    ):
+    async def test_receive_data_no_tn3270e_header(self, tn3270_handler):
         from pure3270.protocol.data_stream import TN3270_DATA
 
         with patch(
@@ -432,9 +414,7 @@ class TestTN3270Handler:
             assert received_data == test_data
 
     @pytest.mark.asyncio
-    async def test_receive_data_ascii_mode_detection(
-        self, tn3270_handler
-    ):
+    async def test_receive_data_ascii_mode_detection(self, tn3270_handler):
         # Simulate VT100 sequence to trigger ASCII mode detection
         vt100_data = (
             b"\x1b[H\x1b[2JVT100 test"  # ESC H, ESC 2J (clear screen), then text
@@ -549,9 +529,7 @@ class TestTN3270Handler:
             await tn3270_handler.send_break()
 
     @pytest.mark.asyncio
-    async def test_process_telnet_stream_iac_brk(
-        self, tn3270_handler
-    ):
+    async def test_process_telnet_stream_iac_brk(self, tn3270_handler):
         from pure3270.protocol.utils import BRK, IAC
 
         tn3270_handler.writer = AsyncMock()

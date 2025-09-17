@@ -45,7 +45,7 @@ Enhancements: Centralized TN3270E negotiation inference, added force_mode/allow_
 
 ## Validation Summary
 - quick_test.py: PASS
-- run_all_tests.py: PASS (all suites)
+- Modern CI system (./ci.sh): PASS (all suites)
 - Property tests: Adjusted for realistic parser behavior; now all pass (1 intentional skip for minimal SF case)
 - black + flake8: clean (no code changes outside tests/docs in this cycle)
 

@@ -4,24 +4,12 @@ import logging
 import struct
 from typing import Optional
 
-from .utils import (
-    BIND_IMAGE,
-    NVT_DATA,
-    PRINT_EOJ,
-    PRINTER_STATUS_DATA_TYPE,
-    REQUEST,
-    RESPONSE,
-    SCS_DATA,
-    SNA_RESPONSE,
-    SSCP_LU_DATA,
-    TN3270_DATA,
-    TN3270E_RSF_ALWAYS_RESPONSE,
-    TN3270E_RSF_ERROR_RESPONSE,
-    TN3270E_RSF_NEGATIVE_RESPONSE,
-    TN3270E_RSF_NO_RESPONSE,
-    TN3270E_RSF_POSITIVE_RESPONSE,
-    UNBIND,
-)
+from .utils import (BIND_IMAGE, NVT_DATA, PRINT_EOJ, PRINTER_STATUS_DATA_TYPE,
+                    REQUEST, RESPONSE, SCS_DATA, SNA_RESPONSE, SSCP_LU_DATA,
+                    TN3270_DATA, TN3270E_RSF_ALWAYS_RESPONSE,
+                    TN3270E_RSF_ERROR_RESPONSE, TN3270E_RSF_NEGATIVE_RESPONSE,
+                    TN3270E_RSF_NO_RESPONSE, TN3270E_RSF_POSITIVE_RESPONSE,
+                    UNBIND)
 
 logger = logging.getLogger(__name__)
 
