@@ -1225,7 +1225,9 @@ class AsyncSession:
                     if aid is not None:
                         await self.submit(aid)
                         output = await self.read()
-                        results["output"].append(output.decode("ascii", errors="ignore"))
+                        results["output"].append(
+                            output.decode("ascii", errors="ignore")
+                        )
                         i += 1
                         continue
                     else:
