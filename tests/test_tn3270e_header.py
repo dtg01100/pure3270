@@ -1,9 +1,12 @@
 import pytest
 
 from pure3270.protocol.tn3270e_header import TN3270EHeader
-from pure3270.protocol.utils import (SCS_DATA, TN3270_DATA,
-                                     TN3270E_RSF_ERROR_RESPONSE,
-                                     TN3270E_RSF_NO_RESPONSE)
+from pure3270.protocol.utils import (
+    SCS_DATA,
+    TN3270_DATA,
+    TN3270E_RSF_ERROR_RESPONSE,
+    TN3270E_RSF_NO_RESPONSE,
+)
 
 
 class TestTN3270EHeader:

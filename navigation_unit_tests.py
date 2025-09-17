@@ -404,8 +404,7 @@ class TestSNAandPrinterUnit(unittest.TestCase):
 
     def test_sna_response_positive(self):
         """Test positive SNA response parsing and validation."""
-        from pure3270.protocol.data_stream import (SNA_SENSE_CODE_SUCCESS,
-                                                   SnaResponse)
+        from pure3270.protocol.data_stream import SNA_SENSE_CODE_SUCCESS, SnaResponse
 
         sna = SnaResponse(0x01, 0x00, SNA_SENSE_CODE_SUCCESS)
         self.assertTrue(sna.is_positive())
@@ -416,7 +415,9 @@ class TestSNAandPrinterUnit(unittest.TestCase):
     def test_sna_response_negative(self):
         """Test negative SNA response parsing and validation."""
         from pure3270.protocol.data_stream import (
-            SNA_SENSE_CODE_INVALID_REQUEST, SnaResponse)
+            SNA_SENSE_CODE_INVALID_REQUEST,
+            SnaResponse,
+        )
 
         sna = SnaResponse(0x01, 0x04, SNA_SENSE_CODE_INVALID_REQUEST)
         self.assertFalse(sna.is_positive())

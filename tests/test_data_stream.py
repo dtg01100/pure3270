@@ -3,27 +3,38 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pure3270.protocol.data_stream import \
-    SnaResponse  # Import SnaResponse class
-from pure3270.protocol.data_stream import (BIND_SF_TYPE,
-                                           PRINTER_STATUS_DATA_TYPE,
-                                           PRINTER_STATUS_SF_TYPE,
-                                           SNA_COMMAND_RESPONSE,
-                                           SNA_DATA_RESPONSE,
-                                           SNA_RESPONSE_DATA_TYPE,
-                                           SNA_RESPONSE_SF_TYPE,
-                                           SNA_SENSE_CODE_INVALID_FORMAT,
-                                           SNA_SENSE_CODE_NOT_SUPPORTED,
-                                           SNA_SENSE_CODE_SESSION_FAILURE,
-                                           SNA_SENSE_CODE_SUCCESS, SOH,
-                                           SOH_DEVICE_END,
-                                           SOH_INTERVENTION_REQUIRED,
-                                           SOH_SUCCESS, ParseError)
+from pure3270.protocol.data_stream import SnaResponse  # Import SnaResponse class
+from pure3270.protocol.data_stream import (
+    BIND_SF_TYPE,
+    PRINTER_STATUS_DATA_TYPE,
+    PRINTER_STATUS_SF_TYPE,
+    SNA_COMMAND_RESPONSE,
+    SNA_DATA_RESPONSE,
+    SNA_RESPONSE_DATA_TYPE,
+    SNA_RESPONSE_SF_TYPE,
+    SNA_SENSE_CODE_INVALID_FORMAT,
+    SNA_SENSE_CODE_NOT_SUPPORTED,
+    SNA_SENSE_CODE_SESSION_FAILURE,
+    SNA_SENSE_CODE_SUCCESS,
+    SOH,
+    SOH_DEVICE_END,
+    SOH_INTERVENTION_REQUIRED,
+    SOH_SUCCESS,
+    ParseError,
+)
 from pure3270.protocol.tn3270_handler import TN3270Handler
 from pure3270.protocol.utils import SNA_RESPONSE  # Import SNA_RESPONSE
-from pure3270.protocol.utils import (BIND_IMAGE, NVT_DATA, PRINT_EOJ, REQUEST,
-                                     RESPONSE, SCS_DATA, SSCP_LU_DATA,
-                                     TN3270_DATA, UNBIND)
+from pure3270.protocol.utils import (
+    BIND_IMAGE,
+    NVT_DATA,
+    PRINT_EOJ,
+    REQUEST,
+    RESPONSE,
+    SCS_DATA,
+    SSCP_LU_DATA,
+    TN3270_DATA,
+    UNBIND,
+)
 
 
 @pytest.mark.skipif(
@@ -248,7 +259,10 @@ class TestDataStreamParser:
 
     def test_parse_bind_image_structured_field_detailed(self, data_stream_parser):
         from pure3270.protocol.data_stream import (
-            BIND_SF_SUBFIELD_PSC, BIND_SF_SUBFIELD_QUERY_REPLY_IDS, BindImage)
+            BIND_SF_SUBFIELD_PSC,
+            BIND_SF_SUBFIELD_QUERY_REPLY_IDS,
+            BindImage,
+        )
 
         # BIND-IMAGE with PSC (rows=24, cols=80) and Query Reply IDs (0x02)
         # PSC subfield: Length (6), ID (0x01), Rows (0x0018), Cols (0x0050)
@@ -369,8 +383,10 @@ class TestDataStreamSender:
         assert stream == b"\x40\x01"
 
     def test_build_query_sf(self, data_stream_sender):
-        from pure3270.protocol.data_stream import (QUERY_REPLY_CHARACTERISTICS,
-                                                   STRUCTURED_FIELD)
+        from pure3270.protocol.data_stream import (
+            QUERY_REPLY_CHARACTERISTICS,
+            STRUCTURED_FIELD,
+        )
 
         query_type = QUERY_REPLY_CHARACTERISTICS
         expected_sf = bytes(
@@ -460,7 +476,9 @@ def test_parse_sample_write(data_stream_parser, sample_write_stream):
 
     def test_parse_sna_response_data_type_negative_first(self, data_stream_parser):
         from pure3270.protocol.data_stream import (
-            SNA_FLAGS_EXCEPTION_RESPONSE, SNA_FLAGS_RSP)
+            SNA_FLAGS_EXCEPTION_RESPONSE,
+            SNA_FLAGS_RSP,
+        )
 
         # Negative response: Sense Code 0x1002 (Not Supported), Flags 0x88 (RSP | ER)
         sna_payload = bytes(
@@ -522,8 +540,7 @@ def test_parse_sample_write(data_stream_parser, sample_write_stream):
             assert sna_response.data == b""
 
     def test_parse_sna_response_structured_field_first(self, data_stream_parser):
-        from pure3270.protocol.data_stream import (SNA_FLAGS_RSP,
-                                                   SNA_RESPONSE_SF_TYPE)
+        from pure3270.protocol.data_stream import SNA_FLAGS_RSP, SNA_RESPONSE_SF_TYPE
 
         # Structured field: 0x3C (SF_ID), Length (2 bytes), SF_Type (1 byte), Data
         # SNA_RESPONSE_SF_TYPE is 0x01

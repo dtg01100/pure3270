@@ -4,8 +4,11 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from pure3270.emulation.ebcdic import get_p3270_version
-from pure3270.patching.patching import (MonkeyPatchManager, Pure3270PatchError,
-                                        enable_replacement)
+from pure3270.patching.patching import (
+    MonkeyPatchManager,
+    Pure3270PatchError,
+    enable_replacement,
+)
 
 
 def test_enable_replacement_basic(memory_limit_500mb):

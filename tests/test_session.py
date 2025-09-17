@@ -1,8 +1,7 @@
 import asyncio
 import platform
 import subprocess
-from unittest.mock import (ANY, AsyncMock, MagicMock, PropertyMock, mock_open,
-                           patch)
+from unittest.mock import ANY, AsyncMock, MagicMock, PropertyMock, mock_open, patch
 
 import pytest
 import pytest_asyncio

@@ -2,8 +2,11 @@ import platform
 
 import pytest
 
-from pure3270.emulation.ebcdic import (EBCDICCodec, translate_ascii_to_ebcdic,
-                                       translate_ebcdic_to_ascii)
+from pure3270.emulation.ebcdic import (
+    EBCDICCodec,
+    translate_ascii_to_ebcdic,
+    translate_ebcdic_to_ascii,
+)
 
 
 @pytest.mark.skipif(

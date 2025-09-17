@@ -7,15 +7,27 @@ import logging
 import os
 import re
 from contextlib import asynccontextmanager
-from typing import (Any, AsyncIterator, Callable, Dict, List, Optional,
-                    Pattern, Tuple, Union)
+from typing import (
+    Any,
+    AsyncIterator,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Pattern,
+    Tuple,
+    Union,
+)
 
 from pure3270.patching import enable_replacement
-from pure3270.protocol.utils import (TN3270E_SYSREQ_ATTN, TN3270E_SYSREQ_BREAK,
-                                     TN3270E_SYSREQ_CANCEL,
-                                     TN3270E_SYSREQ_LOGOFF,
-                                     TN3270E_SYSREQ_PRINT,
-                                     TN3270E_SYSREQ_RESTART)
+from pure3270.protocol.utils import (
+    TN3270E_SYSREQ_ATTN,
+    TN3270E_SYSREQ_BREAK,
+    TN3270E_SYSREQ_CANCEL,
+    TN3270E_SYSREQ_LOGOFF,
+    TN3270E_SYSREQ_PRINT,
+    TN3270E_SYSREQ_RESTART,
+)
 
 from .emulation.buffer_writer import BufferWriter
 from .emulation.screen_buffer import ScreenBuffer
@@ -722,8 +734,9 @@ class AsyncSession:
         self._force_mode = force_mode
         self._allow_fallback = allow_fallback
         self._enable_trace = enable_trace
-        from .protocol.trace_recorder import \
-            TraceRecorder  # local import to avoid cycle
+        from .protocol.trace_recorder import (
+            TraceRecorder,  # local import to avoid cycle
+        )
 
         self._recorder = None  # type: Optional[TraceRecorder]
 

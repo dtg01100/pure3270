@@ -8,8 +8,11 @@ import pytest
 from pure3270.emulation.screen_buffer import ScreenBuffer
 from pure3270.protocol.data_stream import DataStreamParser, ParseError
 from pure3270.protocol.ssl_wrapper import SSLError, SSLWrapper
-from pure3270.protocol.tn3270_handler import (NegotiationError, ProtocolError,
-                                              TN3270Handler)
+from pure3270.protocol.tn3270_handler import (
+    NegotiationError,
+    ProtocolError,
+    TN3270Handler,
+)
 
 
 @pytest.mark.skipif(
@@ -487,14 +490,22 @@ import struct
 
 from pure3270.protocol.negotiator import Negotiator
 from pure3270.protocol.tn3270e_header import TN3270EHeader
-from pure3270.protocol.utils import (BIND_IMAGE, RESPONSE, TELOPT_TN3270E,
-                                     TN3270_DATA, TN3270E_BIND_IMAGE,
-                                     TN3270E_IS, TN3270E_RESPONSES,
-                                     TN3270E_RSF_ALWAYS_RESPONSE,
-                                     TN3270E_RSF_ERROR_RESPONSE,
-                                     TN3270E_RSF_NEGATIVE_RESPONSE,
-                                     TN3270E_RSF_NO_RESPONSE,
-                                     TN3270E_RSF_POSITIVE_RESPONSE, WILL, WONT)
+from pure3270.protocol.utils import (
+    BIND_IMAGE,
+    RESPONSE,
+    TELOPT_TN3270E,
+    TN3270_DATA,
+    TN3270E_BIND_IMAGE,
+    TN3270E_IS,
+    TN3270E_RESPONSES,
+    TN3270E_RSF_ALWAYS_RESPONSE,
+    TN3270E_RSF_ERROR_RESPONSE,
+    TN3270E_RSF_NEGATIVE_RESPONSE,
+    TN3270E_RSF_NO_RESPONSE,
+    TN3270E_RSF_POSITIVE_RESPONSE,
+    WILL,
+    WONT,
+)
 
 
 @pytest.mark.asyncio

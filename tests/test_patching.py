@@ -7,8 +7,12 @@ from unittest.mock import patch as mock_patch
 
 import pytest
 
-from pure3270.patching.patching import (MonkeyPatchManager, Pure3270PatchError,
-                                        enable_replacement, patch)
+from pure3270.patching.patching import (
+    MonkeyPatchManager,
+    Pure3270PatchError,
+    enable_replacement,
+    patch,
+)
 
 # Store the original import function at module level before any mocking
 _original_import = builtins.__import__

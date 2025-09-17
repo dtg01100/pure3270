@@ -6,10 +6,14 @@ import pytest
 
 from pure3270.protocol.printer import PrinterJob, PrinterSession
 from pure3270.protocol.tn3270e_header import TN3270EHeader
-from pure3270.protocol.utils import (PRINT_EOJ, SCS_DATA, TN3270E_RESPONSES,
-                                     TN3270E_RSF_ERROR_RESPONSE,
-                                     TN3270E_RSF_NEGATIVE_RESPONSE,
-                                     TN3270E_SCS_CTL_CODES)
+from pure3270.protocol.utils import (
+    PRINT_EOJ,
+    SCS_DATA,
+    TN3270E_RESPONSES,
+    TN3270E_RSF_ERROR_RESPONSE,
+    TN3270E_RSF_NEGATIVE_RESPONSE,
+    TN3270E_SCS_CTL_CODES,
+)
 
 
 @pytest.mark.skipif(

@@ -2,8 +2,14 @@ import asyncio
 
 from integration_test import BindImageMockServer
 
-from pure3270.protocol.utils import (IAC, SB, SE, TELOPT_TN3270E,
-                                     TN3270E_DEVICE_TYPE, TN3270E_SEND)
+from pure3270.protocol.utils import (
+    IAC,
+    SB,
+    SE,
+    TELOPT_TN3270E,
+    TN3270E_DEVICE_TYPE,
+    TN3270E_SEND,
+)
 
 
 async def run():

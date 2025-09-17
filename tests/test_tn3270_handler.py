@@ -5,8 +5,11 @@ import pytest
 
 from pure3270.protocol.negotiator import SnaSessionState
 from pure3270.protocol.ssl_wrapper import SSLWrapper
-from pure3270.protocol.tn3270_handler import (NegotiationError, ProtocolError,
-                                              TN3270Handler)
+from pure3270.protocol.tn3270_handler import (
+    NegotiationError,
+    ProtocolError,
+    TN3270Handler,
+)
 from pure3270.protocol.tn3270e_header import TN3270EHeader
 
 
@@ -254,8 +257,9 @@ class TestTN3270Handler:
     @pytest.mark.asyncio
     async def test_process_telnet_stream_iac_do_dont_will_wont(self, tn3270_handler):
         from pure3270.protocol.utils import DO, DONT, EOR, IAC
-        from pure3270.protocol.utils import \
-            TELOPT_BINARY as BINARY  # Use alias for clarity
+        from pure3270.protocol.utils import (
+            TELOPT_BINARY as BINARY,  # Use alias for clarity
+        )
         from pure3270.protocol.utils import WILL, WONT
 
         tn3270_handler.writer = AsyncMock()
@@ -472,8 +476,10 @@ class TestTN3270Handler:
 
     @pytest.mark.asyncio
     async def test_send_printer_status_sf(self, tn3270_handler):
-        from pure3270.protocol.data_stream import (PRINTER_STATUS_SF_TYPE,
-                                                   STRUCTURED_FIELD)
+        from pure3270.protocol.data_stream import (
+            PRINTER_STATUS_SF_TYPE,
+            STRUCTURED_FIELD,
+        )
 
         tn3270_handler._connected = True
         tn3270_handler.writer = AsyncMock()

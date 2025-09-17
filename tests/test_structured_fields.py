@@ -5,9 +5,12 @@ import pytest
 
 from pure3270.emulation.screen_buffer import ScreenBuffer
 from pure3270.protocol.data_stream import DataStreamParser
-from pure3270.protocol.utils import (QUERY_REPLY_CHARACTERISTICS,
-                                     QUERY_REPLY_DEVICE_TYPE, QUERY_REPLY_SF,
-                                     STRUCTURED_FIELD)
+from pure3270.protocol.utils import (
+    QUERY_REPLY_CHARACTERISTICS,
+    QUERY_REPLY_DEVICE_TYPE,
+    QUERY_REPLY_SF,
+    STRUCTURED_FIELD,
+)
 
 
 @pytest.mark.skipif(

@@ -3,32 +3,77 @@
 import logging
 import struct
 import traceback
-from typing import (TYPE_CHECKING, Any, Callable, Dict, Iterable, List,
-                    Optional, Tuple, Union, cast)
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    cast,
+)
 
 from ..emulation.printer_buffer import PrinterBuffer  # Import PrinterBuffer
 from ..emulation.screen_buffer import ScreenBuffer  # Import ScreenBuffer
-from .utils import (BIND_IMAGE, NVT_DATA, PRINT_EOJ, PRINTER_STATUS_DATA_TYPE,
-                    QUERY_REPLY_CHARACTERISTICS, QUERY_REPLY_COLOR,
-                    QUERY_REPLY_DBCS_ASIA, QUERY_REPLY_DBCS_EUROPE,
-                    QUERY_REPLY_DBCS_MIDDLE_EAST, QUERY_REPLY_DDM,
-                    QUERY_REPLY_DEVICE_TYPE, QUERY_REPLY_EXTENDED_ATTRIBUTES,
-                    QUERY_REPLY_FORMAT_STORAGE, QUERY_REPLY_GRAPHICS,
-                    QUERY_REPLY_GRID, QUERY_REPLY_HIGHLIGHTING,
-                    QUERY_REPLY_LINE_TYPE, QUERY_REPLY_OEM_AUXILIARY_DEVICE,
-                    QUERY_REPLY_PROCEDURE, QUERY_REPLY_RPQ_NAMES,
-                    QUERY_REPLY_SEGMENT, QUERY_REPLY_SF,
-                    QUERY_REPLY_TRANSPARENCY, REQUEST, RESPONSE, SCS_DATA)
+from .utils import (
+    BIND_IMAGE,
+    NVT_DATA,
+    PRINT_EOJ,
+    PRINTER_STATUS_DATA_TYPE,
+    QUERY_REPLY_CHARACTERISTICS,
+    QUERY_REPLY_COLOR,
+    QUERY_REPLY_DBCS_ASIA,
+    QUERY_REPLY_DBCS_EUROPE,
+    QUERY_REPLY_DBCS_MIDDLE_EAST,
+    QUERY_REPLY_DDM,
+    QUERY_REPLY_DEVICE_TYPE,
+    QUERY_REPLY_EXTENDED_ATTRIBUTES,
+    QUERY_REPLY_FORMAT_STORAGE,
+    QUERY_REPLY_GRAPHICS,
+    QUERY_REPLY_GRID,
+    QUERY_REPLY_HIGHLIGHTING,
+    QUERY_REPLY_LINE_TYPE,
+    QUERY_REPLY_OEM_AUXILIARY_DEVICE,
+    QUERY_REPLY_PROCEDURE,
+    QUERY_REPLY_RPQ_NAMES,
+    QUERY_REPLY_SEGMENT,
+    QUERY_REPLY_SF,
+    QUERY_REPLY_TRANSPARENCY,
+    REQUEST,
+    RESPONSE,
+    SCS_DATA,
+)
 from .utils import SNA_RESPONSE as SNA_RESPONSE_TYPE
-from .utils import (SSCP_LU_DATA, TN3270_DATA, TN3270E_BIND_IMAGE,
-                    TN3270E_DATA_STREAM_CTL, TN3270E_DATA_TYPES,
-                    TN3270E_DEVICE_TYPE, TN3270E_FUNCTIONS, TN3270E_IBM_3278_2,
-                    TN3270E_IBM_3278_3, TN3270E_IBM_3278_4, TN3270E_IBM_3278_5,
-                    TN3270E_IBM_3279_2, TN3270E_IBM_3279_3, TN3270E_IBM_3279_4,
-                    TN3270E_IBM_3279_5, TN3270E_IBM_DYNAMIC, TN3270E_IS,
-                    TN3270E_REQUEST, TN3270E_RESPONSES, TN3270E_SCS_CTL_CODES,
-                    TN3270E_SEND, TN3270E_SYSREQ, UNBIND, BaseParser,
-                    ParseError)
+from .utils import (
+    SSCP_LU_DATA,
+    TN3270_DATA,
+    TN3270E_BIND_IMAGE,
+    TN3270E_DATA_STREAM_CTL,
+    TN3270E_DATA_TYPES,
+    TN3270E_DEVICE_TYPE,
+    TN3270E_FUNCTIONS,
+    TN3270E_IBM_3278_2,
+    TN3270E_IBM_3278_3,
+    TN3270E_IBM_3278_4,
+    TN3270E_IBM_3278_5,
+    TN3270E_IBM_3279_2,
+    TN3270E_IBM_3279_3,
+    TN3270E_IBM_3279_4,
+    TN3270E_IBM_3279_5,
+    TN3270E_IBM_DYNAMIC,
+    TN3270E_IS,
+    TN3270E_REQUEST,
+    TN3270E_RESPONSES,
+    TN3270E_SCS_CTL_CODES,
+    TN3270E_SEND,
+    TN3270E_SYSREQ,
+    UNBIND,
+    BaseParser,
+    ParseError,
+)
 
 if TYPE_CHECKING:
     from ..emulation.printer_buffer import PrinterBuffer
