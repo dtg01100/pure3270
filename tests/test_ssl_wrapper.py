@@ -62,8 +62,9 @@ class TestSSLWrapper:
             def mock_set_context():
                 ssl_wrapper.context = MagicMock()
                 return ssl_wrapper.context
+
             mock_create.side_effect = mock_set_context
-            
+
             context = ssl_wrapper.get_context()
         mock_create.assert_called_once()
         assert context == ssl_wrapper.context

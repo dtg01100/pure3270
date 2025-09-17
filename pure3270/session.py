@@ -7,16 +7,7 @@ import logging
 import os
 import re
 from contextlib import asynccontextmanager
-from typing import (
-    Any,
-    AsyncIterator,
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Tuple,
-    Union,
-)
+from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Tuple, Union
 
 from pure3270.patching import enable_replacement
 from pure3270.protocol.utils import (
@@ -1041,12 +1032,11 @@ class AsyncSession:
         vars_copy.update(vars_)
         vars_ = vars_copy
 
-        # Parse the macro commands
         if isinstance(name_or_script, str) and name_or_script in self._macros:
             commands = self._macros[name_or_script]
         elif isinstance(name_or_script, str):
             # Handle semicolon-separated commands
-            commands = [cmd.strip() for cmd in name_or_script.split(';') if cmd.strip()]
+            commands = [cmd.strip() for cmd in name_or_script.split(";") if cmd.strip()]
         else:
             commands = name_or_script
 
@@ -1059,15 +1049,12 @@ class AsyncSession:
             if not cmd_original:
                 i += 1
                 continue
-            
             # Substitute variables dynamically
             cmd = cmd_original
             for k, v in vars_.items():
                 cmd = re.sub(rf"\$\{{{re.escape(k)}}}", str(v), cmd)
-                
             if loop_count > max_loops:
                 raise MacroError("Macro loop limit exceeded")
-                
             try:
                 if re.match(r"WAIT\s*\(", cmd, re.IGNORECASE):
                     m = re.match(
@@ -1088,6 +1075,7 @@ class AsyncSession:
                                 raise ValueError(f"Unknown AID: {val}")
 
                             async def _wait_aid() -> None:
+                                # aid_val is guaranteed to be int here due to None check above
                                 assert aid_val is not None
                                 await asyncio.wait_for(
                                     self._wait_for_aid(aid_val), timeout=timeout
@@ -1106,7 +1094,6 @@ class AsyncSession:
                         results["output"].append(f"WAIT {typ}={val} succeeded")
                     else:
                         raise MacroError(f"Invalid WAIT syntax: {cmd}")
-                        
                 elif re.match(r"SENDKEYS\s*\(", cmd, re.IGNORECASE):
                     m = re.match(
                         r"SENDKEYS\s*\(\s*([^,\)]+?)(?:\s*,\s*keys\s*=\s*([^\)]+))?\s*\)",
@@ -1129,7 +1116,6 @@ class AsyncSession:
                         )
                     else:
                         raise MacroError(f"Invalid SENDKEYS syntax: {cmd}")
-                        
                 elif re.match(r"IF\s+", cmd_original, re.IGNORECASE):
                     m = re.match(r"IF\s+(.+?)\s*:?\s*$", cmd_original, re.IGNORECASE)
                     if m:
@@ -1172,7 +1158,6 @@ class AsyncSession:
                                 if not sub_res["success"]:
                                     results["success"] = False
                         continue  # i already advanced
-                        
                 elif re.match(r"CALL\s+\w+", cmd, re.IGNORECASE):
                     m = re.match(r"CALL\s+(\w+)", cmd, re.IGNORECASE)
                     if m:
@@ -1186,26 +1171,6 @@ class AsyncSession:
                             raise MacroError(f"Macro '{macro_name}' not defined")
                     else:
                         raise MacroError(f"Invalid CALL syntax: {cmd}")
-                        
-                elif re.match(r"LOADRESOURCE\s*\(", cmd, re.IGNORECASE):
-                    # Parse LoadResource(filename) syntax
-                    m = re.match(r"LOADRESOURCE\s*\(\s*['\"]?([^'\");\s]+)['\"]?\s*\)", cmd, re.IGNORECASE)
-                    if m:
-                        resource_file = m.group(1).strip()
-                        await self.load_resource_definitions(resource_file)
-                        results["output"].append(f"Loaded resources from {resource_file}")
-                        i += 1
-                        continue
-                        
-                    # Fallback for LoadResource filename without parentheses
-                    parts = cmd.lower().split()
-                    if parts and parts[0] == "loadresource" and len(parts) > 1:
-                        resource_file = " ".join(parts[1:]).strip().strip("\"'").rstrip(");")
-                        await self.load_resource_definitions(resource_file)
-                        results["output"].append(f"Loaded resources from {resource_file}")
-                        i += 1
-                        continue
-                        
                 elif re.match(r"SET\s+\w+\s*=", cmd, re.IGNORECASE):
                     m = re.match(r"SET\s+(\w+)\s*=\s*(.*)", cmd, re.IGNORECASE)
                     if m:
@@ -1213,11 +1178,46 @@ class AsyncSession:
                         var_val = m.group(2).strip().strip("\"'")
                         vars_[var_name] = var_val
                         results["output"].append(f"SET {var_name} = {var_val}")
-                        i += 1
-                        continue
                     else:
                         raise MacroError(f"Invalid SET syntax: {cmd}")
-                        
+                elif re.match(r"^LOAD\s+RESOURCE\s+", cmd, re.IGNORECASE):
+                    m = re.match(r"LOAD\s+RESOURCE\s+(.+)", cmd, re.IGNORECASE)
+                    if m:
+                        resource_file = m.group(1).strip().strip("\"'")
+                        await self.load_resource_definitions(resource_file)
+                        results["output"].append(
+                            f"Loaded resources from {resource_file}"
+                        )
+                    else:
+                        raise MacroError(f"Invalid Load Resource syntax: {cmd}")
+                # Handle LoadResource(filename) syntax - more flexible parsing
+                elif re.match(r"LOADRESOURCE\s*\(", cmd, re.IGNORECASE):
+                    # Extract filename from LoadResource(filename) or LoadResource filename
+                    m = re.search(
+                        r"LOADRESOURCE\s*\(\s*['\"]?([^'\");\s]+)['\"]?\s*\)",
+                        cmd,
+                        re.IGNORECASE,
+                    )
+                    if m:
+                        resource_file = m.group(1).strip()
+                        await self.load_resource_definitions(resource_file)
+                        results["output"].append(
+                            f"Loaded resources from {resource_file}"
+                        )
+                        i += 1
+                        continue
+                    # Fallback for LoadResource filename without parentheses
+                    parts = cmd.lower().split()
+                    if parts[0] == "loadresource" and len(parts) > 1:
+                        resource_file = (
+                            " ".join(parts[1:]).strip().strip("\"'").rstrip(");")
+                        )
+                        await self.load_resource_definitions(resource_file)
+                        results["output"].append(
+                            f"Loaded resources from {resource_file}"
+                        )
+                        i += 1
+                        continue
                 elif cmd.lower().startswith("key "):
                     # Handle key commands like "key Enter", "key PF3", etc. - case insensitive
                     key_name = cmd[4:].strip().lower()
@@ -1229,7 +1229,6 @@ class AsyncSession:
                         continue
                     else:
                         raise MacroError(f"Unsupported key: {key_name}")
-                        
                 elif cmd.lower().startswith("macro "):
                     # Handle macro calls like "macro sub_macro"
                     macro_name = cmd[6:].strip()
@@ -1239,32 +1238,24 @@ class AsyncSession:
                         results["output"].extend(sub_result["output"])
                         if not sub_result["success"]:
                             results["success"] = False
-                        i += 1
-                        continue
                     else:
                         raise MacroError(f"Unknown macro: {macro_name}")
-                        
                 else:
                     raise MacroError(f"Unknown macro command", context={"command": cmd})
-                    
             except asyncio.TimeoutError as e:
                 results["success"] = False
                 results["output"].append(f"Timeout in '{cmd_original}': {e}")
-                i += 1
-                loop_count += 1
-                continue
-                
             except Exception as e:
                 if hasattr(e, "context") and e.context:
-                    logger.error(f"Error in '{cmd_original}': {e} (Context: {e.context})")
+                    logger.error(
+                        f"Error in '{cmd_original}': {e} (Context: {e.context})"
+                    )
                 else:
                     logger.error(f"Error in '{cmd_original}': {e}")
                 results["success"] = False
                 results["output"].append(f"Error in '{cmd_original}': {str(e)}")
-                i += 1
-                loop_count += 1
-                continue
-                
+            i += 1
+            loop_count += 1
         self.variables.update(vars_)
         return results
 
@@ -1463,19 +1454,8 @@ class AsyncSession:
 
     @property
     def screen(self) -> ScreenBuffer:
-        """Get the screen buffer."""
-        if not self._handler:
-            raise SessionError("No handler available")
-        return self._handler.screen_buffer
-
-    @screen.setter
-    def screen(self, value: ScreenBuffer) -> None:
-        """Set the screen buffer (for testing/mocking)."""
-        if self._handler:
-            self._handler.screen_buffer = value
-        else:
-            # For unconnected sessions, store temporarily
-            self._temp_screen_buffer = value
+        """Get the screen buffer (alias for screen_buffer for compatibility)."""
+        return self.screen_buffer
 
     @property
     def handler(self) -> Optional[TN3270Handler]:
@@ -1696,13 +1676,21 @@ class AsyncSession:
                     await self.transfer(file)
                 elif command.startswith("LoadResource("):
                     # Parse LoadResource command
-                    m = re.match(r"LOADRESOURCE\s*\(\s*['\"]?([^'\")]+)['\"]?\s*\)", command, re.IGNORECASE)
+                    m = re.match(
+                        r"LOADRESOURCE\s*\(\s*['\"]?([^'\")]+)['\"]?\s*\)",
+                        command,
+                        re.IGNORECASE,
+                    )
                     if m:
                         resource_file = m.group(1).strip()
                         await self.load_resource_definitions(resource_file)
                         continue
                     # Handle LoadResource(filename) syntax - more flexible parsing
-                    m = re.search(r"LOADRESOURCE\s*\(\s*['\"]?([^'\");\s]+)['\"]?\s*\)", command, re.IGNORECASE)
+                    m = re.search(
+                        r"LOADRESOURCE\s*\(\s*['\"]?([^'\");\s]+)['\"]?\s*\)",
+                        command,
+                        re.IGNORECASE,
+                    )
                     if m:
                         resource_file = m.group(1).strip()
                         await self.load_resource_definitions(resource_file)
@@ -1710,7 +1698,9 @@ class AsyncSession:
                     # Fallback for LoadResource filename without parentheses
                     parts = command.lower().split()
                     if parts[0] == "loadresource" and len(parts) > 1:
-                        resource_file = " ".join(parts[1:]).strip().strip("\"'").rstrip(");")
+                        resource_file = (
+                            " ".join(parts[1:]).strip().strip("\"'").rstrip(");")
+                        )
                         await self.load_resource_definitions(resource_file)
                         continue
                 elif command.startswith("Wait("):
@@ -2126,7 +2116,7 @@ class AsyncSession:
         self.screen_buffer.set_position(row - 1, col - 1)
 
     async def next_word(self) -> None:
-               """Move cursor to next word (s3270 NextWord() action)."""
+        """Move cursor to next word (s3270 NextWord() action)."""
         # Simple: move right
         await self.right()
 

@@ -1147,6 +1147,16 @@ class TN3270Handler:
         except Exception:
             return "UNKNOWN"
 
+    @property
+    def connected(self) -> bool:
+        """Check if handler is connected."""
+        return self._connected if hasattr(self, "_connected") else False
+
+    @connected.setter
+    def connected(self, value: bool) -> None:
+        """Set connected state for testing."""
+        self._connected = value
+
     def _detect_vt100_sequences(self, data: bytes) -> bool:
         """
         Detect if data contains VT100/ASCII terminal sequences.

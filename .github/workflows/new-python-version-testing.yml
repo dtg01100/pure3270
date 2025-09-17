@@ -95,20 +95,20 @@ jobs:
         try:
             import pure3270
             print('✅ Import successful')
-            
+
             session = pure3270.Session()
             print('✅ Session creation successful')
-            
+
             # Test basic session methods
             assert hasattr(session, 'connect'), 'Missing connect method'
             assert hasattr(session, 'send'), 'Missing send method'
             assert hasattr(session, 'read'), 'Missing read method'
             assert hasattr(session, 'close'), 'Missing close method'
             print('✅ Core methods available')
-            
+
             session.close()
             print('✅ Session cleanup successful')
-            
+
             print('🎉 Python ${{ github.event.inputs.python_version }} compatibility test PASSED')
         except Exception as e:
             print(f'❌ Core functionality test FAILED: {e}')
@@ -138,8 +138,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         echo "🤖 Triggering GitHub Copilot to fix Python ${{ github.event.inputs.python_version }} compatibility issues..."
-        
-        # Create a comprehensive Copilot task using gh api  
+
+        # Create a comprehensive Copilot task using gh api
         COPILOT_BODY="## Automated Fix Request
 
         GitHub Copilot has been requested to fix compatibility issues with Python ${{ github.event.inputs.python_version }}.
@@ -154,14 +154,14 @@ jobs:
 
         1. **Import compatibility**: Update imports incompatible with Python ${{ github.event.inputs.python_version }}
         2. **Syntax updates**: Fix deprecated syntax or new requirements
-        3. **Type annotations**: Update type hints for compatibility  
+        3. **Type annotations**: Update type hints for compatibility
         4. **Dependencies**: Update version constraints in pyproject.toml/setup.py
         5. **CI configuration**: Ensure proper Python ${{ github.event.inputs.python_version }} support
 
         ### Files Likely Needing Updates
         - pure3270/ package modules
         - pyproject.toml and setup.py dependency specifications
-        - .github/workflows/ci.yml matrix configuration  
+        - .github/workflows/ci.yml matrix configuration
         - Type annotations requiring from __future__ import annotations
 
         ### Validation Requirements
@@ -179,9 +179,9 @@ jobs:
           --field head="copilot/fix-python-${{ github.event.inputs.python_version }}" \
           --field base="main" \
           --field draft=true || {
-          
+
           echo "⚠️ Direct PR creation failed, creating issue for Copilot instead..."
-          
+
           ISSUE_BODY="## Automated Fix Request
 
           Please fix compatibility issues with Python ${{ github.event.inputs.python_version }}.
@@ -209,7 +209,7 @@ jobs:
             --label "automated" \
             --assignee "@copilot"
         }
-        
+
         echo "✅ Copilot task created for Python ${{ github.event.inputs.python_version }} fixes"
 
     - name: Create compatibility issue
@@ -248,7 +248,7 @@ jobs:
         - Python Version: ${{ github.event.inputs.python_version }}
         - Test Type: ${{ github.event.inputs.test_type }}
         - Workflow Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          
+
           if [[ "${{ github.event.inputs.enable_copilot_fixes }}" == "true" ]]; then
             COPILOT_INFO="
 

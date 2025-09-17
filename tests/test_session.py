@@ -89,7 +89,7 @@ class TestAsyncSession:
         call_args = mock_handler.call_args
         assert call_args[0][0] == mock_reader  # First positional arg is reader
         assert call_args[0][1] == mock_writer  # Second positional arg is writer
-        assert call_args[0][2] is not None     # Third positional arg is screen buffer
+        assert call_args[0][2] is not None  # Third positional arg is screen buffer
         assert async_session.connected is True
 
     @patch("pure3270.session.asyncio.open_connection")
@@ -136,7 +136,7 @@ class TestAsyncSession:
         call_args = mock_handler.call_args
         assert call_args[0][0] == mock_reader  # First positional arg is reader
         assert call_args[0][1] == mock_writer  # Second positional arg is writer
-        assert call_args[0][2] is not None     # Third positional arg is screen buffer
+        assert call_args[0][2] is not None  # Third positional arg is screen buffer
         mock_handler.return_value.send_data.assert_called_once_with(b"test data")
         assert async_session.connected is True
 
@@ -178,7 +178,7 @@ class TestAsyncSession:
         call_args = mock_handler.call_args
         assert call_args[0][0] == mock_reader  # First positional arg is reader
         assert call_args[0][1] == mock_writer  # Second positional arg is writer
-        assert call_args[0][2] is not None     # Third positional arg is screen buffer
+        assert call_args[0][2] is not None  # Third positional arg is screen buffer
         handler_instance.receive_data.assert_called_once_with(5.0)
         assert async_session.connected is True
 
@@ -426,12 +426,12 @@ class TestSession:
         sync_session.connect()
 
         mock_async_session.assert_called_once_with(
-            sync_session._host, 
-            sync_session._port, 
+            sync_session._host,
+            sync_session._port,
             sync_session._ssl_context,
             force_mode=sync_session._force_mode,
             allow_fallback=sync_session._allow_fallback,
-            enable_trace=sync_session._enable_trace
+            enable_trace=sync_session._enable_trace,
         )
         mock_async_instance.connect.assert_called_once()
         mock_run.assert_called_once()
@@ -1056,7 +1056,7 @@ s3270.model: 3279
             ConnectionError("Second fail"),
             None,  # Success on third - return None directly
         ]
-        
+
         # Mock perform_telnet_negotiation as async
         async_session._transport.perform_telnet_negotiation = AsyncMock()
         # Mock perform_tn3270_negotiation as async
@@ -1075,7 +1075,7 @@ s3270.model: 3279
         """Test send retries on OSError."""
         async_session.connected = True
         async_session._handler = MagicMock()
-        
+
         # send_data is async, so we need AsyncMock
         async_session._handler.send_data = AsyncMock()
         async_session._handler.send_data.side_effect = [
@@ -1095,7 +1095,7 @@ s3270.model: 3279
         """Test read retries on TimeoutError."""
         async_session.connected = True
         async_session._handler = MagicMock()
-        
+
         # receive_data is async, so we need AsyncMock
         async_session._handler.receive_data = AsyncMock()
         async_session._handler.receive_data.side_effect = [

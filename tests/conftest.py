@@ -51,11 +51,29 @@ def ssl_wrapper():
 
 @pytest.fixture
 def async_session():
-    """Fixture providing an AsyncSession."""
-    session = AsyncSession()
-    # Mock the screen buffer using property setter
-    mock_screen = Mock(spec=ScreenBuffer)
-    session.screen = mock_screen
+    """Fixture providing an AsyncSession with mocked components."""
+    from unittest.mock import AsyncMock, PropertyMock
+
+    from pure3270.emulation.screen_buffer import ScreenBuffer
+    from pure3270.protocol.tn3270_handler import TN3270Handler
+
+    # Create session
+    session = AsyncSession("localhost", 23)
+
+    # Create mock handler with proper properties
+    mock_handler = AsyncMock(spec=TN3270Handler)
+    mock_handler.screen_buffer = PropertyMock(return_value=ScreenBuffer())
+    mock_handler.is_connected = PropertyMock(return_value=True)
+    mock_handler.connected = True
+    mock_handler.receive_data.return_value = b"test data"
+
+    # Set internal state
+    session._handler = mock_handler
+    session.connected = True
+    session._transport = Mock()
+    session._transport.perform_telnet_negotiation.return_value = None
+    session._transport.perform_tn3270_negotiation.return_value = None
+
     return session
 
 
@@ -225,6 +243,8 @@ def suppress_logging():
     for h in logger.handlers[:]:
         if h not in old_handlers:
             logger.removeHandler(h)
+
+
 @pytest.fixture
 def memory_limit_500mb():
     """Fixture to limit memory to 500MB for the duration of the test."""

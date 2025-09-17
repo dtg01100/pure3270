@@ -36,7 +36,7 @@ jobs:
       run: |
         # Default matrix
         DEFAULT_VERSIONS='["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]'
-        
+
         if [[ "${{ github.event.inputs.python_versions }}" != "" ]]; then
           # Convert comma-separated input to JSON array
           IFS=',' read -ra VERSIONS <<< "${{ github.event.inputs.python_versions }}"
@@ -137,13 +137,13 @@ jobs:
           echo "test_status=failure" >> $GITHUB_OUTPUT
         fi
 
-    - name: Trigger Copilot fix for new version failures  
+    - name: Trigger Copilot fix for new version failures
       if: needs.setup.outputs.is-new-version-test == 'true' && steps.new_version_result.outputs.test_status == 'failure'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         echo "🤖 Auto-triggering Copilot fix for Python ${{ matrix.python-version }} test failures..."
-        
+
         # Create detailed issue for Copilot to fix
         ISSUE_BODY="## Automated Copilot Fix Request
 
@@ -161,7 +161,7 @@ jobs:
 
         **Expected Fix Areas**:
         - pure3270/ module imports and syntax
-        - pyproject.toml / setup.py dependencies  
+        - pyproject.toml / setup.py dependencies
         - .github/workflows/ci.yml configuration
         - Type annotations needing from __future__ import annotations
         - Deprecated function calls or modules
@@ -184,5 +184,5 @@ jobs:
           --label "python-compatibility" \
           --label "automated" \
           --assignee "@copilot"
-        
+
         echo "✅ Copilot task created for Python ${{ matrix.python-version }} CI failures"

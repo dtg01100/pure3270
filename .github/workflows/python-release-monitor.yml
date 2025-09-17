@@ -44,7 +44,7 @@ jobs:
       run: |
         cd ${{ github.workspace }}
         echo "Running Python release check..."
-        
+
         # Run the Python script and capture its exit code
         if python scripts/check_python_releases.py; then
           echo "Script completed successfully"
@@ -53,7 +53,7 @@ jobs:
           echo "Script completed with errors, but continuing workflow"
           script_success=false
         fi
-        
+
         # The script now creates PRs instead of direct commits
         # Check if any PRs were created by looking at recent activity
         echo "script_success=$script_success" >> $GITHUB_OUTPUT
@@ -66,7 +66,7 @@ jobs:
         else
           echo "⚠️ Python release check completed with warnings/errors"
         fi
-        
+
         echo ""
         echo "🔍 Python Version Management Summary:"
         echo "- This workflow automatically detects new Python releases and EOL versions"

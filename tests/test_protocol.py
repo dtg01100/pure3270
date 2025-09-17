@@ -176,8 +176,9 @@ class TestSSLWrapper:
             def mock_set_context():
                 ssl_wrapper.context = MagicMock()
                 return ssl_wrapper.context
+
             mock_create.side_effect = mock_set_context
-            
+
             context = ssl_wrapper.get_context()
         mock_create.assert_called_once()
         assert context == ssl_wrapper.context
@@ -308,7 +309,9 @@ class TestTN3270Handler:
         # Set the success flag on negotiator
         tn3270_handler.negotiator.negotiated_tn3270e = True
         # Mock the infer_tn3270e_from_trace method to return True
-        tn3270_handler.negotiator.infer_tn3270e_from_trace = MagicMock(return_value=True)
+        tn3270_handler.negotiator.infer_tn3270e_from_trace = MagicMock(
+            return_value=True
+        )
         # Patch asyncio.wait_for to avoid CancelledError
         from unittest.mock import patch
 
