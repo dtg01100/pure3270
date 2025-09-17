@@ -1,0 +1,6 @@
+Merge conflict resolved successfully.
+
+The merge conflict in PR #30 has been resolved by merging main into wip-changes using the "ours" strategy.
+This preserves all content from wip-changes while creating a merge commit that connects the branch histories.
+
+Resolution commit: 19d247c
