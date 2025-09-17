@@ -14,7 +14,6 @@ from typing import (
     Dict,
     List,
     Optional,
-    Pattern,
     Tuple,
     Union,
 )
