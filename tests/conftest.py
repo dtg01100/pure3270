@@ -209,14 +209,23 @@ def tn3270_handler():
 def suppress_logging():
     logger = logging.getLogger()
     old_handlers = logger.handlers[:]
-    logger.addHandler(NullHandler())
+    null_handler = NullHandler()
+    logger.addHandler(null_handler)
     yield
-    for h in logger.handlers:
-        if isinstance(h, NullHandler):
+    # Remove only the NullHandler we added
+    try:
+        logger.removeHandler(null_handler)
+    except ValueError:
+        pass
+    # Restore any handlers that were removed during the test
+    current_handlers = logger.handlers[:]
+    for h in old_handlers:
+        if h not in current_handlers:
+            logger.addHandler(h)
+    # Optionally, remove any handlers that were not present before
+    for h in logger.handlers[:]:
+        if h not in old_handlers:
             logger.removeHandler(h)
-    logger.handlers = old_handlers
-
-
 @pytest.fixture
 def memory_limit_500mb():
     """Fixture to limit memory to 500MB for the duration of the test."""
