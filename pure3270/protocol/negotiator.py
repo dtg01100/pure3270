@@ -1269,7 +1269,8 @@ class Negotiator:
     async def _send_functions_is(self) -> None:
         """Send FUNCTIONS IS response."""
         if self.writer is None:
-            raise_protocol_error("Cannot send FUNCTIONS IS: writer is None")
+            logger.error("Cannot send FUNCTIONS IS: writer is None")
+            return
         functions_byte = bytes([self.supported_functions])
         sub_data = bytes([TN3270E_FUNCTIONS, TN3270E_IS]) + functions_byte
         send_subnegotiation(self.writer, bytes([TELOPT_TN3270E]), sub_data)
@@ -1309,7 +1310,8 @@ class Negotiator:
             f"Negotiator: _send_supported_functions called. Supported functions: 0x{self.supported_functions:02x}"
         )
         if self.writer is None:
-            raise_protocol_error("Cannot send functions: writer is None")
+            logger.error("Cannot send functions: writer is None")
+            return
 
         # Send FUNCTIONS SEND response with our supported functions
         function_bytes = [
