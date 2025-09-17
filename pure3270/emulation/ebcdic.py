@@ -160,9 +160,9 @@ class EBCDICCodec:
 
         # Build a conservative reverse mapping (unicode -> byte) for the
         # characters tests expect to round-trip: uppercase letters, digits,
-        # and space. Any other character will be treated as unknown and map
-        # to 0x7A.
-        allowed = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ")
+        # space, and common punctuation. Any other character will be treated 
+        # as unknown and map to 0x7A.
+        allowed = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 !@#$%^&*()_+-=[]{}|;:\",./<>?")
         rev = {}
         for i, ch in enumerate(self.ebcdic_to_unicode_table):
             if ch in allowed and ch not in rev:

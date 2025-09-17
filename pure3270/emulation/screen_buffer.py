@@ -136,7 +136,7 @@ class Field:
     def __repr__(self) -> str:
         return (
             f"Field(start={self.start}, end={self.end}, protected={self.protected}, "
-            f"numeric={self.numeric}, modified={self.modified}, content={self.content!r})"
+            f"numeric={self.numeric}, modified={self.modified}, intensity={self.intensity}, content={self.content!r})"
         )
 
 
@@ -238,16 +238,19 @@ class ScreenBuffer(BufferWriter):
                 )
 
                 # Update field content and mark as modified if this position belongs to a field
-                self._update_field_content(int(row), int(col), ebcdic_byte)
-                self._detect_fields()
+                modified_field_found = self._update_field_content(int(row), int(col), ebcdic_byte)
+                # Only detect new fields if we didn't update an existing one
+                if not modified_field_found:
+                    self._detect_fields()
 
-    def _update_field_content(self, row: int, col: int, ebcdic_byte: int) -> None:
+    def _update_field_content(self, row: int, col: int, ebcdic_byte: int) -> bool:
         """
         Update the field content when a character is written to a position.
 
         :param row: Row position.
         :param col: Column position.
         :param ebcdic_byte: EBCDIC byte value written.
+        :return: True if a field was found and updated, False otherwise.
         """
         # Find the field that contains this position
         for idx, field in enumerate(self.fields):
@@ -265,7 +268,8 @@ class ScreenBuffer(BufferWriter):
                 new_content = bytes(self.buffer[start_idx : end_idx + 1])
                 new_field = field._replace(content=new_content, modified=True)
                 self.fields[idx] = new_field
-                break
+                return True
+        return False
 
     def update_from_stream(self, data: bytes) -> None:
         """

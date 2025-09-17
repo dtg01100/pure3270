@@ -178,7 +178,7 @@ class TestEBCDICCodec:
         assert encoded == b"\xc1\xc2\xc3\xf1\xf2\xf3"  # A B C digits in EBCDIC
 
     def test_encode_unknown_char(self, ebcdic_codec):
-        encoded, _ = ebcdic_codec.encode("?")  # Unknown, maps to 0x7A
+        encoded, _ = ebcdic_codec.encode("ä")  # Unknown, maps to 0x7A
         assert encoded == b"\x7a"
 
     def test_decode(self, ebcdic_codec):
