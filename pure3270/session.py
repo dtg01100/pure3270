@@ -1224,7 +1224,8 @@ class AsyncSession:
                     aid = self.aid_map.get(key_name)
                     if aid is not None:
                         await self.submit(aid)
-                        results["output"].append(f"Key sent: {key_name}")
+                        output = await self.read()
+                        results["output"].append(output.decode("ascii", errors="ignore"))
                         i += 1
                         continue
                     else:
@@ -1244,16 +1245,16 @@ class AsyncSession:
                     raise MacroError(f"Unknown macro command", context={"command": cmd})
             except asyncio.TimeoutError as e:
                 results["success"] = False
-                results["output"].append(f"Timeout in '{cmd_original}': {e}")
+                results["output"].append(f"Timeout in command '{cmd_original}': {e}")
             except Exception as e:
                 if hasattr(e, "context") and e.context:
                     logger.error(
-                        f"Error in '{cmd_original}': {e} (Context: {e.context})"
+                        f"Error in command '{cmd_original}': {e} (Context: {e.context})"
                     )
                 else:
-                    logger.error(f"Error in '{cmd_original}': {e}")
+                    logger.error(f"Error in command '{cmd_original}': {e}")
                 results["success"] = False
-                results["output"].append(f"Error in '{cmd_original}': {str(e)}")
+                results["output"].append(f"Error in command '{cmd_original}': {str(e)}")
             i += 1
             loop_count += 1
         self.variables.update(vars_)
@@ -1417,7 +1418,7 @@ class AsyncSession:
     @property
     def connected(self) -> bool:
         """Check if session is connected."""
-        return self._transport.connected
+        return self._transport.connected if self._transport else False
 
     @connected.setter
     def connected(self, value: bool) -> None:
