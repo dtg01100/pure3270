@@ -41,7 +41,7 @@ python local_ci.py --full
 # Pre-commit checks only
 python local_ci.py --pre-commit
 
-# Static analysis only  
+# Static analysis only
 python local_ci.py --static
 ```
 
@@ -100,7 +100,7 @@ Full-featured CI script that replicates all GitHub Actions tests:
 - **Python versions**: 3.8-3.13
 - **Local equivalent**: `./ci.sh full` or `python run_full_ci.py`
 
-### `quick-ci.yml` - Quick CI Workflow  
+### `quick-ci.yml` - Quick CI Workflow
 - **Triggers**: PRs to main/develop
 - **Tests**: Unit tests only (faster feedback)
 - **Python versions**: 3.10-3.13
@@ -114,7 +114,7 @@ Full-featured CI script that replicates all GitHub Actions tests:
 ### `static-analysis.yml` - Static Analysis
 - **Triggers**: Push/PR to main/develop
 - **Tests**: mypy, pylint, bandit
-- **Python versions**: 3.8-3.13  
+- **Python versions**: 3.8-3.13
 - **Local equivalent**: `./ci.sh static` or `python local_ci.py --static`
 
 ### `comprehensive-python-testing.yml` - Comprehensive Tests
@@ -128,7 +128,7 @@ The local CI scripts use the same configuration files as GitHub Actions:
 
 - `.pre-commit-config.yaml` - Pre-commit hook configuration
 - `mypy.ini` - MyPy type checker settings
-- `.pylintrc` - Pylint linter configuration  
+- `.pylintrc` - Pylint linter configuration
 - `.bandit` - Bandit security scanner settings
 - `pyproject.toml` - Package configuration and tool settings
 
@@ -215,14 +215,14 @@ The scripts work well with VS Code's integrated terminal:
     "tasks": [
         {
             "label": "Quick CI",
-            "type": "shell", 
+            "type": "shell",
             "command": "./ci.sh",
             "group": "test"
         },
         {
             "label": "Format Code",
             "type": "shell",
-            "command": "./ci.sh format", 
+            "command": "./ci.sh format",
             "group": "build"
         }
     ]
@@ -263,7 +263,7 @@ pre-commit install
    ```bash
    # Use fast mode
    ./ci.sh quick
-   
+
    # Or skip slow tests
    python run_full_ci.py --fast --skip-coverage
    ```
@@ -292,7 +292,7 @@ To add new tests that should run both locally and in GitHub Actions:
 Typical run times on modern hardware:
 
 - **Smoke test**: 0.1 seconds
-- **Quick CI**: 5-15 seconds  
+- **Quick CI**: 5-15 seconds
 - **Full CI**: 30-60 seconds
 - **With coverage**: 60-120 seconds
 

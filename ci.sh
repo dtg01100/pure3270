@@ -56,7 +56,7 @@ quick() {
 # Full CI suite
 full() {
     print_header "Full CI Suite"
-    check_python  
+    check_python
     python3 local_ci.py --full
 }
 
@@ -105,19 +105,19 @@ clean() {
 # Setup development environment
 setup() {
     print_header "Setting Up Development Environment"
-    
+
     # Create virtual environment if it doesn't exist
     if [ ! -d "venv" ]; then
         print_header "Creating virtual environment"
         python3 -m venv venv
     fi
-    
+
     # Activate virtual environment
     source venv/bin/activate
-    
+
     # Install dependencies
     install
-    
+
     # Install pre-commit hooks if available
     if command -v pre-commit &> /dev/null; then
         print_header "Installing pre-commit hooks"
@@ -126,7 +126,7 @@ setup() {
     else
         print_warning "pre-commit not available, skipping hook installation"
     fi
-    
+
     print_success "Development environment ready"
     echo "To activate: source venv/bin/activate"
 }
@@ -135,15 +135,15 @@ setup() {
 github_sim() {
     print_header "Simulating GitHub Actions Locally"
     check_python
-    
+
     echo "Running tests for multiple Python versions..."
-    
+
     # Test current Python version
     python_version=$(python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
     print_header "Testing with Python $python_version"
-    
+
     python3 run_full_ci.py
-    
+
     print_success "GitHub Actions simulation complete"
 }
 
@@ -153,10 +153,10 @@ test() {
         print_error "Usage: $0 test <test_file>"
         exit 1
     fi
-    
+
     print_header "Running Test: $2"
     check_python
-    
+
     if [ -f "$2" ]; then
         python3 "$2"
     else

@@ -16,7 +16,7 @@ The functionality of these scripts has been consolidated into:
 ### Comprehensive Test Runners (Redundant)
 - **`run_all_tests.py`** - Old comprehensive test runner with custom timeout/memory management
 - **`run_working_tests.py`** - Focused on "working tests" subset
-- **`comprehensive_test.py`** - Another comprehensive test implementation  
+- **`comprehensive_test.py`** - Another comprehensive test implementation
 - **`comprehensive_integration_test.py`** - Yet another integration test variant
 - **`release_test.py`** - Release validation testing
 
@@ -29,7 +29,7 @@ The functionality of these scripts has been consolidated into:
 
 ### Broken/Experimental Scripts
 - **`run_capture.py`** - Network capture script with missing dependencies
-- **`run_capture_fixed.py`** - Fixed version of capture script with missing dependencies  
+- **`run_capture_fixed.py`** - Fixed version of capture script with missing dependencies
 - **`send_device_type_and_capture.py`** - Protocol capture script with missing dependencies
 
 These scripts depend on `BindImageMockServer` which was never implemented.
