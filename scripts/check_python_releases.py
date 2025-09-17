@@ -146,7 +146,7 @@ def get_current_python_matrix_versions() -> List[str]:
             lines = content.splitlines()
             for line in lines:
                 if 'python-version:' in line and '[' in line and ']' in line:
-                    # Extract versions from matrix like: python-version: [3.8, 3.9, "3.10", 3.11, 3.12, 3.13]
+                    # Extract versions from matrix like: python-version: [3.9, "3.10", 3.11, 3.12, 3.13]
                     version_match = re.search(r'python-version:\s*\[(.*?)\]', line)
                     if version_match:
                         version_str = version_match.group(1)
@@ -211,7 +211,7 @@ def get_pyproject_versions() -> List[str]:
         lines = content.splitlines()
         for line in lines:
             if "requires-python" in line:
-                # Extract version range, e.g. ">=3.8"
+                # Extract version range, e.g. ">=3.9"
                 match = re.search(r'requires-python\s*=\s*["\']([^"\']+)["\']', line)
                 if match:
                     # Simple parse for >=3.9
