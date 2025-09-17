@@ -8,7 +8,9 @@ from pure3270.protocol.data_stream import DataStreamParser
 from pure3270.protocol.negotiator import Negotiator
 
 
-@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
+@pytest.mark.skipif(
+    platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+)
 class TestNegotiatorEnhancements:
     def test_init_with_device_type_support(self, memory_limit_500mb):
         """Test that negotiator initializes with device type support."""
@@ -84,11 +86,12 @@ class TestNegotiatorEnhancements:
         # Should log error but not raise exception
         negotiator._send_supported_device_types()
 
-    def test_send_supported_functions_no_writer(self, memory_limit_500mb):
+    @pytest.mark.asyncio
+    async def test_send_supported_functions_no_writer(self, memory_limit_500mb):
         """Test sending functions with no writer."""
         parser = DataStreamParser(ScreenBuffer())
         screen_buffer = ScreenBuffer()
         negotiator = Negotiator(None, parser, screen_buffer)
 
         # Should log error but not raise exception
-        negotiator._send_supported_functions()
+        await negotiator._send_supported_functions()

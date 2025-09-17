@@ -7,7 +7,9 @@ import pytest
 from pure3270.protocol.ssl_wrapper import SSLError, SSLWrapper
 
 
-@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
+@pytest.mark.skipif(
+    platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+)
 class TestSSLWrapper:
     def test_init(self, ssl_wrapper, memory_limit_500mb):
         assert ssl_wrapper.verify is True
@@ -16,7 +18,9 @@ class TestSSLWrapper:
         assert ssl_wrapper.context is None
 
     @patch("ssl.SSLContext")
-    def test_create_context_verify(self, mock_ssl_context, ssl_wrapper, memory_limit_500mb):
+    def test_create_context_verify(
+        self, mock_ssl_context, ssl_wrapper, memory_limit_500mb
+    ):
         ctx = MagicMock()
         mock_ssl_context.return_value = ctx
         with patch("ssl.PROTOCOL_TLS_CLIENT"):
@@ -28,7 +32,9 @@ class TestSSLWrapper:
         ctx.set_ciphers.assert_called_with("HIGH:!aNULL:!MD5")
 
     @patch("ssl.SSLContext")
-    def test_create_context_no_verify(self, mock_ssl_context, ssl_wrapper, memory_limit_500mb):
+    def test_create_context_no_verify(
+        self, mock_ssl_context, ssl_wrapper, memory_limit_500mb
+    ):
         wrapper = SSLWrapper(verify=False)
         ctx = MagicMock()
         mock_ssl_context.return_value = ctx
@@ -38,7 +44,9 @@ class TestSSLWrapper:
         ctx.verify_mode = 0  # CERT_NONE
 
     @patch("ssl.SSLContext")
-    def test_create_context_error(self, mock_ssl_context, ssl_wrapper, memory_limit_500mb):
+    def test_create_context_error(
+        self, mock_ssl_context, ssl_wrapper, memory_limit_500mb
+    ):
         mock_ssl_context.side_effect = ssl.SSLError("Test error")
         with pytest.raises(SSLError):
             ssl_wrapper.create_context()

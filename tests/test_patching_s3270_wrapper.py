@@ -13,7 +13,9 @@ import pytest
 logging.basicConfig(level=logging.DEBUG)
 
 
-@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
+@pytest.mark.skipif(
+    platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+)
 class TestPure3270S3270Wrapper:
     """Tests for Pure3270S3270Wrapper class."""
 

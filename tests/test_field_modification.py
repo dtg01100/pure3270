@@ -5,9 +5,13 @@ import pytest
 from pure3270.emulation.screen_buffer import Field, ScreenBuffer
 
 
-@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
+@pytest.mark.skipif(
+    platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+)
 class TestFieldModificationTracking:
-    def test_field_modification_with_write_char_fixed_behavior(self, memory_limit_500mb):
+    def test_field_modification_with_write_char_fixed_behavior(
+        self, memory_limit_500mb
+    ):
         """Test that writing to a field updates its modified flag."""
         # Create a screen buffer
         screen = ScreenBuffer(rows=2, cols=20)

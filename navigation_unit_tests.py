@@ -29,7 +29,7 @@ def set_memory_limit(max_memory_mb: int):
         max_memory_mb: Maximum memory in megabytes
     """
     # Only works on Unix systems
-    if platform.system() != 'Linux':
+    if platform.system() != "Linux":
         return None
 
     try:
@@ -325,6 +325,7 @@ def run_single_test(test, unit_time, unit_mem):
     success, res = run_with_limits_sync(wrapped_test, unit_time, unit_mem)
     return success and res
 
+
 def run_navigation_unit_tests():
     """Run unit tests for navigation functionality."""
     print("Running Pure3270 Navigation Unit Tests")
@@ -359,13 +360,13 @@ def run_navigation_unit_tests():
                     result.testsRun += 1
                 else:
                     result.testsRun += 1
-                    result.errors.append((subtest, 'Failed within limits'))
+                    result.errors.append((subtest, "Failed within limits"))
         else:
             if run_single_test(test, unit_time, unit_mem):
                 result.testsRun += 1
             else:
                 result.testsRun += 1
-                result.errors.append((test, 'Failed within limits'))
+                result.errors.append((test, "Failed within limits"))
 
     print("\n" + "=" * 50)
     print("NAVIGATION UNIT TEST SUMMARY")
@@ -403,8 +404,8 @@ class TestSNAandPrinterUnit(unittest.TestCase):
 
     def test_sna_response_positive(self):
         """Test positive SNA response parsing and validation."""
-        from pure3270.protocol.data_stream import (SNA_SENSE_CODE_SUCCESS,
-                                                   SnaResponse)
+        from pure3270.protocol.data_stream import SNA_SENSE_CODE_SUCCESS, SnaResponse
+
         sna = SnaResponse(0x01, 0x00, SNA_SENSE_CODE_SUCCESS)
         self.assertTrue(sna.is_positive())
         self.assertFalse(sna.is_negative())
@@ -414,7 +415,10 @@ class TestSNAandPrinterUnit(unittest.TestCase):
     def test_sna_response_negative(self):
         """Test negative SNA response parsing and validation."""
         from pure3270.protocol.data_stream import (
-            SNA_SENSE_CODE_INVALID_REQUEST, SnaResponse)
+            SNA_SENSE_CODE_INVALID_REQUEST,
+            SnaResponse,
+        )
+
         sna = SnaResponse(0x01, 0x04, SNA_SENSE_CODE_INVALID_REQUEST)
         self.assertFalse(sna.is_positive())
         self.assertTrue(sna.is_negative())
@@ -424,6 +428,7 @@ class TestSNAandPrinterUnit(unittest.TestCase):
     def test_printer_status_update(self):
         """Test printer status update and retrieval."""
         from pure3270.emulation.printer_buffer import PrinterBuffer
+
         printer = PrinterBuffer()
         printer.update_status(0x40)  # Device end
         self.assertEqual(printer.get_status(), 0x40)
@@ -480,9 +485,9 @@ IF connected: SENDKEYS(ok) ELSE: FAIL(not connected)
         session._macros = {
             "TEST": [
                 'SENDKEYS("hello")',
-                'WAIT(AID=ENTER)',
-                'SET var = done',
-                'IF aid==ENTER: SENDKEYS(ok)'
+                "WAIT(AID=ENTER)",
+                "SET var = done",
+                "IF aid==ENTER: SENDKEYS(ok)",
             ]
         }
         vars_ = {"user": "test"}
@@ -509,13 +514,16 @@ IF connected: SENDKEYS(ok) ELSE: FAIL(not connected)
         from pure3270.session import AsyncSession, MacroError
 
         session = AsyncSession()
-        session._macros = {"TEST": ['IF aid==PF1: SENDKEYS(yes) ELSE: FAIL(no)']}
+        session._macros = {"TEST": ["IF aid==PF1: SENDKEYS(yes) ELSE: FAIL(no)"]}
         vars_ = {}
 
         result = asyncio.run(session.execute_macro("TEST", vars_))
 
         self.assertFalse(result["success"])
-        self.assertIn("Error in 'IF aid==PF1: SENDKEYS(yes) ELSE: FAIL(no)': Script failed: no", result["output"])
+        self.assertIn(
+            "Error in 'IF aid==PF1: SENDKEYS(yes) ELSE: FAIL(no)': Script failed: no",
+            result["output"],
+        )
         print("   ✓ Conditional macro (ELSE fail) successful")
 
     @patch("pure3270.session.AsyncSession")
@@ -529,7 +537,7 @@ IF connected: SENDKEYS(ok) ELSE: FAIL(not connected)
         from pure3270.session import AsyncSession
 
         session = AsyncSession()
-        session._macros = {"TEST": ['WAIT(AID=ENTER, timeout=0.1)']}
+        session._macros = {"TEST": ["WAIT(AID=ENTER, timeout=0.1)"]}
 
         result = asyncio.run(session.execute_macro("TEST"))
 
@@ -546,7 +554,7 @@ IF connected: SENDKEYS(ok) ELSE: FAIL(not connected)
         from pure3270.session import AsyncSession, MacroError
 
         session = AsyncSession()
-        long_macro = ['SET i=0'] + ['IF i<110: SET i=i+1'] * 120  # Exceeds 100
+        long_macro = ["SET i=0"] + ["IF i<110: SET i=i+1"] * 120  # Exceeds 100
 
         with self.assertRaises(MacroError):
             asyncio.run(session.execute_macro(long_macro))

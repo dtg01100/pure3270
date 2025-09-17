@@ -1,31 +1,27 @@
-[DEFAULT]
-exclude:
-    /tests/
-    /examples/
-    /docs/
-    /archive/
-tests:
-    - B101  # assert used
-    - B201  # flask debug
-    - B301  # shell inject
-    - B307  # ssl with bad version
-    - B308  # ssl with bad defaults
-    - B310  # ssl with bad defaults
-    - B311  # ssl with bad defaults
-    - B323  # ssl with bad defaults
-    - B324  # ssl with bad defaults
-    - B325  # ssl with bad defaults
-    - B602  # requests with bad ssl
-    - B604  # requests with bad ssl
-    - B607  # ssl with no version
-    - B608  # ssl with no hostname
-    - B101  # assert used in tests
+---
+# Bandit configuration (YAML)
+exclude_dirs:
+  - tests
+  - examples
+  - docs
+  - archive
 
-[PLUGINS]
-enable:
-    - bandit.plugins.injection
-    - bandit.plugins.request
-    - bandit.plugins.ssl
-
-skip:
-    B101,B201,B301,B307,B308,B310,B311,B323,B324,B325,B602,B604,B607,B608
+# Disable noisy rules not relevant to this project footprint
+skips:
+  - B101  # asserts (used in tests)
+  - B110  # try/except/pass - used extensively for robust protocol handling
+  - B112  # try/except/continue - used for connection retry patterns
+  - B201  # flask debug (not used)
+  - B301  # pickle / shelve etc
+  - B307  # eval usage patterns
+  - B308  # mark_safe
+  - B310  # urllib_urlopen
+  - B311  # random
+  - B323  # unverified_context
+  - B324  # hashlib_insecure_functions
+  - B404  # subprocess import - used in controlled CI/testing scripts
+  - B602  # subprocess_popen_with_shell_equals_true
+  - B603  # subprocess_without_shell_equals_true - used in controlled CI/testing scripts
+  - B604  # any_other_function_with_shell_equals_true
+  - B607  # start_process_with_partial_path
+  - B608  # hardcoded_sql_expressions

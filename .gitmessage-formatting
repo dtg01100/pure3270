@@ -1,0 +1,5 @@
+chore(format): apply black + isort auto-formatting
+
+[skip ci]
+
+Automated formatting commit produced by scripts/auto_format_commit.py.

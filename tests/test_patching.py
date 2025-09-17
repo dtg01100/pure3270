@@ -7,18 +7,20 @@ from unittest.mock import patch as mock_patch
 
 import pytest
 
-from pure3270.patching.patching import (MonkeyPatchManager, Pure3270PatchError,
-                                        enable_replacement, patch)
+from pure3270.patching.patching import (
+    MonkeyPatchManager,
+    Pure3270PatchError,
+    enable_replacement,
+    patch,
+)
 
 # Store the original import function at module level before any mocking
 _original_import = builtins.__import__
 
 
-
-
-
-
-@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
+@pytest.mark.skipif(
+    platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+)
 class TestMonkeyPatchManager:
     def test_init(self, monkey_patch_manager):
         assert monkey_patch_manager.originals == {}
@@ -107,7 +109,9 @@ class TestMonkeyPatchManager:
         assert monkey_patch_manager.patched == {}
 
 
-@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
+@pytest.mark.skipif(
+    platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+)
 class TestEnableReplacement:
     def test_enable_replacement(self):
         manager = enable_replacement(patch_sessions=True, strict_version=False)
@@ -127,7 +131,9 @@ def test_patch_alias():
     assert patch is enable_replacement
 
 
-@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
+@pytest.mark.skipif(
+    platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+)
 class TestPatchContext:
     def test_context_manager(self):
         with mock_patch(

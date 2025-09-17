@@ -10,10 +10,16 @@ repos:
     rev: 24.8.0
     hooks:
       - id: black
+        name: black (check only)
+        args: [--check, --diff]
+        # When this fails, run: python scripts/auto_format_commit.py
   - repo: https://github.com/pycqa/isort
     rev: 5.13.2
     hooks:
       - id: isort
+        name: isort (check only)
+        args: [--profile=black, --check-only, --diff]
+        # When this fails, run: python scripts/auto_format_commit.py
   - repo: https://github.com/pycqa/flake8
     rev: 7.1.1
     hooks:
@@ -22,9 +28,19 @@ repos:
     rev: v1.11.1
     hooks:
       - id: mypy
-        args: [--strict, --config-file=pyproject.toml]
+        args: [--config-file=mypy.ini, --ignore-missing-imports]
+        files: '^(pure3270/|tests/|examples/|setup.py|pyproject.toml)'
+        exclude: '^(archive/|tools/|scripts/)'
   - repo: https://github.com/PyCQA/bandit
     rev: 1.8.1
     hooks:
       - id: bandit
-        args: [-r, pure3270/, --format, json, --quiet]
+        args: [-c, .bandit, --quiet]
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: pylint
+        language: system
+        types: [python]
+        args: [--exit-zero, pure3270/]

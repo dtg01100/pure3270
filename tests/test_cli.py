@@ -7,7 +7,9 @@ import pytest
 from pure3270 import main
 
 
-@pytest.mark.skipif(platform.system() != 'Linux', reason="Memory limiting only supported on Linux")
+@pytest.mark.skipif(
+    platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+)
 def test_main_no_args(capsys, memory_limit_500mb):
     with patch("sys.argv", ["pure3270"]):
         with patch("pure3270.Session") as mock_session:
@@ -23,7 +25,9 @@ def test_main_no_args(capsys, memory_limit_500mb):
                 # We don't assert anything since it will fail due to missing host argument
 
 
-@pytest.mark.skipif(platform.system() != 'Linux', reason="Memory limiting only supported on Linux")
+@pytest.mark.skipif(
+    platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+)
 def test_main_with_host(capsys, memory_limit_500mb):
     with patch("sys.argv", ["pure3270", "test.host"]):
         with patch("pure3270.Session") as mock_session:
@@ -40,7 +44,9 @@ def test_main_with_host(capsys, memory_limit_500mb):
                 assert "Connected to test.host:23" in captured.out
 
 
-@pytest.mark.skipif(platform.system() != 'Linux', reason="Memory limiting only supported on Linux")
+@pytest.mark.skipif(
+    platform.system() != "Linux", reason="Memory limiting only supported on Linux"
+)
 def test_main_with_script(capsys, memory_limit_500mb):
     with patch("argparse.ArgumentParser") as mock_parser:
         mock_args = MagicMock()

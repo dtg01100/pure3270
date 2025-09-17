@@ -1,7 +1,17 @@
-"""Utility functions for TN3270 protocol handling."""
+"""Utility functions for TN3270/TN3270E protocol handling.
 
+Typing notes:
+- Writer parameters are annotated as ``Optional[asyncio.StreamWriter]`` to reflect
+    possibility of absent writer during teardown.
+- ``_schedule_if_awaitable`` centralizes best-effort handling of AsyncMock.write
+    returning an awaitable to avoid repeated inline inspection logic.
+"""
+
+import asyncio
+import inspect
 import logging
 import struct
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +23,9 @@ WILL = 0xFB
 WONT = 0xFC
 DO = 0xFD
 DONT = 0xFE
-IP = 0xF7 # Interrupt Process
-BRK = 0xF3 # Break Process
+IP = 0xF7  # Interrupt Process
+AO = 0xF5  # Abort Output
+BRK = 0xF3  # Break Process
 BREAK = 0xF3
 # Telnet Options
 TELOPT_BINARY = 0x00
@@ -70,7 +81,7 @@ TELOPT_OPAQUE_STRUCTURE = 0x31
 TELOPT_PRAGMA_LOGON = 0x32
 TELOPT_SSPI_LOGON = 0x33
 TELOPT_PRAGMA_HEARTBEAT = 0x34
-TELOPT_TERMINAL_LOCATION = 0x24 # RFC 1646, Option 36 decimal = 0x24 hex
+TELOPT_TERMINAL_LOCATION = 0x24  # RFC 1646, Option 36 decimal = 0x24 hex
 TELOPT_EXOPL = 0xFF  # Extended-Options-List
 
 # TN3270E constants
@@ -79,6 +90,7 @@ EOR = 0x19  # End of Record (duplicate, but kept for clarity)
 
 # TN3270E Data Types
 TN3270_DATA = 0x00
+TN3270E_DATA = 0x01
 SCS_DATA = 0x01
 RESPONSE = 0x02
 BIND_IMAGE = 0x03
@@ -87,9 +99,25 @@ NVT_DATA = 0x05
 REQUEST = 0x06
 SSCP_LU_DATA = 0x07
 PRINT_EOJ = 0x08
-SNA_RESPONSE = 0x09 # New SNA Response Data Type
-SNA_RESPONSE_DATA_TYPE = 0x09 # SNA Response Data Type
-PRINTER_STATUS_DATA_TYPE = 0x0A # New data type for Printer Status (TN3270E)
+SNA_RESPONSE = 0x09  # New SNA Response Data Type
+SNA_RESPONSE_DATA_TYPE = 0x09  # SNA Response Data Type
+PRINTER_STATUS_DATA_TYPE = 0x0A  # New data type for Printer Status (TN3270E)
+
+# TN3270E Data Types tuple for validation
+TN3270E_DATA_TYPES = (
+    TN3270_DATA,
+    TN3270E_DATA,
+    SCS_DATA,
+    RESPONSE,
+    BIND_IMAGE,
+    UNBIND,
+    NVT_DATA,
+    REQUEST,
+    SSCP_LU_DATA,
+    PRINT_EOJ,
+    SNA_RESPONSE,
+    PRINTER_STATUS_DATA_TYPE,
+)
 
 # TN3270E Subnegotiation Message Types
 TN3270E_DEVICE_TYPE = 0x00
@@ -164,7 +192,27 @@ QUERY_REPLY_PROCEDURE = 0x11
 QUERY_REPLY_GRID = 0x12
 
 
-def send_iac(writer, data: bytes) -> None:
+def _schedule_if_awaitable(maybe_awaitable: Any) -> None:
+    """Best-effort scheduling or execution of an awaitable.
+
+    Avoids un-awaited coroutine warnings when mocks return coroutines.
+    Intentionally swallows all exceptions; this helper is non-critical.
+    """
+    try:
+        if inspect.isawaitable(maybe_awaitable):
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(maybe_awaitable)  # type: ignore[arg-type]
+            except RuntimeError:
+                try:
+                    asyncio.run(maybe_awaitable)  # type: ignore[arg-type]
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+
+def send_iac(writer: Optional[asyncio.StreamWriter], data: bytes) -> None:
     """
     Send IAC command.
 
@@ -177,37 +225,17 @@ def send_iac(writer, data: bytes) -> None:
 
     # Call write; AsyncMock.write may return a coroutine that needs awaiting.
     try:
-        res = writer.write(bytes([IAC]) + data)
+        writer.write(bytes([IAC]) + data)
     except Exception:
-        # Ensure any unexpected writer errors don't crash callers/tests.
         try:
             writer.write(bytes([IAC]) + data)
         except Exception:
             return
 
-    # If writer.write returned an awaitable (e.g., AsyncMock), ensure it's awaited or scheduled.
-    try:
-        import asyncio
-        import inspect
 
-        if inspect.isawaitable(res):
-            try:
-                loop = asyncio.get_running_loop()
-                # Schedule the awaitable so tests using AsyncMock don't trigger "coroutine was never awaited"
-                loop.create_task(res)
-            except RuntimeError:
-                # No running loop; run to completion synchronously to avoid warnings.
-                try:
-                    asyncio.run(res)
-                except Exception:
-                    # Best-effort only — if this fails, don't propagate to callers.
-                    pass
-    except Exception:
-        # If inspect/imports fail for any reason, ignore — best-effort only.
-        pass
-
-
-def send_subnegotiation(writer, opt: bytes, data: bytes) -> None:
+def send_subnegotiation(
+    writer: Optional[asyncio.StreamWriter], opt: bytes, data: bytes
+) -> None:
     """
     Send subnegotiation.
 
@@ -221,29 +249,12 @@ def send_subnegotiation(writer, opt: bytes, data: bytes) -> None:
 
     sub = bytes([IAC, SB]) + opt + data + bytes([IAC, SE])
     try:
-        res = writer.write(sub)
+        writer.write(sub)
     except Exception:
         try:
             writer.write(sub)
         except Exception:
             return
-
-    # If writer.write returned an awaitable (e.g., AsyncMock), ensure it's awaited or scheduled.
-    try:
-        import asyncio
-        import inspect
-
-        if inspect.isawaitable(res):
-            try:
-                loop = asyncio.get_running_loop()
-                loop.create_task(res)
-            except RuntimeError:
-                try:
-                    asyncio.run(res)
-                except Exception:
-                    pass
-    except Exception:
-        pass
 
 
 def strip_telnet_iac(
@@ -294,17 +305,17 @@ def strip_telnet_iac(
             i += 1
     return clean_data
 
-from typing import Optional
-
 
 class ParseError(Exception):
     """Error during parsing."""
+
     pass
+
 
 class BaseParser:
     def __init__(self, data: bytes):
-        self._data = data
-        self._pos = 0
+        self._data: bytes = data
+        self._pos: int = 0
 
     def has_more(self) -> bool:
         return self._pos < len(self._data)
@@ -327,19 +338,21 @@ class BaseParser:
     def read_u16(self) -> int:
         high = self.read_byte()
         low = self.read_byte()
-        return struct.unpack('>H', bytes([high, low]))[0]
+        result = struct.unpack(">H", bytes([high, low]))[0]
+        return int(result)
 
     def read_fixed(self, length: int) -> bytes:
         if self.remaining() < length:
             raise ParseError("Insufficient data for fixed length read")
         start = self._pos
         self._pos += length
-        return self._data[start:self._pos]
+        return self._data[start : self._pos]
+
 
 class BaseStringParser:
     def __init__(self, text: str):
-        self._text = text
-        self._pos = 0
+        self._text: str = text
+        self._pos: int = 0
 
     def has_more(self) -> bool:
         return self._pos < len(self._text)

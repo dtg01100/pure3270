@@ -10,6 +10,8 @@ import platform
 import resource
 import sys
 
+import pytest
+
 from safe_read import safe_read
 
 # Add the current directory to the path so we can import pure3270
@@ -24,7 +26,7 @@ def set_memory_limit(max_memory_mb: int):
         max_memory_mb: Maximum memory in megabytes
     """
     # Only works on Unix systems
-    if platform.system() != 'Linux':
+    if platform.system() != "Linux":
         return None
 
     try:
@@ -114,6 +116,7 @@ def test_navigation_methods():
         return False
 
 
+@pytest.mark.asyncio
 async def test_mock_connectivity():
     """Test basic connectivity with a mock server."""
     try:
@@ -169,7 +172,9 @@ async def test_mock_connectivity():
                 try:
                     await asyncio.wait_for(session.connect(), timeout=5.0)
                 except asyncio.TimeoutError:
-                    print("⚠ session.connect() timed out - treating as handled (mock server may not implement full TN3270)")
+                    print(
+                        "⚠ session.connect() timed out - treating as handled (mock server may not implement full TN3270)"
+                    )
                     # Consider this a graceful handling since the mock server is minimal
                     return True
 

@@ -1,16 +1,16 @@
-import platform
-
 import pytest
 
 from pure3270.protocol.tn3270e_header import TN3270EHeader
-from pure3270.protocol.utils import (SCS_DATA, TN3270_DATA,
-                                     TN3270E_RSF_ERROR_RESPONSE,
-                                     TN3270E_RSF_NO_RESPONSE)
+from pure3270.protocol.utils import (
+    SCS_DATA,
+    TN3270_DATA,
+    TN3270E_RSF_ERROR_RESPONSE,
+    TN3270E_RSF_NO_RESPONSE,
+)
 
 
-@pytest.mark.skipif(platform.system() != "Linux", reason="Memory limiting only supported on Linux")
 class TestTN3270EHeader:
-    def test_init_default(self, memory_limit_500mb):
+    def test_init_default(self):
         """Test default initialization."""
         header = TN3270EHeader()
         assert header.data_type == TN3270_DATA
@@ -18,7 +18,7 @@ class TestTN3270EHeader:
         assert header.response_flag == TN3270E_RSF_NO_RESPONSE
         assert header.seq_number == 0
 
-    def test_init_custom(self, memory_limit_500mb):
+    def test_init_custom(self):
         """Test custom initialization."""
         header = TN3270EHeader(
             data_type=SCS_DATA,
@@ -31,7 +31,7 @@ class TestTN3270EHeader:
         assert header.response_flag == TN3270E_RSF_ERROR_RESPONSE
         assert header.seq_number == 1234
 
-    def test_to_bytes(self, memory_limit_500mb):
+    def test_to_bytes(self):
         """Test conversion to bytes."""
         header = TN3270EHeader(
             data_type=SCS_DATA,
@@ -43,7 +43,7 @@ class TestTN3270EHeader:
         assert len(bytes_data) == 5
         assert bytes_data == b"\x01\x01\x01\x04\xd2"
 
-    def test_from_bytes(self, memory_limit_500mb):
+    def test_from_bytes(self):
         """Test parsing from bytes."""
         bytes_data = b"\x01\x01\x01\x04\xd2"
         header = TN3270EHeader.from_bytes(bytes_data)
@@ -53,7 +53,7 @@ class TestTN3270EHeader:
         assert header.response_flag == TN3270E_RSF_ERROR_RESPONSE
         assert header.seq_number == 1234
 
-    def test_from_bytes_invalid(self, memory_limit_500mb):
+    def test_from_bytes_invalid(self):
         """Test parsing invalid bytes."""
         # Too short
         header = TN3270EHeader.from_bytes(b"\x01\x01")
@@ -63,7 +63,7 @@ class TestTN3270EHeader:
         header = TN3270EHeader.from_bytes(b"\x01\x01\x01\x01\xff")
         assert header is not None  # This should still work
 
-    def test_repr(self, memory_limit_500mb):
+    def test_repr(self):
         """Test string representation."""
         header = TN3270EHeader(
             data_type=SCS_DATA,
@@ -76,7 +76,7 @@ class TestTN3270EHeader:
         assert "ERROR_RESPONSE" in repr_str  # Should show ERROR_RESPONSE now
         assert "seq_number=1234" in repr_str
 
-    def test_type_checks(self, memory_limit_500mb):
+    def test_type_checks(self):
         """Test type checking methods."""
         # TN3270_DATA header
         tn3270_header = TN3270EHeader(data_type=TN3270_DATA)
@@ -99,7 +99,7 @@ class TestTN3270EHeader:
         assert response_header.is_response()
         assert response_header.is_error_response()
 
-    def test_get_data_type_name(self, memory_limit_500mb):
+    def test_get_data_type_name(self):
         """Test getting data type names."""
         header = TN3270EHeader(data_type=TN3270_DATA)
         assert header.get_data_type_name() == "TN3270_DATA"

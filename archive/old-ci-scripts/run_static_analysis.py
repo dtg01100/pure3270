@@ -17,7 +17,9 @@ def run_command(cmd, description):
     print(f"Running: {' '.join(cmd)}")
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=Path(__file__).parent)
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, cwd=Path(__file__).parent
+        )
         if result.returncode == 0:
             print("✓ Success")
             if result.stdout:
@@ -36,10 +38,14 @@ def run_command(cmd, description):
 
 def main():
     parser = argparse.ArgumentParser(description="Run static analysis tools")
-    parser.add_argument("--tools", nargs="+", choices=["mypy", "bandit", "pylint", "all"],
-                        default="all", help="Which tools to run")
-    parser.add_argument("--parallel", action="store_true",
-                        help="Run tools in parallel")
+    parser.add_argument(
+        "--tools",
+        nargs="+",
+        choices=["mypy", "bandit", "pylint", "all"],
+        default="all",
+        help="Which tools to run",
+    )
+    parser.add_argument("--parallel", action="store_true", help="Run tools in parallel")
     args = parser.parse_args()
 
     tools_to_run = args.tools if isinstance(args.tools, list) else [args.tools]
@@ -51,7 +57,7 @@ def main():
     commands = {
         "mypy": ["python", "-m", "mypy", "--config-file", "mypy.ini"] + targets,
         "bandit": ["python", "-m", "bandit", "-c", ".bandit", "-r"] + targets,
-        "pylint": ["python", "-m", "pylint", "--rcfile=.pylintrc"] + targets
+        "pylint": ["python", "-m", "pylint", "--rcfile=.pylintrc"] + targets,
     }
 
     results = {}
@@ -59,6 +65,7 @@ def main():
     if args.parallel:
         # Run all tools in parallel
         import concurrent.futures
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
             future_to_tool = {
                 executor.submit(run_command, commands[tool], f"Running {tool}"): tool

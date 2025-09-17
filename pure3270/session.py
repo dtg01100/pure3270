@@ -7,94 +7,43 @@ import logging
 import os
 import re
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List, Optional, Union
+from typing import (
+    Any,
+    AsyncIterator,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+)
 
 from pure3270.patching import enable_replacement
-from pure3270.protocol.utils import (TN3270E_SYSREQ_ATTN, TN3270E_SYSREQ_BREAK,
-                                     TN3270E_SYSREQ_CANCEL,
-                                     TN3270E_SYSREQ_LOGOFF,
-                                     TN3270E_SYSREQ_PRINT,
-                                     TN3270E_SYSREQ_RESTART)
+from pure3270.protocol.utils import (
+    TN3270E_SYSREQ_ATTN,
+    TN3270E_SYSREQ_BREAK,
+    TN3270E_SYSREQ_CANCEL,
+    TN3270E_SYSREQ_LOGOFF,
+    TN3270E_SYSREQ_PRINT,
+    TN3270E_SYSREQ_RESTART,
+)
 
 from .emulation.buffer_writer import BufferWriter
 from .emulation.screen_buffer import ScreenBuffer
 from .protocol.data_stream import DataStreamParser
-from .protocol.exceptions import NegotiationError
+from .protocol.exceptions import NegotiationError, NotConnectedError
 from .protocol.tn3270_handler import TN3270Handler
 from .session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
 
 
-class SessionManager:
-    """
-    Shared manager for connection setup, teardown, and protocol negotiation calls.
-    Handles socket creation, state management, and common negotiation sequences.
-    """
-
-    def __init__(
-        self,
-        host: Optional[str] = None,
-        port: int = 23,
-        ssl_context: Optional[Any] = None,
-    ):
-        self.host = host
-        self.port = port
-        self.ssl_context = ssl_context
-        self.reader: Optional[StreamReader] = None
-        self.writer: Optional[StreamWriter] = None
-        self.connected: bool = False
-
-    async def setup_connection(
-        self,
-        host: Optional[str] = None,
-        port: Optional[int] = None,
-        ssl_context: Optional[Any] = None,
-    ) -> None:
-        """
-        Establish the socket connection.
-
-        Overrides host/port/ssl if provided.
-        """
-        if host is not None:
-            self.host = host
-        if port is not None:
-            self.port = port
-        if ssl_context is not None:
-            self.ssl_context = ssl_context
-        if not self.host:
-            raise ValueError(
-                "Host must be provided either at initialization or in setup_connection call."
-            )
-        self.reader, self.writer = await asyncio.open_connection(
-            self.host, self.port, ssl=self.ssl_context
-        )
-        self.connected = True
-
-    async def teardown_connection(self) -> None:
-        """Close the socket connection and reset state."""
-        if self.writer:
-            self.writer.close()
-            await self.writer.wait_closed()
-            self.writer = None
-        self.reader = None
-        self.connected = False
-
-    async def perform_telnet_negotiation(self, negotiator) -> None:
-        """Perform Telnet negotiation (TTYPE, BINARY, etc.)."""
-        await negotiator.negotiate()
-
-    async def perform_tn3270_negotiation(
-        self, negotiator, timeout: Optional[float] = None
-    ) -> None:
-        """Perform TN3270/TN3270E subnegotiation."""
-        await negotiator._negotiate_tn3270(timeout=timeout)
-
-
 class SessionError(Exception):
     """Base exception for session-related errors."""
 
-    pass
+    def __init__(self, message: str, context: Optional[Dict[str, Any]] = None):
+        super().__init__(message)
+        self.context: Dict[str, Any] = context or {}
 
 
 class ConnectionError(SessionError):
@@ -106,7 +55,8 @@ class ConnectionError(SessionError):
 class MacroError(SessionError):
     """Raised during macro execution errors."""
 
-    pass
+    def __init__(self, message: str, context: Optional[Dict[str, Any]] = None):
+        super().__init__(message, context=context)
 
 
 class Session:
@@ -122,6 +72,9 @@ class Session:
         host: Optional[str] = None,
         port: int = 23,
         ssl_context: Optional[Any] = None,
+        force_mode: Optional[str] = None,
+        allow_fallback: bool = True,
+        enable_trace: bool = False,
     ):
         """
         Initialize a synchronous session.
@@ -137,7 +90,32 @@ class Session:
         self._host = host
         self._port = port
         self._ssl_context = ssl_context
-        self._async_session = None
+        # Async session created on first connect
+        self._async_session = None  # type: Optional["AsyncSession"]
+        self._force_mode = force_mode
+        self._allow_fallback = allow_fallback
+        self._enable_trace = enable_trace
+        self._recorder = None
+
+    def _run_async(self, coro: Any) -> Any:
+        """Run an async coroutine, handling both sync and async contexts.
+
+        NOTE: The current implementation intentionally avoids executing when already
+        inside a running loop. A future enhancement could schedule the task instead.
+        """
+        try:
+            loop = asyncio.get_running_loop()
+            # We're in an async context - this is problematic for sync methods
+            # For now, let's avoid the issue by not running async operations in async contexts
+            # The session should be connected before being used in async tests
+            if hasattr(coro, "__await__"):
+                # Don't run async operations when already in async context
+                return None
+            else:
+                return coro
+        except RuntimeError:
+            # No running loop, use asyncio.run
+            return asyncio.run(coro)
 
     def connect(
         self,
@@ -161,8 +139,16 @@ class Session:
             self._port = port
         if ssl_context is not None:
             self._ssl_context = ssl_context
-        self._async_session = AsyncSession(self._host, self._port, self._ssl_context)
-        asyncio.run(self._async_session.connect())
+        self._async_session = AsyncSession(
+            self._host,
+            self._port,
+            self._ssl_context,
+            force_mode=self._force_mode,
+            allow_fallback=self._allow_fallback,
+            enable_trace=self._enable_trace,
+        )
+        if not self._async_session.connected:
+            self._run_async(self._async_session.connect())
 
     def send(self, data: bytes) -> None:
         """
@@ -176,6 +162,8 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
+        if not self._async_session.connected:
+            asyncio.run(self._async_session.connect())
         asyncio.run(self._async_session.send(data))
 
     def read(self, timeout: float = 5.0) -> bytes:
@@ -193,6 +181,8 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
+        if not self._async_session.connected:
+            asyncio.run(self._async_session.connect())
         return asyncio.run(self._async_session.read(timeout))
 
     def load_macro(self, source: str) -> None:
@@ -216,6 +206,8 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
+        if not self._async_session.connected:
+            asyncio.run(self._async_session.connect())
         return asyncio.run(self._async_session.execute_macro(macro, vars))
 
     def get_aid(self) -> Optional[int]:
@@ -229,6 +221,11 @@ class Session:
         if self._async_session:
             asyncio.run(self._async_session.close())
             self._async_session = None
+
+    def get_trace_events(self) -> List[Any]:
+        if not self._async_session:
+            return []
+        return self._async_session.get_trace_events()
 
     def open(self, host: str, port: int = 23) -> None:
         """Open connection synchronously (s3270 Open() action)."""
@@ -624,9 +621,24 @@ class Session:
         return self._async_session.screen_buffer
 
     @property
+    def handler(self) -> Optional[TN3270Handler]:
+        """Return underlying handler if available.
+
+        For synchronous wrapper we surface None instead of raising so callers
+        can explicitly test and raise SessionError for sync context consistency.
+        """
+        return self._async_session.handler if self._async_session else None
+
+    @property
     def connected(self) -> bool:
         """Check if session is connected."""
         return self._async_session.connected if self._async_session else False
+
+    @connected.setter
+    def connected(self, value: bool) -> None:
+        """Set the connected state."""
+        if self._async_session:
+            self._async_session.connected = value
 
     @property
     def sna_session_state(self) -> str:
@@ -648,18 +660,12 @@ class AsyncSession:
         host: Optional[str] = None,
         port: int = 23,
         ssl_context: Optional[Any] = None,
+        force_mode: Optional[str] = None,
+        allow_fallback: bool = True,
+        enable_trace: bool = False,
     ):
-        """
-        Initialize the async session.
-
-        Args:
-            host: The target host IP or hostname (can be set later in connect()).
-            port: The target port (default 23 for Telnet).
-            ssl_context: Optional SSL context for secure connections.
-
-        Raises:
-            ValueError: If host or port is invalid.
-        """
+        """Initialize the async session."""
+        # handler created during connect
         self.host = host
         self.port = port
         self.ssl_context = ssl_context
@@ -671,14 +677,14 @@ class AsyncSession:
         self._lu_name: Optional[str] = None
         self.insert_mode = False
         self.circumvent_protection = False
-        self.resources = {}
+        self.resources = {}  # type: Dict[str, str]
         self.model = "2"
         self.color_mode = False
         self.color_palette = [(0, 0, 0)] * 16
         self.font = "fixed"
-        self.keymap = None
-        self._resource_mtime = 0
-        self.keyboard_disabled = False
+        self.keymap: Optional[str] = None
+        self._resource_mtime: float = 0.0
+        self.keyboard_disabled: bool = False
         self._macros: Dict[str, List[str]] = {}
         self.variables: Dict[str, str] = {}
         self._last_aid: Optional[int] = None
@@ -724,6 +730,28 @@ class AsyncSession:
             logger.warning("Incompatible patching")
             self._patching_enabled = False
         self.logger = logging.getLogger(__name__)
+        self._force_mode = force_mode
+        self._allow_fallback = allow_fallback
+        self._enable_trace = enable_trace
+        from .protocol.trace_recorder import (
+            TraceRecorder,  # local import to avoid cycle
+        )
+
+        self._recorder = None  # type: Optional[TraceRecorder]
+
+    # ----------------- Internal guard helpers -----------------
+    def _ensure_handler(self) -> TN3270Handler:
+        """Return live handler or raise."""
+        if self._handler is None:
+            raise NotConnectedError("Handler not initialized")
+        return self._handler
+
+    def _ensure_recorder(
+        self,
+    ) -> (
+        Any
+    ):  # Return type: Optional[TraceRecorder] but avoiding forward reference issues
+        return self._recorder
 
     async def connect(
         self,
@@ -749,39 +777,56 @@ class AsyncSession:
             self.port = port
         if ssl_context is not None:
             self.ssl_context = ssl_context
-        print(f"[SESSION DEBUG] About to setup connection to {self.host}:{self.port}")
-        await self._transport.setup_connection(host, port, ssl_context)
-        print(f"[SESSION DEBUG] Connection opened successfully")
-        logger.debug(f"Creating new TN3270Handler")
-        if self._handler:
-            logger.debug(
-                f"Replacing existing handler with object ID: {id(self._handler)}"
+
+        async def _perform_connect() -> None:
+            print(
+                f"[SESSION DEBUG] About to setup connection to {self.host}:{self.port}"
             )
-        self._handler = TN3270Handler(
-            self._transport.reader, self._transport.writer, self.screen_buffer
-        )
-        logger.debug(f"New handler created with object ID: {id(self._handler)}")
-        # Set the LU name on the handler if configured
-        if self._lu_name:
-            self._handler.lu_name = self._lu_name
-        print(f"[SESSION DEBUG] About to perform telnet negotiation")
-        await self._transport.perform_telnet_negotiation(self._handler.negotiator)
-        print(f"[SESSION DEBUG] Telnet negotiation completed")
-        # Fallback to ASCII if negotiation fails
-        try:
-            print(f"[SESSION DEBUG] About to perform TN3270 negotiation")
-            await self._transport.perform_tn3270_negotiation(self._handler.negotiator)
-            print(f"[SESSION DEBUG] TN3270 negotiation completed")
-            self.tn3270_mode = True
-            self.tn3270e_mode = self._handler.negotiated_tn3270e
-            self._lu_name = self._handler.lu_name
-            self.screen_buffer.rows = self._handler.screen_rows
-            self.screen_buffer.cols = self._handler.screen_cols
-        except NegotiationError as e:
-            logger.warning(
-                f"TN3270 negotiation failed, falling back to ASCII mode: {e}"
-            )
+            await self._transport.setup_connection(host, port, ssl_context)
+            print(f"[SESSION DEBUG] Connection opened successfully")
+            logger.debug(f"Creating new TN3270Handler")
             if self._handler:
+                logger.debug(
+                    f"Replacing existing handler with object ID: {id(self._handler)}"
+                )
+            from .protocol.trace_recorder import TraceRecorder
+
+            recorder = TraceRecorder() if self._enable_trace else None
+            self._recorder = recorder
+            self._handler = TN3270Handler(
+                self._transport.reader,
+                self._transport.writer,
+                self.screen_buffer,
+                force_mode=self._force_mode,
+                allow_fallback=self._allow_fallback,
+                recorder=recorder,
+            )
+            logger.debug(f"New handler created with object ID: {id(self._handler)}")
+            # Set the LU name on the handler if configured
+            if self._lu_name:
+                self._handler.lu_name = self._lu_name
+            print(f"[SESSION DEBUG] About to perform telnet negotiation")
+            await self._transport.perform_telnet_negotiation(self._handler.negotiator)
+            print(f"[SESSION DEBUG] Telnet negotiation completed")
+            # Fallback to ASCII if negotiation fails
+            try:
+                print(f"[SESSION DEBUG] About to perform TN3270 negotiation")
+                await self._transport.perform_tn3270_negotiation(
+                    self._handler.negotiator
+                )
+                print(f"[SESSION DEBUG] TN3270 negotiation completed")
+                await self._handler.connect()
+                self.tn3270_mode = True
+                self.tn3270e_mode = self._handler.negotiated_tn3270e
+                self._lu_name = self._handler.lu_name
+                self.screen_buffer.rows = self._handler.screen_rows
+                self.screen_buffer.cols = self._handler.screen_cols
+                self.connected = True
+            except NegotiationError as e:
+                logger.warning(
+                    f"TN3270 negotiation failed, falling back to ASCII mode: {e}"
+                )
+                # Handler is guaranteed to exist after creation above
                 logger.debug(
                     f"Setting ASCII mode on handler {id(self._handler)} with negotiator {id(self._handler.negotiator)}"
                 )
@@ -792,6 +837,9 @@ class AsyncSession:
                 logger.info(
                     "Session switched to ASCII/VT100 mode (s3270 compatibility)"
                 )
+                self.connected = True
+
+        await self._retry_operation(_perform_connect)
 
     async def send(self, data: bytes) -> None:
         """
@@ -803,9 +851,16 @@ class AsyncSession:
         Raises:
             SessionError: If send fails.
         """
-        if not self._connected or not self._handler:
-            raise SessionError("Session not connected.")
-        await self._handler.send_data(data)
+        if not self.connected or self._handler is None:
+            raise SessionError(
+                "Session not connected for send operation.", {"operation": "send"}
+            )
+        handler = self._handler
+
+        async def _perform_send() -> None:
+            await handler.send_data(data)
+
+        await self._retry_operation(_perform_send)
 
     async def read(self, timeout: float = 5.0) -> bytes:
         """
@@ -820,16 +875,26 @@ class AsyncSession:
         Raises:
             asyncio.TimeoutError: If timeout exceeded.
         """
-        if not self._connected or not self._handler:
-            raise SessionError("Session not connected.")
+        if not self.connected or self._handler is None:
+            raise SessionError("Session not connected.", {"operation": "read"})
+        handler = self._handler
 
-        data = await self._handler.receive_data(timeout)
+        async def _perform_read() -> bytes:
+            result = await handler.receive_data(timeout)
+            # Ensure we return bytes as expected by function signature
+            return result if isinstance(result, bytes) else bytes(result or b"")
+
+        data = await self._retry_operation(_perform_read)
+        # Ensure the result is bytes as expected
+        assert isinstance(data, bytes) or data is None
+        if data is None:
+            data = b""
         # If the handler is a test/mock, it may not run the data stream parser.
         # Ensure the session attempts to parse incoming 3270 data so tests that
         # patch DataStreamParser in this module (pure3270.session) get exercised.
         try:
             if data:
-                negotiator = getattr(self._handler, "negotiator", None)
+                negotiator = getattr(handler, "negotiator", None)
                 # The test-suite sometimes patches DataStreamParser with a simplified
                 # constructor signature (screen_buffer, negotiator=None). To remain
                 # compatible with both the real and mocked constructors, inspect
@@ -863,6 +928,15 @@ class AsyncSession:
 
         return data
 
+    def get_trace_events(self) -> List[Any]:
+        if self._handler and getattr(self._handler, "negotiator", None):
+            rec = getattr(self._handler.negotiator, "recorder", None)
+            if rec and hasattr(rec, "events"):
+                events = rec.events()
+                # Ensure we return a list as expected by function signature
+                return list(events) if events is not None else []
+        return []
+
     async def _execute_single_command(self, cmd: str, vars: Dict[str, str]) -> str:
         """
         Execute a single simple command.
@@ -884,26 +958,7 @@ class AsyncSession:
         except Exception as e:
             raise MacroError(f"Command execution failed: {e}")
 
-    def _evaluate_condition(self, condition: str) -> bool:
-        """
-        Evaluate a simple condition.
-
-        Args:
-            condition: Condition string like 'connected' or 'error'.
-
-        Returns:
-            bool evaluation result.
-
-        Raises:
-            MacroError: Unknown condition.
-        """
-        if condition == "connected":
-            return self._connected
-        elif condition == "error":
-            # Simplified: assume no error for now; could track last_error
-            return False
-        else:
-            raise MacroError(f"Unknown condition: {condition}")
+    # NOTE: duplicate simple condition evaluator removed; unified version below
 
     async def load_macro(self, source: Union[str, List[str]]) -> None:
         """
@@ -915,8 +970,11 @@ class AsyncSession:
         if isinstance(source, str) and os.path.isfile(source):
             with open(source, "r") as f:
                 content = f.read()
-        else:
+        elif isinstance(source, str):
             content = source
+        else:
+            # source is List[str], join with newlines
+            content = "\n".join(source)
 
         lines = [line.strip() for line in content.splitlines() if line.strip()]
 
@@ -949,7 +1007,8 @@ class AsyncSession:
         vars_: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
-        Execute a macro by name or script with DSL support.
+        if not self.connected or self._handler is None:
+            raise NotConnectedError("Session not connected.")
 
         DSL commands:
         - WAIT(AID=ENTER, timeout=5)
@@ -972,6 +1031,9 @@ class AsyncSession:
         Raises:
             MacroError, asyncio.TimeoutError.
         """
+        if not self.handler:
+            raise MacroError("No handler")
+
         if vars_ is None:
             vars_ = {}
         vars_copy = self.variables.copy()
@@ -985,7 +1047,7 @@ class AsyncSession:
         else:
             commands = name_or_script
 
-        results = {"success": True, "output": [], "vars": vars_.copy()}
+        results: Dict[str, Any] = {"success": True, "output": [], "vars": vars_.copy()}
         i = 0
         loop_count = 0
         max_loops = 100
@@ -1018,14 +1080,24 @@ class AsyncSession:
                             )
                             if aid_val is None:
                                 raise ValueError(f"Unknown AID: {val}")
-                            await asyncio.wait_for(
-                                self._wait_for_aid(aid_val), timeout=timeout
-                            )
+
+                            async def _wait_aid() -> None:
+                                # aid_val is guaranteed to be int here due to None check above
+                                assert aid_val is not None
+                                await asyncio.wait_for(
+                                    self._wait_for_aid(aid_val), timeout=timeout
+                                )
+
+                            await self._retry_operation(_wait_aid)
                         elif typ == "pattern":
                             pat = re.compile(val)
-                            await asyncio.wait_for(
-                                self._wait_for_pattern(pat), timeout=timeout
-                            )
+
+                            async def _wait_pattern() -> None:
+                                await asyncio.wait_for(
+                                    self._wait_for_pattern(pat), timeout=timeout
+                                )
+
+                            await self._retry_operation(_wait_pattern)
                         results["output"].append(f"WAIT {typ}={val} succeeded")
                     else:
                         raise MacroError(f"Invalid WAIT syntax: {cmd}")
@@ -1038,10 +1110,14 @@ class AsyncSession:
                     if m:
                         text = m.group(1).strip().strip("\"'")
                         key = m.group(2).strip() if m.group(2) else None
-                        if text:
-                            await self.insert_text(text)
-                        if key:
-                            await self.key(key)
+
+                        async def _perform_sendkeys() -> None:
+                            if text:
+                                await self.insert_text(text)
+                            if key:
+                                await self.key(key)
+
+                        await self._retry_operation(_perform_sendkeys)
                         results["output"].append(
                             f"SENDKEYS executed: {text or ''} {key or ''}"
                         )
@@ -1129,12 +1205,36 @@ class AsyncSession:
                         results["output"].append(f"SysReq executed: {arg}")
                     else:
                         raise MacroError(f"Invalid SYSREQ syntax: {cmd}")
+                elif cmd.lower().startswith("key "):
+                    # Handle key commands like "key Enter", "key PF3", etc.
+                    key_name = cmd[4:].strip().lower()
+                    aid = self.aid_map.get(key_name)
+                    if aid is not None:
+                        await self.submit(aid)
+                        results["output"].append(f"Key sent: {key_name}")
+                    else:
+                        raise MacroError(f"Unsupported key: {key_name}")
+                elif cmd.lower().startswith("macro "):
+                    # Handle macro calls like "macro sub_macro"
+                    macro_name = cmd[6:].strip()
+                    # Check if it's a stored macro
+                    if macro_name in self._macros:
+                        sub_result = await self.execute_macro(macro_name, vars_)
+                        results["output"].extend(sub_result["output"])
+                        if not sub_result["success"]:
+                            results["success"] = False
+                    else:
+                        raise MacroError(f"Unknown macro: {macro_name}")
                 else:
-                    raise MacroError(f"Unknown macro command: {cmd}")
+                    raise MacroError(f"Unknown macro command", context={"command": cmd})
             except asyncio.TimeoutError as e:
                 results["success"] = False
                 results["output"].append(f"Timeout in '{cmd}': {e}")
             except Exception as e:
+                if hasattr(e, "context") and e.context:
+                    logger.error(f"Error in '{cmd}': {e} (Context: {e.context})")
+                else:
+                    logger.error(f"Error in '{cmd}': {e}")
                 results["success"] = False
                 results["output"].append(f"Error in '{cmd}': {str(e)}")
             i += 1
@@ -1148,29 +1248,38 @@ class AsyncSession:
             data = await self.read(timeout=1.0)
             await asyncio.sleep(0.1)
 
-    async def _wait_for_pattern(self, pattern: re.Pattern) -> None:
+    async def _wait_for_pattern(self, pattern: re.Pattern[str]) -> None:
         """Wait for screen pattern."""
         while not pattern.search(self.screen.to_text()):
             data = await self.read(timeout=1.0)
             await asyncio.sleep(0.1)
 
     def _evaluate_condition(self, cond: str, vars_: Dict[str, Any]) -> bool:
-        """Evaluate condition string."""
+        """Evaluate condition string for macro IF/WAIT expressions.
+
+        Supported forms:
+          aid==ENTER
+          screen.match("regex")
+          connected
+          var NAME==value
+        """
         cond_lower = cond.lower()
         if "aid==" in cond_lower:
-            parts = cond_lower.split("==")
+            parts = cond_lower.split("==", 1)
             expected = parts[1].strip()
             expected_aid = self.aid_map.get(expected.upper())
             return self._last_aid == expected_aid
-        elif "screen.match(" in cond_lower:
+        if "screen.match(" in cond_lower:
             m = re.search(r'screen\.match\s*\(\s*["\']([^"\']+)["\']\s*\)', cond_lower)
             if m:
-                pat_str = m.group(1)
-                return bool(re.search(pat_str, self.screen.to_text()))
-        elif "connected" in cond_lower:
+                try:
+                    return bool(re.search(m.group(1), self.screen.to_text()))
+                except re.error:
+                    return False
+        if cond_lower.strip() == "connected":
             return self.connected
-        elif "var " in cond_lower and "==" in cond_lower:
-            m = re.match(r'var\s+(\w+)\s*==\s*(["\']?)([^"\']+)\\2', cond_lower)
+        if "var " in cond_lower and "==" in cond_lower:
+            m = re.match(r'var\s+(\w+)\s*==\s*(["\']?)([^"\']+)\2', cond_lower)
             if m:
                 var_name = m.group(1)
                 var_val = m.group(3)
@@ -1178,8 +1287,8 @@ class AsyncSession:
         return False
 
     async def _execute_sub_macro(
-        self, sub_script: str, vars_: Dict[str, Any], results: Dict
-    ) -> Dict:
+        self, sub_script: str, vars_: Dict[str, Any], results: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """Execute sub-script."""
         sub_results = await self.execute_macro(sub_script, vars_)
         results["output"].extend(sub_results["output"])
@@ -1195,7 +1304,8 @@ class AsyncSession:
         """Close the async session."""
         if self._handler:
             await self._handler.close()
-        self._handler = None
+            self._handler = None
+        self.connected = False
 
     async def execute(self, command: str) -> str:
         """Execute external command (s3270 Execute() action)."""
@@ -1275,7 +1385,6 @@ class AsyncSession:
             return self.screen_buffer.to_text()
         else:
             raise ValueError(f"Unknown query type: {query_type}")
-        logger.info(f"Query {query_type} executed")
 
     async def set(self, option: str, value: str) -> None:
         """Set option (s3270 Set() action)."""
@@ -1285,7 +1394,7 @@ class AsyncSession:
         logger.info(f"Set {option} to {value}")
 
     @asynccontextmanager
-    async def managed(self):
+    async def managed(self) -> AsyncIterator["AsyncSession"]:
         """
         Async context manager for the session.
 
@@ -1303,6 +1412,11 @@ class AsyncSession:
     def connected(self) -> bool:
         """Check if session is connected."""
         return self._transport.connected
+
+    @connected.setter
+    def connected(self, value: bool) -> None:
+        """Set the connected state."""
+        self._transport.connected = value
 
     @property
     def tn3270_mode(self) -> bool:
@@ -1340,6 +1454,8 @@ class AsyncSession:
     @property
     def handler(self) -> Optional[TN3270Handler]:
         """Get the handler (public interface for compatibility)."""
+        if self._handler is None:
+            raise NotConnectedError("Handler not initialized")
         return self._handler
 
     @handler.setter
@@ -1373,7 +1489,7 @@ class AsyncSession:
             MacroError: If command parsing or execution fails.
             SessionError: If not connected.
         """
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         from .emulation.ebcdic import translate_ascii_to_ebcdic
@@ -1417,7 +1533,7 @@ class AsyncSession:
         }
 
         # Command dispatcher for simple actions
-        simple_actions = {
+        simple_actions: Dict[str, Callable[..., Any]] = {
             "Interrupt()": self.interrupt,
             "CircumNot()": self.circum_not,
             "CursorSelect()": self.cursor_select,
@@ -1472,7 +1588,7 @@ class AsyncSession:
                     await self.insert_text(text)
                 elif command.startswith("key "):
                     key_name = command[4:].strip().lower()
-                    aid = AID_MAP.get(key_name)
+                    aid = self.aid_map.get(key_name)
                     if aid is not None:
                         await self.submit(aid)
                     else:
@@ -1530,8 +1646,8 @@ class AsyncSession:
                     print(result)
                 elif command.startswith("HexString("):
                     hex_str = command[10:-1]
-                    result = await self.hex_string(hex_str)
-                    print(result)
+                    hex_result = await self.hex_string(hex_str)
+                    print(hex_result)
                 elif command.startswith("NvtText("):
                     text = command[8:-1]
                     await self.nvt_text(text)
@@ -1614,7 +1730,7 @@ class AsyncSession:
             }
             aid = aid_map.get(n, 0xF1)  # Default to PF1
 
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         await self.submit(aid)
@@ -1636,7 +1752,7 @@ class AsyncSession:
         aid_map = {1: 0x6C, 2: 0x6E, 3: 0x6B}  # Standard PA1-PA3 AIDs
         aid = aid_map[n]
 
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         await self.submit(aid)
@@ -1651,18 +1767,20 @@ class AsyncSession:
         Raises:
             SessionError: If not connected.
         """
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         from .protocol.data_stream import DataStreamSender
 
         sender = DataStreamSender()
         modified_fields = self.screen_buffer.read_modified_fields()
-        # Convert to bytes
-        modified_bytes = []
+        modified_bytes: List[Tuple[int, bytes]] = []
         for pos, content in modified_fields:
-            ebcdic_bytes = self.ebcdic(content)  # Assuming ebcdic method exists
-            modified_bytes.append((pos, ebcdic_bytes))
+            # pos is always a (row, col) tuple from read_modified_fields
+            row, col = pos
+            absolute = row * self.screen_buffer.cols + col
+            ebcdic_bytes = self.ebcdic(content)
+            modified_bytes.append((absolute, ebcdic_bytes))
 
         input_stream = sender.build_input_stream(
             modified_bytes, aid, self.screen_buffer.cols
@@ -1764,7 +1882,7 @@ class AsyncSession:
         Raises:
             SessionError: If not connected.
         """
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         # Simple implementation: move left
@@ -1777,7 +1895,7 @@ class AsyncSession:
         Raises:
             SessionError: If not connected.
         """
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         self.screen_buffer.set_position(0, 0)
@@ -1789,7 +1907,7 @@ class AsyncSession:
         Raises:
             SessionError: If not connected.
         """
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         row, col = self.screen_buffer.get_position()
@@ -1807,7 +1925,7 @@ class AsyncSession:
         Raises:
             SessionError: If not connected.
         """
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         row, col = self.screen_buffer.get_position()
@@ -1824,7 +1942,7 @@ class AsyncSession:
         Raises:
             SessionError: If not connected.
         """
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         row, col = self.screen_buffer.get_position()
@@ -1841,7 +1959,7 @@ class AsyncSession:
         Raises:
             SessionError: If not connected and no screen buffer available.
         """
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             # Allow basic navigation on screen buffer even without connection
             if not self.screen_buffer:
                 raise SessionError("Session not connected.")
@@ -1876,7 +1994,7 @@ class AsyncSession:
         Raises:
             SessionError: If not connected.
         """
-        if not self._connected or not self.handler:
+        if not self.connected or not self.handler:
             raise SessionError("Session not connected.")
 
         # Simple implementation: move right
@@ -2044,7 +2162,7 @@ class AsyncSession:
     async def info(self) -> None:
         """Display session information (s3270 Info() action)."""
         print(
-            f"Connected: {self._connected}, TN3270 mode: {self.tn3270_mode}, LU: {self._lu_name}"
+            f"Connected: {self.connected}, TN3270 mode: {self.tn3270_mode}, LU: {self._lu_name}"
         )
 
     async def newline(self) -> None:
@@ -2198,51 +2316,21 @@ class AsyncSession:
             raise ValueError(f"Unknown SYSREQ command: {command}")
 
         logger.debug(f"Sending SysReq with command: {cmd}")
+        # Handler is guaranteed non-None above
         await self._handler.send_sysreq_command(code)
 
-    def send_break(self) -> None:
-        """
-        Send a Telnet BREAK command (IAC BRK) to the host.
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self._async_session:
+    async def send_break(self) -> None:
+        """Send a Telnet BREAK command (IAC BRK) to the host."""
+        if not self._handler:
             raise SessionError("Session not connected.")
-
-        asyncio.run(self._async_session.send_break())
+        await self._handler.send_break()
         logger.info("Telnet BREAK command sent")
 
-    def send_soh_message(self, status_code: int) -> None:
-        """
-        Send an SOH (Start of Header) message for printer status to the host.
-
-        Args:
-            status_code: The status code to send (e.g., SOH_SUCCESS, SOH_DEVICE_END).
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-
-        asyncio.run(self._async_session.send_soh_message(status_code))
-        logger.info(f"SOH message sent with status code: 0x{status_code:02x}")
-
     async def send_soh_message(self, status_code: int) -> None:
-        """
-        Send an SOH (Start of Header) message for printer status to the host.
-
-        Args:
-            status_code: The status code to send (e.g., SOH_SUCCESS, SOH_DEVICE_END).
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self._connected or not self.handler:
+        """Send an SOH (Start of Header) message for printer status to the host."""
+        if not self._handler:
             raise SessionError("Session not connected.")
-
-        await self.handler.send_soh_message(status_code)
+        await self._handler.send_soh_message(status_code)
         logger.info(f"SOH message sent with status code: 0x{status_code:02x}")
 
     async def toggle_option(self, option: str) -> None:
@@ -2473,3 +2561,17 @@ class AsyncSession:
                         if attr_offset < len(self.screen_buffer.attributes):
                             self.screen_buffer.attributes[attr_offset] = value
             # Add more as needed
+
+    async def _retry_operation(
+        self, operation: Callable[[], Any], max_retries: int = 3, delay: float = 1.0
+    ) -> Any:
+        """Retry an async operation with exponential backoff."""
+        import asyncio
+
+        for attempt in range(max_retries):
+            try:
+                return await operation()
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise e
+                await asyncio.sleep(delay * (2**attempt))

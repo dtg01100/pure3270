@@ -5,7 +5,39 @@
 [![Linting](https://github.com/dtg01100/pure3270/actions/workflows/linting.yml/badge.svg)](https://github.com/dtg01100/pure3270/actions/workflows/linting.yml)
 [![GitHub Pages](https://img.shields.io/badge/coverage-reports-blue)](https://dtg01100.github.io/pure3270/)
 
-Pure3270 is a self-contained, pure Python 3.8+ implementation of a 3270 terminal emulator, designed to emulate the functionality of the `s3270` terminal emulator. It integrates seamlessly with the `p3270` library through runtime monkey-patching, allowing you to replace `p3270`'s dependency on the external `s3270` binary without complex setup. The library uses standard asyncio for networking with no external telnet dependencies and supports TN3270 and TN3270E protocols, full 3270 emulation (screen buffer, fields, keyboard simulation), and optional SSL/TLS.
+Pure3270 is a self-contained, pure Python 3.11+ implementation of a 3270 terminal emulator, designed to emulate the functionality of the `s3270` terminal emulator. It integrates seamlessly with the `p3270` library through runtime monkey-patching, allowing you to replace `p3270`'s dependency on the external `s3270` binary without complex setup. The library uses standard asyncio for networking with no external telnet dependencies and supports TN3270 and TN3270E protocols, full 3270 emulation (screen buffer, fields, keyboard simulation), and optional SSL/TLS.
+
+New in recent builds: optional negotiation trace recorder for deterministic inspection of Telnet/TN3270E negotiation (see "Negotiation Trace Recorder").
+
+## Table of Contents
+
+- [What's New in v0.2.1](#whats-new-in-v021)
+- [Installation](#installation)
+    - [Create and Activate Virtual Environment](#1-create-and-activate-virtual-environment)
+    - [Install Pure3270](#2-install-pure3270)
+    - [Development Container (DevContainer)](#development-container-devcontainer)
+    - [Development Dependencies](#development-dependencies)
+    - [Pre-commit Hooks](#pre-commit-hooks)
+- [Documentation](#documentation)
+- [Exports](#exports)
+    - [Quick Start Snippets](#quick-start-snippets)
+- [Usage](#usage)
+    - [Patching p3270 for Seamless Integration](#patching-p3270-for-seamless-integration)
+    - [Standalone Usage](#standalone-usage)
+        - [Synchronous Usage](#synchronous-usage)
+        - [Asynchronous Usage](#asynchronous-usage)
+        - [Negotiation Trace Recorder](#negotiation-trace-recorder)
+- [API Reference](#api-reference)
+- [Testing](#testing)
+    - [Running Tests](#running-tests)
+    - [Coverage Reports](#coverage-reports)
+- [CI Setup](#ci-setup)
+- [Contribution Guidelines](#contribution-guidelines)
+- [Migration Guide from s3270 / p3270](#migration-guide-from-s3270--p3270)
+- [Examples](#examples)
+- [Troubleshooting](#troubleshooting)
+- [Credits](#credits)
+- [License and Contributing](#license-and-contributing)
 
 ## What's New in v0.2.1
 
@@ -30,7 +62,7 @@ For architecture details, see [`architecture.md`](architecture.md).
 
 ## Installation
 
-Pure3270 requires Python 3.8 or later. It is recommended to use a virtual environment for isolation.
+Pure3270 now requires Python 3.11 or later (EOL Python versions <3.11 are no longer supported). It is recommended to use a virtual environment for isolation.
 
 ### 1. Create and Activate Virtual Environment
 
@@ -246,6 +278,58 @@ async def main():
 
 asyncio.run(main())
 ```
+
+### Negotiation Trace Recorder
+
+For debugging negotiation flows (Telnet DO/WILL/DONT/WONT, TN3270E device/function exchanges, fallbacks, timeouts) enable the built-in lightweight trace recorder.
+
+Enable it via the `enable_trace` flag on `Session` / `AsyncSession`:
+
+```python
+from pure3270 import Session
+
+session = Session(enable_trace=True)
+session.connect('host.example.com', 23)
+# ... perform operations / initial negotiation happens during connect ...
+events = session.get_trace_events()
+for e in events:
+    print(e.kind, e.details)
+session.close()
+```
+
+Async variant:
+
+```python
+import asyncio
+from pure3270 import AsyncSession
+
+async def main():
+    async with AsyncSession(enable_trace=True) as s:
+        await s.connect('host.example.com', 23)
+        # Inspect negotiation events
+        for e in s.get_trace_events():
+            print(f"{e.kind}: {e.details}")
+
+asyncio.run(main())
+```
+
+Event kinds currently recorded:
+
+- `telnet` – Incoming/outgoing Telnet option commands (fields: direction, command, option)
+- `subneg` – Raw subnegotiation payloads (fields: option, length, preview)
+- `decision` – Final mode decision or fallback (fields: requested, chosen, fallback_used)
+- `error` – Negotiation errors/timeouts/refusals (fields: message)
+
+The recorder is inert when disabled (single conditional branch), so leaving it off in production has negligible overhead.
+
+You can serialize the event list manually if needed:
+
+```python
+import json
+json_payload = json.dumps([{'kind': e.kind, **e.details, 'ts': e.ts} for e in session.get_trace_events()], indent=2)
+```
+
+Future enhancements may add richer structured field tracing and export helpers.
 
 **Executing Macros:**
 ```python

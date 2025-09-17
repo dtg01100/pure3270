@@ -50,8 +50,11 @@ pip install -e .[test]
 # Quick smoke test (0.07 seconds)
 python quick_test.py
 
-# All built-in tests (0.6 seconds)
-python run_all_tests.py
+# Modern CI system (recommended)
+./ci.sh
+
+# Full CI suite (matches GitHub Actions)
+./ci.sh full
 
 # Code formatting
 python -m black pure3270/

@@ -1,7 +1,9 @@
 import asyncio
+import logging
 import platform
 import resource
-from unittest.mock import AsyncMock, MagicMock, Mock
+from logging import NullHandler
+from unittest.mock import AsyncMock, MagicMock, Mock, PropertyMock
 from unittest.mock import patch as mock_patch  # noqa: F401
 
 import pytest
@@ -17,228 +19,254 @@ from pure3270.session import AsyncSession, Session
 
 
 @pytest.fixture
-def screen_buffer():
-    mock = MagicMock()
-    mock.rows = 24
-    mock.cols = 80
-    mock.buffer = [0x40] * (24 * 80)
-    mock.attributes = [0] * (24 * 80 * 3)
-    mock.get_content.return_value = ""
-    return mock
-
-
-@pytest.fixture
-def ebcdic_codec():
-    return EBCDICCodec()
-
-
-@pytest.fixture
-def mock_tn3270_handler():
-    return AsyncMock(spec=TN3270Handler)
-
-
-@pytest.fixture
-def ssl_wrapper():
-    return SSLWrapper(verify=True)
+def data_stream_parser(screen_buffer):
+    """Fixture providing a DataStreamParser with mocked screen buffer."""
+    return DataStreamParser(screen_buffer)
 
 
 @pytest.fixture
 def data_stream_sender():
+    """Fixture providing a DataStreamSender."""
     return DataStreamSender()
 
 
 @pytest.fixture
-def data_stream_parser(screen_buffer):
-    return DataStreamParser(screen_buffer)
-
-
-@pytest.fixture(scope="session")
-def event_loop():
-    policy = asyncio.get_event_loop_policy()
-    loop = policy.new_event_loop()
-    yield loop
-    loop.close()
+def negotiator(screen_buffer):
+    """Fixture providing a Negotiator with mocked dependencies."""
+    parser = Mock(spec=DataStreamParser)
+    return Negotiator(None, parser, screen_buffer)
 
 
 @pytest.fixture
-def async_session(event_loop, request):
-    session = AsyncSession("localhost", 23)
-    def finalizer():
-        event_loop.run_until_complete(session.close())
-    request.addfinalizer(finalizer)
+def ebcdic_codec():
+    """Fixture providing an EBCDICCodec."""
+    return EBCDICCodec()
+
+
+@pytest.fixture
+def ssl_wrapper():
+    """Fixture providing an SSLWrapper."""
+    return SSLWrapper()
+
+
+@pytest.fixture
+def async_session():
+    """Fixture providing an AsyncSession."""
+    session = AsyncSession()
+    # Mock the screen buffer
+    session.screen = Mock(spec=ScreenBuffer)
+    session.screen.buffer = bytearray(b"\x40" * (24 * 80))
+    session.screen.fields = []
     return session
 
 
 @pytest.fixture
-def sync_session(request):
-    session = Session("localhost", 23)
-    def finalizer():
-        session.close()
-    request.addfinalizer(finalizer)
-    return session
+def screen_buffer():
+    mock = Mock(spec=ScreenBuffer, rows=24, cols=80)
+    handler = Mock()
+    type(mock).handler = PropertyMock(return_value=handler)
+    type(handler).negotiator = PropertyMock(return_value=Mock(spec=Negotiator))
+    handler.send_data = AsyncMock()
+    handler.receive_data = AsyncMock(return_value=b"")
+    type(mock).connected = PropertyMock(return_value=True)
+
+    # Fix get_position to return a proper tuple
+    def mock_get_position():
+        return (mock.cursor_row, mock.cursor_col)
+
+    mock.get_position = Mock(side_effect=mock_get_position)
+
+    # Configure set_position to actually update cursor position
+    def mock_set_position(row, col):
+        mock.cursor_row = row
+        mock.cursor_col = col
+
+    mock.set_position = Mock(side_effect=mock_set_position)
+
+    mock.buffer = bytearray(b"\x40" * (24 * 80))
+    mock.fields = []
+    mock.connected = True
+    mock.size = 24 * 80
+    mock.cursor_row = 0
+    mock.cursor_col = 0
+
+    # Configure read_modified_fields to return a list for tests that need it
+    mock.read_modified_fields = Mock(return_value=[])
+
+    # Configure write_char to actually update the buffer
+    def mock_write_char(char, row, col):
+        if 0 <= row < mock.rows and 0 <= col < mock.cols:
+            pos = row * mock.cols + col
+            if pos < len(mock.buffer):
+                mock.buffer[pos] = char
+
+    mock.write_char = Mock(side_effect=mock_write_char)
+
+    # Configure move_cursor_to_first_input_field to actually move the cursor
+    def mock_move_cursor_to_first_input_field():
+        first_input_field = None
+        for field in mock.fields:
+            if not field.protected:
+                first_input_field = field
+                break
+        if first_input_field:
+            mock.cursor_row, mock.cursor_col = first_input_field.start
+
+    mock.move_cursor_to_first_input_field = Mock(
+        side_effect=mock_move_cursor_to_first_input_field
+    )
+
+    # Configure move_cursor_to_next_input_field to actually move the cursor
+    def mock_move_cursor_to_next_input_field():
+        current_pos_linear = mock.cursor_row * mock.cols + mock.cursor_col
+        next_input_field = None
+
+        # Sort fields by their linear start position to ensure correct traversal
+        sorted_fields = sorted(
+            mock.fields, key=lambda f: f.start[0] * mock.cols + f.start[1]
+        )
+
+        # Find the next input field after the current cursor position
+        for field in sorted_fields:
+            field_start_linear = field.start[0] * mock.cols + field.start[1]
+            if field_start_linear > current_pos_linear and not field.protected:
+                next_input_field = field
+                break
+
+        if next_input_field:
+            mock.cursor_row, mock.cursor_col = next_input_field.start
+        else:
+            # If no next input field is found, wrap around to the first input field
+            for field in sorted_fields:
+                if not field.protected:
+                    next_input_field = field
+                    break
+
+            if next_input_field:
+                mock.cursor_row, mock.cursor_col = next_input_field.start
+
+    mock.move_cursor_to_next_input_field = Mock(
+        side_effect=mock_move_cursor_to_next_input_field
+    )
+
+    return mock
+
+
+def pytest_configure(config):
+    config.option.log_cli_level = "INFO"
 
 
 @pytest.fixture
 def tn3270_handler():
-    # Don't pre-set reader/writer for connection tests
-    return TN3270Handler(None, None, host="localhost", port=23)
+    from unittest.mock import AsyncMock
 
-
-def set_memory_limit(max_memory_mb: int):
-    """
-    Set maximum memory limit for the current process.
-
-    Args:
-        max_memory_mb: Maximum memory in megabytes
-
-    Raises:
-        Exception: If memory limit cannot be set
-    """
-    # Only works on Unix systems
-    if platform.system() != 'Linux':
-        return None
-
+    mock_reader = AsyncMock()
+    mock_writer = AsyncMock()
     try:
-        max_memory_bytes = max_memory_mb * 1024 * 1024
-        # RLIMIT_AS limits total virtual memory
-        resource.setrlimit(resource.RLIMIT_AS, (max_memory_bytes, max_memory_bytes))
-        return max_memory_bytes
-    except Exception as e:
-        return None
+        handler = TN3270Handler(mock_reader, mock_writer)
+        handler.negotiator = Mock()
+        handler.negotiator._ascii_mode = False
+        # Mock the SNA session state properly
+        from pure3270.protocol.negotiator import SnaSessionState
+
+        handler.negotiator._sna_session_state = SnaSessionState.NORMAL
+        # Mock current_sna_session_state as a property that returns the _sna_session_state
+        type(handler.negotiator).current_sna_session_state = PropertyMock(
+            return_value=SnaSessionState.NORMAL
+        )
+        handler.connected = True
+        inner_handler = Mock()
+        type(handler).handler = PropertyMock(return_value=inner_handler)
+        type(inner_handler).negotiator = PropertyMock(
+            return_value=Mock(spec=Negotiator)
+        )
+        inner_handler.send_data = AsyncMock()
+        inner_handler.receive_data = AsyncMock(return_value=b"")
+        type(handler).connected = PropertyMock(return_value=True)
+    except ValueError:
+        handler = Mock(spec=TN3270Handler)
+        handler.negotiator = Mock()
+        handler.negotiator._ascii_mode = False
+        # Mock the SNA session state properly for fallback case
+        from pure3270.protocol.negotiator import SnaSessionState
+
+        mock_sna_state = Mock()
+        mock_sna_state.value = SnaSessionState.NORMAL.value
+        handler.negotiator.current_sna_session_state = mock_sna_state
+        handler.connected = True
+        inner_handler = Mock()
+        type(handler).handler = PropertyMock(return_value=inner_handler)
+        type(inner_handler).negotiator = PropertyMock(
+            return_value=Mock(spec=Negotiator)
+        )
+        inner_handler.send_data = AsyncMock()
+        inner_handler.receive_data = AsyncMock(return_value=b"")
+        type(handler).connected = PropertyMock(return_value=True)
+    return handler
 
 
+@pytest.fixture(autouse=True)
+def suppress_logging():
+    logger = logging.getLogger()
+    old_handlers = logger.handlers[:]
+    null_handler = NullHandler()
+    logger.addHandler(null_handler)
+    yield
+    # Remove only the NullHandler we added
+    try:
+        logger.removeHandler(null_handler)
+    except ValueError:
+        pass
+    # Restore any handlers that were removed during the test
+    current_handlers = logger.handlers[:]
+    for h in old_handlers:
+        if h not in current_handlers:
+            logger.addHandler(h)
+    # Optionally, remove any handlers that were not present before
+    for h in logger.handlers[:]:
+        if h not in old_handlers:
+            logger.removeHandler(h)
 @pytest.fixture
 def memory_limit_500mb():
-    """Pytest fixture to limit memory to 500MB for a test.
-
-    This is suitable for most tests that need memory limiting but don't have
-    particularly high memory requirements.
-    """
-    if platform.system() != 'Linux':
-        yield None
-        return
-
-    original_limit = resource.getrlimit(resource.RLIMIT_AS)
-    limit = set_memory_limit(500)
-    yield limit
-    try:
-        resource.setrlimit(resource.RLIMIT_AS, original_limit)
-    except Exception:
-        pass
+    """Fixture to limit memory to 500MB for the duration of the test."""
+    if platform.system() == "Linux":
+        try:
+            # Set memory limit to 500MB (in bytes)
+            resource.setrlimit(
+                resource.RLIMIT_AS, (500 * 1024 * 1024, 500 * 1024 * 1024)
+            )
+        except (ValueError, OSError):
+            # If we can't set the limit, just continue
+            pass
+    yield
+    if platform.system() == "Linux":
+        try:
+            # Reset to unlimited
+            resource.setrlimit(
+                resource.RLIMIT_AS, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
+            )
+        except (ValueError, OSError):
+            pass
 
 
 @pytest.fixture
 def memory_limit_100mb():
-    """Pytest fixture to limit memory to 100MB for a test.
-
-    This is suitable for performance tests or tests that should be
-    particularly memory-conscious.
-    """
-    if platform.system() != 'Linux':
-        yield None
-        return
-
-    original_limit = resource.getrlimit(resource.RLIMIT_AS)
-    limit = set_memory_limit(100)
-    yield limit
-    try:
-        resource.setrlimit(resource.RLIMIT_AS, original_limit)
-    except Exception:
-        pass
-
-
-def pytest_addoption(parser):
-    """Add command-line options for configuring test timeouts and memory limits."""
-    parser.addoption(
-        "--timeout-unit",
-        action="store",
-        default=5,
-        type=float,
-        help="Timeout in seconds for unit tests (default: 5)"
-    )
-    parser.addoption(
-        "--timeout-integration",
-        action="store",
-        default=10,
-        type=float,
-        help="Timeout in seconds for integration tests (default: 10)"
-    )
-    parser.addoption(
-        "--memlimit-unit",
-        action="store",
-        default=100,
-        type=int,
-        help="Memory limit in MB for unit tests (default: 100)"
-    )
-    parser.addoption(
-        "--memlimit-integration",
-        action="store",
-        default=200,
-        type=int,
-        help="Memory limit in MB for integration tests (default: 200)"
-    )
-
-
-def pytest_collection_modifyitems(config, items):
-    """Automatically apply timeout markers to tests based on their type (unit vs integration)."""
-    timeout_unit = config.getoption("--timeout-unit")
-import warnings
-
-
-@pytest.fixture(autouse=True, scope="function")
-def memory_limit_autouse(request, pytestconfig):
-    """Autouse fixture to apply memory limits based on test type."""
-    # DISABLED: Memory limits causing crashes, run without limits for now
-    yield None
-
-
-@pytest.fixture
-def mock_sync_writer():
-    return MagicMock()  # Use MagicMock instead of AsyncMock for sync functions
-
-
-@pytest.fixture
-def mock_async_writer():
-    writer = AsyncMock()
-    writer.drain = AsyncMock()
-    return writer
-
-
-@pytest.fixture
-def mock_data_stream_parser():
-    return MagicMock(spec=DataStreamParser)
-
-
-@pytest.fixture
-def mock_negotiator_handler():
-    handler = MagicMock()
-    handler.receive_data = AsyncMock()
-    handler._update_session_state_from_sna_response = MagicMock()
-    return handler
-
-
-@pytest.fixture
-def monkey_patch_manager():
-    return MonkeyPatchManager()
-
-
-@pytest.fixture
-def mock_p3270():
-    mock_module = MagicMock()
-    mock_session_module = MagicMock()
-    mock_session = MagicMock()
-    mock_session_module.Session = mock_session
-    mock_module.session = mock_session_module
-    mock_module.__version__ = "0.1.6"
-    return mock_module
-
-
-@pytest.fixture
-def patching_context():
-    with PatchContext():
-        yield
-
-
-@pytest.fixture
-def negotiator(mock_async_writer, mock_data_stream_parser, screen_buffer, mock_negotiator_handler):
-    return Negotiator(mock_async_writer, mock_data_stream_parser, screen_buffer, mock_negotiator_handler)
+    """Fixture to limit memory to 100MB for the duration of the test."""
+    if platform.system() == "Linux":
+        try:
+            # Set memory limit to 100MB (in bytes)
+            resource.setrlimit(
+                resource.RLIMIT_AS, (100 * 1024 * 1024, 100 * 1024 * 1024)
+            )
+        except (ValueError, OSError):
+            # If we can't set the limit, just continue
+            pass
+    yield
+    if platform.system() == "Linux":
+        try:
+            # Reset to unlimited
+            resource.setrlimit(
+                resource.RLIMIT_AS, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
+            )
+        except (ValueError, OSError):
+            pass

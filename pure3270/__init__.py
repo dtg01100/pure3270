@@ -11,11 +11,12 @@ import os
 import sys
 
 from .patching import enable_replacement
+from .protocol.exceptions import MacroError
 from .session import AsyncSession, Session
 
 
 class JSONFormatter(logging.Formatter):
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         log_entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "level": record.levelname,
@@ -33,7 +34,7 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(log_entry, ensure_ascii=False)
 
 
-def setup_logging(level="INFO"):
+def setup_logging(level: str = "INFO") -> None:
     """
     Setup basic logging configuration.
 
@@ -54,7 +55,7 @@ def setup_logging(level="INFO"):
         logging.basicConfig(level=getattr(logging, level.upper()))
 
 
-def main():
+def main() -> None:
     """CLI entry point for s3270-compatible interface."""
     parser = argparse.ArgumentParser(description="pure3270 - 3270 Terminal Emulator")
     parser.add_argument("host", help="Host to connect to")
@@ -100,7 +101,10 @@ def main():
                 print("Non-interactive session: skipping interactive prompt.")
 
     except Exception as e:
-        print(f"Connection failed: {e}")
+        if hasattr(e, "context") and e.context:
+            print(f"Connection failed: {e} (Context: {e.context})")
+        else:
+            print(f"Connection failed: {e}")
     finally:
         session.close()
         print("Disconnected.")
@@ -110,6 +114,10 @@ if __name__ == "__main__":
     main()
 
 
-from .protocol.exceptions import MacroError
-
-__all__ = ["Session", "AsyncSession", "enable_replacement", "setup_logging", "MacroError"]
+__all__ = [
+    "Session",
+    "AsyncSession",
+    "enable_replacement",
+    "setup_logging",
+    "MacroError",
+]

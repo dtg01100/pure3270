@@ -19,9 +19,13 @@ def main():
     # Load environment variables from .env file
     load_dotenv()
 
-    parser = argparse.ArgumentParser(description="Test connection to a real TN3270 system")
+    parser = argparse.ArgumentParser(
+        description="Test connection to a real TN3270 system"
+    )
     parser.add_argument("--host", help="Host to connect to")
-    parser.add_argument("--port", type=int, default=23, help="Port to connect to (default: 23)")
+    parser.add_argument(
+        "--port", type=int, default=23, help="Port to connect to (default: 23)"
+    )
     parser.add_argument("--ssl", action="store_true", help="Use SSL/TLS connection")
     parser.add_argument("--user", help="Username for login (optional)")
     parser.add_argument("--password", help="Password for login (optional)")
@@ -36,7 +40,9 @@ def main():
 
     # Validate that we have a host
     if not host:
-        print("Error: Host must be provided either via --host argument or TN3270_HOST environment variable")
+        print(
+            "Error: Host must be provided either via --host argument or TN3270_HOST environment variable"
+        )
         sys.exit(1)
 
     # Setup logging
@@ -52,6 +58,7 @@ def main():
         # Create session with SSL context if needed
         if args.ssl:
             import ssl
+
             ssl_context = ssl.create_default_context()
             session = Session(host=host, port=args.port, ssl_context=ssl_context)
         else:
@@ -68,16 +75,16 @@ def main():
             # Read initial screen
             print("\n--- Initial Screen ---")
             screen_data = session.read()
-            print(screen_data.decode('ascii', errors='ignore'))
+            print(screen_data.decode("ascii", errors="ignore"))
 
             # If user and password provided, attempt login
             if user and password:
                 print(f"\n--- Attempting login with {user} ---")
                 # Send username
-                session.send(f"String({user})".encode('ascii'))
+                session.send(f"String({user})".encode("ascii"))
                 session.send(b"key Tab")  # Move to password field
                 # Send password
-                session.send(f"String({password})".encode('ascii'))
+                session.send(f"String({password})".encode("ascii"))
                 session.send(b"key Enter")  # Submit
 
                 # Wait a moment for response
@@ -86,7 +93,7 @@ def main():
                 # Read post-login screen
                 print("\n--- Post-Login Screen ---")
                 screen_data = session.read()
-                print(screen_data.decode('ascii', errors='ignore'))
+                print(screen_data.decode("ascii", errors="ignore"))
 
             # Wait for user input before closing (only in interactive mode)
             if sys.stdin.isatty():

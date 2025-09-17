@@ -2,30 +2,78 @@
 
 import logging
 import struct
-from typing import TYPE_CHECKING, List, Optional, Tuple
+import traceback
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    cast,
+)
 
 from ..emulation.printer_buffer import PrinterBuffer  # Import PrinterBuffer
 from ..emulation.screen_buffer import ScreenBuffer  # Import ScreenBuffer
-from .utils import (BIND_IMAGE, NVT_DATA, PRINT_EOJ, PRINTER_STATUS_DATA_TYPE,
-                    QUERY_REPLY_CHARACTERISTICS, QUERY_REPLY_COLOR,
-                    QUERY_REPLY_DBCS_ASIA, QUERY_REPLY_DBCS_EUROPE,
-                    QUERY_REPLY_DBCS_MIDDLE_EAST, QUERY_REPLY_DDM,
-                    QUERY_REPLY_DEVICE_TYPE, QUERY_REPLY_EXTENDED_ATTRIBUTES,
-                    QUERY_REPLY_FORMAT_STORAGE, QUERY_REPLY_GRAPHICS,
-                    QUERY_REPLY_GRID, QUERY_REPLY_HIGHLIGHTING,
-                    QUERY_REPLY_LINE_TYPE, QUERY_REPLY_OEM_AUXILIARY_DEVICE,
-                    QUERY_REPLY_PROCEDURE, QUERY_REPLY_RPQ_NAMES,
-                    QUERY_REPLY_SEGMENT, QUERY_REPLY_SF,
-                    QUERY_REPLY_TRANSPARENCY, REQUEST, RESPONSE, SCS_DATA)
+from .utils import (
+    BIND_IMAGE,
+    NVT_DATA,
+    PRINT_EOJ,
+    PRINTER_STATUS_DATA_TYPE,
+    QUERY_REPLY_CHARACTERISTICS,
+    QUERY_REPLY_COLOR,
+    QUERY_REPLY_DBCS_ASIA,
+    QUERY_REPLY_DBCS_EUROPE,
+    QUERY_REPLY_DBCS_MIDDLE_EAST,
+    QUERY_REPLY_DDM,
+    QUERY_REPLY_DEVICE_TYPE,
+    QUERY_REPLY_EXTENDED_ATTRIBUTES,
+    QUERY_REPLY_FORMAT_STORAGE,
+    QUERY_REPLY_GRAPHICS,
+    QUERY_REPLY_GRID,
+    QUERY_REPLY_HIGHLIGHTING,
+    QUERY_REPLY_LINE_TYPE,
+    QUERY_REPLY_OEM_AUXILIARY_DEVICE,
+    QUERY_REPLY_PROCEDURE,
+    QUERY_REPLY_RPQ_NAMES,
+    QUERY_REPLY_SEGMENT,
+    QUERY_REPLY_SF,
+    QUERY_REPLY_TRANSPARENCY,
+    REQUEST,
+    RESPONSE,
+    SCS_DATA,
+)
 from .utils import SNA_RESPONSE as SNA_RESPONSE_TYPE
-from .utils import (SSCP_LU_DATA, TN3270_DATA, TN3270E_BIND_IMAGE,
-                    TN3270E_DATA_STREAM_CTL, TN3270E_DEVICE_TYPE,
-                    TN3270E_FUNCTIONS, TN3270E_IBM_3278_2, TN3270E_IBM_3278_3,
-                    TN3270E_IBM_3278_4, TN3270E_IBM_3278_5, TN3270E_IBM_3279_2,
-                    TN3270E_IBM_3279_3, TN3270E_IBM_3279_4, TN3270E_IBM_3279_5,
-                    TN3270E_IBM_DYNAMIC, TN3270E_IS, TN3270E_REQUEST,
-                    TN3270E_RESPONSES, TN3270E_SCS_CTL_CODES, TN3270E_SEND,
-                    TN3270E_SYSREQ, UNBIND, BaseParser, ParseError)
+from .utils import (
+    SSCP_LU_DATA,
+    TN3270_DATA,
+    TN3270E_BIND_IMAGE,
+    TN3270E_DATA_STREAM_CTL,
+    TN3270E_DATA_TYPES,
+    TN3270E_DEVICE_TYPE,
+    TN3270E_FUNCTIONS,
+    TN3270E_IBM_3278_2,
+    TN3270E_IBM_3278_3,
+    TN3270E_IBM_3278_4,
+    TN3270E_IBM_3278_5,
+    TN3270E_IBM_3279_2,
+    TN3270E_IBM_3279_3,
+    TN3270E_IBM_3279_4,
+    TN3270E_IBM_3279_5,
+    TN3270E_IBM_DYNAMIC,
+    TN3270E_IS,
+    TN3270E_REQUEST,
+    TN3270E_RESPONSES,
+    TN3270E_SCS_CTL_CODES,
+    TN3270E_SEND,
+    TN3270E_SYSREQ,
+    UNBIND,
+    BaseParser,
+    ParseError,
+)
 
 if TYPE_CHECKING:
     from ..emulation.printer_buffer import PrinterBuffer
@@ -35,8 +83,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-
-
 # 3270 Data Stream Orders
 WCC = 0xF5
 AID = 0xF6
@@ -44,53 +90,63 @@ READ_PARTITION = 0xF1
 SBA = 0x10
 SF = 0x1D
 RA = 0xF3
+RMF = 0x2C  # Repeat to Modified Field
 GE = 0x29
 WRITE = 0x05
 EOA = 0x0D
 SCS_CTL_CODES = 0x04
 DATA_STREAM_CTL = 0x40
 STRUCTURED_FIELD = 0x3C  # '<'
-SFE = 0x28 # Start Field Extended (RFC 1576)
-IC = 0x0F # Insert Cursor
-PT = 0x0E # Program Tab
-BIND = 0xF9 # Placeholder for BIND command, not officially part of 3270 orders but used in context
+SFE = 0x28  # Start Field Extended (RFC 1576)
+IC = 0x0F  # Insert Cursor
+PT = 0x0E  # Program Tab
+BIND = 0xF9  # Placeholder for BIND command, not officially part of 3270 orders but used in context
 # Printer Status related orders/commands (research needed for exact values)
 # These are placeholders and need to be verified against 3270 printer protocol specs.
-WRITE_STRUCTURED_FIELD_PRINTER = 0x11 # Example: Write Structured Field for printer
-PRINTER_STATUS_SF = 0x01 # Example: Structured Field type for printer status
-SOH = 0x01 # Start of Header (SCS command for printer status) - often 0x01 in SCS
+WRITE_STRUCTURED_FIELD_PRINTER = 0x11  # Example: Write Structured Field for printer
+PRINTER_STATUS_SF = 0x01  # Example: Structured Field type for printer status
+SOH = 0x01  # Start of Header (SCS command for printer status) - often 0x01 in SCS
 # Other potential status indicators
-DEVICE_END = 0x00 # Placeholder for device end status
-INTERVENTION_REQUIRED = 0x01 # Placeholder for intervention required status
+DEVICE_END = 0x00  # Placeholder for device end status
+INTERVENTION_REQUIRED = 0x01  # Placeholder for intervention required status
 
 # Structured Field Types
-BIND_SF_TYPE = 0x03 # BIND-IMAGE Structured Field Type
+BIND_SF_TYPE = 0x03  # BIND-IMAGE Structured Field Type
 SF_TYPE_SFE = 0x28  # Start Field Extended
-SNA_RESPONSE_SF_TYPE = 0x01 # Example: assuming a specific SF type for SNA responses
-PRINTER_STATUS_SF_TYPE = 0x02 # Placeholder for printer status structured field type
+SNA_RESPONSE_SF_TYPE = 0x01  # Example: assuming a specific SF type for SNA responses
+PRINTER_STATUS_SF_TYPE = 0x02  # Placeholder for printer status structured field type
 
 # BIND-IMAGE Subfield IDs (RFC 2355, Section 5.1)
-BIND_SF_SUBFIELD_PSC = 0x01 # Presentation Space Control
-BIND_SF_SUBFIELD_QUERY_REPLY_IDS = 0x02 # Query Reply IDs
+BIND_SF_SUBFIELD_PSC = 0x01  # Presentation Space Control
+BIND_SF_SUBFIELD_QUERY_REPLY_IDS = 0x02  # Query Reply IDs
+
 
 class BindImage:
     """Represents a parsed BIND-IMAGE Structured Field."""
-    def __init__(self, rows: Optional[int] = None, cols: Optional[int] = None, query_reply_ids: Optional[List[int]] = None):
+
+    def __init__(
+        self,
+        rows: Optional[int] = None,
+        cols: Optional[int] = None,
+        query_reply_ids: Optional[List[int]] = None,
+    ):
         self.rows = rows
         self.cols = cols
         self.query_reply_ids = query_reply_ids if query_reply_ids is not None else []
 
-    def __repr__(self):
-        return (f"BindImage(rows={self.rows}, cols={self.cols}, "
-                f"query_reply_ids={self.query_reply_ids})")
+    def __repr__(self) -> str:
+        return (
+            f"BindImage(rows={self.rows}, cols={self.cols}, "
+            f"query_reply_ids={self.query_reply_ids})"
+        )
 
 
 # Extended Attribute Types (for SF_EXT)
-EXT_ATTR_HIGHLIGHT = 0x41 # Extended highlighting
-EXT_ATTR_COLOR = 0x42 # Color
-EXT_ATTR_CHARACTER_SET = 0x43 # Character set
-EXT_ATTR_FIELD_VALID = 0x44 # Field validation
-EXT_ATTR_OUTLINE = 0x45 # Outlining
+EXT_ATTR_HIGHLIGHT = 0x41  # Extended highlighting
+EXT_ATTR_COLOR = 0x42  # Color
+EXT_ATTR_CHARACTER_SET = 0x43  # Character set
+EXT_ATTR_FIELD_VALID = 0x44  # Field validation
+EXT_ATTR_OUTLINE = 0x45  # Outlining
 
 # Extended Highlighting Values (RFC 1576, Section 2.1.1.1)
 HIGHLIGHT_NONE = 0xF0
@@ -107,8 +163,8 @@ COLOR_PINK = 0xF3
 COLOR_GREEN = 0xF4
 COLOR_TURQUOISE = 0xF5
 COLOR_YELLOW = 0xF6
-COLOR_WHITE = 0xF7 # Default foreground
-COLOR_BLACK = 0xF8 # Default background
+COLOR_WHITE = 0xF7  # Default foreground
+COLOR_BLACK = 0xF8  # Default background
 
 # Field Validation Values (RFC 1576, Section 2.1.1.4)
 VALID_NONE = 0x00
@@ -129,10 +185,10 @@ SOH_DEVICE_END = 0x40  # SOH device end
 SOH_INTERVENTION_REQUIRED = 0x80  # SOH intervention required
 
 # SNA Response Codes (Examples, these would need to be researched from SNA documentation)
-SNA_COMMAND_RESPONSE = 0x01 # General command response
-SNA_DATA_RESPONSE = 0x02    # General data response
-SNA_RESPONSE_CODE_POSITIVE_ACK = 0x40 # Example: DR1 (Definite Response 1)
-SNA_RESPONSE_CODE_NEGATIVE_ACK = 0x80 # Example: ER (Exception Response)
+SNA_COMMAND_RESPONSE = 0x01  # General command response
+SNA_DATA_RESPONSE = 0x02  # General data response
+SNA_RESPONSE_CODE_POSITIVE_ACK = 0x40  # Example: DR1 (Definite Response 1)
+SNA_RESPONSE_CODE_NEGATIVE_ACK = 0x80  # Example: ER (Exception Response)
 
 SNA_RESPONSE_DATA_TYPE = 0x02
 
@@ -140,57 +196,75 @@ SNA_RESPONSE_DATA_TYPE = 0x02
 # These flags are often embedded within the response code byte itself or a separate byte.
 # For simplicity, we'll introduce a separate flags byte for now.
 SNA_FLAGS_NONE = 0x00
-SNA_FLAGS_DEFINITE_RESPONSE_1 = 0x01 # Request for DR1 (Definite Response 1)
-SNA_FLAGS_DEFINITE_RESPONSE_2 = 0x02 # Request for DR2 (Definite Response 2)
-SNA_FLAGS_EXCEPTION_RESPONSE = 0x04 # Indicates an exception response
-SNA_FLAGS_RSP = 0x08 # Response indicator (often 0x08 for response, 0x00 for request)
-SNA_FLAGS_CHAIN_MIDDLE = 0x10 # Middle of chain
-SNA_FLAGS_CHAIN_LAST = 0x20 # Last in chain
-SNA_FLAGS_CHAIN_FIRST = 0x40 # First in chain
+SNA_FLAGS_DEFINITE_RESPONSE_1 = 0x01  # Request for DR1 (Definite Response 1)
+SNA_FLAGS_DEFINITE_RESPONSE_2 = 0x02  # Request for DR2 (Definite Response 2)
+SNA_FLAGS_EXCEPTION_RESPONSE = 0x04  # Indicates an exception response
+SNA_FLAGS_RSP = 0x08  # Response indicator (often 0x08 for response, 0x00 for request)
+SNA_FLAGS_CHAIN_MIDDLE = 0x10  # Middle of chain
+SNA_FLAGS_CHAIN_LAST = 0x20  # Last in chain
+SNA_FLAGS_CHAIN_FIRST = 0x40  # First in chain
 
 
 # SNA Sense Codes (Examples, these would need to be researched from SNA documentation)
-SNA_SENSE_CODE_SUCCESS = 0x0000 # No error
-SNA_SENSE_CODE_INVALID_FORMAT = 0x1001 # Invalid message format
-SNA_SENSE_CODE_NOT_SUPPORTED = 0x1002 # Function not supported
-SNA_SENSE_CODE_SESSION_FAILURE = 0x2001 # Session failure
-SNA_SENSE_CODE_INVALID_REQUEST = 0x0801 # Invalid Request
-SNA_SENSE_CODE_LU_BUSY = 0x080A # LU Busy
-SNA_SENSE_CODE_INVALID_SEQUENCE = 0x1008 # Invalid Sequence
-SNA_SENSE_CODE_NO_RESOURCES = 0x080F # No Resources
-SNA_SENSE_CODE_STATE_ERROR = 0x1003 # State Error
+SNA_SENSE_CODE_SUCCESS = 0x0000  # No error
+SNA_SENSE_CODE_INVALID_FORMAT = 0x1001  # Invalid message format
+SNA_SENSE_CODE_NOT_SUPPORTED = 0x1002  # Function not supported
+SNA_SENSE_CODE_SESSION_FAILURE = 0x2001  # Session failure
+SNA_SENSE_CODE_INVALID_REQUEST = 0x0801  # Invalid Request
+SNA_SENSE_CODE_LU_BUSY = 0x080A  # LU Busy
+SNA_SENSE_CODE_INVALID_SEQUENCE = 0x1008  # Invalid Sequence
+SNA_SENSE_CODE_NO_RESOURCES = 0x080F  # No Resources
+SNA_SENSE_CODE_STATE_ERROR = 0x1003  # State Error
+
 
 class SnaResponse:
     """Represents a parsed SNA response."""
-    def __init__(self, response_type: int, flags: Optional[int] = None, sense_code: Optional[int] = None, data: Optional[object] = None):
+
+    def __init__(
+        self,
+        response_type: int,
+        flags: Optional[int] = None,
+        sense_code: Optional[int] = None,
+        data: Optional[object] = None,
+    ):
         self.response_type = response_type
         self.flags = flags
         self.sense_code = sense_code
         self.data = data
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         flags_str = f"0x{self.flags:02x}" if self.flags is not None else "None"
-        sense_code_str = f"0x{self.sense_code:04x}" if self.sense_code is not None else "None"
+        sense_code_str = (
+            f"0x{self.sense_code:04x}" if self.sense_code is not None else "None"
+        )
         if isinstance(self.data, BindImage):
             data_str = str(self.data)
+        elif isinstance(self.data, (bytes, bytearray)):
+            data_str = self.data.hex()
         else:
-            data_str = self.data.hex() if self.data else 'None'
-        return (f"SnaResponse(type=0x{self.response_type:02x}, "
-                f"flags={flags_str}, "
-                f"sense_code={sense_code_str}, "
-                f"data={data_str})")
+            data_str = "None" if self.data is None else repr(self.data)
+        return (
+            f"SnaResponse(type=0x{self.response_type:02x}, "
+            f"flags={flags_str}, "
+            f"sense_code={sense_code_str}, "
+            f"data={data_str})"
+        )
 
     def is_positive(self) -> bool:
         """Check if the response is positive."""
         # A response is positive if it's not an exception response and sense code is success or None
-        return (self.flags is None or not (self.flags & SNA_FLAGS_EXCEPTION_RESPONSE)) and \
-               (self.sense_code is None or self.sense_code == SNA_SENSE_CODE_SUCCESS)
+        flags_ok = self.flags is None or not (self.flags & SNA_FLAGS_EXCEPTION_RESPONSE)
+        sense_ok = self.sense_code is None or self.sense_code == SNA_SENSE_CODE_SUCCESS
+        return bool(flags_ok and sense_ok)
 
     def is_negative(self) -> bool:
         """Check if the response is negative."""
         # A response is negative if it's an exception response or has a non-success sense code
-        return (self.flags is not None and (self.flags & SNA_FLAGS_EXCEPTION_RESPONSE)) or \
-               (self.sense_code is not None and self.sense_code != SNA_SENSE_CODE_SUCCESS)
+        if self.flags is not None and (self.flags & SNA_FLAGS_EXCEPTION_RESPONSE):
+            return True
+        if self.sense_code is not None and self.sense_code != SNA_SENSE_CODE_SUCCESS:
+            return True
+        return False
 
     def get_sense_code_name(self) -> str:
         """Get a human-readable name for the sense code."""
@@ -205,7 +279,10 @@ class SnaResponse:
             SNA_SENSE_CODE_NO_RESOURCES: "NO_RESOURCES",
             SNA_SENSE_CODE_STATE_ERROR: "STATE_ERROR",
         }
-        return sense_names.get(self.sense_code, f"UNKNOWN_SENSE(0x{self.sense_code:04x})")
+        code = self.sense_code
+        if code is None:
+            return "NO_SENSE_CODE"
+        return sense_names.get(code, f"UNKNOWN_SENSE(0x{code:04x})")
 
     def get_response_type_name(self) -> str:
         """Get a human-readable name for the response type."""
@@ -215,7 +292,9 @@ class SnaResponse:
             SNA_RESPONSE_CODE_POSITIVE_ACK: "POSITIVE_ACKNOWLEDGMENT",
             SNA_RESPONSE_CODE_NEGATIVE_ACK: "NEGATIVE_ACKNOWLEDGMENT",
         }
-        return response_type_names.get(self.response_type, f"UNKNOWN_RESPONSE_TYPE(0x{self.response_type:02x})")
+        return response_type_names.get(
+            self.response_type, f"UNKNOWN_RESPONSE_TYPE(0x{self.response_type:02x})"
+        )
 
     def get_flags_name(self) -> str:
         """Get a human-readable name for the flags."""
@@ -244,7 +323,12 @@ class SnaResponse:
 class DataStreamParser:
     """Parses incoming 3270 data streams and updates the screen buffer."""
 
-    def __init__(self, screen_buffer: "ScreenBuffer", printer_buffer: Optional["PrinterBuffer"] = None, negotiator: Optional["Negotiator"] = None):
+    def __init__(
+        self,
+        screen_buffer: "ScreenBuffer",
+        printer_buffer: Optional["PrinterBuffer"] = None,
+        negotiator: Optional["Negotiator"] = None,
+    ) -> None:
         """
         Initialize the DataStreamParser.
 
@@ -252,15 +336,41 @@ class DataStreamParser:
         :param printer_buffer: PrinterBuffer to update for printer sessions.
         :param negotiator: Negotiator instance for communicating dimension updates.
         """
-        self.screen = screen_buffer
-        self.printer = printer_buffer
-        self.negotiator = negotiator
-        self.parser = None
-        self.wcc = None  # Write Control Character
-        self.aid = None  # Attention ID
-        self._is_scs_data_stream = False # Flag to indicate if the current stream is SCS data
-        self._data = b""
-        self._pos = 0
+        self.screen: ScreenBuffer = screen_buffer
+        self.printer: Optional[PrinterBuffer] = printer_buffer
+        self.negotiator: Optional["Negotiator"] = negotiator
+        # Core parsing state (BaseParser defined in utils)
+        self.parser: Optional[BaseParser] = None
+        self.wcc: Optional[int] = None  # Write Control Character
+        self.aid: Optional[int] = None  # Attention ID
+        self._is_scs_data_stream = (
+            False  # Flag to indicate if the current stream is SCS data
+        )
+        self._data: bytes = b""
+        self._pos: int = 0
+
+        # Map of order byte -> handler callable. Some handlers take a byte argument (WCC/AID/etc.).
+        self._order_handlers: Dict[int, Callable[..., None]] = {
+            WCC: self._handle_wcc_with_byte,
+            SBA: self._handle_sba,
+            SF: self._handle_sf,
+            RA: self._handle_ra,
+            RMF: self._handle_rmf,
+            GE: self._handle_ge,
+            IC: self._handle_ic,
+            PT: self._handle_pt,
+            SCS_CTL_CODES: self._handle_scs,
+            WRITE: self._handle_write,
+            EOA: self._handle_eoa,
+            AID: self._handle_aid_with_byte,
+            READ_PARTITION: self._handle_read_partition,
+            # Wrap _handle_sfe to satisfy Callable[..., None] mapping
+            SFE: cast(Callable[..., None], lambda: self._handle_sfe()),
+            STRUCTURED_FIELD: self._handle_structured_field,
+            BIND: self._handle_bind,
+            DATA_STREAM_CTL: self._handle_data_stream_ctl,
+            SOH: self._handle_soh,
+        }
 
     def get_aid(self) -> Optional[int]:
         """Get the current AID value."""
@@ -293,7 +403,9 @@ class DataStreamParser:
                 self.printer.end_job()
             return
         elif data_type == BIND_IMAGE:
-            logger.info(f"Received BIND_IMAGE data type: {data.hex()}. Delegating to BIND-IMAGE structured field handler.")
+            logger.info(
+                f"Received BIND_IMAGE data type: {data.hex()}. Delegating to BIND-IMAGE structured field handler."
+            )
             # Accept both full Structured Field wrappers (0x3C + length(2) + type(1) + payload)
             # and raw payloads. Tests patch _handle_bind_sf expecting the payload only, so
             # extract and pass exactly that when possible.
@@ -307,22 +419,45 @@ class DataStreamParser:
                     # Payload length = length - 1 (SF type byte included in length)
                     payload_len = max(0, length - 1)
                     payload = data[4 : 4 + payload_len]
-                    logger.debug(f"Structured field raw: {data.hex()}; sf_type=0x{sf_type:02x} payload_len={payload_len} payload={payload.hex()}")
+                    logger.debug(
+                        f"Structured field raw: {data.hex()}; sf_type=0x{sf_type:02x} payload_len={payload_len} payload={payload.hex()}"
+                    )
                     self._handle_bind_sf(payload)
                 else:
-                    logger.debug(f"Passing BIND_IMAGE data as-is to _handle_bind_sf: {data.hex()}")
+                    logger.debug(
+                        f"Passing BIND_IMAGE data as-is to _handle_bind_sf: {data.hex()}"
+                    )
                     self._handle_bind_sf(data)
             except ParseError:
                 raise
             return
         elif data_type == SNA_RESPONSE_TYPE:
-            logger.info(f"Received SNA_RESPONSE data type: {data.hex()}. Parsing SNA response.")
-            sna_response = self._parse_sna_response(data)
-            if self.negotiator:
-                self.negotiator.handle_sna_response(sna_response)
+            logger.info(
+                f"Received SNA_RESPONSE data type: {data.hex()}. Parsing SNA response."
+            )
+            try:
+                sna_response = self._parse_sna_response(data)
+                if self.negotiator:
+                    handler = getattr(self.negotiator, "_handle_sna_response", None)
+                    if handler is not None:
+                        try:
+                            handler_callable = cast(
+                                Callable[[SnaResponse], None], handler
+                            )
+                            handler_callable(sna_response)
+                        except Exception:
+                            logger.warning(
+                                "Negotiator _handle_sna_response raised", exc_info=True
+                            )
+            except ParseError as e:
+                logger.warning(
+                    f"Failed to parse SNA response variant: {e}, consuming data"
+                )
             return
         elif data_type == TN3270E_SCS_CTL_CODES:
-            logger.info(f"Received TN3270E_SCS_CTL_CODES data type: {data.hex()}. Processing SCS control codes.")
+            logger.info(
+                f"Received TN3270E_SCS_CTL_CODES data type: {data.hex()}. Processing SCS control codes."
+            )
             self._handle_scs_ctl_codes(data)
             return
         elif data_type == RESPONSE:
@@ -331,81 +466,85 @@ class DataStreamParser:
         elif data_type == REQUEST:
             logger.info(f"Received REQUEST data type: {data.hex()}.")
             return
-        elif data_type not in [TN3270_DATA, SCS_DATA]:
-            logger.warning(f"Unhandled TN3270E data type: 0x{data_type:02x}. Processing as TN3270_DATA.")
+        elif data_type not in TN3270E_DATA_TYPES:
+            logger.warning(
+                f"Unhandled TN3270E data type: 0x{data_type:02x}. Processing as TN3270_DATA."
+            )
             data_type = TN3270_DATA
 
         if data_type == SCS_DATA and self.printer:
             logger.info("Received SCS_DATA - routing to printer buffer")
             self._handle_scs_data(data)
             return
-        
-        # Mirror parser-visible state for tests and external inspection
+
+        # Initialize parser-visible state for tests and external inspection
         self._data = data
         self._pos = 0
         self.parser = BaseParser(data)
         self.wcc = None
         self.aid = None
-
+        self.screen.set_position(0, 0)
 
         try:
-            while self.parser.has_more():
-                order = self.parser.read_byte()
+            parser = self._ensure_parser()
+            while parser.has_more():
+                pos_before = self._pos
+                try:
+                    order = parser.read_byte()
+                except ParseError:
+                    stream_trace = self._data[
+                        max(0, pos_before - 5) : self._pos + 5
+                    ].hex()
+                    raise ParseError(
+                        f"Incomplete order in data stream at position {pos_before}, trace: {stream_trace}"
+                    )
 
-                if order == WCC:
-                    wcc = self._read_byte()
-                    self._handle_wcc(wcc)
-                elif order == SBA:
-                    self._handle_sba()
-                elif order == SF:
-                    self._handle_sf()
-                elif order == RA:
-                    self._handle_ra()
-                elif order == GE:
-                    self._handle_ge()
-                elif order == IC:
-                    self._handle_ic()
-                elif order == PT:
-                    self._handle_pt()
-                elif order == SCS_CTL_CODES:
-                    self._handle_scs()
-                elif order == WRITE:
-                    self._handle_write()
-                elif order == EOA:
-                    self._handle_eoa()
-                elif order == AID:
-                    aid = self._read_byte()
-                    self._handle_aid(aid)
-                elif order == READ_PARTITION:
-                    self._handle_read_partition()
-                elif order == SFE:
-                    self._handle_sfe()
-                elif order == STRUCTURED_FIELD:
-                    self._handle_structured_field()
-                elif order == BIND:
-                    self._handle_bind()
-                elif order == DATA_STREAM_CTL:
-                    # Handle DATA-STREAM-CTL (0x40) by reading the control code byte
-                    if self.parser.remaining() >= 1:
-                        ctl_code = self._read_byte()
-                        # Process control code similarly to SCS CTL codes
-                        self._handle_scs_ctl_codes(bytes([ctl_code]) if isinstance(ctl_code, int) else ctl_code)
+                if order in self._order_handlers:
+                    if order == WCC:
+                        try:
+                            wcc = self._read_byte()
+                        except ParseError:
+                            raise ParseError("Incomplete WCC order")
+                        self._order_handlers[order](wcc)
+                    elif order == AID:
+                        try:
+                            aid = self._read_byte()
+                        except ParseError:
+                            raise ParseError("Incomplete AID order")
+                        self._order_handlers[order](aid)
+                    elif order == DATA_STREAM_CTL:
+                        try:
+                            ctl_code = self._read_byte()
+                        except ParseError:
+                            raise ParseError("Incomplete DATA_STREAM_CTL order")
+                        self._order_handlers[order](ctl_code)
                     else:
-                        logger.warning("Incomplete DATA-STREAM-CTL order")
-                elif order == SOH:
-                    # SOH should be handled when there is a following status byte;
-                    # if it's the last byte, warn but do not raise to be tolerant in tests.
-                    if self.parser.remaining() >= 1:
-                        self._handle_soh()
-                    else:
-                        logger.warning("SOH encountered without following status byte; skipping")
+                        self._order_handlers[order]()
+                    self._pos = parser._pos
                 else:
-                    # Treat unknown bytes as data insertion
-                    self._insert_data(order)
+                    # Treat unknown bytes as text data
+                    self._write_text_byte(order)
+                    self._pos = parser._pos
 
             logger.debug("Data stream parsing completed successfully")
         except ParseError as e:
-            logger.warning(f"Parse error during data stream processing: {e}")
+            # Check if this is a critical parse error that should propagate
+            error_msg = str(e)
+            if any(
+                critical in error_msg
+                for critical in [
+                    "Incomplete WCC order",
+                    "Incomplete AID order",
+                    "Incomplete DATA_STREAM_CTL order",
+                ]
+            ):
+                # Critical incomplete order errors should propagate
+                raise
+            else:
+                logger.warning(f"Parse error during data stream processing: {e}")
+                # Graceful handling: do not raise, continue parsing if possible
+        except (MemoryError, KeyboardInterrupt, SystemExit):
+            # Critical system errors should propagate immediately
             raise
         except Exception as e:
             logger.error(f"Unexpected error during parsing: {e}", exc_info=True)
@@ -425,6 +564,8 @@ class DataStreamParser:
 
         Works even when `self.parser` hasn't been initialized by `parse()` (tests
         set `self._data` and `self._pos` directly)."""
+        if self._pos >= len(self._data):
+            raise ParseError("Overflow")
         if self.parser is None:
             # Create a temporary parser to read from fallback buffers.
             temp = BaseParser(getattr(self, "_data", b"") or b"")
@@ -434,6 +575,8 @@ class DataStreamParser:
             self._pos = temp._pos
             return value
 
+        if self.parser._pos >= len(self.parser._data):
+            raise ParseError("Overflow")
         value = self.parser.read_byte()
         # Mirror internal parser position so tests can inspect `self._pos`.
         try:
@@ -445,54 +588,139 @@ class DataStreamParser:
 
     def _insert_data(self, byte: int) -> None:
         """Insert data byte into screen buffer at current position."""
-        row, col = self.screen.get_position()
+        try:
+            row, col = self.screen.get_position()
+        except ValueError:
+            row, col = 0, 0
+        buffer_size = self.screen.rows * self.screen.cols
         if 0 <= row < self.screen.rows and 0 <= col < self.screen.cols:
-            self.screen.buffer[row * self.screen.cols + col] = byte
-            self.screen.set_position(row, col + 1)
+            pos = row * self.screen.cols + col
+            if pos < buffer_size:
+                self.screen.buffer[pos] = byte
+                self.screen.set_position(row, col + 1)
+            else:
+                raise ParseError("Buffer overflow")
         else:
-            logger.warning(f"Position out of bounds: ({row}, {col})")
+            raise ParseError(f"Position out of bounds: ({row}, {col})")
 
-    def _handle_wcc(self, wcc: int) -> None:
+    def _handle_wcc_with_byte(self, wcc: int) -> None:
         """Handle Write Control Character."""
+        if self.screen is None:
+            raise ParseError("Screen buffer not initialized")
         self.wcc = wcc
+        if wcc & 0x01:
+            self.screen.clear()
+        row, col = self.screen.get_position()
+        self.screen.set_position(row, col + 1)
         logger.debug(f"Set WCC to 0x{wcc:02x}")
         # Set screen state based on WCC
         # For now, just store
 
     def _handle_sba(self) -> None:
         """Handle Set Buffer Address."""
-        address_bytes = self.parser.read_fixed(2)
-        address = struct.unpack('>H', address_bytes)[0]
-        row = ((address >> 8) & 0x3F) << 2 | ((address & 0xFF) & 0xC0) >> 6
-        col = address & 0x3F
+        addr_high = self._read_byte()
+        addr_low = self._read_byte()
+        address = (addr_high << 8) | addr_low
+        # 3270 address format: address = row * 80 + col
+        row = address // 80
+        col = address % 80
+        # Clamp to screen bounds
+        row = min(row, self.screen.rows - 1)
+        col = min(col, self.screen.cols - 1)
         self.screen.set_position(row, col)
+        # Sync tracked position using ensured parser (avoids Optional access)
+        parser = self._ensure_parser()
+        self._pos = parser._pos
         logger.debug(f"Set buffer address to ({row}, {col})")
 
     def _handle_sf(self) -> None:
         """Handle Start Field."""
-        attr = self._read_byte()
+        if self.screen is None:
+            raise ParseError("Screen buffer not initialized")
+        try:
+            attr = self._read_byte()
+        except ParseError:
+            raise ParseError("Incomplete SF order")
+        row, col = self.screen.get_position()
         self.screen.set_attribute(attr)
+        self.screen.set_position(row, col + 1)
+        parser = self._ensure_parser()
+        self._pos = parser._pos
         logger.debug(f"Start field with attribute 0x{attr:02x}")
 
     def _handle_ra(self) -> None:
-        """Handle Repeat to Address."""
-        if self.parser.remaining() < 3:
+        """Handle Repeat to Address (RMA)."""
+        if self.screen is None:
+            raise ParseError("Screen buffer not initialized")
+        parser = self._ensure_parser()
+        if parser.remaining() < 3:
             logger.warning("Incomplete RA order")
             return
-        attr_type = self._read_byte()
-        address_bytes = self.parser.read_fixed(2)
-        address = struct.unpack('>H', address_bytes)[0]
-        row = ((address >> 8) & 0x3F) << 2 | ((address & 0xFF) & 0xC0) >> 6
-        col = address & 0x3F
-        logger.debug(f"Repeat to address: attr_type=0x{attr_type:02x} at row={row}, col={col}")
-        # TODO: Implement full repeat logic in screen buffer
-        # For now, move to address and log
-        self.screen.set_position(row, col)
+        # Save current position before RA
+        current_row, current_col = self.screen.get_position()
+        try:
+            attr_type = self._read_byte()
+        except ParseError:
+            raise ParseError(f"Incomplete RA order at position {self._pos}")
+        try:
+            address_bytes = parser.read_fixed(2)
+        except ParseError:
+            raise ParseError(f"Incomplete RA address at position {self._pos}")
+        address = struct.unpack(">H", address_bytes)[0]
+        target_row = ((address >> 8) & 0x3F) << 2 | ((address & 0xFF) & 0xC0) >> 6
+        target_col = address & 0x3F
+        logger.warning(
+            f"RA stub: Repeat 0x{attr_type:02x} from ({current_row}, {current_col}) to ({target_row}, {target_col})"
+        )
+        # Minimal emulation: insert attr_type from current to target (linear distance)
+        current_pos = current_row * self.screen.cols + current_col
+        target_pos = target_row * self.screen.cols + target_col
+        count = abs(target_pos - current_pos)
+        for _ in range(count):
+            self._insert_data(attr_type)
+        # Mark fields as modified if overlapping (stub: log only)
+        self.screen.set_position(
+            target_row, target_col + 1
+        )  # Advance position post-data
+
+    def _handle_rmf(self) -> None:
+        """Handle Repeat to Modified Field (RMF)."""
+        parser = self._ensure_parser()
+        if parser.remaining() < 2:
+            logger.warning("Incomplete RMF order")
+            return
+        repeat_count = self._read_byte()
+        attr_byte = self._read_byte()
+        logger.warning(
+            f"RMF stub: Repeat {repeat_count} times 0x{attr_byte:02x} in current field"
+        )
+        # Minimal emulation: insert attr_byte up to repeat_count (cap to avoid overflow)
+        max_repeat = min(
+            repeat_count,
+            self.screen.cols * self.screen.rows - self.screen.get_position()[1],
+        )
+        current_row, current_col = self.screen.get_position()
+        for i in range(max_repeat):
+            self._insert_data(attr_byte)
+            # Advance position
+            if current_col + 1 >= self.screen.cols:
+                current_row += 1
+                current_col = 0
+            else:
+                current_col += 1
+        self.screen.set_position(current_row, current_col)
+        # TODO: Mark current field as modified in screen_buffer
 
     def _handle_ge(self) -> None:
-        """Handle Graphic Ellipsis."""
-        # GE (Graphic Ellipsis) - may not take parameters in some implementations
-        logger.debug("Graphic ellipsis - not fully implemented")
+        """Handle Graphic Escape (GE)."""
+        parser = self._ensure_parser()
+        if parser.remaining() < 1:
+            logger.warning("Incomplete GE order")
+            return
+        graphic_byte = self._read_byte()
+        logger.warning(f"GE stub: Insert graphic 0x{graphic_byte:02x}")
+        self._insert_data(graphic_byte)
+        # No position advance beyond insert
 
     def _handle_ic(self) -> None:
         """Handle Insert Cursor."""
@@ -506,7 +734,8 @@ class DataStreamParser:
 
     def _handle_scs(self) -> None:
         """Handle SCS control codes order."""
-        if self.parser.has_more():
+        parser = self._ensure_parser()
+        if parser.has_more():
             code = self._read_byte()
             logger.debug(f"SCS control code: 0x{code:02x} - stub implementation")
             # TODO: Implement SCS handling if needed
@@ -518,11 +747,25 @@ class DataStreamParser:
         self.screen.clear()
         logger.debug("Write order - screen cleared")
 
+    def _write_text_byte(self, byte_value: int) -> None:
+        """Write a text byte to the current screen position."""
+        if self.screen:
+            current_row, current_col = self.screen.get_position()
+            self.screen.write_char(byte_value, current_row, current_col)
+            # Advance cursor
+            if current_col + 1 >= self.screen.cols:
+                if current_row + 1 < self.screen.rows:
+                    self.screen.set_position(current_row + 1, 0)
+                else:
+                    self.screen.set_position(0, 0)  # Wrap around
+            else:
+                self.screen.set_position(current_row, current_col + 1)
+
     def _handle_eoa(self) -> None:
         """Handle End of Aid."""
         logger.debug("End of Aid")
 
-    def _handle_aid(self, aid: int) -> None:
+    def _handle_aid_with_byte(self, aid: int) -> None:
         """Handle Attention ID."""
         self.aid = aid
         logger.debug(f"Attention ID 0x{aid:02x}")
@@ -532,40 +775,69 @@ class DataStreamParser:
         logger.debug("Read Partition - not implemented")
         # Would trigger read from keyboard, but for parser, just log
 
-    def _handle_sfe(self, sf_data: Optional[bytes] = None) -> None:
+    def _handle_sfe(self, sf_data: Optional[bytes] = None) -> Dict[int, int]:
         """Handle Start Field Extended (order or SF payload)."""
+        if self.screen is None:
+            raise ParseError("Screen buffer not initialized")
+        attrs: Dict[int, int] = {}
         if sf_data is not None:
             # Handle as SF payload: parse length, then fixed number of type-value pairs
             parser = BaseParser(sf_data)
             if not parser.has_more():
-                return
-            length = parser.read_byte()
+                return attrs
+            try:
+                length = parser.read_byte()
+            except ParseError:
+                raise ParseError("Incomplete SFE SF payload length")
             num_pairs = length // 2
             for _ in range(num_pairs):
                 if not parser.has_more():
                     break
-                attr_type = parser.read_byte()
+                try:
+                    attr_type = parser.read_byte()
+                except ParseError:
+                    raise ParseError("Incomplete SFE SF attr_type")
                 if not parser.has_more():
                     break
-                attr_value = parser.read_byte()
+                try:
+                    attr_value = parser.read_byte()
+                except ParseError:
+                    raise ParseError("Incomplete SFE SF attr_value")
                 if attr_type in (0x41, 0x42, 0x43, 0x44, 0x45):
                     self.screen.set_extended_attribute_sfe(attr_type, attr_value)
-                    logger.debug(f"SFE (SF): type 0x{attr_type:02x}, value 0x{attr_value:02x}")
-            return
+                    attrs[attr_type] = attr_value
+                    logger.debug(
+                        f"SFE (SF): type 0x{attr_type:02x}, value 0x{attr_value:02x}"
+                    )
+            return attrs
 
         # Original order handling: parse length, then fixed pairs
-        if not self.parser.has_more():
-            return
-        length = self._read_byte()
+        parser = self._ensure_parser()
+        if not parser.has_more():
+            return attrs
+        try:
+            length = self._read_byte()
+        except ParseError:
+            raise ParseError("Incomplete SFE order length")
         num_pairs = length // 2
         for _ in range(num_pairs):
-            if self.parser.remaining() < 2:
+            if parser.remaining() < 2:
                 break
-            attr_type = self._read_byte()
-            attr_value = self._read_byte()
+            try:
+                attr_type = self._read_byte()
+            except ParseError:
+                raise ParseError("Incomplete SFE order attr_type")
+            try:
+                attr_value = self._read_byte()
+            except ParseError:
+                raise ParseError("Incomplete SFE order attr_value")
             if attr_type in (0x41, 0x42, 0x43, 0x44, 0x45):
                 self.screen.set_extended_attribute_sfe(attr_type, attr_value)
-                logger.debug(f"SFE (order): type 0x{attr_type:02x}, value 0x{attr_value:02x}")
+                attrs[attr_type] = attr_value
+                logger.debug(
+                    f"SFE (order): type 0x{attr_type:02x}, value 0x{attr_value:02x}"
+                )
+        return attrs
 
     def _handle_bind(self) -> None:
         """Handle BIND order."""
@@ -574,6 +846,11 @@ class DataStreamParser:
         if self.negotiator:
             default_bind_image = BindImage(rows=24, cols=80)  # Default dimensions
             self.negotiator.handle_bind_image(default_bind_image)
+
+    def _handle_data_stream_ctl(self, ctl_code: int) -> None:
+        """Handle DATA-STREAM-CTL order."""
+        # Process control code similarly to SCS CTL codes
+        self._handle_scs_ctl_codes(bytes([ctl_code]))
 
     def _handle_structured_field(self) -> None:
         """Handle Structured Field.
@@ -592,7 +869,9 @@ class DataStreamParser:
                 self._read_byte()
             except ParseError:
                 # Can't consume; skip gracefully
-                logger.warning("Could not consume SF id while handling structured field")
+                logger.warning(
+                    "Could not consume SF id while handling structured field"
+                )
                 self._skip_structured_field()
                 return
 
@@ -602,8 +881,14 @@ class DataStreamParser:
             self._skip_structured_field()
             return
 
-        length_high = self._read_byte()
-        length_low = self._read_byte()
+        try:
+            length_high = self._read_byte()
+        except ParseError:
+            raise ParseError("Incomplete structured field length high byte")
+        try:
+            length_low = self._read_byte()
+        except ParseError:
+            raise ParseError("Incomplete structured field length low byte")
         length = (length_high << 8) | length_low
 
         # Must have at least one byte for SF type
@@ -612,7 +897,10 @@ class DataStreamParser:
             self._skip_structured_field()
             return
 
-        sf_type = self._read_byte()
+        try:
+            sf_type = self._read_byte()
+        except ParseError:
+            raise ParseError("Incomplete structured field type byte")
         logger.debug(f"Structured Field: length={length}, type=0x{sf_type:02x}")
 
         # Data length: SF length counts the type byte + data bytes
@@ -624,7 +912,9 @@ class DataStreamParser:
             sf_data = parser.read_fixed(data_len)
         except ParseError:
             # If read_fixed failed, fall back to reading what's left
-            sf_data = parser.read_fixed(parser.remaining()) if parser.remaining() > 0 else b""
+            sf_data = (
+                parser.read_fixed(parser.remaining()) if parser.remaining() > 0 else b""
+            )
 
         if sf_type == BIND_SF_TYPE:
             # Delegate BIND-IMAGE handling to a dedicated method so tests can patch it
@@ -636,7 +926,9 @@ class DataStreamParser:
 
     def _handle_unknown_structured_field(self, sf_type: int, data: bytes) -> None:
         """Handle unknown structured field with logging."""
-        logger.warning(f"Unknown structured field type 0x{sf_type:02x}, data length {len(data)}, skipping")
+        logger.warning(
+            f"Unknown structured field type 0x{sf_type:02x}, data length {len(data)}, skipping"
+        )
         self._skip_structured_field()
         # TODO: More detailed parsing or error handling if needed
 
@@ -708,7 +1000,7 @@ class DataStreamParser:
 
         # Mirror position back to object
         self._pos = parser._pos
-        if not using_temp:
+        if not using_temp and self.parser is not None:
             # keep real parser in sync
             self.parser._pos = parser._pos
 
@@ -721,7 +1013,6 @@ class DataStreamParser:
             logger.debug(f"Handled BIND-IMAGE structured field: {bind_image}")
         except ParseError as e:
             logger.warning(f"_handle_bind_sf failed to parse BIND-IMAGE: {e}")
-
 
     def _handle_scs_data(self, data: bytes) -> None:
         """Handle SCS data by routing it to the printer buffer."""
@@ -754,7 +1045,9 @@ class DataStreamParser:
         if self.printer:
             self.printer.update_status(status)
         else:
-            logger.warning(f"Received SOH status 0x{status:02x} but no printer buffer available")
+            logger.warning(
+                f"Received SOH status 0x{status:02x} but no printer buffer available"
+            )
 
     def _parse_bind_image(self, data: bytes) -> BindImage:
         """Parse BIND-IMAGE structured field with length checks and attribute parsing."""
@@ -819,12 +1112,13 @@ class DataStreamParser:
                 query_reply_ids = list(sub_data)
                 logger.debug(f"Parsed Query Reply IDs subfield: {query_reply_ids}")
             else:
-                logger.debug(f"Skipping unknown BIND-IMAGE subfield ID 0x{subfield_id:02x} (length {subfield_len})")
+                logger.debug(
+                    f"Skipping unknown BIND-IMAGE subfield ID 0x{subfield_id:02x} (length {subfield_len})"
+                )
 
         bind_image = BindImage(rows=rows, cols=cols, query_reply_ids=query_reply_ids)
         logger.debug(f"Parsed BIND-IMAGE: {bind_image}")
         return bind_image
-
 
     def _parse_sna_response(self, data: bytes) -> SnaResponse:
         """Parse SNA response structured field or data, enhanced for bind image replies and positive/negative responses."""
@@ -840,7 +1134,12 @@ class DataStreamParser:
         sense_code = None
         if parser.remaining() >= 2:
             sense_code = parser.read_u16()
-        data_part = parser.read_fixed(parser.remaining()) if parser.has_more() else None
+        # Allow data_part to later hold a BindImage instance
+        data_part: Union[bytes, BindImage, None]
+        if parser.has_more():
+            data_part = parser.read_fixed(parser.remaining())
+        else:
+            data_part = None
 
         # Enhanced parsing for specific types
         if response_type == BIND_SF_TYPE and data_part:
@@ -859,7 +1158,9 @@ class DataStreamParser:
         else:
             logger.debug("SNA response is positive")
 
-        logger.debug(f"Parsed SNA response: type=0x{response_type:02x}, flags={flags}, sense=0x{sense_code:04x if sense_code else 'None'}")
+        logger.debug(
+            f"Parsed SNA response: type=0x{response_type:02x}, flags={flags}, sense=0x{sense_code:04x if sense_code else 'None'}"
+        )
         return SnaResponse(response_type, flags, sense_code, data_part)
 
     def build_query_reply_sf(self, query_type: int, data: bytes = b"") -> bytes:
@@ -873,7 +1174,12 @@ class DataStreamParser:
         payload = bytes([query_type]) + (data or b"")
         length_val = 1 + len(payload)  # type byte + payload
         # Structured Field: SF id, length(2), SF type (QUERY_REPLY_SF), payload
-        return bytes([STRUCTURED_FIELD]) + length_val.to_bytes(2, 'big') + bytes([QUERY_REPLY_SF]) + payload
+        return (
+            bytes([STRUCTURED_FIELD])
+            + length_val.to_bytes(2, "big")
+            + bytes([QUERY_REPLY_SF])
+            + payload
+        )
 
     def build_device_type_query_reply(self) -> bytes:
         """Build a basic Device Type Query Reply SF (IBM-3278-2)."""
@@ -885,15 +1191,36 @@ class DataStreamParser:
         reply_data = bytes([device_type, num_devices, name_len]) + name + bytes([model])
         data_len = len(reply_data)
         length_val = 3 + data_len  # type + reply_data
-        return bytes([STRUCTURED_FIELD, (length_val >> 8) & 0xFF, length_val & 0xFF, QUERY_REPLY_SF]) + reply_data
+        return (
+            bytes(
+                [
+                    STRUCTURED_FIELD,
+                    (length_val >> 8) & 0xFF,
+                    length_val & 0xFF,
+                    QUERY_REPLY_SF,
+                ]
+            )
+            + reply_data
+        )
 
     def build_characteristics_query_reply(self) -> bytes:
         """Build a basic Characteristics Query Reply SF."""
         char_type = QUERY_REPLY_CHARACTERISTICS
-        reply_data = b'\x00\x00'  # Basic empty data (e.g., buffer sizes 0)
+        reply_data = b"\x00\x00"  # Basic empty data (e.g., buffer sizes 0)
         data_len = len(reply_data)
         length_val = 3 + data_len
-        return bytes([STRUCTURED_FIELD, (length_val >> 8) & 0xFF, length_val & 0xFF, QUERY_REPLY_SF]) + bytes([char_type]) + reply_data
+        return (
+            bytes(
+                [
+                    STRUCTURED_FIELD,
+                    (length_val >> 8) & 0xFF,
+                    length_val & 0xFF,
+                    QUERY_REPLY_SF,
+                ]
+            )
+            + bytes([char_type])
+            + reply_data
+        )
 
 
 class DataStreamSender:
@@ -918,7 +1245,9 @@ class DataStreamSender:
         # WCC (0xF5) + some control + WRITE (0x05) + data + EOA (0x0D)
         return b"\xf5\xc1\x05" + data + b"\x0d"
 
-    def build_input_stream(self, modified_fields: List[Tuple[int, bytes]], aid: int, cols: int) -> bytes:
+    def build_input_stream(
+        self, modified_fields: List[Tuple[int, bytes]], aid: int, cols: int
+    ) -> bytes:
         """Build input stream from modified fields."""
         # This is a simplified implementation
         stream = bytearray()
@@ -928,8 +1257,10 @@ class DataStreamSender:
             # SBA to position
             row = pos // cols
             col = pos % cols
-            sba_addr = (row << 6) | col  # Simplified addressing
-            stream.extend([SBA, sba_addr])
+            address = row * cols + col
+            addr_high = (address >> 8) & 0x3F
+            addr_low = address & 0xFF
+            stream.extend([SBA, addr_high, addr_low])
             stream.extend(field_data)
 
         stream.append(EOA)  # End of Area
@@ -938,8 +1269,9 @@ class DataStreamSender:
     def build_sba(self, row: int, col: int) -> bytes:
         """Build Set Buffer Address command."""
         # SBA + 2-byte address
-        addr_high = (row >> 4) & 0x3F  # High 6 bits of row
-        addr_low = ((row & 0x0F) << 4) | (col & 0x3F)  # Low 4 bits of row + 6 bits of col
+        address = row * 80 + col
+        addr_high = (address >> 8) & 0x3F
+        addr_low = address & 0xFF
         return bytes([SBA, addr_high, addr_low])
 
     def build_scs_ctl_codes(self, code: int) -> bytes:
@@ -978,7 +1310,7 @@ class DataStreamSender:
         """
         payload = bytes([PRINTER_STATUS_SF_TYPE, status_code])
         length = len(payload) + 2  # SF length: type (1) + length field (2) + payload
-        return bytes([STRUCTURED_FIELD]) + length.to_bytes(2, 'big') + payload
+        return bytes([STRUCTURED_FIELD]) + length.to_bytes(2, "big") + payload
 
     def build_soh_message(self, status_code: int) -> bytes:
         """Build SOH (Start of Header) message."""

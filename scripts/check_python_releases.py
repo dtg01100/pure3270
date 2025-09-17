@@ -1,7 +1,7 @@
+# This file has been renamed to avoid module name clash with archived reference version.
 #!/usr/bin/env python3
 """Script to check for new Python releases and update testing matrix."""
 
-import requests
 import json
 import shutil
 from datetime import datetime
@@ -26,6 +26,7 @@ FALLBACK_PYTHON_VERSIONS = [
     {"v": "3.9", "eol": False, "stable": True, "eol_date": "2025-10-31"},
     {"v": "3.8", "eol": True, "stable": True, "eol_date": "2024-10-07"}
 ]
+
 
 def get_latest_python_versions() -> List[Dict[str, Any]]:
     """Fetch latest Python versions from multiple sources with fallbacks."""
@@ -172,6 +173,7 @@ def detect_system_python_versions() -> List[str]:
     
     return detected_versions
 
+
 def get_supported_versions() -> List[str]:
     """Get currently supported Python versions from multiple sources."""
     # Start with pyproject.toml
@@ -221,6 +223,7 @@ def get_pyproject_versions() -> List[str]:
         print(f"Error reading pyproject.toml: {e}")
         return ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]  # Safe fallback
 
+
 def update_ci_matrix(new_versions: List[str]) -> None:
     """Update GitHub workflow matrix with new Python versions."""
     workflow_files = [
@@ -267,8 +270,7 @@ def check_for_new_releases(current_versions: List[str]) -> tuple[bool, str, List
     if not releases:
         return False, "unknown", []
     
-    latest_stable = releases[0]["v"]  # First is latest
-    
+    latest_stable = releases[0]["v"]  # First is latest    
     # Get all active versions from online source
     active_versions = {release["v"] for release in releases}
     
@@ -371,6 +373,7 @@ def main():
     except Exception as e:
         print(f"Error in main: {e}")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

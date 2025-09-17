@@ -23,14 +23,24 @@ def run_command(cmd, timeout=300, env=None):
             "shell": True,
             "capture_output": True,
             "text": True,
-            "timeout": timeout
+            "timeout": timeout,
         }
         if env is not None:
             kwargs["env"] = env
         result = subprocess.run(cmd, **kwargs)
-        print(f"[RUN TESTS DEBUG] Command completed with returncode {result.returncode}")
-        print(f"[RUN TESTS DEBUG] Stdout: {result.stdout[:500]}..." if result.stdout else "[RUN TESTS DEBUG] No stdout")
-        print(f"[RUN TESTS DEBUG] Stderr: {result.stderr[:500]}..." if result.stderr else "[RUN TESTS DEBUG] No stderr")
+        print(
+            f"[RUN TESTS DEBUG] Command completed with returncode {result.returncode}"
+        )
+        print(
+            f"[RUN TESTS DEBUG] Stdout: {result.stdout[:500]}..."
+            if result.stdout
+            else "[RUN TESTS DEBUG] No stdout"
+        )
+        print(
+            f"[RUN TESTS DEBUG] Stderr: {result.stderr[:500]}..."
+            if result.stderr
+            else "[RUN TESTS DEBUG] No stderr"
+        )
         return result.returncode == 0, result.stdout, result.stderr
     except subprocess.TimeoutExpired:
         print(f"[RUN TESTS DEBUG] Command timed out after {timeout}s")
@@ -45,11 +55,27 @@ async def main():
     print("=== Running All Pure3270 Tests ===\n")
 
     # Parse CLI arguments for runner-level limit overrides
-    parser = argparse.ArgumentParser(description="Run all pure3270 tests with configurable limits")
-    parser.add_argument("--unit-timeout", type=int, default=5, help="Timeout for unit tests (seconds)")
-    parser.add_argument("--unit-mem", type=int, default=100, help="Memory limit for unit tests (MB)")
-    parser.add_argument("--int-timeout", type=int, default=10, help="Timeout for integration tests (seconds)")
-    parser.add_argument("--int-mem", type=int, default=200, help="Memory limit for integration tests (MB)")
+    parser = argparse.ArgumentParser(
+        description="Run all pure3270 tests with configurable limits"
+    )
+    parser.add_argument(
+        "--unit-timeout", type=int, default=5, help="Timeout for unit tests (seconds)"
+    )
+    parser.add_argument(
+        "--unit-mem", type=int, default=100, help="Memory limit for unit tests (MB)"
+    )
+    parser.add_argument(
+        "--int-timeout",
+        type=int,
+        default=10,
+        help="Timeout for integration tests (seconds)",
+    )
+    parser.add_argument(
+        "--int-mem",
+        type=int,
+        default=200,
+        help="Memory limit for integration tests (MB)",
+    )
     args = parser.parse_args()
 
     # Test type classification for limit propagation (unit vs integration)
@@ -60,6 +86,7 @@ async def main():
         "Comprehensive Test": "integration",
         "Navigation Method Test": "unit",
         "Release Validation Test": "integration",
+        "Property Tests": "unit",
     }
 
     # Activate virtual environment if it exists
@@ -69,7 +96,9 @@ async def main():
 
     tests = [
         ("Quick Smoke Test", f"{venv_activate}timeout 30 python quick_test.py"),
-        ("Integration Test", ". venv/bin/activate && python integration_test.py"),
+        # Use the same conditional venv activation approach for Integration Test to
+        # avoid hard failure when venv/ is not present (will run without venv then)
+        ("Integration Test", f"{venv_activate}python integration_test.py"),
         ("CI Test", f"{venv_activate}timeout 60 python ci_test.py"),
         (
             "Comprehensive Test",
@@ -79,6 +108,10 @@ async def main():
         (
             "Release Validation Test",
             f"{venv_activate}timeout 90 python release_test.py",
+        ),
+        (
+            "Property Tests",
+            f"{venv_activate}timeout 60 pytest tests/property/ -m property -v",
         ),
     ]
 

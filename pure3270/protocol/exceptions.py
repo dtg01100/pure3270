@@ -1,25 +1,17 @@
 """Exceptions for protocol handling."""
 
+from ..exceptions import (
+    MacroError,
+    NegotiationError,
+    NotConnectedError,
+    ParseError,
+    ProtocolError,
+)
 
-class NegotiationError(Exception):
-    """Raised on negotiation failure."""
-
-    pass
-
-
-class ProtocolError(Exception):
-    """Raised on protocol errors."""
-
-    pass
-
-
-class ParseError(Exception):
-    """Raised on parsing errors."""
-
-    pass
-
-
-class MacroError(Exception):
-    """Raised on macro execution errors."""
-
-    pass
+__all__ = [
+    "NegotiationError",
+    "ProtocolError",
+    "ParseError",
+    "MacroError",
+    "NotConnectedError",
+]
