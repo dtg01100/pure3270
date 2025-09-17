@@ -89,6 +89,63 @@ When a release is published, the following automated steps occur:
 ./ci.sh precommit
 ```
 
+### Automatic Formatting Workflow
+
+The repository uses pre-commit hooks that run Black and isort in *check-only* mode. They purposely fail (rejecting the commit) when formatting changes are required, without directly modifying files. This keeps feature commits free from unrelated formatting noise.
+
+When a commit is rejected due to formatting:
+
+1. Run the auto-format helper:
+   ```bash
+   python scripts/auto_format_commit.py
+   ```
+2. The script will:
+   - Apply Black + isort formatting (using `pyproject.toml` config)
+   - Stage only files modified by formatting
+   - Create a conventional commit: `chore(format): apply black + isort auto-formatting` (with `[skip ci]`)
+
+If you want to review the changes before committing:
+```bash
+python scripts/auto_format_commit.py --no-commit
+git diff --cached
+git commit -m "chore(format): apply black + isort auto-formatting"
+```
+
+If you have additional unstaged work unrelated to formatting and still want to run the script, supply `--allow-mixed` (not generally recommended because it may stage only some files):
+```bash
+python scripts/auto_format_commit.py --allow-mixed
+```
+
+To customize the commit message:
+```bash
+python scripts/auto_format_commit.py -m "chore(format): re-run formatters"
+```
+
+Commit template for formatting-only commits lives at `.gitmessage-formatting` (optional local usage: `git config commit.template .gitmessage-formatting`).
+
+Why this design:
+- Prevents accidental inclusion of large mechanical diffs in feature commits
+- Keeps blame clean and improves review signal
+- Makes CI output clearer by isolating formatting adjustments
+
+Typical workflow example:
+```bash
+# Make code changes
+git add .
+git commit -m "feat: add new negotiation logic"  # Fails due to formatting
+python scripts/auto_format_commit.py              # Creates formatting commit
+git commit -m "feat: add new negotiation logic"  # Now succeeds
+```
+
+Resequencing commits (optional): After creating the formatting commit you can (if desired) interactively rebase to squash it into your feature commit, though generally leaving separate `chore(format)` commits is preferred for transparency.
+
+Edge cases handled by the script:
+- No changes needed -> exits successfully with message
+- Unstaged non-format changes present -> aborts (unless `--allow-mixed`)
+- Formatter instability -> warns but proceeds
+
+CI Note: Formatting commits are tagged with `[skip ci]` to avoid spending CI resources on mechanical updates. Remove the tag if you specifically want CI to run for a formatting commit.
+
 ### Before Pushing
 ```bash
 # Run the same tests as GitHub Actions
