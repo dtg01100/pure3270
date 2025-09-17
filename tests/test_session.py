@@ -1,7 +1,7 @@
 import asyncio
 import platform
 import subprocess
-from unittest.mock import ANY, AsyncMock, MagicMock, PropertyMock, mock_open, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, Mock, PropertyMock, mock_open, patch
 
 import pytest
 import pytest_asyncio
@@ -483,6 +483,7 @@ class TestSession:
         sync_session = Session("localhost", 23)
         assert sync_session.connected is False
         sync_session._async_session = AsyncSession("localhost", 23)
+        sync_session._async_session._transport = Mock()
         sync_session._async_session._transport.connected = True
         assert sync_session.connected is True
 
