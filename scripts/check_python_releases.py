@@ -214,9 +214,9 @@ def get_pyproject_versions() -> List[str]:
                 # Extract version range, e.g. ">=3.8"
                 match = re.search(r'requires-python\s*=\s*["\']([^"\']+)["\']', line)
                 if match:
-                    # Simple parse for >=3.8
-                    if match.group(1).startswith('>=3.8'):
-                        return [f"3.{minor}" for minor in range(8, 14)]  # 3.8 to 3.13
+                    # Simple parse for >=3.9
+                    if match.group(1).startswith('>=3.9'):
+                        return [f"3.{minor}" for minor in range(9, 14)]  # 3.9 to 3.13
         
         # Fallback: extract from classifiers
         versions = []
@@ -229,10 +229,10 @@ def get_pyproject_versions() -> List[str]:
         if versions:
             return sorted(list(set(versions)), key=lambda x: tuple(map(int, x.split("."))))
         
-        return ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]  # Default fallback
+        return ["3.9", "3.10", "3.11", "3.12", "3.13"]  # Default fallback
     except Exception as e:
         print(f"Error reading pyproject.toml: {e}")
-        return ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]  # Safe fallback
+        return ["3.9", "3.10", "3.11", "3.12", "3.13"]  # Safe fallback
 
 
 def update_ci_matrix(new_versions: List[str]) -> None:

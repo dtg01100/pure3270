@@ -5,7 +5,7 @@
 [![Linting](https://github.com/dtg01100/pure3270/actions/workflows/linting.yml/badge.svg)](https://github.com/dtg01100/pure3270/actions/workflows/linting.yml)
 [![GitHub Pages](https://img.shields.io/badge/coverage-reports-blue)](https://dtg01100.github.io/pure3270/)
 
-Pure3270 is a self-contained, pure Python 3.11+ implementation of a 3270 terminal emulator, designed to emulate the functionality of the `s3270` terminal emulator. It integrates seamlessly with the `p3270` library through runtime monkey-patching, allowing you to replace `p3270`'s dependency on the external `s3270` binary without complex setup. The library uses standard asyncio for networking with no external telnet dependencies and supports TN3270 and TN3270E protocols, full 3270 emulation (screen buffer, fields, keyboard simulation), and optional SSL/TLS.
+Pure3270 is a self-contained, pure Python 3.9+ implementation of a 3270 terminal emulator, designed to emulate the functionality of the `s3270` terminal emulator. It integrates seamlessly with the `p3270` library through runtime monkey-patching, allowing you to replace `p3270`'s dependency on the external `s3270` binary without complex setup. The library uses standard asyncio for networking with no external telnet dependencies and supports TN3270 and TN3270E protocols, full 3270 emulation (screen buffer, fields, keyboard simulation), and optional SSL/TLS.
 
 New in recent builds: optional negotiation trace recorder for deterministic inspection of Telnet/TN3270E negotiation (see "Negotiation Trace Recorder").
 
@@ -62,7 +62,7 @@ For architecture details, see [`architecture.md`](architecture.md).
 
 ## Installation
 
-Pure3270 now requires Python 3.11 or later (EOL Python versions <3.11 are no longer supported). It is recommended to use a virtual environment for isolation.
+Pure3270 now requires Python 3.9 or later (EOL Python versions <3.9 are no longer supported). It is recommended to use a virtual environment for isolation.
 
 ### 1. Create and Activate Virtual Environment
 
@@ -650,7 +650,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v2
       with:
-        python-version: 3.8
+        python-version: 3.9
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip

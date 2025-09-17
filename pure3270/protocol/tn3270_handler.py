@@ -472,6 +472,7 @@ class TN3270Handler:
         # Simple regex for VT100/ANSI escape sequences
         vt100_pattern = re.compile(rb"\x1b\[[0-9;]*[A-Za-z]")
         return bool(vt100_pattern.search(data))
+
     def _require_streams(self) -> Tuple[asyncio.StreamReader, asyncio.StreamWriter]:
         """Internal helper to assert reader/writer presence and return narrowed types."""
         if self.reader is None:
@@ -971,6 +972,7 @@ class TN3270Handler:
         _, writer = self._require_streams()
 
         from .utils import IAC
+
         BREAK = 0xF3  # Telnet BRK command value
         send_iac(writer, bytes([BREAK]))
         logger.debug("Sent Telnet BREAK command (IAC BRK)")
