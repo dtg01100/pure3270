@@ -464,14 +464,6 @@ class TN3270Handler:
         """
         self.negotiator.set_ascii_mode()
 
-    def _detect_vt100_sequences(self, data: bytes) -> bool:
-        """
-        Detect VT100/ANSI escape sequences in the incoming data.
-        Returns True if VT100/ANSI sequences are detected, False otherwise.
-        """
-        # Simple regex for VT100/ANSI escape sequences
-        vt100_pattern = re.compile(rb"\x1b\[[0-9;]*[A-Za-z]")
-        return bool(vt100_pattern.search(data))
     def _require_streams(self) -> Tuple[asyncio.StreamReader, asyncio.StreamWriter]:
         """Internal helper to assert reader/writer presence and return narrowed types."""
         if self.reader is None:
