@@ -56,7 +56,6 @@ jobs:
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
-          const core = require('@actions/core');
           const assignee = 'copilot';
           const issueNumber = (context.payload.issue && context.payload.issue.number) || (context.payload.comment && context.payload.comment.issue && context.payload.comment.issue.number) || null;
           if (!issueNumber) {
@@ -101,7 +100,6 @@ jobs:
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
-          const core = require('@actions/core');
           const issue = context.payload.issue || context.payload.comment.issue;
           const issueBody = issue.body;
 
