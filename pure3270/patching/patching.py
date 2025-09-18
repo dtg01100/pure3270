@@ -130,7 +130,7 @@ class MonkeyPatchManager:
         expected_version: str = "0.1.6",
     ) -> None:
         try:
-            import p3270  # type: ignore[import-untyped]  # noqa: F401
+            import p3270  # noqa: F401
 
             version_compatible = self._check_version_compatibility(
                 p3270, expected_version

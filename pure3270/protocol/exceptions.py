@@ -1,11 +1,6 @@
 """Exceptions for protocol handling."""
 
-from ..exceptions import (
-    NegotiationError,
-    NotConnectedError,
-    ParseError,
-    ProtocolError,
-)
+from ..exceptions import NegotiationError, NotConnectedError, ParseError, ProtocolError
 
 __all__ = [
     "NegotiationError",
