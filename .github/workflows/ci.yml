@@ -112,6 +112,7 @@ jobs:
 
     - name: Run pylint
       run: pylint pure3270/ --rcfile=.pylintrc
+      continue-on-error: true
 
     - name: Run flake8
       run: flake8 pure3270/

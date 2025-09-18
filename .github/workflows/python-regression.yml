@@ -190,7 +190,7 @@ jobs:
             ISSUE_TITLE="Regression Analysis: Tests failed on ${{ github.sha }}"
             EXISTING_ISSUE=$(gh issue list --repo ${{ github.repository }} --search "Regression Analysis" --state open --json number --jq '.[0].number' || echo "")
             if [[ -n "$EXISTING_ISSUE" ]]; then
-              gh issue comment ${{ github.repository }}#$EXISTING_ISSUE --body "$(cat $REPORT_PATH)"
+              gh issue comment $EXISTING_ISSUE --repo ${{ github.repository }} --body "$(cat $REPORT_PATH)"
             else
               gh issue create --repo ${{ github.repository }} --title "$ISSUE_TITLE" --body "$(cat $REPORT_PATH)"
             fi
@@ -237,7 +237,7 @@ jobs:
           ISSUE_TITLE="Python Compatibility Check: ${{ steps.results.outputs.result }}"
           EXISTING_ISSUE=$(gh issue list --repo ${{ github.repository }} --search "Python Compatibility Check" --json number --jq '.[0].number' || echo "")
           if [[ -n "$EXISTING_ISSUE" ]]; then
-            gh issue comment ${{ github.repository }}#$EXISTING_ISSUE --body "${{ steps.results.outputs.result }}"
+            gh issue comment $EXISTING_ISSUE --repo ${{ github.repository }} --body "${{ steps.results.outputs.result }}"
           else
             gh issue create --repo ${{ github.repository }} --title "$ISSUE_TITLE" --body "${{ steps.results.outputs.result }}\n\nWorkflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           fi

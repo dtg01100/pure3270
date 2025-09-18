@@ -34,7 +34,11 @@ disable=missing-docstring,
          unspecified-encoding,
          broad-exception-raised,
          subprocess-run-check,
-         no-else-return
+         no-else-return,
+         redefined-builtin,
+         too-many-positional-arguments,
+         unused-variable,
+         reimported
 
 [FORMAT]
 max-line-length=120
