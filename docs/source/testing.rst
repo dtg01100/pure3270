@@ -65,7 +65,7 @@ CI/CD Testing
 -------------
 
 GitHub Actions run:
-- Unit/integration tests across Python 3.8-3.13
+- Unit/integration tests across Python 3.9-3.13
 - Static analysis (mypy, pylint, bandit)
 - Security scanning
 - Documentation build verification

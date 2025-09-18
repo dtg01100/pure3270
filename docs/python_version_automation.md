@@ -2,13 +2,13 @@
 
 ## Overview
 
-Pure3270 includes comprehensive automation for testing and maintaining compatibility across multiple Python versions. This documentation explains the automated systems in place to ensure the library works correctly across all supported Python versions (3.8-3.13).
+Pure3270 includes comprehensive automation for testing and maintaining compatibility across multiple Python versions. This documentation explains the automated systems in place to ensure the library works correctly across all supported Python versions (3.9-3.13).
 
 ## Automated Testing Matrix
 
 Pure3270 is automatically tested on all supported Python versions using GitHub Actions:
 
-- Python 3.8
+- Python 3.9
 - Python 3.9
 - Python 3.10
 - Python 3.11

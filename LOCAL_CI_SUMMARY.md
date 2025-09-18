@@ -58,7 +58,7 @@ I've created a comprehensive local CI system that ensures your local testing mat
 ### 1. `ci.yml` - Main CI Workflow
 - **Local equivalent**: `./ci.sh full` or `python run_full_ci.py`
 - **Tests**: Unit tests, integration tests, static analysis, coverage
-- **Python versions**: 3.8-3.13
+- **Python versions**: 3.9-3.13
 
 ### 2. `quick-ci.yml` - Quick CI Workflow
 - **Local equivalent**: `./ci.sh` or `python local_ci.py`
@@ -72,7 +72,7 @@ I've created a comprehensive local CI system that ensures your local testing mat
 ### 4. `static-analysis.yml` - Static Analysis
 - **Local equivalent**: `./ci.sh static`
 - **Tests**: mypy, pylint, bandit
-- **Python versions**: 3.8-3.13
+- **Python versions**: 3.9-3.13
 
 ### 5. `comprehensive-python-testing.yml` - Comprehensive Tests
 - **Local equivalent**: `./ci.sh github`
@@ -146,7 +146,7 @@ python run_full_ci.py --fast --skip-coverage  # Targeted testing
 ## Installation and Setup
 
 ### Requirements
-- Python 3.8+ (3.11+ recommended)
+- Python 3.9+ (3.11+ recommended)
 - pip
 
 ### Optional Tools (auto-detected)
