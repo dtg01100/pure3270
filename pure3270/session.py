@@ -984,10 +984,10 @@ class AsyncSession:
     async def key(self, keyname: str) -> None:
         """
         Send key by name (s3270 Key() action).
-        
+
         Args:
             keyname: Name of key to send (e.g., "Enter", "PF1", "Clear").
-            
+
         Raises:
             ValueError: If key name is not recognized.
             SessionError: If not connected.
@@ -995,36 +995,35 @@ class AsyncSession:
         if not self.connected:
             raise SessionError(
                 "Key operation requires an active connection",
-                {"operation": "key", "keyname": keyname}
+                {"operation": "key", "keyname": keyname},
             )
-            
+
         keyname_lower = keyname.lower()
         if keyname_lower not in self.aid_map:
             raise ValueError(f"Unknown key name: {keyname}")
-            
+
         aid = self.aid_map[keyname_lower]
         await self.submit(aid)
 
     async def macro(self, commands):
         """
         Execute a simple sequence of commands for compatibility.
-        
+
         This is a minimal implementation for basic test compatibility.
         Does not implement the full macro DSL that was permanently removed.
-        
+
         Args:
             commands: List of simple command strings.
-            
+
         Raises:
             SessionError: If not connected.
             ValueError: If command format is not recognized.
         """
         if not self.connected:
             raise SessionError(
-                "Macro operation requires an active connection",
-                {"operation": "macro"}
+                "Macro operation requires an active connection", {"operation": "macro"}
             )
-            
+
         for cmd in commands:
             cmd = cmd.strip()
             # Handle simple String() command
