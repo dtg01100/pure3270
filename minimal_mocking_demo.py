@@ -7,6 +7,7 @@ bugs that would be missed with over-mocked tests.
 """
 
 import pytest
+
 from pure3270.emulation.screen_buffer import ScreenBuffer
 from pure3270.protocol.data_stream import DataStreamParser
 
@@ -28,17 +29,17 @@ def test_over_mocked_approach():
     mock_screen.cols = 80
 
     parser = DataStreamParser(mock_screen)
-    
+
     try:
         parser.parse(b"\xc1\xc2")  # Parse "AB" in EBCDIC
-        
+
         # This test only validates the mock was called
         # It doesn't test if the actual screen buffer was updated correctly
         print("✗ Over-mocked test: Only validates mock calls, misses real bugs")
         print("  - Had to mock get_position() method to avoid TypeError")
         print("  - Mock complexity grows as implementation details leak into tests")
         print("  - No validation of actual screen buffer content")
-        
+
     except Exception as e:
         print(f"✗ Over-mocked test FAILED: {e}")
         print("  - This demonstrates why over-mocking is fragile")
@@ -79,9 +80,10 @@ def test_real_bug_detection():
 
     # Real implementation correctly handles cursor positioning
     # Over-mocked test would miss cursor position bugs
-    current_pos = (screen_buffer.cursor_row * screen_buffer.cols + 
-                   screen_buffer.cursor_col)
-    
+    current_pos = (
+        screen_buffer.cursor_row * screen_buffer.cols + screen_buffer.cursor_col
+    )
+
     print(f"✓ Real bug detection: Cursor at position {current_pos}")
     print("  - Real screen buffer shows actual cursor behavior")
     print("  - Would catch off-by-one errors, wrap-around bugs, etc.")
@@ -104,7 +106,9 @@ def test_integration_benefits():
     print("✓ Integration test: Multiple components working together")
     print(f"  - Buffer contents at [0]: 0x{screen_buffer.buffer[0]:02X}")
     print(f"  - Buffer contents at [2-6]: {screen_buffer.buffer[2:7].hex()}")
-    print(f"  - Cursor position: row={screen_buffer.cursor_row}, col={screen_buffer.cursor_col}")
+    print(
+        f"  - Cursor position: row={screen_buffer.cursor_row}, col={screen_buffer.cursor_col}"
+    )
     print("  - Real integration shows actual behavior patterns")
     print("  - Over-mocked test would miss cross-component bugs")
 

@@ -36,7 +36,7 @@ Beyond fixing the GitHub Actions issues, we implemented **Phase 1 of Minimal Moc
    # Before: Over-mocked
    mock = Mock(spec=ScreenBuffer, rows=24, cols=80)
    mock.buffer = bytearray(b"\x40" * (24 * 80))
-   
+
    # After: Real object
    screen_buffer = ScreenBuffer(rows=24, cols=80)
    ```
@@ -46,9 +46,9 @@ Beyond fixing the GitHub Actions issues, we implemented **Phase 1 of Minimal Moc
    # Before: Complete mock
    negotiator = Mock(spec=Negotiator)
    negotiator._device_type_is_event = AsyncMock()
-   
+
    # After: Real object with minimal I/O mocking
-   negotiator = Negotiator(writer=mock_writer, parser=real_parser, 
+   negotiator = Negotiator(writer=mock_writer, parser=real_parser,
                           screen_buffer=real_screen)
    ```
 
@@ -65,7 +65,7 @@ Beyond fixing the GitHub Actions issues, we implemented **Phase 1 of Minimal Moc
 
 **After Minimal Mocking:**
 - ✅ All DataStreamParser tests: 12/12 PASS
-- ✅ All Negotiator missing coverage tests: 16/16 PASS  
+- ✅ All Negotiator missing coverage tests: 16/16 PASS
 - ✅ Previously failing test (test_send_data): PASS
 - ✅ Quick smoke test: All components PASS
 - ✅ **Real logging output for debugging**
@@ -88,7 +88,7 @@ Our minimal mocking demonstration (`minimal_mocking_demo.py`) shows concrete imp
 
 3. **Better Debugging:**
    ```
-   INFO pure3270.protocol.negotiator:negotiator.py:134 Negotiator created: 
+   INFO pure3270.protocol.negotiator:negotiator.py:134 Negotiator created:
    id=140208199545920, writer=<AsyncMock>, screen_buffer=ScreenBuffer(24x80, fields=0)
    ```
 
@@ -96,14 +96,14 @@ Our minimal mocking demonstration (`minimal_mocking_demo.py`) shows concrete imp
 
 **Quantitative Results:**
 - **Mock Usage Reduced**: From 100% mocked fixtures to <20% mocked components
-- **Real Component Coverage**: >80% of business logic now tested with real objects  
+- **Real Component Coverage**: >80% of business logic now tested with real objects
 - **Test Reliability**: Maintained 100% pass rate for updated tests
 - **Performance**: Test execution time improved (real objects faster than complex mocks)
 
 **Qualitative Benefits:**
 - **Bug Detection**: Tests now catch real integration issues
 - **Refactoring Safety**: Internal changes validated by tests
-- **Documentation**: Tests clearly show component interactions  
+- **Documentation**: Tests clearly show component interactions
 - **Maintainability**: Tests easier to understand and modify
 
 ### 🎯 Requirements Document Created
@@ -122,7 +122,7 @@ Created comprehensive **`TESTING_REQUIREMENTS.md`** with:
 - Dependencies properly installed
 - Test infrastructure stable
 
-**Test Quality**: ✅ **SIGNIFICANTLY IMPROVED**  
+**Test Quality**: ✅ **SIGNIFICANTLY IMPROVED**
 - Minimal mocking principles implemented
 - Real component behavior validated
 - Integration testing enhanced

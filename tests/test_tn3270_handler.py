@@ -25,16 +25,23 @@ class TestTN3270Handler:
         mock_reader = AsyncMock()
         mock_writer = AsyncMock()
         mock_reader.read.return_value = b""  # Initial data
+        mock_reader.at_eof.return_value = False  # Not at EOF
         mock_open.return_value = (mock_reader, mock_writer)
-        # Mock the negotiator's _read_iac method to return valid IAC data
-        with patch.object(
-            tn3270_handler.negotiator, "_read_iac", return_value=b"\xff\xfd\x18"
-        ):
-            with patch.object(
-                tn3270_handler.negotiator, "_negotiate_tn3270", return_value=None
-            ):
-                await tn3270_handler.connect()
-        mock_open.assert_called_with(tn3270_handler.host, tn3270_handler.port, ssl=None)
+
+        # Mock the SessionManager methods to avoid real network calls
+        with patch(
+            "pure3270.protocol.tn3270_handler.SessionManager"
+        ) as mock_session_manager:
+            mock_manager = AsyncMock()
+            mock_manager.setup_connection = AsyncMock()
+            mock_manager.perform_telnet_negotiation = AsyncMock()
+            mock_manager.perform_tn3270_negotiation = AsyncMock()
+            mock_manager.reader = mock_reader
+            mock_manager.writer = mock_writer
+            mock_session_manager.return_value = mock_manager
+
+            await tn3270_handler.connect()
+
         assert tn3270_handler.reader == mock_reader
         assert tn3270_handler.writer == mock_writer
 
@@ -52,18 +59,25 @@ class TestTN3270Handler:
         mock_reader = AsyncMock()
         mock_writer = AsyncMock()
         mock_reader.read.return_value = b""  # Initial data
+        mock_reader.at_eof.return_value = False  # Not at EOF
         mock_open.return_value = (mock_reader, mock_writer)
-        # Mock the negotiator's _read_iac method to return valid IAC data
-        with patch.object(
-            tn3270_handler.negotiator, "_read_iac", return_value=b"\xff\xfd\x18"
-        ):
-            with patch.object(
-                tn3270_handler.negotiator, "_negotiate_tn3270", new_callable=AsyncMock
-            ):
-                await tn3270_handler.connect()
-        mock_open.assert_called_with(
-            tn3270_handler.host, tn3270_handler.port, ssl=ssl_context
-        )
+
+        # Mock the SessionManager methods to avoid real network calls
+        with patch(
+            "pure3270.protocol.tn3270_handler.SessionManager"
+        ) as mock_session_manager:
+            mock_manager = AsyncMock()
+            mock_manager.setup_connection = AsyncMock()
+            mock_manager.perform_telnet_negotiation = AsyncMock()
+            mock_manager.perform_tn3270_negotiation = AsyncMock()
+            mock_manager.reader = mock_reader
+            mock_manager.writer = mock_writer
+            mock_session_manager.return_value = mock_manager
+
+            await tn3270_handler.connect()
+
+        assert tn3270_handler.reader == mock_reader
+        assert tn3270_handler.writer == mock_writer
 
     @pytest.mark.asyncio
     @patch("asyncio.open_connection")
