@@ -58,7 +58,7 @@ I've created a comprehensive local CI system that ensures your local testing mat
 ### 1. `ci.yml` - Main CI Workflow
 - **Local equivalent**: `./ci.sh full` or `python run_full_ci.py`
 - **Tests**: Unit tests, integration tests, static analysis, coverage
-- **Python versions**: 3.8-3.13
+- **Python versions**: 3.9-3.13
 
 ### 2. `quick-ci.yml` - Quick CI Workflow
 - **Local equivalent**: `./ci.sh` or `python local_ci.py`

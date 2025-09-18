@@ -97,7 +97,7 @@ Full-featured CI script that replicates all GitHub Actions tests:
 ### `ci.yml` - Main CI Workflow
 - **Triggers**: Push to main/develop, PRs to main
 - **Tests**: Unit tests, integration tests, static analysis, coverage
-- **Python versions**: 3.8-3.13
+- **Python versions**: 3.9-3.13
 - **Local equivalent**: `./ci.sh full` or `python run_full_ci.py`
 
 ### `quick-ci.yml` - Quick CI Workflow
