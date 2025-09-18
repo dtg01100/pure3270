@@ -1,20 +1,23 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/python
 {
-	"name": "Pure3270 Multi-Python Development",
-	// Use a custom Dockerfile to support multiple Python versions
-	"build": {
-		"dockerfile": "Dockerfile"
-	},
+	"name": "Pure3270 Python 3.12 Development",
+	"image": "mcr.microsoft.com/devcontainers/python:3.12-bullseye",
 	"features": {
-		"ghcr.io/devcontainers/features/github-cli": {}
+		"ghcr.io/devcontainers/features/github-cli": {},
+		"ghcr.io/devcontainers/features/docker-in-docker": {
+			"version": "latest",
+			"enableNonRootDocker": "true"
+		}
 	},
+
+	"runArgs": ["--memory=4g"],
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	"postCreateCommand": ".devcontainer/setup-python-versions.sh",
+	"postCreateCommand": "pip install -e .[dev] && curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash",
 
 	// Configure tool-specific properties.
 	"customizations": {
@@ -27,7 +30,7 @@
 				"ms-python.mypy-type-checker"
 			],
 			"settings": {
-				"python.defaultInterpreterPath": "/home/vscode/.pyenv/versions/3.12.11/bin/python",
+				"python.defaultInterpreterPath": "/usr/local/bin/python",
 				"python.terminal.activateEnvironment": false
 			}
 		}
