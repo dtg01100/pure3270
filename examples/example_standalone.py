@@ -37,8 +37,8 @@ try:
     )
 
     # Send commands: Type a string and press Enter
-    session.send("String(User Login)")  # Simulate typing into a field
-    session.send("key Enter")  # Submit the input
+    session.send(b"String(User Login)")  # Simulate typing into a field
+    session.send(b"key Enter")  # Submit the input
     print("Sent commands: 'String(User Login)' + 'key Enter'.")
 
     # Optionally, execute a macro sequence

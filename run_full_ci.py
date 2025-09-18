@@ -183,13 +183,18 @@ def run_integration_tests(fast_mode: bool = False):
     """Run integration tests."""
     print_section("Integration Tests")
 
-    # Check if integration_test.py exists
-    integration_file = Path("integration_test.py")
-    if not integration_file.exists():
-        print_warning("integration_test.py not found, skipping integration tests")
+    # Check if integration test files exist
+    integration_files = [
+        "tests/test_integration.py",
+        "tests/test_patching_integration.py",
+    ]
+    existing_files = [f for f in integration_files if Path(f).exists()]
+
+    if not existing_files:
+        print_warning("No integration test files found, skipping integration tests")
         return True
 
-    cmd = ["pytest", "integration_test.py", "-v", "--tb=short"]
+    cmd = ["pytest"] + existing_files + ["-v", "--tb=short"]
     if fast_mode:
         cmd.extend(["-x"])  # Stop on first failure
 
@@ -218,16 +223,20 @@ def run_static_analysis(missing_tools: List[str]):
         # Only fail on fatal (1) or error (2) messages
         cmd = ["pylint", "pure3270/", "--rcfile=.pylintrc"]
         print(f"\n{Colors.YELLOW}Running: {' '.join(cmd)}{Colors.RESET}")
-        
+
         try:
             result = subprocess.run(
-                cmd, capture_output=True, text=True, cwd=Path(__file__).parent, timeout=300
+                cmd,
+                capture_output=True,
+                text=True,
+                cwd=Path(__file__).parent,
+                timeout=300,
             )
-            
+
             # Pylint exit codes: 0=ok, 1=fatal, 2=error, 4=warning, 8=refactor, 16=convention
             # Accept codes 0, 4, 8, 16, and combinations (like 30 = 4+8+16)
             acceptable_codes = [0, 4, 8, 16, 12, 20, 24, 28, 30]  # Common combinations
-            
+
             if result.returncode in acceptable_codes:
                 print_success("Pylint analysis passed (warnings acceptable)")
                 success = True
@@ -238,14 +247,14 @@ def run_static_analysis(missing_tools: List[str]):
                 if result.stdout:
                     print(f"STDOUT: {result.stdout}")
                 success = False
-                
+
         except subprocess.TimeoutExpired:
             print_error("Pylint analysis timed out after 300s")
             success = False
         except Exception as e:
             print_error(f"Error running Pylint analysis: {e}")
             success = False
-            
+
         all_passed = all_passed and success
     else:
         print_warning("Skipping Pylint (not installed)")
@@ -338,8 +347,13 @@ def run_coverage_tests(missing_tools: List[str]):
     ]
 
     # Also run integration tests for coverage if they exist
-    if Path("integration_test.py").exists():
-        cmd.append("integration_test.py")
+    integration_files = [
+        "tests/test_integration.py",
+        "tests/test_patching_integration.py",
+    ]
+    for f in integration_files:
+        if Path(f).exists():
+            cmd.append(f)
 
     success, _, _ = run_command(cmd, "Coverage analysis")
 

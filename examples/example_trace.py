@@ -9,11 +9,12 @@ that initial negotiation events may be recorded (depending on availability).
 
 import asyncio
 import sys
+from typing import Any, List
 
 from pure3270 import AsyncSession
 
 
-def print_events(events):
+def print_events(events: List[Any]) -> None:
     if not events:
         print(
             "No events recorded (enable_trace may be False or negotiation not started)."

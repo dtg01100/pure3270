@@ -13,6 +13,7 @@ import argparse
 import asyncio
 import logging
 import time
+from typing import Any
 
 # Setup logging to see patching logs
 from pure3270 import setup_logging
@@ -60,7 +61,7 @@ try:
 
     logger = logging.getLogger("pure3270.protocol.tn3270_handler")
 
-    async def patched_connect(self):
+    async def patched_connect(self: Any) -> None:
         try:
             if self.ssl_context:
                 self.reader, self.writer = await asyncio.open_connection(
@@ -104,7 +105,9 @@ try:
             raise ConnectionError(f"Failed to connect to {self.host}:{self.port}")
 
     # Apply the patch to the class
-    TN3270Handler.connect = patched_connect
+    # Note: This is just a demonstration - use MonkeyPatchManager for production
+    original_connect = TN3270Handler.connect
+    setattr(TN3270Handler, "connect", patched_connect)
 
     # Attempt a mock connection (will fail without real host, but demonstrates flow)
     try:

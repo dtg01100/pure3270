@@ -247,7 +247,9 @@ def get_pyproject_versions() -> List[str]:
                         return [f"3.{minor}" for minor in range(9, 14)]  # 3.9 to 3.13
                     # Fallback for old >=3.8 syntax
                     elif match.group(1).startswith(">=3.8"):
-                        return [f"3.{minor}" for minor in range(9, 14)]  # Updated minimum
+                        return [
+                            f"3.{minor}" for minor in range(9, 14)
+                        ]  # Updated minimum
 
         # Fallback: extract from classifiers
         versions = []
