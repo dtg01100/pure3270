@@ -83,7 +83,7 @@ jobs:
 
     - name: Install CI tools
       run: |
-        pip install mypy pylint bandit pre-commit isort
+        pip install mypy pylint bandit pre-commit isort pytest-cov
 
     - name: Display Python and package versions
       run: |

@@ -26,7 +26,6 @@ from pure3270.protocol.utils import (
 @pytest.mark.skipif(
     platform.system() != "Linux", reason="Memory limiting only supported on Linux"
 )
-@pytest.mark.asyncio
 class TestNegotiatorMissingCoverage:
     """Tests for missing coverage in negotiator.py"""
 

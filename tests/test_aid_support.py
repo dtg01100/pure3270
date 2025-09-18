@@ -31,7 +31,6 @@ class TestAIDSupport:
         session._async_session.pf.assert_called_once_with(1)
         mock_run.assert_called_once()
 
-    @pytest.mark.asyncio
     @patch("pure3270.session.asyncio.run")
     def test_session_pa_calls_async_pa(self, mock_run, memory_limit_500mb):
         """Test that Session.pa calls AsyncSession.pa."""
