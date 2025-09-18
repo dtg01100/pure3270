@@ -45,12 +45,17 @@ This release marks a significant milestone with the completion of all high and m
 
 - **Complete s3270 Compatibility**: Implementation of all missing s3270 actions including Compose(), Cookie(), Expect(), and Fail()
 - **Full AID Support**: Complete support for all PA (1-3) and PF (1-24) keys
-- **Async Refactor**: Complete async refactor with `AsyncSession` supporting connect, macro execution, and managed context
+- **Async Refactor**: Complete async refactor with `AsyncSession` supporting connect and managed context
 - **Protocol Enhancements**: Complete TN3270E protocol support with printer session capabilities
 - **Enhanced Field Handling**: Improved field attribute handling and modification tracking for RMF/RMA commands
-- **Comprehensive Macro Support**: Advanced macro execution with conditional branching and variable substitution
+
+Important: Macro scripting/DSL has been removed and will not be reintroduced. Pull requests adding macro DSL will be declined.
 
 For detailed release notes, see [RELEASE_NOTES.md](RELEASE_NOTES.md).
+
+## Scope and Limitations
+
+Macro mode is out of scope for this project and will not be implemented. It was removed and will not be reintroduced.
 
 Key features:
 - **Zero-configuration opt-in**: Call [`enable_replacement()`](pure3270/__init__.py) to patch `p3270` automatically.
@@ -256,10 +261,7 @@ finally:
     session.close()
 ```
 
-Supports macros:
-```python
-session.execute_macro('String(hello);key Enter')
-```
+Important: Macro scripting/DSL has been removed and will not be reintroduced. PRs proposing its return will not be accepted.
 
 #### Asynchronous Usage
 
@@ -331,19 +333,7 @@ json_payload = json.dumps([{'kind': e.kind, **e.details, 'ts': e.ts} for e in se
 
 Future enhancements may add richer structured field tracing and export helpers.
 
-**Executing Macros:**
-```python
-import asyncio
-from pure3270 import AsyncSession
-
-async def main():
-    async with AsyncSession() as session:
-        await session.connect('your-host.example.com', port=23, ssl=False)
-        await session.execute_macro('String(hello);key Enter')
-        print(await session.read())
-
-asyncio.run(main())
-```
+\
 
 **Using Managed Context:**
 The `managed` context manager ensures proper session lifecycle:

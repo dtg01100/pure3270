@@ -24,7 +24,7 @@ def print_events(events):
         print(f"  {e.ts:7.3f}s  {e.kind:9}  {e.details}")
 
 
-async def main():
+async def main() -> None:
     host = sys.argv[1] if len(sys.argv) > 1 else "mock-tn3270-host.example.com"
     port = int(sys.argv[2]) if len(sys.argv) > 2 else 23
 

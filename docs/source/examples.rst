@@ -31,21 +31,7 @@ Standalone Asynchronous Session
 
    asyncio.run(main())
 
-Executing Macros Asynchronously
--------------------------------
-
-.. code-block:: python
-
-   import asyncio
-   from pure3270 import AsyncSession
-
-   async def main():
-       async with AsyncSession() as session:
-           await session.connect('your-host.example.com', port=23, ssl=False)
-           await session.execute_macro('String(hello);key Enter')
-           print(await session.read())
-
-   asyncio.run(main())
+\
 
 Integration with p3270
 ----------------------

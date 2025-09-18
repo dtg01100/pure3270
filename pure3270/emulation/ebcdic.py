@@ -4,14 +4,14 @@ Based on IBM Code Page 037.
 """
 
 import logging
-from typing import Optional
+from typing import Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
 # Optional dependency: prefer `ebcdic` package when available for explicit
 # encode/decode helpers, but fall back to the stdlib codec for CP037.
 try:
-    import ebcdic  # type: ignore
+    import ebcdic  # type: ignore[import-untyped]
 except Exception:
     ebcdic = None
 
@@ -40,7 +40,7 @@ def _decode_cp037(data: bytes) -> str:
         return data.decode("cp037", errors="replace")
 
 
-def _encode_cp037(text: str | bytes) -> bytes:
+def _encode_cp037(text: Union[str, bytes]) -> bytes:
     """Encode a Python string or bytes into EBCDIC CP037 bytes.
 
     Accepts either `str` or `bytes`. If `bytes` are provided they are
@@ -55,7 +55,7 @@ def _encode_cp037(text: str | bytes) -> bytes:
         try:
             # latin-1 maps bytes 1:1 to unicode codepoints
             if isinstance(text, (bytes, bytearray)):
-                text_bytes: bytes | bytearray = text
+                text_bytes: Union[bytes, bytearray] = text
                 text = text_bytes.decode("latin-1")
         except Exception:
             if isinstance(text, (bytes, bytearray)):
@@ -116,7 +116,7 @@ def get_p3270_version() -> Optional[str]:
         return importlib.metadata.version("p3270")
     except Exception:
         try:
-            import p3270  # type: ignore
+            import p3270  # type: ignore[import-untyped]
 
             return getattr(p3270, "__version__", None)
         except Exception:
@@ -194,7 +194,7 @@ class EBCDICCodec:
                 out_chars.append("z")
         return ("".join(out_chars), len(out_chars))
 
-    def encode(self, text: str | bytes) -> tuple[bytes, int]:
+    def encode(self, text: Union[str, bytes]) -> Tuple[bytes, int]:
         """Encode text to EBCDIC bytes, returning (bytes, length).
 
         Accepts either `str` or `bytes`. If `bytes` are provided they are
@@ -206,7 +206,7 @@ class EBCDICCodec:
             return (b"", 0)
         if isinstance(text, (bytes, bytearray)):
             try:
-                text_bytes: bytes | bytearray = text
+                text_bytes: Union[bytes, bytearray] = text
                 text = text_bytes.decode("latin-1")
             except Exception:
                 if isinstance(text, (bytes, bytearray)):

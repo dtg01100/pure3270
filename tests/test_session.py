@@ -1,14 +1,22 @@
 import asyncio
 import platform
 import subprocess
-from unittest.mock import ANY, AsyncMock, MagicMock, PropertyMock, mock_open, patch
+from unittest.mock import (
+    ANY,
+    AsyncMock,
+    MagicMock,
+    Mock,
+    PropertyMock,
+    mock_open,
+    patch,
+)
 
 import pytest
 import pytest_asyncio
 
 from pure3270.emulation.screen_buffer import Field, ScreenBuffer
 from pure3270.protocol.tn3270_handler import TN3270Handler
-from pure3270.session import AsyncSession, MacroError, Session, SessionError
+from pure3270.session import AsyncSession, Session, SessionError
 
 
 @pytest.fixture
@@ -16,12 +24,12 @@ async def async_session():
     session = AsyncSession("localhost", 23)
     session._handler = AsyncMock(spec=TN3270Handler)
     session._handler.send_data = AsyncMock(side_effect=[b"test", None])
-    session._handler.receive_data = AsyncMock(return_value=b"")
+    session._handler.receive_data = AsyncMock(return_value=b"test output")
     session._handler.close = AsyncMock()
-    session._handler.connected = True
-    session.connected = True
+    session._handler.connected = False
     type(session).handler = PropertyMock(return_value=session._handler)
-    type(session).connected = PropertyMock(return_value=True)
+    # Don't mock connected here - let tests control it
+    # type(session).connected = PropertyMock(return_value=False)
     return session
 
 
@@ -31,15 +39,13 @@ def sync_session():
     async_session = AsyncSession("localhost", 23)
     async_session._handler = AsyncMock(spec=TN3270Handler)
     async_session._handler.send_data = AsyncMock()
-    async_session._handler.receive_data = AsyncMock()
-    async_session._handler.connected = True
-    async_session.connected = True
+    async_session._handler.receive_data = AsyncMock(return_value=b"test output")
+    async_session._handler.connected = False
     type(async_session).handler = PropertyMock(return_value=async_session._handler)
-    type(async_session).connected = PropertyMock(return_value=True)
+    # Remove connected PropertyMock to allow tests to control connection state
     session._async_session = async_session
-    session.connected = True
-    type(session).handler = PropertyMock(return_value=session._async_session._handler)
-    type(session).connected = PropertyMock(return_value=True)
+    type(session).handler = PropertyMock(return_value=async_session._handler)
+    # Remove connected PropertyMock to allow tests to control connection state
     return session
 
 
@@ -48,11 +54,10 @@ async def async_session():
     session = AsyncSession("localhost", 23)
     session._handler = AsyncMock(spec=TN3270Handler)
     session._handler.send_data = AsyncMock()
-    session._handler.receive_data = AsyncMock()
-    session._handler.connected = True
-    session.connected = True
+    session._handler.receive_data = AsyncMock(return_value=b"test output")
     type(session).handler = PropertyMock(return_value=session._handler)
-    type(session).connected = PropertyMock(return_value=True)
+    # Don't mock connected here - let tests control it
+    # type(session).connected = PropertyMock(return_value=False)
     return session
 
 
@@ -189,9 +194,9 @@ class TestAsyncSession:
             await fresh_session.read()
 
     async def test_close(self, async_session):
-        # Remove the connected property mock for this test to allow real behavior
-        if hasattr(type(async_session), "connected"):
-            delattr(type(async_session), "connected")
+        # Remove the handler property mock for this test to allow real behavior
+        if hasattr(type(async_session), "handler"):
+            delattr(type(async_session), "handler")
 
         async_session._handler = AsyncMock()
         async_session._handler.close = AsyncMock()
@@ -205,19 +210,25 @@ class TestAsyncSession:
         assert async_session._handler is None
 
     async def test_close_no_handler(self, async_session):
-        # Remove the connected property mock for this test to allow real behavior
-        if hasattr(type(async_session), "connected"):
-            delattr(type(async_session), "connected")
+        # Remove the handler property mock for this test to allow real behavior
+        if hasattr(type(async_session), "handler"):
+            delattr(type(async_session), "handler")
 
         await async_session.close()
         assert async_session.connected is False
 
-    def test_connected(self):
-        # Use a minimal session without mocked connected property
-        session = AsyncSession("localhost", 23)
-        assert session.connected is False
-        session.connected = True
-        assert session.connected is True
+    @pytest.mark.asyncio
+    async def test_connected(self):
+        import asyncio
+        from unittest.mock import patch
+
+        with patch("pure3270.patching.enable_replacement", side_effect=AttributeError):
+            # Use a minimal session without mocked connected property
+            session = AsyncSession("localhost", 23)
+            assert session.connected is False
+            session.connected = True
+            assert session.connected is True
+            await asyncio.sleep(0)
 
     async def test_managed_context(self, async_session):
         async_session.connected = True
@@ -225,193 +236,6 @@ class TestAsyncSession:
         async with async_session.managed():
             assert async_session.connected is True
         async_session.close.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_conditional_branching(self):
-        """Test conditional branching in execute_macro."""
-        session = AsyncSession("localhost", 23)
-        with patch("pure3270.session.asyncio.open_connection") as mock_open, patch(
-            "pure3270.session.TN3270Handler"
-        ) as mock_handler:
-            mock_reader = AsyncMock()
-            mock_writer = AsyncMock()
-            mock_open.return_value = (mock_reader, mock_writer)
-            mock_handler.return_value = AsyncMock()
-            mock_reader.readexactly.return_value = b"\xff\xfb\x27"
-            mock_reader.read.return_value = b"\x28\x00\x01\x00"
-            mock_handler.return_value.set_ascii_mode = AsyncMock()
-            await session.connect()
-        session.send = AsyncMock()
-        session.read = AsyncMock(return_value=b"output")
-
-        macro = "if connected: key Enter"
-        vars_dict = {}
-        result = await session.execute_macro(macro, vars_dict)
-
-        assert result["success"] is True
-        assert len(result["output"]) == 1
-        assert "output" in result["output"][0]
-        session.send.assert_called_once_with(b"key Enter")
-
-    @pytest.mark.asyncio
-    async def test_variable_substitution(self):
-        """Test variable substitution in execute_macro."""
-        session = AsyncSession("localhost", 23)
-        with patch("pure3270.session.asyncio.open_connection") as mock_open, patch(
-            "pure3270.session.TN3270Handler"
-        ) as mock_handler:
-            mock_reader = AsyncMock()
-            mock_writer = AsyncMock()
-            mock_open.return_value = (mock_reader, mock_writer)
-            mock_handler.return_value = AsyncMock()
-            mock_reader.readexactly.return_value = b"\xff\xfb\x27"
-            mock_reader.read.return_value = b"\x28\x00\x01\x00"
-            mock_handler.return_value.set_ascii_mode = AsyncMock()
-            await session.connect()
-
-        # Mock the submit method instead of send
-        session.submit = AsyncMock()
-
-        macro = "key ${action}"
-        vars_dict = {"action": "PF3"}
-        result = await session.execute_macro(macro, vars_dict)
-
-        assert result["success"] is True
-        assert len(result["output"]) == 1
-        assert "Key sent: pf3" in result["output"][0]
-        # Verify that submit was called with the PF3 AID (0xF3)
-        session.submit.assert_called_once_with(0xF3)
-
-    @pytest.mark.asyncio
-    async def test_nested_macros(self):
-        """Test nested macros in execute_macro."""
-        session = AsyncSession("localhost", 23)
-        with patch("pure3270.session.asyncio.open_connection") as mock_open, patch(
-            "pure3270.session.TN3270Handler"
-        ) as mock_handler:
-            mock_reader = AsyncMock()
-            mock_writer = AsyncMock()
-            mock_open.return_value = (mock_reader, mock_writer)
-            mock_handler.return_value = AsyncMock()
-            mock_reader.readexactly.return_value = b"\xff\xfb\x27"
-            mock_reader.read.return_value = b"\x28\x00\x01\x00"
-            mock_handler.return_value.set_ascii_mode = AsyncMock()
-            await session.connect()
-
-        # Mock the submit method
-        session.submit = AsyncMock()
-
-        # Store the sub macro first
-        session._macros["sub_macro"] = ["key Enter"]
-
-        macro = "macro sub_macro"
-        result = await session.execute_macro(macro)
-
-        assert result["success"] is True
-        assert len(result["output"]) == 1
-        # Should contain the output from the nested macro execution
-        assert "Key sent: enter" in result["output"][0]
-        session.submit.assert_called_once_with(0x7D)  # ENTER AID
-
-    @pytest.mark.asyncio
-    async def test_incompatible_patching(self):
-        """Test macro execution with incompatible patching (graceful handling)."""
-        with patch("pure3270.patching.patching.enable_replacement") as mock_patch:
-            mock_patch.side_effect = ValueError("Incompatible version")
-
-            session = AsyncSession("localhost", 23)
-            with patch("pure3270.session.asyncio.open_connection") as mock_open, patch(
-                "pure3270.session.TN3270Handler"
-            ) as mock_handler:
-                mock_reader = AsyncMock()
-                mock_writer = AsyncMock()
-                mock_open.return_value = (mock_reader, mock_writer)
-                mock_handler.return_value = AsyncMock()
-                mock_reader.readexactly.return_value = b"\xff\xfb\x27"
-                mock_reader.read.return_value = b"\x28\x00\x01\x00"
-                mock_handler.return_value.set_ascii_mode = AsyncMock()
-                await session.connect()
-            session.send = AsyncMock()
-            session.read = AsyncMock(return_value=b"output")
-
-            macro = "key Enter"
-            result = await session.execute_macro(macro)
-
-            assert result["success"] is True
-            assert len(result["output"]) == 1
-            assert "output" in result["output"][0]
-
-    @pytest.mark.asyncio
-    async def test_execute_macro_malformed(self, async_session):
-        """Test macro execution with malformed script raising MacroError."""
-        with patch("pure3270.session.asyncio.open_connection") as mock_open, patch(
-            "pure3270.session.TN3270Handler"
-        ) as mock_handler:
-            mock_reader = AsyncMock()
-            mock_writer = AsyncMock()
-            mock_open.return_value = (mock_reader, mock_writer)
-            mock_handler.return_value = AsyncMock()
-            mock_reader.readexactly.return_value = b"\xff\xfb\x27"
-            mock_reader.read.return_value = b"\x28\x00\x01\x00"
-            mock_handler.return_value.set_ascii_mode = AsyncMock()
-            await async_session.connect()
-        with patch.object(
-            async_session, "send", side_effect=MacroError("Invalid command")
-        ):
-            result = await async_session.execute_macro("invalid_cmd;")
-        assert result["success"] is False
-        assert "Error in command" in result["output"][0]
-
-    @pytest.mark.asyncio
-    async def test_execute_macro_unhandled_exception(self, async_session):
-        """Test unhandled exception in async macro loop raises MacroError."""
-        with patch("pure3270.session.asyncio.open_connection") as mock_open, patch(
-            "pure3270.session.TN3270Handler"
-        ) as mock_handler:
-            mock_reader = AsyncMock()
-            mock_writer = AsyncMock()
-            mock_open.return_value = (mock_reader, mock_writer)
-            mock_handler.return_value = AsyncMock()
-            mock_reader.readexactly.return_value = b"\xff\xfb\x27"
-            mock_reader.read.return_value = b"\x28\x00\x01\x00"
-            mock_handler.return_value.set_ascii_mode = AsyncMock()
-            await async_session.connect()
-        async_session.send = AsyncMock()
-        async_session.read = AsyncMock(side_effect=Exception("Unhandled"))
-        result = await async_session.execute_macro("cmd1;cmd2;")
-        assert result["success"] is False
-        assert "Error in command" in result["output"][0]
-
-    @pytest.mark.asyncio
-    async def test_execute_macro_timeout(self, async_session):
-        """Test macro execution failure with timeout raises MacroError."""
-        with patch("pure3270.session.asyncio.open_connection") as mock_open, patch(
-            "pure3270.session.TN3270Handler"
-        ) as mock_handler:
-            mock_reader = AsyncMock()
-            mock_writer = AsyncMock()
-            mock_open.return_value = (mock_reader, mock_writer)
-            mock_handler.return_value = AsyncMock()
-            mock_reader.readexactly.return_value = b"\xff\xfb\x27"
-            mock_reader.read.return_value = b"\x28\x00\x01\x00"
-            mock_handler.return_value.set_ascii_mode = AsyncMock()
-            await async_session.connect()
-        async_session.send = AsyncMock()
-        async_session.read = AsyncMock(
-            side_effect=[b"output1", asyncio.TimeoutError("Timeout")]
-        )
-        result = await async_session.execute_macro("cmd1;cmd2;")
-        assert result["success"] is False
-        assert "Error in command" in result["output"][1]
-
-    @pytest.mark.asyncio
-    async def test_execute_macro_empty(self, async_session):
-        """Test macro with empty script succeeds with empty output."""
-        async_session._handler = AsyncMock()
-        async_session.connected = True
-        result = await async_session.execute_macro("")
-        assert result["success"] is True
-        assert result["output"] == []
 
 
 class TestSession:
@@ -441,6 +265,7 @@ class TestSession:
         mock_run.return_value = None
         # Set up session to be connected
         sync_session._async_session = AsyncSession("localhost", 23)
+        sync_session._async_session.connected = True  # Mark as connected
 
         sync_session.send(b"data")
 
@@ -451,22 +276,14 @@ class TestSession:
         mock_run.return_value = b"data"
         # Set up session to be connected
         sync_session._async_session = AsyncSession("localhost", 23)
+        sync_session._async_session.connected = True  # Mark as connected
 
         data = sync_session.read()
 
         assert data == b"data"
         mock_run.assert_called_once()
 
-    @patch("pure3270.session.asyncio.run")
-    def test_execute_macro(self, mock_run, sync_session):
-        mock_run.return_value = {"success": True}
-        # Set up session to be connected
-        sync_session._async_session = AsyncSession("localhost", 23)
-
-        result = sync_session.execute_macro("macro")
-
-        assert result["success"] is True
-        mock_run.assert_called_once()
+    # Macro support removed; execute_macro no longer exists on Session
 
     @patch("pure3270.session.asyncio.run")
     def test_close(self, mock_run, sync_session):
@@ -483,7 +300,9 @@ class TestSession:
         sync_session = Session("localhost", 23)
         assert sync_session.connected is False
         sync_session._async_session = AsyncSession("localhost", 23)
+        sync_session._async_session._transport = Mock()
         sync_session._async_session._transport.connected = True
+        type(sync_session._async_session).connected = PropertyMock(return_value=True)
         assert sync_session.connected is True
 
     def test_screen_buffer_property(self, sync_session):
@@ -917,29 +736,7 @@ s3270.model: 3279
         mock_logger.warning.assert_called()
         # No SessionError raised
 
-    @patch("os.path.getmtime", return_value=1234567890.0)
-    @pytest.mark.asyncio
-    async def test_load_resource_definitions_integration_macro(
-        self, mock_getmtime, async_session
-    ):
-        """Integration test: Load resources in macro and verify."""
-        # Mock connection for local operations
-        async_session.connected = True
-        async_session.handler = AsyncMock()
-
-        xrdb_content = """s3270.color1: #00FF00
-"""
-        with patch("builtins.open", mock_open(read_data=xrdb_content)):
-            # Mock macro execution to include LoadResource
-            async_session.load_resource_definitions = AsyncMock()
-            macro = "LoadResource(test.xrdb); key Enter"
-            vars_dict = {}
-            result = await async_session.execute_macro(macro, vars_dict)
-
-        # Verify LoadResource called
-        async_session.load_resource_definitions.assert_called_once_with("test.xrdb")
-        # Verify key Enter sent (macro parsing)
-        # (Actual implementation may vary)
+    # Macro DSL removed: integration via macro execution no longer supported
 
     async def test_set_field_attribute(self, async_session):
         """Test extended field attributes."""
@@ -1111,24 +908,4 @@ s3270.model: 3279
         assert async_session._handler.receive_data.call_count == 3
         # The retry logic works but doesn't log warnings, so we just verify the retries happened
 
-    @pytest.mark.asyncio
-    async def test_execute_macro_retry_wait(self, async_session):
-        """Test execute_macro retries WAIT on TimeoutError."""
-        async_session.connected = True
-        async_session._handler = MagicMock()
-        async_session._last_aid = 0x7D
-
-        macro = "WAIT(AID=ENTER, timeout=1)"
-        vars_dict = {}
-        with patch(
-            "pure3270.session.asyncio.wait_for",
-            side_effect=[
-                asyncio.TimeoutError("First WAIT fail"),
-                asyncio.TimeoutError("Second WAIT fail"),
-                None,  # Success on third
-            ],
-        ), patch("pure3270.session.logger") as mock_logger:
-            result = await async_session.execute_macro(macro, vars_dict)
-
-        assert result["success"] is True
-        assert "WAIT aid=ENTER succeeded" in result["output"][0]
+    # Macro DSL removed: execute_macro tests removed

@@ -41,3 +41,10 @@ jobs:
       run: pylint pure3270/ --rcfile=.pylintrc
     - name: Run bandit
       run: bandit -c .bandit -r pure3270/
+
+    - name: Run flake8
+      run: flake8 pure3270/
+
+    - name: Macro DSL guard
+      run: |
+        python tools/forbid_macros.py

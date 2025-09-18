@@ -11,6 +11,10 @@ Key design principles:
 - **Extensibility**: Subclassing for custom behaviors (e.g., extending `Session` or `DataStreamParser`).
 - **Robustness**: Comprehensive error handling with custom inline exceptions and structured logging.
 
+## Scope and Limitations
+
+Macro mode is out of scope for this project and will not be implemented. It has been removed and will not be reintroduced.
+
 The library supports TN3270 and TN3270E protocols, full 3270 terminal emulation (including screen buffer, fields, WCC, AID), and basic key simulation for scripting. Asyncio handles networking and protocol transparently, ensuring API compatibility.
 
 ## Package Structure
@@ -53,7 +57,7 @@ Key modules and classes:
 - **`pure3270/__init__.py`**: Exports main classes like `Session` and functions like `enable_replacement()`. Initializes logging.
 
 - **`pure3270/session.py`**:
-  - `Session` and `AsyncSession`: Main session handlers integrating emulation and protocol. Supports connect, send (keys/commands), read (screen scraping), macro execution. Uses context managers and asyncio for non-blocking I/O.
+  - `Session` and `AsyncSession`: Main session handlers integrating emulation and protocol. Supports connect, send (keys/commands), and read (screen scraping). Uses context managers and asyncio for non-blocking I/O. Macro scripting/DSL is not supported.
   - Exceptions: `Pure3270Error` (base), `SessionError`.
 
 - **`emulation/screen_buffer.py`**:
@@ -282,7 +286,7 @@ The API remains fully compatible with existing p3270 and s3270 interfaces. Async
 
 - **Standalone Usage**: Can be used independently without patching, e.g., `sess = Session(); sess.connect('host')`.
 
-- **Macro Support**: Supports macro execution with `execute_macro()` method for both `Session` and `AsyncSession`.
+Macro scripting/DSL has been removed and will not be reintroduced.
 
 - **Resource Definition Support**: Supports loading resource definitions from xrdb format files.
 

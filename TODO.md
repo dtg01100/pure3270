@@ -27,7 +27,6 @@
 - p3270-compatible connect/send/read/close session interface
 - String() command support with EBCDIC conversion
 - key Enter command support
-- Basic macro execution with command sequences
 - s3270 text conversion actions: Ascii(), Ebcdic(), Ascii1(), Ebcdic1(), AsciiField(), EbcdicField()
 - s3270 key actions: PF(1-24), PA(1-3), Attn(), Reset()
 - s3270 cursor navigation actions: Home(), Left(), Right(), Up(), Down(), BackSpace(), Tab(), BackTab()
@@ -36,9 +35,8 @@
 - Printer session support with SCS character data processing
 - PRINT-EOJ handling
 - Resource definition support (xrdb format)
-- Advanced macro execution with conditional branching and variable substitution
 - s3270 actions: CircumNot(), CursorSelect(), Delete(), DeleteField(), Dup(), End(), Erase(), EraseEOF(), EraseInput(), FieldEnd(), FieldMark(), Flip(), Insert(), MoveCursor(), MoveCursor1(), NextWord(), PreviousWord(), RestoreInput(), SaveInput(), Tab(), ToggleInsert(), ToggleReverse()
-- s3270 actions: Capabilities(), Clear(), Close(), CloseScript(), Connect(), Disconnect(), Down(), Echo(), Enter(), Execute(), Exit(), Info(), Interrupt(), Key(), KeyboardDisable(), Left(), Macro(), Newline(), Open(), PA(), PageDown(), PageUp(), PasteString(), PF(), PreviousWord(), Query(), Quit(), Right(), Script(), Set(), Up()
+- s3270 actions: Capabilities(), Clear(), Close(), CloseScript(), Connect(), Disconnect(), Down(), Echo(), Enter(), Execute(), Exit(), Info(), Interrupt(), Key(), KeyboardDisable(), Left(), Newline(), Open(), PA(), PageDown(), PageUp(), PasteString(), PF(), PreviousWord(), Query(), Quit(), Right(), Script(), Set(), Up()
 - s3270 actions: AnsiText(), Bell(), HexString(), Left2(), MonoCase(), NvtText(), Pause(), Printer(), PrintText(), Prompt(), ReadBuffer(), Reconnect(), Right2(), ScreenTrace(), Show(), Snap(), Source(), SubjectNames(), SysReq(), Toggle(), Trace(), Transfer(), Wait()
 - Add full AID support (PA keys, PF keys beyond Enter)
 - Implement proper field modification tracking for RMF/RMA commands

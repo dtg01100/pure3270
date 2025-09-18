@@ -82,10 +82,7 @@ class NegotiationError(Pure3270Error):
     pass
 
 
-class MacroError(Pure3270Error):
-    """Macro error with macro-specific context."""
-
-    pass
+# MacroError removed along with macro DSL support
 
 
 class ParseError(Pure3270Error):

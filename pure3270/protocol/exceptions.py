@@ -1,7 +1,6 @@
 """Exceptions for protocol handling."""
 
 from ..exceptions import (
-    MacroError,
     NegotiationError,
     NotConnectedError,
     ParseError,
@@ -12,6 +11,5 @@ __all__ = [
     "NegotiationError",
     "ProtocolError",
     "ParseError",
-    "MacroError",
     "NotConnectedError",
 ]

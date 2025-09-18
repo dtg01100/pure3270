@@ -81,6 +81,10 @@ jobs:
         python -m pip install --upgrade pip
         pip install -e '.[test]'  # Assuming [test] extras in pyproject.toml for pytest, etc.
 
+    - name: Install CI tools
+      run: |
+        pip install mypy pylint bandit pre-commit isort
+
     - name: Display Python and package versions
       run: |
         python --version
@@ -91,6 +95,10 @@ jobs:
         fi
         pip list
 
+    - name: Quick smoke test
+      run: |
+        python quick_test.py
+
     - name: Run unit and property tests
       run: |
         pytest tests/ -v --tb=short -m "not integration"
@@ -99,11 +107,25 @@ jobs:
       run: |
         pytest integration_test.py -v --tb=short
 
-    - name: Run static analysis
+    - name: Run mypy
+      run: mypy pure3270/
+
+    - name: Run pylint
+      run: pylint pure3270/ --rcfile=.pylintrc
+
+    - name: Run flake8
+      run: flake8 pure3270/
+
+    - name: Run bandit
+      run: bandit -c .bandit -r pure3270/
+
+    - name: Macro DSL guard
       run: |
-        mypy pure3270/
-        pylint pure3270/
-        flake8 pure3270/
+        python tools/forbid_macros.py
+
+    - name: Pre-commit hooks
+      run: |
+        pre-commit run --all-files
 
     - name: Generate coverage report
       run: |
