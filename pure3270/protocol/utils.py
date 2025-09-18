@@ -1,10 +1,8 @@
 """Utility functions for TN3270/TN3270E protocol handling.
 
 Typing notes:
-- Writer parameters are annotated as ``Optional[asyncio.StreamWriter]`` to reflect
-    possibility of absent writer during teardown.
-- ``_schedule_if_awaitable`` centralizes best-effort handling of AsyncMock.write
-    returning an awaitable to avoid repeated inline inspection logic.
+- Writer parameters are annotated as `Optional[asyncio.StreamWriter]` to reflect possibility of absent writer during teardown.
+- `_schedule_if_awaitable` centralizes best-effort handling of AsyncMock.write returning an awaitable to avoid repeated inline inspection logic.
 """
 
 import asyncio

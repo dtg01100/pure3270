@@ -48,7 +48,7 @@ For property-based tests:
     pytest tests/ -m property
 
 Static Analysis
----------------
+--------------
 
 - mypy: `mypy pure3270/ --strict`
 - pylint: `pylint pure3270/`

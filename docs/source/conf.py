@@ -27,7 +27,7 @@ source_suffix = ".rst"
 
 master_doc = "index"
 
-language = None
+language = "en"
 
 # -- Options for HTML output -------------------------------------------------
 html_theme = "alabaster"

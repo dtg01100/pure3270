@@ -120,6 +120,7 @@ ci_cd_*.py
 s3270_*.py
 \n+# Allow specific committed unit tests that validate core negotiation heuristics
 !tests/test_negotiation_inference.py
+!tests/property/test_data_stream_properties.py
 VT100_*.md
 CONNECTION_TEST_RESULTS.md
 TESTING_*.md
