@@ -28,7 +28,8 @@ async def async_session():
     session._handler.close = AsyncMock()
     session._handler.connected = False
     type(session).handler = PropertyMock(return_value=session._handler)
-    type(session).connected = PropertyMock(return_value=False)
+    # Don't mock connected here - let tests control it
+    # type(session).connected = PropertyMock(return_value=False)
     return session
 
 
@@ -41,10 +42,10 @@ def sync_session():
     async_session._handler.receive_data = AsyncMock(return_value=b"test output")
     async_session._handler.connected = False
     type(async_session).handler = PropertyMock(return_value=async_session._handler)
-    type(async_session).connected = PropertyMock(return_value=False)
+    # Remove connected PropertyMock to allow tests to control connection state
     session._async_session = async_session
     type(session).handler = PropertyMock(return_value=async_session._handler)
-    type(session).connected = PropertyMock(return_value=False)
+    # Remove connected PropertyMock to allow tests to control connection state
     return session
 
 
@@ -55,7 +56,8 @@ async def async_session():
     session._handler.send_data = AsyncMock()
     session._handler.receive_data = AsyncMock(return_value=b"test output")
     type(session).handler = PropertyMock(return_value=session._handler)
-    type(session).connected = PropertyMock(return_value=False)
+    # Don't mock connected here - let tests control it
+    # type(session).connected = PropertyMock(return_value=False)
     return session
 
 
@@ -192,9 +194,9 @@ class TestAsyncSession:
             await fresh_session.read()
 
     async def test_close(self, async_session):
-        # Remove the connected property mock for this test to allow real behavior
-        if hasattr(type(async_session), "connected"):
-            delattr(type(async_session), "connected")
+        # Remove the handler property mock for this test to allow real behavior
+        if hasattr(type(async_session), "handler"):
+            delattr(type(async_session), "handler")
 
         async_session._handler = AsyncMock()
         async_session._handler.close = AsyncMock()
@@ -208,9 +210,9 @@ class TestAsyncSession:
         assert async_session._handler is None
 
     async def test_close_no_handler(self, async_session):
-        # Remove the connected property mock for this test to allow real behavior
-        if hasattr(type(async_session), "connected"):
-            delattr(type(async_session), "connected")
+        # Remove the handler property mock for this test to allow real behavior
+        if hasattr(type(async_session), "handler"):
+            delattr(type(async_session), "handler")
 
         await async_session.close()
         assert async_session.connected is False
@@ -263,6 +265,7 @@ class TestSession:
         mock_run.return_value = None
         # Set up session to be connected
         sync_session._async_session = AsyncSession("localhost", 23)
+        sync_session._async_session.connected = True  # Mark as connected
 
         sync_session.send(b"data")
 
@@ -273,6 +276,7 @@ class TestSession:
         mock_run.return_value = b"data"
         # Set up session to be connected
         sync_session._async_session = AsyncSession("localhost", 23)
+        sync_session._async_session.connected = True  # Mark as connected
 
         data = sync_session.read()
 

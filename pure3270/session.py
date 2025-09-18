@@ -929,7 +929,50 @@ class AsyncSession:
         if self._handler:
             await self._handler.close()
             self._handler = None
-        self.connected = False
+        if self._transport:
+            await self._transport.teardown_connection()
+
+    @property
+    def connected(self) -> bool:
+        """Check if session is connected."""
+        return self._transport.connected if self._transport else False
+
+    @connected.setter
+    def connected(self, value: bool) -> None:
+        """Set the connected state."""
+        if self._transport:
+            self._transport.connected = value
+
+    @property
+    def handler(self) -> Optional[TN3270Handler]:
+        """Get the handler."""
+        return self._handler
+
+    @handler.setter
+    def handler(self, value: Optional[TN3270Handler]) -> None:
+        """Set the handler."""
+        self._handler = value
+
+    @property
+    def screen(self) -> ScreenBuffer:
+        """Get the screen buffer (alias for compatibility)."""
+        return self.screen_buffer
+
+    async def quit(self) -> None:
+        """Quit the session (alias for close)."""
+        await self.close()
+
+    def managed(self):
+        """Return a managed context that automatically closes the session on exit."""
+        return self
+
+    async def __aenter__(self):
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Async context manager exit - closes the session."""
+        await self.close()
 
     async def execute(self, command: str) -> str:
         """Execute external command (s3270 Execute() action)."""
