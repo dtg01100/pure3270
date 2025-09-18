@@ -88,6 +88,7 @@ class TestNegotiatorMissingCoverage:
         # This should log an error but not crash
         negotiator._send_supported_device_types()
 
+    @pytest.mark.asyncio
     async def test_send_supported_functions_no_writer(
         self, negotiator, memory_limit_500mb
     ):
@@ -171,6 +172,7 @@ class TestNegotiatorMissingCoverage:
         negotiator.supported_device_types = []
         negotiator._send_supported_device_types()
 
+    @pytest.mark.asyncio
     async def test_send_supported_functions_with_no_functions(
         self, negotiator, memory_limit_500mb
     ):

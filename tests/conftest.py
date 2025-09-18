@@ -189,34 +189,19 @@ def tn3270_handler():
     """Fixture providing a TN3270Handler with mocked dependencies."""
     from unittest.mock import AsyncMock
 
+    # Mock the reader and writer
     mock_reader = AsyncMock()
     mock_writer = AsyncMock()
-
-    # Mock the TN3270Handler to avoid asyncio.Event() issues in Python 3.9
-    handler = Mock(spec=TN3270Handler)
-    handler.reader = mock_reader
-    handler.writer = mock_writer
-    handler.connected = True
-
-    # Mock negotiator properly
-    negotiator = Mock(spec=Negotiator)
-    negotiator._ascii_mode = False
-    from pure3270.protocol.negotiator import SnaSessionState
-
-    negotiator._sna_session_state = SnaSessionState.NORMAL
-    type(negotiator).current_sna_session_state = PropertyMock(
-        return_value=SnaSessionState.NORMAL
+    
+    # Create a real TN3270Handler instance with mocked reader/writer
+    screen_buffer = ScreenBuffer(rows=24, cols=80)
+    handler = TN3270Handler(
+        reader=mock_reader,
+        writer=mock_writer,
+        screen_buffer=screen_buffer,
+        host="test-host",
+        port=23
     )
-    handler.negotiator = negotiator
-
-    # Mock inner handler for compatibility
-    inner_handler = Mock()
-    type(handler).handler = PropertyMock(return_value=inner_handler)
-    type(inner_handler).negotiator = PropertyMock(return_value=negotiator)
-    inner_handler.send_data = AsyncMock()
-    inner_handler.receive_data = AsyncMock(return_value=b"")
-    handler.send_data = AsyncMock()
-    type(handler).connected = PropertyMock(return_value=True)
 
     return handler
 
