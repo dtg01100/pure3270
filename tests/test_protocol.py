@@ -345,7 +345,9 @@ class TestTN3270Handler:
         tn3270_handler.writer = AsyncMock()
         tn3270_handler.writer.drain = AsyncMock()
         # Patch negotiator to simulate DATA-STREAM-CTL active and valid header
-        tn3270_handler.negotiator.is_data_stream_ctl_active = True
+        from pure3270.protocol.utils import TN3270E_DATA_STREAM_CTL
+
+        tn3270_handler.negotiator.negotiated_functions |= TN3270E_DATA_STREAM_CTL
         from pure3270.protocol.tn3270e_header import TN3270EHeader
 
         # Patch _outgoing_request to return a real TN3270EHeader

@@ -12,7 +12,7 @@ After opening the project in VS Code with the devcontainer, all Python versions 
 # Test across all Python versions (quick smoke test)
 test-all-pythons
 
-# Run full CI across all Python versions  
+# Run full CI across all Python versions
 run-full-ci-all-pythons
 
 # Switch to a specific Python version
@@ -45,7 +45,7 @@ This runs `python quick_test.py` in each Python version and provides a summary.
 
 #### 2. Full CI Across All Versions
 ```bash
-run-full-ci-all-pythons  
+run-full-ci-all-pythons
 ```
 This runs `python run_full_ci.py` in each Python version for comprehensive testing.
 
@@ -204,7 +204,7 @@ strategy:
 
 **Local Versions:**
 - 3.9.21 (maps to CI "3.9")
-- 3.10.14 (maps to CI "3.10") 
+- 3.10.14 (maps to CI "3.10")
 - 3.11.10 (maps to CI "3.11")
 - 3.12.11 (maps to CI "3.12")
 - 3.13.1 (maps to CI "3.13")
@@ -224,7 +224,7 @@ Both environments run the same test commands:
 ## Performance Notes
 
 - **Container Build Time**: ~15-20 minutes (Python compilation)
-- **Setup Script Time**: ~5-10 minutes (package installation across versions)  
+- **Setup Script Time**: ~5-10 minutes (package installation across versions)
 - **Quick Test Time**: ~0.07 seconds per version (~0.35 seconds total)
 - **Full CI Time**: ~0.6 seconds per version (~3 seconds total)
 

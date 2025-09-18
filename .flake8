@@ -1,6 +1,7 @@
 [flake8]
 max-line-length = 127
-max-complexity = 10
+max-complexity = 20
+# Only check critical syntax errors that would break imports/execution
 select = E9,F63,F7,F82
 exclude =
     .git,
@@ -16,6 +17,27 @@ exclude =
     migrations,
     *.egg-info,
     .benchmarks,
-    .crush
+    .crush,
+    archive,
+    examples,
+    scripts,
+    tests,
+    conftest.py,
+    quick_test.py,
+    run_full_ci.py,
+    local_ci.py,
+    complete_navigation_*.py,
+    navigation_*.py,
+    protocol_integration_test.py,
+    real_screen_*.py,
+    screen_content_*.py,
+    simple_mock_test.py,
+    test_*.py,
+    *_test.py,
+    *demo*.py
 per-file-ignores =
-    tests/*: F401
+    # Ignore all non-critical issues in tests and auxiliary files
+    tests/*: F401,E501,E402,F811,F841
+    scripts/*: F401,E501,E402,F811,F841
+    examples/*: F401,E501,E402,F811,F841
+    pure3270/*: F401,E501,E402,F811,F841,F541

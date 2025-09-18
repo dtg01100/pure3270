@@ -75,13 +75,14 @@ def main() -> None:
         # Interactive CLI macro support has been removed.
         if args.script:
             print(
-                "Macro scripting/DSL has been removed from pure3270 and will not return. "
-                "Script execution via macro DSL is permanently unsupported."
+                "Macro scripting/DSL has been removed from pure3270 and will "
+                "not return. Script execution via macro DSL is permanently "
+                "unsupported."
             )
         else:
             print(
-                "Macro scripting/DSL has been removed from pure3270 and will not return. "
-                "Interactive macro DSL is permanently unsupported."
+                "Macro scripting/DSL has been removed from pure3270 and will "
+                "not return. Interactive macro DSL is permanently unsupported."
             )
 
     except Exception as e:

@@ -61,7 +61,7 @@ switch-python 3.9.21
 ### 🐍 Python Version Management
 - **3.9.21** - Oldest supported version
 - **3.10.14** - LTS version
-- **3.11.10** - LTS version  
+- **3.11.10** - LTS version
 - **3.12.11** - **Default** - Current stable
 - **3.13.1** - Latest version
 

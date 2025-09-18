@@ -58,11 +58,11 @@ fi
 # Check if pyenv is available (will only work inside devcontainer)
 if command -v pyenv &> /dev/null; then
     echo "✅ pyenv is available"
-    
+
     # Check Python versions
     EXPECTED_VERSIONS="3.9.21 3.10.14 3.11.10 3.12.11 3.13.1"
     echo "🐍 Checking Python versions..."
-    
+
     for version in $EXPECTED_VERSIONS; do
         if pyenv versions --bare | grep -q "^${version}$"; then
             echo "✅ Python $version is installed"
@@ -70,23 +70,23 @@ if command -v pyenv &> /dev/null; then
             echo "⚠️  Python $version is not installed (expected in devcontainer)"
         fi
     done
-    
+
     # Test current Python
     echo "🎯 Current Python version: $(python --version)"
-    
+
     # Test convenience scripts if they exist
     if [ -f /home/vscode/bin/test-all-pythons ]; then
         echo "✅ test-all-pythons script exists"
     else
         echo "⚠️  test-all-pythons script not found (created by setup script)"
     fi
-    
+
     if [ -f /home/vscode/bin/switch-python ]; then
         echo "✅ switch-python script exists"
     else
         echo "⚠️  switch-python script not found (created by setup script)"
     fi
-    
+
 else
     echo "⚠️  pyenv not available (expected outside devcontainer)"
 fi
