@@ -221,7 +221,8 @@ class TestAsyncSession:
     async def test_connected(self):
         import asyncio
         from unittest.mock import patch
-        with patch('pure3270.patching.enable_replacement', side_effect=AttributeError):
+
+        with patch("pure3270.patching.enable_replacement", side_effect=AttributeError):
             # Use a minimal session without mocked connected property
             session = AsyncSession("localhost", 23)
             assert session.connected is False
@@ -235,7 +236,6 @@ class TestAsyncSession:
         async with async_session.managed():
             assert async_session.connected is True
         async_session.close.assert_called_once()
-
 
 
 class TestSession:

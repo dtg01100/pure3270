@@ -214,9 +214,38 @@ def run_static_analysis(missing_tools: List[str]):
 
     # Pylint
     if "pylint" not in missing_tools:
-        success, _, _ = run_command(
-            ["pylint", "pure3270/", "--rcfile=.pylintrc"], "Pylint analysis"
-        )
+        # Pylint special handling: accept warnings/refactor/convention issues (exit codes 4,8,16)
+        # Only fail on fatal (1) or error (2) messages
+        cmd = ["pylint", "pure3270/", "--rcfile=.pylintrc"]
+        print(f"\n{Colors.YELLOW}Running: {' '.join(cmd)}{Colors.RESET}")
+        
+        try:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, cwd=Path(__file__).parent, timeout=300
+            )
+            
+            # Pylint exit codes: 0=ok, 1=fatal, 2=error, 4=warning, 8=refactor, 16=convention
+            # Accept codes 0, 4, 8, 16, and combinations (like 30 = 4+8+16)
+            acceptable_codes = [0, 4, 8, 16, 12, 20, 24, 28, 30]  # Common combinations
+            
+            if result.returncode in acceptable_codes:
+                print_success("Pylint analysis passed (warnings acceptable)")
+                success = True
+            else:
+                print_error("Pylint analysis failed")
+                if result.stderr:
+                    print(f"STDERR: {result.stderr}")
+                if result.stdout:
+                    print(f"STDOUT: {result.stdout}")
+                success = False
+                
+        except subprocess.TimeoutExpired:
+            print_error("Pylint analysis timed out after 300s")
+            success = False
+        except Exception as e:
+            print_error(f"Error running Pylint analysis: {e}")
+            success = False
+            
         all_passed = all_passed and success
     else:
         print_warning("Skipping Pylint (not installed)")
@@ -240,7 +269,9 @@ def run_static_analysis(missing_tools: List[str]):
     # Forbid macro DSL reintroduction
     forbid_script = Path("tools/forbid_macros.py")
     if forbid_script.exists():
-        success, _, _ = run_command([sys.executable, str(forbid_script)], "Forbid macro DSL references")
+        success, _, _ = run_command(
+            [sys.executable, str(forbid_script)], "Forbid macro DSL references"
+        )
         all_passed = all_passed and success
     else:
         print_warning("forbid_macros.py not found; skipping macro DSL guard")

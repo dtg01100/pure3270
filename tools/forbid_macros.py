@@ -12,7 +12,6 @@ import re
 import sys
 from pathlib import Path
 
-
 FORBIDDEN_PATTERNS = [
     # Function invocation or definition patterns
     r"\bdef\s+execute_macro\b",
@@ -82,8 +81,9 @@ def main() -> int:
 
     if offenders:
         sys.stderr.write(
-            "Macro DSL references are forbidden. Offending files:\n" +
-            "\n".join(str(x) for x in sorted(set(offenders))) + "\n"
+            "Macro DSL references are forbidden. Offending files:\n"
+            + "\n".join(str(x) for x in sorted(set(offenders)))
+            + "\n"
         )
         return 1
 

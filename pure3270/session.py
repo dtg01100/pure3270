@@ -962,15 +962,20 @@ class AsyncSession:
         """Quit the session (alias for close)."""
         await self.close()
 
-    def managed(self):
+    def managed(self) -> "AsyncSession":
         """Return a managed context that automatically closes the session on exit."""
         return self
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "AsyncSession":
         """Async context manager entry."""
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: Optional[type],
+        exc_val: Optional[Exception],
+        exc_tb: Optional[Any],
+    ) -> None:
         """Async context manager exit - closes the session."""
         await self.close()
 
@@ -1005,7 +1010,7 @@ class AsyncSession:
         aid = self.aid_map[keyname_lower]
         await self.submit(aid)
 
-    async def macro(self, commands):
+    async def macro(self, commands: List[str]) -> None:
         """
         Execute a simple sequence of commands for compatibility.
 
@@ -1554,6 +1559,31 @@ class AsyncSession:
         """Set option (s3270 Set() action)."""
         # Placeholder
         pass
+
+    async def capabilities(self) -> str:
+        """Get capabilities (s3270 Capabilities() action)."""
+        # Return basic capabilities string
+        return "Model 2, 80x24"
+
+    async def interrupt(self) -> None:
+        """Send interrupt (s3270 Interrupt() action)."""
+        # Placeholder for interrupt functionality
+        pass
+
+    async def query(self, query_type: str = "All") -> str:
+        """Query screen (s3270 Query() action)."""
+        # Basic query implementation
+        if query_type.lower() == "all":
+            return f"Connected: {self.connected}"
+        return ""
+
+    async def set(self, option: str, value: str) -> None:
+        """Set option (s3270 Set() action - alias for set_option)."""
+        await self.set_option(option, value)
+
+    async def exit(self) -> None:
+        """Exit session (s3270 Exit() action)."""
+        await self.close()
 
     async def bell(self) -> None:
         """Ring bell (s3270 Bell() action)."""
