@@ -8,7 +8,7 @@ This directory contains the GitHub Actions workflows for the Pure3270 project.
 - **Triggers**: Push/PR to main/develop branches, manual releases
 - **Purpose**: Comprehensive testing, linting, release validation, and PyPI publishing
 - **Jobs**:
-  - `test`: Runs tests and linting across multiple Python versions (3.8-3.13)
+  - `test`: Runs tests and linting across multiple Python versions (3.9-3.13)
   - `release-validation`: Validates releases when manually created
   - `publish`: Publishes to PyPI after successful validation
 

@@ -11,7 +11,7 @@ The GitHub Actions workflows test multiple aspects:
 - **Static Analysis**: mypy, pylint, bandit, flake8
 - **Code Formatting**: black, isort via pre-commit hooks
 - **Coverage**: pytest-cov for coverage reporting
-- **Multiple Python Versions**: 3.8, 3.9, 3.10, 3.11, 3.12, 3.13
+- **Multiple Python Versions**: 3.9, 3.10, 3.11, 3.12, 3.13
 
 ## Quick Start
 
@@ -114,7 +114,7 @@ Full-featured CI script that replicates all GitHub Actions tests:
 ### `static-analysis.yml` - Static Analysis
 - **Triggers**: Push/PR to main/develop
 - **Tests**: mypy, pylint, bandit
-- **Python versions**: 3.8-3.13
+- **Python versions**: 3.9-3.13
 - **Local equivalent**: `./ci.sh static` or `python local_ci.py --static`
 
 ### `comprehensive-python-testing.yml` - Comprehensive Tests
@@ -135,7 +135,7 @@ The local CI scripts use the same configuration files as GitHub Actions:
 ## Dependencies
 
 ### Required
-- Python 3.8+ (3.11+ recommended)
+- Python 3.9+ (3.11+ recommended)
 - pip
 
 ### Optional (for full functionality)
@@ -314,7 +314,7 @@ Use this short checklist whenever you change tests, add new checks, or adjust to
     - Local: pytest-cov in `run_full_ci.py`
     - GA: coverage step and Codecov upload in `ci.yml`
 - Python versions list documented and consistent:
-    - GA matrices cover 3.8–3.13
+    - GA matrices cover 3.9–3.13
     - Keep any version change reflected here and in workflows
 - Document intentional deltas:
     - If GA diverges (env limits, speed), document in `CI_README.md` with rationale
