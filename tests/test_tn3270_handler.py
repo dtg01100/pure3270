@@ -384,10 +384,13 @@ class TestTN3270Handler:
         mock_header.response_flag = 0x00  # NO_RESPONSE
         mock_header_bytes = b"\x00\x00\x00\x00\x00"  # Dummy bytes, actual value doesn't matter for this test
 
-        with patch(
-            "pure3270.protocol.tn3270e_header.TN3270EHeader.from_bytes",
-            return_value=mock_header,
-        ), patch.object(tn3270_handler.parser, "parse") as mock_parse_data_stream:
+        with (
+            patch(
+                "pure3270.protocol.tn3270e_header.TN3270EHeader.from_bytes",
+                return_value=mock_header,
+            ),
+            patch.object(tn3270_handler.parser, "parse") as mock_parse_data_stream,
+        ):
 
             tn3270_handler.reader = AsyncMock()
             # Simulate receiving TN3270E header + actual data + IAC EOR
@@ -409,10 +412,13 @@ class TestTN3270Handler:
     async def test_receive_data_no_tn3270e_header(self, tn3270_handler):
         from pure3270.protocol.data_stream import TN3270_DATA
 
-        with patch(
-            "pure3270.protocol.tn3270e_header.TN3270EHeader.from_bytes",
-            return_value=None,
-        ), patch.object(tn3270_handler.parser, "parse") as mock_parse_data_stream:
+        with (
+            patch(
+                "pure3270.protocol.tn3270e_header.TN3270EHeader.from_bytes",
+                return_value=None,
+            ),
+            patch.object(tn3270_handler.parser, "parse") as mock_parse_data_stream,
+        ):
 
             tn3270_handler.reader = AsyncMock()
             # Simulate receiving data without TN3270E header + IAC EOR
@@ -441,11 +447,12 @@ class TestTN3270Handler:
         tn3270_handler.reader.read.return_value = vt100_data + b"\xff\x19"  # Add EOR
 
         # Patch the local import in receive_data
-        with patch(
-            "pure3270.protocol.tn3270_handler.VT100Parser"
-        ) as MockVT100Parser, patch.object(
-            tn3270_handler.negotiator, "set_ascii_mode"
-        ) as mock_set_ascii_mode:
+        with (
+            patch("pure3270.protocol.tn3270_handler.VT100Parser") as MockVT100Parser,
+            patch.object(
+                tn3270_handler.negotiator, "set_ascii_mode"
+            ) as mock_set_ascii_mode,
+        ):
 
             await tn3270_handler.receive_data()
 

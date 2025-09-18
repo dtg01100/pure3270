@@ -34,7 +34,18 @@ def data_stream_sender():
 def negotiator(screen_buffer):
     """Fixture providing a Negotiator with mocked dependencies."""
     parser = Mock(spec=DataStreamParser)
-    return Negotiator(None, parser, screen_buffer)
+    # Mock the Negotiator to avoid asyncio.Event() issues in Python 3.9
+    negotiator = Mock(spec=Negotiator)
+    negotiator.writer = None
+    negotiator.parser = parser
+    negotiator.screen_buffer = screen_buffer
+    negotiator._ascii_mode = False
+    negotiator._device_type = None
+    negotiator._functions = []
+    negotiator._device_type_is_event = AsyncMock()
+    negotiator._functions_is_event = AsyncMock()
+    negotiator._negotiation_complete = AsyncMock()
+    return negotiator
 
 
 @pytest.fixture
@@ -175,50 +186,38 @@ def pytest_configure(config):
 
 @pytest.fixture
 def tn3270_handler():
+    """Fixture providing a TN3270Handler with mocked dependencies."""
     from unittest.mock import AsyncMock
 
     mock_reader = AsyncMock()
     mock_writer = AsyncMock()
-    try:
-        handler = TN3270Handler(mock_reader, mock_writer)
-        handler.negotiator = Mock()
-        handler.negotiator._ascii_mode = False
-        # Mock the SNA session state properly
-        from pure3270.protocol.negotiator import SnaSessionState
 
-        handler.negotiator._sna_session_state = SnaSessionState.NORMAL
-        # Mock current_sna_session_state as a property that returns the _sna_session_state
-        type(handler.negotiator).current_sna_session_state = PropertyMock(
-            return_value=SnaSessionState.NORMAL
-        )
-        handler.connected = True
-        inner_handler = Mock()
-        type(handler).handler = PropertyMock(return_value=inner_handler)
-        type(inner_handler).negotiator = PropertyMock(
-            return_value=Mock(spec=Negotiator)
-        )
-        inner_handler.send_data = AsyncMock()
-        inner_handler.receive_data = AsyncMock(return_value=b"")
-        type(handler).connected = PropertyMock(return_value=True)
-    except ValueError:
-        handler = Mock(spec=TN3270Handler)
-        handler.negotiator = Mock()
-        handler.negotiator._ascii_mode = False
-        # Mock the SNA session state properly for fallback case
-        from pure3270.protocol.negotiator import SnaSessionState
+    # Mock the TN3270Handler to avoid asyncio.Event() issues in Python 3.9
+    handler = Mock(spec=TN3270Handler)
+    handler.reader = mock_reader
+    handler.writer = mock_writer
+    handler.connected = True
 
-        mock_sna_state = Mock()
-        mock_sna_state.value = SnaSessionState.NORMAL.value
-        handler.negotiator.current_sna_session_state = mock_sna_state
-        handler.connected = True
-        inner_handler = Mock()
-        type(handler).handler = PropertyMock(return_value=inner_handler)
-        type(inner_handler).negotiator = PropertyMock(
-            return_value=Mock(spec=Negotiator)
-        )
-        inner_handler.send_data = AsyncMock()
-        inner_handler.receive_data = AsyncMock(return_value=b"")
-        type(handler).connected = PropertyMock(return_value=True)
+    # Mock negotiator properly
+    negotiator = Mock(spec=Negotiator)
+    negotiator._ascii_mode = False
+    from pure3270.protocol.negotiator import SnaSessionState
+
+    negotiator._sna_session_state = SnaSessionState.NORMAL
+    type(negotiator).current_sna_session_state = PropertyMock(
+        return_value=SnaSessionState.NORMAL
+    )
+    handler.negotiator = negotiator
+
+    # Mock inner handler for compatibility
+    inner_handler = Mock()
+    type(handler).handler = PropertyMock(return_value=inner_handler)
+    type(inner_handler).negotiator = PropertyMock(return_value=negotiator)
+    inner_handler.send_data = AsyncMock()
+    inner_handler.receive_data = AsyncMock(return_value=b"")
+    handler.send_data = AsyncMock()
+    type(handler).connected = PropertyMock(return_value=True)
+
     return handler
 
 

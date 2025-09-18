@@ -69,12 +69,12 @@ class TestDataStreamParser:
 
     def test_parse_sf(self, data_stream_parser):
         sample_data = b"\x1d\x40"  # SF protected
-        with patch.object(
-            data_stream_parser.screen, "set_attribute"
-        ) as mock_set_attr, patch.object(
-            data_stream_parser.screen, "set_position"
-        ) as mock_set_pos, patch.object(
-            data_stream_parser.screen, "get_position", return_value=(0, 0)
+        with (
+            patch.object(data_stream_parser.screen, "set_attribute") as mock_set_attr,
+            patch.object(data_stream_parser.screen, "set_position") as mock_set_pos,
+            patch.object(
+                data_stream_parser.screen, "get_position", return_value=(0, 0)
+            ),
         ):
             data_stream_parser.parse(sample_data)
             mock_set_attr.assert_called_once_with(0x40)  # Test actual behavior
@@ -101,13 +101,13 @@ class TestDataStreamParser:
 
     def test_parse_data(self, data_stream_parser):
         sample_data = b"\xc1\xc2"  # Data characters A and B in EBCDIC
-        with patch.object(
-            data_stream_parser.screen, "write_char"
-        ) as mock_write_char, patch.object(
-            data_stream_parser.screen, "get_position", return_value=(0, 0)
-        ) as mock_get_pos, patch.object(
-            data_stream_parser.screen, "set_position"
-        ) as mock_set_pos:
+        with (
+            patch.object(data_stream_parser.screen, "write_char") as mock_write_char,
+            patch.object(
+                data_stream_parser.screen, "get_position", return_value=(0, 0)
+            ) as mock_get_pos,
+            patch.object(data_stream_parser.screen, "set_position") as mock_set_pos,
+        ):
             data_stream_parser.parse(sample_data)
             # Should write each character and advance position
             assert mock_write_char.call_count == 2
@@ -122,7 +122,7 @@ class TestDataStreamParser:
         bind_data_payload = b"\x01\x02\x03\x04"  # Example BIND data
         sf_length = 1 + len(bind_data_payload)  # SF_Type + payload length
         sample_data = (
-            b"\x3C"
+            b"\x3c"
             + sf_length.to_bytes(2, "big")
             + BIND_SF_TYPE.to_bytes(1, "big")
             + bind_data_payload
@@ -160,13 +160,13 @@ class TestDataStreamParser:
         assert data_stream_parser._pos == len(sample_data)
 
     def test_parse_unknown_order_treated_as_text_data(self, data_stream_parser):
-        sample_data = b"\xFF"  # Unknown byte treated as text data
-        with patch.object(
-            data_stream_parser.screen, "write_char"
-        ) as mock_write_char, patch.object(
-            data_stream_parser.screen, "get_position", return_value=(0, 0)
-        ), patch.object(
-            data_stream_parser.screen, "set_position"
+        sample_data = b"\xff"  # Unknown byte treated as text data
+        with (
+            patch.object(data_stream_parser.screen, "write_char") as mock_write_char,
+            patch.object(
+                data_stream_parser.screen, "get_position", return_value=(0, 0)
+            ),
+            patch.object(data_stream_parser.screen, "set_position"),
         ):
             data_stream_parser.parse(sample_data)
             # Unknown bytes are treated as text data, not as errors
@@ -174,7 +174,7 @@ class TestDataStreamParser:
 
     def test_parse_ic_order(self, data_stream_parser):
         # Assuming IC is 0x0F
-        sample_data = b"\x0F"
+        sample_data = b"\x0f"
         with patch.object(
             data_stream_parser.screen, "move_cursor_to_first_input_field"
         ) as mock_move:
@@ -183,7 +183,7 @@ class TestDataStreamParser:
 
     def test_parse_pt_order(self, data_stream_parser):
         # Assuming PT is 0x0E
-        sample_data = b"\x0E"
+        sample_data = b"\x0e"
         with patch.object(data_stream_parser.screen, "program_tab") as mock_program_tab:
             data_stream_parser.parse(sample_data)
             mock_program_tab.assert_called_once()
@@ -247,7 +247,7 @@ class TestDataStreamParser:
         bind_data_payload = b"\x01\x02\x03\x04"  # Example BIND data
         sf_length = 1 + len(bind_data_payload)  # SF_Type + payload length
         sample_data = (
-            b"\x3C"
+            b"\x3c"
             + sf_length.to_bytes(2, "big")
             + BIND_SF_TYPE.to_bytes(1, "big")
             + bind_data_payload
@@ -275,7 +275,7 @@ class TestDataStreamParser:
         bind_data_payload = psc_subfield + query_reply_ids_subfield
         sf_length = 1 + len(bind_data_payload)  # SF_Type + payload length
         sample_data = (
-            b"\x3C"
+            b"\x3c"
             + sf_length.to_bytes(2, "big")
             + BIND_SF_TYPE.to_bytes(1, "big")
             + bind_data_payload
@@ -429,13 +429,16 @@ def test_parse_sample_sba(data_stream_parser, sample_sba_stream):
 
 
 def test_parse_sample_write(data_stream_parser, sample_write_stream):
-    with patch.object(data_stream_parser.screen, "clear"), patch.object(
-        data_stream_parser.screen, "write_char"
-    ) as mock_write_char, patch.object(
-        data_stream_parser.screen, "get_position", side_effect=[(0, 0), (0, 1), (0, 2)]
-    ) as mock_get_pos, patch.object(
-        data_stream_parser.screen, "set_position"
-    ) as mock_set_pos:
+    with (
+        patch.object(data_stream_parser.screen, "clear"),
+        patch.object(data_stream_parser.screen, "write_char") as mock_write_char,
+        patch.object(
+            data_stream_parser.screen,
+            "get_position",
+            side_effect=[(0, 0), (0, 1), (0, 2)],
+        ) as mock_get_pos,
+        patch.object(data_stream_parser.screen, "set_position") as mock_set_pos,
+    ):
         data_stream_parser.parse(sample_write_stream)
         data_stream_parser.screen.clear.assert_called_once()
         # Verify that the ABC characters were written to the screen
@@ -470,7 +473,7 @@ def test_parse_sample_write(data_stream_parser, sample_write_stream):
             assert sna_response.response_type == SNA_COMMAND_RESPONSE
             assert sna_response.flags == SNA_FLAGS_RSP
             assert sna_response.sense_code == SNA_SENSE_CODE_SUCCESS
-            assert sna_response.data == b"\xDE\xAD"
+            assert sna_response.data == b"\xde\xad"
             assert sna_response.is_positive()
             assert not sna_response.is_negative()
 
@@ -554,7 +557,7 @@ def test_parse_sample_write(data_stream_parser, sample_write_stream):
         )
         sf_length = 1 + len(sna_response_payload)  # SF_Type + payload length
         sample_data = (
-            b"\x3C"
+            b"\x3c"
             + sf_length.to_bytes(2, "big")
             + SNA_RESPONSE_SF_TYPE.to_bytes(1, "big")
             + sna_response_payload
@@ -600,7 +603,7 @@ def test_parse_sample_write(data_stream_parser, sample_write_stream):
         # SF format: 0x3C (SF_ID), Length (2 bytes), SF_Type (1 byte), Data
         printer_sf_payload = bytes([PRINTER_STATUS_SF_TYPE, 0x02])  # Type + status
         sf_length = 1 + len(printer_sf_payload)
-        sample_data = b"\x3C" + sf_length.to_bytes(2, "big") + printer_sf_payload
+        sample_data = b"\x3c" + sf_length.to_bytes(2, "big") + printer_sf_payload
 
         with patch.object(
             data_stream_parser.negotiator, "update_printer_status"
@@ -658,7 +661,7 @@ def test_parse_sample_write(data_stream_parser, sample_write_stream):
         )
         sf_length = 1 + len(sna_response_payload)  # SF_Type + payload length
         sample_data = (
-            b"\x3C"
+            b"\x3c"
             + sf_length.to_bytes(2, "big")
             + SNA_RESPONSE_SF_TYPE.to_bytes(1, "big")
             + sna_response_payload

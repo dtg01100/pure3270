@@ -149,8 +149,9 @@ class TestScreenBuffer:
         field1 = Field((0, 0), (0, 3), modified=True)
         field2 = Field((1, 0), (1, 3), modified=False)
         screen_buffer.fields = [field1, field2]
-        with patch.object(field1, "get_content", return_value="MOD"), patch.object(
-            field2, "get_content", return_value="NOT"
+        with (
+            patch.object(field1, "get_content", return_value="MOD"),
+            patch.object(field2, "get_content", return_value="NOT"),
         ):
             modified = screen_buffer.read_modified_fields()
             assert len(modified) == 1

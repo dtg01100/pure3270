@@ -129,7 +129,7 @@ jobs:
 
     - name: Generate coverage report
       run: |
-        pytest --cov=pure3270/ --cov-report=xml tests/ integration_test.py
+        pytest --cov=pure3270/ --cov-report=xml tests/
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4

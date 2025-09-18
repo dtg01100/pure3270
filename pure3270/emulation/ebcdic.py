@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 # Optional dependency: prefer `ebcdic` package when available for explicit
 # encode/decode helpers, but fall back to the stdlib codec for CP037.
 try:
-    import ebcdic  # type: ignore[import-untyped]
+    import ebcdic  # type: ignore[import-untyped]  # noqa: F401
 except Exception:
     ebcdic = None
 
@@ -116,7 +116,7 @@ def get_p3270_version() -> Optional[str]:
         return importlib.metadata.version("p3270")
     except Exception:
         try:
-            import p3270  # type: ignore[import-untyped]
+            import p3270  # type: ignore[import-untyped]  # noqa: F401
 
             return getattr(p3270, "__version__", None)
         except Exception:
