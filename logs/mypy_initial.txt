@@ -1,8 +1,0 @@
-mypy.....................................................................Failed
-- hook id: mypy
-- exit code: 2
-
-scripts/check_python_releases.py: error: Duplicate module named "check_python_releases" (also at "archive/ai-artifacts/tools/scripts/check_python_releases.py")
-scripts/check_python_releases.py: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#mapping-file-paths-to-modules for more info
-scripts/check_python_releases.py: note: Common resolutions include: a) using `--exclude` to avoid checking one of them, b) adding `__init__.py` somewhere, c) using `--explicit-package-bases` or adjusting MYPYPATH
-Found 1 error in 1 file (errors prevented further checking)

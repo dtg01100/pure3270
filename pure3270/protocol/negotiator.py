@@ -181,11 +181,11 @@ class Negotiator:
         self._pending_requests: Dict[int, Any] = (
             {}
         )  # To store pending requests for response correlation
-        self._device_type_is_event = asyncio.Event()
-        self._functions_is_event = asyncio.Event()
-        self._negotiation_complete = (
-            asyncio.Event()
-        )  # Event for full negotiation completion
+        self._device_type_is_event: Optional[asyncio.Event] = None
+        self._functions_is_event: Optional[asyncio.Event] = None
+        self._negotiation_complete: Optional[asyncio.Event] = (
+            None  # Event for full negotiation completion
+        )
         self._query_sf_response_event = (
             asyncio.Event()
         )  # New event for Query SF response
@@ -198,6 +198,36 @@ class Negotiator:
         self._negotiation_trace = None  # type: Optional[bytes]
         # Optional trace recorder for diagnostics / tests
         self.recorder = recorder  # type: Optional[TraceRecorder]
+
+    def _get_or_create_device_type_event(self) -> asyncio.Event:
+        if self._device_type_is_event is None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            self._device_type_is_event = asyncio.Event(loop=loop)
+        return self._device_type_is_event
+
+    def _get_or_create_functions_event(self) -> asyncio.Event:
+        if self._functions_is_event is None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            self._functions_is_event = asyncio.Event(loop=loop)
+        return self._functions_is_event
+
+    def _get_or_create_negotiation_complete(self) -> asyncio.Event:
+        if self._negotiation_complete is None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            self._negotiation_complete = asyncio.Event(loop=loop)
+        return self._negotiation_complete
 
     # ------------------------------------------------------------------
     # Recorder helpers
@@ -338,7 +368,7 @@ class Negotiator:
                     logger.warning("Received negative response for DEVICE-TYPE SEND.")
                 elif header.is_error_response():
                     logger.error("Received error response for DEVICE-TYPE SEND.")
-                self._device_type_is_event.set()
+                self._get_or_create_device_type_event().set()
             elif request_type == "FUNCTIONS SEND":
                 if header.is_positive_response():
                     logger.debug("Received positive response for FUNCTIONS SEND.")
@@ -346,7 +376,7 @@ class Negotiator:
                     logger.warning("Received negative response for FUNCTIONS SEND.")
                 elif header.is_error_response():
                     logger.error("Received error response for FUNCTIONS SEND.")
-                self._functions_is_event.set()
+                self._get_or_create_functions_event().set()
             else:
                 logger.debug(f"Unhandled correlated response type: {request_type}")
         elif header.data_type == SNA_RESPONSE:
@@ -412,9 +442,9 @@ class Negotiator:
             self.negotiated_tn3270e = False
             self._record_decision("ascii", "ascii", False)
             for ev in (
-                self._device_type_is_event,
-                self._functions_is_event,
-                self._negotiation_complete,
+                self._get_or_create_device_type_event(),
+                self._get_or_create_functions_event(),
+                self._get_or_create_negotiation_complete(),
             ):
                 ev.set()
             return
@@ -426,9 +456,9 @@ class Negotiator:
             self._record_decision("tn3270", "tn3270", False)
             # Events set so upstream waits proceed
             for ev in (
-                self._device_type_is_event,
-                self._functions_is_event,
-                self._negotiation_complete,
+                self._get_or_create_device_type_event(),
+                self._get_or_create_functions_event(),
+                self._get_or_create_negotiation_complete(),
             ):
                 ev.set()
             return
@@ -437,9 +467,9 @@ class Negotiator:
             raise ProtocolError("Writer is None; cannot negotiate TN3270.")
 
         # Clear events before starting negotiation
-        self._device_type_is_event.clear()
-        self._functions_is_event.clear()
-        self._negotiation_complete.clear()
+        self._get_or_create_device_type_event().clear()
+        self._get_or_create_functions_event().clear()
+        self._get_or_create_negotiation_complete().clear()
 
         logger.info(
             "[NEGOTIATION] Starting TN3270E negotiation: waiting for server DEVICE-TYPE SEND."
@@ -451,16 +481,22 @@ class Negotiator:
                 logger.debug(
                     f"[NEGOTIATION] Waiting for DEVICE-TYPE with per-event timeout 5.0s..."
                 )
-                await asyncio.wait_for(self._device_type_is_event.wait(), timeout=5.0)
+                await asyncio.wait_for(
+                    self._get_or_create_device_type_event().wait(), timeout=5.0
+                )
                 logger.debug(
                     f"[NEGOTIATION] Waiting for FUNCTIONS with per-event timeout 5.0s..."
                 )
-                await asyncio.wait_for(self._functions_is_event.wait(), timeout=5.0)
+                await asyncio.wait_for(
+                    self._get_or_create_functions_event().wait(), timeout=5.0
+                )
                 # Overall wait for completion
                 logger.debug(
                     f"[NEGOTIATION] Waiting for full TN3270E negotiation with timeout {timeout}s..."
                 )
-                await asyncio.wait_for(self._negotiation_complete.wait(), timeout=5.0)
+                await asyncio.wait_for(
+                    self._get_or_create_negotiation_complete().wait(), timeout=5.0
+                )
                 logger.info(
                     f"[NEGOTIATION] TN3270E negotiation complete: device={self.negotiated_device_type}, functions=0x{self.negotiated_functions:02x}"
                 )
@@ -500,6 +536,9 @@ class Negotiator:
                     logger.info("[NEGOTIATION] TN3270E negotiation successful.")
                     self._record_decision(self.force_mode or "auto", "tn3270e", False)
 
+                # Ensure events are created and set for completion
+                self._get_or_create_negotiation_complete().set()
+
         except asyncio.TimeoutError:
             if self.force_mode == "tn3270e" and not self.allow_fallback:
                 logger.error(
@@ -508,9 +547,9 @@ class Negotiator:
                 self._record_error("timeout forcing tn3270e without fallback")
                 # Ensure events are set so any awaiters unblock
                 for ev in (
-                    self._device_type_is_event,
-                    self._functions_is_event,
-                    self._negotiation_complete,
+                    self._get_or_create_device_type_event(),
+                    self._get_or_create_functions_event(),
+                    self._get_or_create_negotiation_complete(),
                 ):
                     ev.set()
                 raise_negotiation_error(
@@ -524,9 +563,9 @@ class Negotiator:
                 self._record_decision(self.force_mode or "auto", "ascii", True)
             self.negotiated_tn3270e = False
             for ev in (
-                self._device_type_is_event,
-                self._functions_is_event,
-                self._negotiation_complete,
+                self._get_or_create_device_type_event(),
+                self._get_or_create_functions_event(),
+                self._get_or_create_negotiation_complete(),
             ):
                 ev.set()
             raise_negotiation_error("TN3270E negotiation timed out")
@@ -547,9 +586,9 @@ class Negotiator:
                 )
                 self._record_error(f"refused tn3270e without fallback: {e}")
                 for ev in (
-                    self._device_type_is_event,
-                    self._functions_is_event,
-                    self._negotiation_complete,
+                    self._get_or_create_device_type_event(),
+                    self._get_or_create_functions_event(),
+                    self._get_or_create_negotiation_complete(),
                 ):
                     ev.set()
                 raise_negotiation_error(
@@ -563,9 +602,9 @@ class Negotiator:
                 self._record_decision(self.force_mode or "auto", "ascii", True)
             self.negotiated_tn3270e = False
             for ev in (
-                self._device_type_is_event,
-                self._functions_is_event,
-                self._negotiation_complete,
+                self._get_or_create_device_type_event(),
+                self._get_or_create_functions_event(),
+                self._get_or_create_negotiation_complete(),
             ):
                 ev.set()
             raise_negotiation_error(f"TN3270E negotiation failed: {e}", e)
@@ -752,9 +791,9 @@ class Negotiator:
                     self._forced_failure = True
                     # Unblock waiters so negotiation routine can raise
                     for ev in (
-                        self._device_type_is_event,
-                        self._functions_is_event,
-                        self._negotiation_complete,
+                        self._get_or_create_device_type_event(),
+                        self._get_or_create_functions_event(),
+                        self._get_or_create_negotiation_complete(),
                     ):
                         try:
                             ev.set()
@@ -766,9 +805,9 @@ class Negotiator:
                         f"Remote refused TN3270E (WONT 0x{option:02x}); continuing in forced basic TN3270 mode."
                     )
                     for ev in (
-                        self._device_type_is_event,
-                        self._functions_is_event,
-                        self._negotiation_complete,
+                        self._get_or_create_device_type_event(),
+                        self._get_or_create_functions_event(),
+                        self._get_or_create_negotiation_complete(),
                     ):
                         try:
                             ev.set()
@@ -784,9 +823,9 @@ class Negotiator:
                     self.negotiated_tn3270e = False
                     # Unblock any waiters so negotiation can complete/fallback
                     for ev in (
-                        self._device_type_is_event,
-                        self._functions_is_event,
-                        self._negotiation_complete,
+                        self._get_or_create_device_type_event(),
+                        self._get_or_create_functions_event(),
+                        self._get_or_create_negotiation_complete(),
                     ):
                         try:
                             ev.set()
@@ -970,10 +1009,10 @@ class Negotiator:
                 self._handle_functions_subnegotiation(payload)
             # Check if both events are set to complete negotiation
             if (
-                self._device_type_is_event.is_set()
-                and self._functions_is_event.is_set()
+                self._get_or_create_device_type_event().is_set()
+                and self._get_or_create_functions_event().is_set()
             ):
-                self._negotiation_complete.set()
+                self._get_or_create_negotiation_complete().set()
             return None
 
         # Otherwise, dispatch to the async parser as before.
@@ -1128,8 +1167,11 @@ class Negotiator:
             logger.debug(f"Unhandled TN3270E subnegotiation type: 0x{message_type:02x}")
 
         # Check if both events are set to complete negotiation
-        if self._device_type_is_event.is_set() and self._functions_is_event.is_set():
-            self._negotiation_complete.set()
+        if (
+            self._get_or_create_device_type_event().is_set()
+            and self._get_or_create_functions_event().is_set()
+        ):
+            self._get_or_create_negotiation_complete().set()
 
     def _handle_device_type_subnegotiation(self, data: bytes) -> None:
         """
@@ -1173,7 +1215,7 @@ class Negotiator:
                             )
                         except Exception:
                             logger.exception("Failed to send QUERY SF for IBM-DYNAMIC")
-            self._device_type_is_event.set()
+                    self._get_or_create_device_type_event().set()
             # NOTE: According to RFC 2355, the server should initiate FUNCTIONS negotiation
             # The client should wait for the server to send FUNCTIONS SEND, not send it immediately
             logger.debug(
@@ -1201,7 +1243,7 @@ class Negotiator:
         assert self.writer is not None  # Already checked above
         await self.writer.drain()
         logger.info(f"Sent DEVICE-TYPE IS: {device_type}")
-        self._device_type_is_event.set()
+        self._get_or_create_device_type_event().set()
 
     def _handle_functions_subnegotiation(self, data: bytes) -> None:
         """
@@ -1243,13 +1285,13 @@ class Negotiator:
                 # Empty functions IS - treat as no functions supported
                 logger.warning("Received empty FUNCTIONS IS; no functions supported")
                 self.negotiated_functions = 0
-            self._functions_is_event.set()
+            self._get_or_create_functions_event().set()
             # Check if both events are set to complete negotiation
             if (
-                self._device_type_is_event.is_set()
-                and self._functions_is_event.is_set()
+                self._get_or_create_device_type_event().is_set()
+                and self._get_or_create_functions_event().is_set()
             ):
-                self._negotiation_complete.set()
+                self._get_or_create_negotiation_complete().set()
         elif sub_type == TN3270E_SEND:
             logger.info(
                 "Received FUNCTIONS SEND, responding with IS supported functions"
@@ -1277,7 +1319,7 @@ class Negotiator:
         assert self.writer is not None  # Already checked above
         await self.writer.drain()
         logger.info(f"Sent FUNCTIONS IS: 0x{self.supported_functions:02x}")
-        self._functions_is_event.set()
+        self._get_or_create_functions_event().set()
 
     def _send_supported_device_types(self) -> None:
         """
