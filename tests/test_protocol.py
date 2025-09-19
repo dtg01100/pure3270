@@ -476,12 +476,13 @@ def test_parse_error(caplog, memory_limit_500mb):
             assert "Incomplete WCC order" in str(e)
 
 
-def test_protocol_error(caplog, memory_limit_500mb):
+@pytest.mark.asyncio
+async def test_protocol_error(caplog, memory_limit_500mb):
     handler = TN3270Handler(None, None, None, "host", 23)
     handler.writer = None
     with caplog.at_level("ERROR"):
         with pytest.raises(Exception):  # Catch ProtocolError
-            asyncio.run(handler.send_data(b""))
+            await handler.send_data(b"")
     assert "Not connected" in caplog.text
 
 

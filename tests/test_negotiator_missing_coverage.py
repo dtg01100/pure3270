@@ -118,21 +118,24 @@ class TestNegotiatorMissingCoverage:
         negotiator.is_printer_session = True
         assert negotiator.is_printer_session_active() is True
 
-    def test_receive_data_no_handler(self, negotiator, memory_limit_500mb):
+    @pytest.mark.asyncio
+    async def test_receive_data_no_handler(self, negotiator, memory_limit_500mb):
         """Test receiving data when no handler is available."""
         with pytest.raises(NotImplementedError):
-            asyncio.run(negotiator._receive_data())
+            await negotiator._receive_data()
 
-    def test_read_iac_no_handler(self, negotiator, memory_limit_500mb):
+    @pytest.mark.asyncio
+    async def test_read_iac_no_handler(self, negotiator, memory_limit_500mb):
         """Test reading IAC when no handler is available."""
         with pytest.raises(NotImplementedError):
-            asyncio.run(negotiator._read_iac())
+            await negotiator._read_iac()
 
-    def test_negotiate_no_writer(self, negotiator, memory_limit_500mb):
+    @pytest.mark.asyncio
+    async def test_negotiate_no_writer(self, negotiator, memory_limit_500mb):
         """Test negotiate when writer is None."""
         negotiator.writer = None
         with pytest.raises(ProtocolError):
-            asyncio.run(negotiator.negotiate())
+            await negotiator.negotiate()
 
     def test_handle_device_type_is_with_invalid_data(
         self, negotiator, memory_limit_500mb

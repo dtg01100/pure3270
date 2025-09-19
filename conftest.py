@@ -6,9 +6,11 @@ import pytest
 
 # Python 3.9 compatibility: Ensure event loop is available for async tests
 if sys.version_info < (3, 10):
-    @pytest.fixture(scope="session")
+    @pytest.fixture(scope="function")
     def event_loop():
-        """Create an instance of the default event loop for the test session."""
-        loop = asyncio.get_event_loop_policy().new_event_loop()
+        """Create an instance of the default event loop for the test function."""
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         yield loop
         loop.close()
+        asyncio.set_event_loop(None)
