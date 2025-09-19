@@ -345,7 +345,8 @@ class TN3270Handler:
         """
         try:
             # Keep reading until the negotiator signals full completion
-            while not self.negotiator._negotiation_complete.is_set():
+            negotiation_complete = self.negotiator._get_or_create_negotiation_complete()
+            while not negotiation_complete.is_set():
                 if self.reader is None:
                     break
                 data = await asyncio.wait_for(self.reader.read(4096), timeout=1.0)
