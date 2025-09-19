@@ -1,9 +1,12 @@
 # Pure3270: Pure Python 3270 Terminal Emulation Library
 
-[![Python Package](https://github.com/dtg01100/pure3270/actions/workflows/python-package.yml/badge.svg)](https://github.com/dtg01100/pure3270/actions/workflows/python-package.yml)
-[![Reports](https://github.com/dtg01100/pure3270/actions/workflows/reports.yml/badge.svg)](https://github.com/dtg01100/pure3270/actions/workflows/reports.yml)
-[![Linting](https://github.com/dtg01100/pure3270/actions/workflows/linting.yml/badge.svg)](https://github.com/dtg01100/pure3270/actions/workflows/linting.yml)
-[![GitHub Pages](https://img.shields.io/badge/coverage-reports-blue)](https://dtg01100.github.io/pure3270/)
+![PyPI version](https://img.shields.io/pypi/v/pure3270)
+![Python versions](https://img.shields.io/pypi/pyversions/pure3270)
+![License](https://img.shields.io/github/license/dtg01100/pure3270)
+
+[![CI](https://github.com/dtg01100/pure3270/actions/workflows/ci.yml/badge.svg)](https://github.com/dtg01100/pure3270/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/github/actions/coverage/dtg01100/pure3270/main)](https://dtg01100.github.io/pure3270/)
+[![Static Analysis](https://github.com/dtg01100/pure3270/actions/workflows/static-analysis.yml/badge.svg)](https://github.com/dtg01100/pure3270/actions/workflows/static-analysis.yml)
 
 Pure3270 is a self-contained, pure Python 3.10+ implementation of a 3270 terminal emulator, designed to emulate the functionality of the `s3270` terminal emulator. It integrates seamlessly with the `p3270` library through runtime monkey-patching, allowing you to replace `p3270`'s dependency on the external `s3270` binary without complex setup. The library uses standard asyncio for networking with no external telnet dependencies and supports TN3270 and TN3270E protocols, full 3270 emulation (screen buffer, fields, keyboard simulation), and optional SSL/TLS.
 
