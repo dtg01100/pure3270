@@ -295,7 +295,6 @@ class TestTN3270Handler:
             await tn3270_handler.connect()
 
     @pytest.mark.asyncio
-
     async def test_negotiate_tn3270_success(self, tn3270_handler, memory_limit_500mb):
         tn3270_handler.reader = AsyncMock()
         tn3270_handler.reader.at_eof.return_value = True
@@ -327,7 +326,6 @@ class TestTN3270Handler:
             assert tn3270_handler.negotiated_tn3270e is True
 
     @pytest.mark.asyncio
-
     async def test_negotiate_tn3270_fail(self, tn3270_handler):
         tn3270_handler.reader = AsyncMock()
         tn3270_handler.reader.read.side_effect = [b"", StopAsyncIteration()]
@@ -349,7 +347,6 @@ class TestTN3270Handler:
         assert tn3270_handler.negotiated_tn3270e is False
 
     @pytest.mark.asyncio
-
     async def test_send_data(self, tn3270_handler, memory_limit_500mb):
         data = b"\x7d"
         tn3270_handler.writer = AsyncMock()
@@ -374,14 +371,12 @@ class TestTN3270Handler:
         tn3270_handler.writer.write.assert_called_with(expected_bytes)
 
     @pytest.mark.asyncio
-
     async def test_send_data_not_connected(self, tn3270_handler, memory_limit_500mb):
         tn3270_handler.writer = None
         with pytest.raises(ProtocolError):
             await tn3270_handler.send_data(b"")
 
     @pytest.mark.asyncio
-
     async def test_receive_data(self, tn3270_handler, memory_limit_500mb):
         data = b"\xc1\xc2"
         tn3270_handler.reader = AsyncMock()
@@ -391,14 +386,12 @@ class TestTN3270Handler:
         assert received == data
 
     @pytest.mark.asyncio
-
     async def test_receive_data_not_connected(self, tn3270_handler, memory_limit_500mb):
         tn3270_handler.reader = None
         with pytest.raises(ProtocolError):
             await tn3270_handler.receive_data()
 
     @pytest.mark.asyncio
-
     async def test_close(self, tn3270_handler, memory_limit_500mb):
         mock_writer = AsyncMock()
         mock_writer.close = MagicMock()
@@ -419,7 +412,6 @@ class TestTN3270Handler:
         assert tn3270_handler.is_connected() is True
 
     @pytest.mark.asyncio
-
     async def test_tn3270e_negotiation_with_fallback(
         self, tn3270_handler, memory_limit_500mb
     ):
@@ -555,7 +547,6 @@ class TestNegotiator:
         return Negotiator(None, parser, screen_buffer)
 
     @pytest.mark.asyncio
-
     async def test_negotiator_fallback_to_basic(self, negotiator, memory_limit_500mb):
         """Test fallback to basic TN3270 on WONT TN3270E."""
         mock_writer = AsyncMock()
@@ -582,7 +573,6 @@ class TestNegotiator:
         assert negotiator._functions_is_event.is_set()
 
     @pytest.mark.asyncio
-
     async def test_negotiator_partial_negotiation_error_recovery(
         self, negotiator, memory_limit_500mb
     ):
