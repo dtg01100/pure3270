@@ -11,9 +11,9 @@ Standalone Synchronous Session
    from pure3270 import Session
 
    with Session() as session:
-       session.connect('your-host.example.com', port=23, ssl=False)
-       session.send(b'key Enter')
-       print(session.read())
+       session.connect('your-host.example.com', port=23, ssl_context=None)
+       session.key('Enter')
+       print(session.ascii(session.read()))
 
 Standalone Asynchronous Session
 -------------------------------
@@ -25,13 +25,12 @@ Standalone Asynchronous Session
 
    async def main():
        async with AsyncSession() as session:
-           await session.connect('your-host.example.com', port=23, ssl=False)
-           await session.send(b'key Enter')
-           print(await session.read())
+           await session.connect('your-host.example.com', port=23, ssl_context=None)
+           await session.key('Enter')
+           print(session.ascii(await session.read()))
 
    asyncio.run(main())
 
-\
 
 Integration with p3270
 ----------------------
@@ -48,9 +47,9 @@ To replace ``p3270``'s ``s3270`` dependency with Pure3270:
 
    import p3270
    session = p3270.P3270Client()  # Now uses pure3270 under the hood
-   session.connect('your-host.example.com', port=23, ssl=False)
-   session.send(b'key Enter')
-   screen_text = session.read()
+   session.connect('your-host.example.com', port=23, ssl_context=None)
+   session.key('Enter')
+   screen_text = session.ascii(session.read())
    print(screen_text)
    session.close()
 

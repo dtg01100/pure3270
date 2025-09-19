@@ -57,15 +57,16 @@ Example property test:
     @given(st.integers(min_value=0, max_value=23), st.integers(min_value=0, max_value=79))
     def test_cursor_movement_bounds(row, col):
         screen = ScreenBuffer(rows=24, cols=80)
-        screen.move_cursor(row, col)
-        assert 0 <= screen.cursor_row < 24
-        assert 0 <= screen.cursor_col < 80
+        screen.set_position(row, col)
+        current_row, current_col = screen.get_position()
+        assert 0 <= current_row < 24
+        assert 0 <= current_col < 80
 
 CI/CD Testing
 -------------
 
 GitHub Actions run:
-- Unit/integration tests across Python 3.9-3.13
+- Unit/integration tests across Python 3.10-3.13
 - Static analysis (mypy, pylint, bandit)
 - Security scanning
 - Documentation build verification

@@ -65,8 +65,8 @@ After installation, you can quickly test a basic connection:
    from pure3270 import Session
 
    with Session() as session:
-       session.connect('your-host.example.com', port=23, ssl=False)
+       session.connect('your-host.example.com', port=23, ssl_context=None)
        screen = session.read()
-       print(screen)
+       print(session.ascii(screen))
 
 For more examples, see the :doc:`examples` section.

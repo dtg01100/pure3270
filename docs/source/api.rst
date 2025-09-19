@@ -121,13 +121,7 @@ Exceptions
    :undoc-members:
    :show-inheritance:
 
-Async Helpers
--------------
 
-.. automodule:: pure3270.async_helpers
-   :members:
-   :undoc-members:
-   :show-inheritance:
 
 Emulation - Printer Buffer
 --------------------------

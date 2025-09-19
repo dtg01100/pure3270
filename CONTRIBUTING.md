@@ -21,7 +21,7 @@ Macro scripting/DSL was removed from Pure3270 and will not be reintroduced.
 
 ## Code style
 
-- Python 3.11+
+- Python 3.10+
 - Standard library only for runtime; optional dev tools for tests/linting.
 - Format with `black`; keep imports tidy (`isort`).
 - Follow RFCs for TN3270/TN3270E and Telnet behavior.

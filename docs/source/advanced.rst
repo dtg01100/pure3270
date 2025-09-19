@@ -9,8 +9,8 @@ Printer Sessions
 For printer LU support:
 .. code-block:: python
 
-    session = Session(host="printer-host", printer_mode=True)
-    session.connect()
+    session = Session()
+    session.connect("printer-host")
     # Handle SCS data streams
     printer_status = session.printer_buffer.get_status()
 
@@ -20,12 +20,11 @@ SNA Response Handling
 Advanced SNA state tracking:
 .. code-block:: python
 
-    if session.sna_session_state == "BIND_COMPLETE":
+    if session.sna_session_state == "NORMAL":
         # Session ready for 3270 data
         pass
-    elif response.is_negative():
-        # Handle error recovery
-        session.reconnect()
+    # Note: response.is_negative() not implemented; use exception handling for error recovery
+    # session.reconnect() not implemented; use close() and connect() for recovery
 
 Custom Negotiation
 ------------------
@@ -34,9 +33,9 @@ Extend negotiation:
 .. code-block:: python
 
     class CustomNegotiator(Negotiator):
-        async def _negotiate_tn3270(self):
+        async def negotiate_tn3270(self):
             # Custom device type negotiation
-            await super()._negotiate_tn3270()
+            await super().negotiate_tn3270()
             await self._send_custom_query()
 
 Patching Integration

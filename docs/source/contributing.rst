@@ -7,7 +7,7 @@ Development Setup
 1. Clone the repository:
    .. code-block:: bash
 
-       git clone https://github.com/yourorg/pure3270.git
+       git clone https://github.com/dtg01100/pure3270.git
        cd pure3270
 
 2. Create virtual environment:

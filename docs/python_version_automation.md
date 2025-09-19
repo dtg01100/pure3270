@@ -2,14 +2,14 @@
 
 ## Overview
 
-Pure3270 includes comprehensive automation for testing and maintaining compatibility across multiple Python versions. This documentation explains the automated systems in place to ensure the library works correctly across all supported Python versions (3.9-3.13).
+Pure3270 includes comprehensive automation for testing and maintaining compatibility across multiple Python versions. This documentation explains the automated systems in place to ensure the library works correctly across all supported Python versions (3.10-3.13).
 
 ## Automated Testing Matrix
 
 Pure3270 is automatically tested on all supported Python versions using GitHub Actions:
 
-- Python 3.9
-- Python 3.9
+- Python 3.10
+- Python 3.11
 - Python 3.10
 - Python 3.11
 - Python 3.12
@@ -30,7 +30,7 @@ Pure3270 includes version-specific tests to verify behavior that may differ acro
 
 ### Test File Location
 
-Version-specific tests are located in: `tests/version_specific_test.py`
+Version-specific tests are included in the general test suite with conditional execution based on Python version.
 
 ### Test Categories
 
@@ -44,10 +44,10 @@ Version-specific tests are located in: `tests/version_specific_test.py`
 Tests use decorators to conditionally execute based on Python version:
 
 ```python
-@requires_python_version("3.10")
-def test_match_statement(self):
-    """Test Python 3.10+ match statement functionality"""
-    # Test code here
+# Example of conditional test execution (actual implementation in tests/):
+# @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")
+# def test_match_statement():
+#     # Test code here
 ```
 
 ## Automated Release Integration

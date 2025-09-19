@@ -5,7 +5,7 @@
 [![Linting](https://github.com/dtg01100/pure3270/actions/workflows/linting.yml/badge.svg)](https://github.com/dtg01100/pure3270/actions/workflows/linting.yml)
 [![GitHub Pages](https://img.shields.io/badge/coverage-reports-blue)](https://dtg01100.github.io/pure3270/)
 
-Pure3270 is a self-contained, pure Python 3.11+ implementation of a 3270 terminal emulator, designed to emulate the functionality of the `s3270` terminal emulator. It integrates seamlessly with the `p3270` library through runtime monkey-patching, allowing you to replace `p3270`'s dependency on the external `s3270` binary without complex setup. The library uses standard asyncio for networking with no external telnet dependencies and supports TN3270 and TN3270E protocols, full 3270 emulation (screen buffer, fields, keyboard simulation), and optional SSL/TLS.
+Pure3270 is a self-contained, pure Python 3.10+ implementation of a 3270 terminal emulator, designed to emulate the functionality of the `s3270` terminal emulator. It integrates seamlessly with the `p3270` library through runtime monkey-patching, allowing you to replace `p3270`'s dependency on the external `s3270` binary without complex setup. The library uses standard asyncio for networking with no external telnet dependencies and supports TN3270 and TN3270E protocols, full 3270 emulation (screen buffer, fields, keyboard simulation), and optional SSL/TLS.
 
 New in recent builds: optional negotiation trace recorder for deterministic inspection of Telnet/TN3270E negotiation (see "Negotiation Trace Recorder").
 
@@ -67,7 +67,7 @@ For architecture details, see [`architecture.md`](architecture.md).
 
 ## Installation
 
-Pure3270 now requires Python 3.11 or later (EOL Python versions <3.11 are no longer supported). It is recommended to use a virtual environment for isolation.
+Pure3270 now requires Python 3.10 or later. It is recommended to use a virtual environment for isolation.
 
 ### 1. Create and Activate Virtual Environment
 
@@ -199,9 +199,9 @@ pure3270.enable_replacement()  # Patches p3270 for seamless integration
 from pure3270 import Session
 
 with Session() as session:
-    session.connect('your-host.example.com', port=23, ssl=False)
-    session.send(b'key Enter')
-    print(session.read())
+    session.connect('your-host.example.com', port=23, ssl_context=None)
+    session.key('Enter')
+    print(session.ascii(session.read()))
 ```
 
 **Asynchronous Session:**
@@ -235,7 +235,7 @@ import p3270
 session = p3270.P3270Client()  # Now uses pure3270 under the hood
 session.connect('your-host.example.com', port=23, ssl=False)
 session.send(b'key Enter')
-screen_text = session.read()
+screen_text = session.ascii(session.read())
 print(screen_text)
 session.close()
 ```
@@ -254,9 +254,9 @@ from pure3270 import Session
 
 session = Session()
 try:
-    session.connect('your-host.example.com', port=23, ssl=False)
-    session.send(b'key Enter')
-    print(session.read())
+    session.connect('your-host.example.com', port=23, ssl_context=None)
+    session.key('Enter')
+    print(session.ascii(session.read()))
 finally:
     session.close()
 ```
@@ -274,9 +274,9 @@ from pure3270 import AsyncSession
 
 async def main():
     async with AsyncSession() as session:
-        await session.connect('your-host.example.com', port=23, ssl=False)
-        await session.send(b'key Enter')
-        print(await session.read())
+        await session.connect('your-host.example.com', port=23, ssl_context=None)
+        await session.key('Enter')
+        print(session.ascii(await session.read()))
 
 asyncio.run(main())
 ```
@@ -333,7 +333,6 @@ json_payload = json.dumps([{'kind': e.kind, **e.details, 'ts': e.ts} for e in se
 
 Future enhancements may add richer structured field tracing and export helpers.
 
-\
 
 **Using Managed Context:**
 The `managed` context manager ensures proper session lifecycle:
@@ -344,9 +343,9 @@ from pure3270 import AsyncSession
 async def main():
     session = AsyncSession()
     async with session.managed():
-        await session.connect('your-host.example.com', port=23, ssl=False)
-        await session.send(b'key Enter')
-        print(await session.read())
+        await session.connect('your-host.example.com', port=23, ssl_context=None)
+        await session.key('Enter')
+        print(session.ascii(await session.read()))
     # Session is automatically closed here
 
 asyncio.run(main())
@@ -361,9 +360,9 @@ from pure3270 import AsyncSession, SessionError
 async def main():
     try:
         async with AsyncSession() as session:
-            await session.connect('your-host.example.com', port=23, ssl=False)
-            await session.send(b'key Enter')
-            print(await session.read())
+            await session.connect('your-host.example.com', port=23, ssl_context=None)
+            await session.key('Enter')
+            print(session.ascii(await session.read()))
     except SessionError as e:
         print(f"Session error: {e}")
     except Exception as e:
@@ -625,7 +624,7 @@ This project uses GitHub Actions for continuous integration. The workflows are d
 2. `reports.yml` - Generates and publishes coverage and linting reports
 3. `python-publish.yml` - Publishes releases to PyPI
 
-Reports are automatically generated on each push and pull request. Coverage reports are published to [GitHub Pages](https://dlafreniere.github.io/pure3270/) for easy access.
+Reports are automatically generated on each push and pull request. Coverage reports are published to [GitHub Pages](https://dtg01100.github.io/pure3270/) for easy access.
 
 ```yaml
 name: CI
