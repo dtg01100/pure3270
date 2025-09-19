@@ -91,7 +91,8 @@ class TestTN3270Handler:
         with pytest.raises(ConnectionError):
             await tn3270_handler.connect()
 
-    def test_sna_session_state_property(self, tn3270_handler):
+    @pytest.mark.asyncio
+    async def test_sna_session_state_property(self, tn3270_handler):
         # Initial state should be NORMAL
         assert tn3270_handler.sna_session_state == SnaSessionState.NORMAL.value
         # Mock negotiator's state change
@@ -170,7 +171,8 @@ class TestTN3270Handler:
         mock_writer.close.assert_called_once()
         assert tn3270_handler.writer is None
 
-    def test_is_connected(self, tn3270_handler):
+    @pytest.mark.asyncio
+    async def test_is_connected(self, tn3270_handler):
         assert tn3270_handler.is_connected() is False
         tn3270_handler.writer = MagicMock()
         tn3270_handler.reader = MagicMock()
@@ -179,7 +181,8 @@ class TestTN3270Handler:
         tn3270_handler._connected = True
         assert tn3270_handler.is_connected() is True
 
-    def test_is_connected_writer_closing(self, tn3270_handler):
+    @pytest.mark.asyncio
+    async def test_is_connected_writer_closing(self, tn3270_handler):
         tn3270_handler.writer = MagicMock()
         tn3270_handler.reader = MagicMock()
         tn3270_handler.writer.is_closing = MagicMock(return_value=True)
@@ -187,7 +190,8 @@ class TestTN3270Handler:
         tn3270_handler._connected = True
         assert tn3270_handler.is_connected() is False
 
-    def test_is_connected_reader_at_eof(self, tn3270_handler):
+    @pytest.mark.asyncio
+    async def test_is_connected_reader_at_eof(self, tn3270_handler):
         tn3270_handler.writer = MagicMock()
         tn3270_handler.reader = MagicMock()
         tn3270_handler.writer.is_closing = MagicMock(return_value=False)
@@ -262,7 +266,8 @@ class TestTN3270Handler:
         with pytest.raises(ProtocolError):
             await tn3270_handler.send_print_eoj()
 
-    def test_is_printer_session_active(self, tn3270_handler):
+    @pytest.mark.asyncio
+    async def test_is_printer_session_active(self, tn3270_handler):
         tn3270_handler.is_printer_session = False
         assert tn3270_handler.is_printer_session_active() is False
 

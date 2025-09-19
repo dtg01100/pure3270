@@ -217,7 +217,9 @@ class TestSSLWrapper:
     platform.system() != "Linux", reason="Memory limiting only supported on Linux"
 )
 class TestTN3270Handler:
+    @pytest.mark.asyncio
     @patch("asyncio.open_connection")
+    @pytest.mark.asyncio
     async def test_connect_non_ssl(self, mock_open, tn3270_handler, memory_limit_500mb):
         mock_reader = AsyncMock()
         mock_writer = AsyncMock()
@@ -252,6 +254,7 @@ class TestTN3270Handler:
         assert tn3270_handler.writer == mock_writer
 
     @patch("asyncio.open_connection")
+    @pytest.mark.asyncio
     async def test_connect_ssl(self, mock_open, tn3270_handler, memory_limit_500mb):
         ssl_wrapper = SSLWrapper()
         ssl_context = ssl_wrapper.get_context()
@@ -282,6 +285,7 @@ class TestTN3270Handler:
         )
 
     @patch("asyncio.open_connection")
+    @pytest.mark.asyncio
     async def test_connect_error(self, mock_open, tn3270_handler, memory_limit_500mb):
         mock_open.side_effect = Exception("Connection failed")
         tn3270_handler.reader = None
@@ -289,6 +293,8 @@ class TestTN3270Handler:
         tn3270_handler._connected = False
         with pytest.raises(ConnectionError):
             await tn3270_handler.connect()
+
+    @pytest.mark.asyncio
 
     async def test_negotiate_tn3270_success(self, tn3270_handler, memory_limit_500mb):
         tn3270_handler.reader = AsyncMock()
@@ -320,6 +326,8 @@ class TestTN3270Handler:
             await tn3270_handler._negotiate_tn3270()
             assert tn3270_handler.negotiated_tn3270e is True
 
+    @pytest.mark.asyncio
+
     async def test_negotiate_tn3270_fail(self, tn3270_handler):
         tn3270_handler.reader = AsyncMock()
         tn3270_handler.reader.read.side_effect = [b"", StopAsyncIteration()]
@@ -339,6 +347,8 @@ class TestTN3270Handler:
                     await tn3270_handler._negotiate_tn3270(timeout=0.1)
         tn3270_handler.negotiator.negotiated_tn3270e = False
         assert tn3270_handler.negotiated_tn3270e is False
+
+    @pytest.mark.asyncio
 
     async def test_send_data(self, tn3270_handler, memory_limit_500mb):
         data = b"\x7d"
@@ -363,10 +373,14 @@ class TestTN3270Handler:
         await tn3270_handler.send_data(data)
         tn3270_handler.writer.write.assert_called_with(expected_bytes)
 
+    @pytest.mark.asyncio
+
     async def test_send_data_not_connected(self, tn3270_handler, memory_limit_500mb):
         tn3270_handler.writer = None
         with pytest.raises(ProtocolError):
             await tn3270_handler.send_data(b"")
+
+    @pytest.mark.asyncio
 
     async def test_receive_data(self, tn3270_handler, memory_limit_500mb):
         data = b"\xc1\xc2"
@@ -376,10 +390,14 @@ class TestTN3270Handler:
         # The handler strips EOR markers and returns only the data payload
         assert received == data
 
+    @pytest.mark.asyncio
+
     async def test_receive_data_not_connected(self, tn3270_handler, memory_limit_500mb):
         tn3270_handler.reader = None
         with pytest.raises(ProtocolError):
             await tn3270_handler.receive_data()
+
+    @pytest.mark.asyncio
 
     async def test_close(self, tn3270_handler, memory_limit_500mb):
         mock_writer = AsyncMock()
@@ -399,6 +417,8 @@ class TestTN3270Handler:
         tn3270_handler.reader.at_eof.return_value = False
         tn3270_handler._connected = True
         assert tn3270_handler.is_connected() is True
+
+    @pytest.mark.asyncio
 
     async def test_tn3270e_negotiation_with_fallback(
         self, tn3270_handler, memory_limit_500mb
@@ -534,6 +554,8 @@ class TestNegotiator:
         screen_buffer = ScreenBuffer()
         return Negotiator(None, parser, screen_buffer)
 
+    @pytest.mark.asyncio
+
     async def test_negotiator_fallback_to_basic(self, negotiator, memory_limit_500mb):
         """Test fallback to basic TN3270 on WONT TN3270E."""
         mock_writer = AsyncMock()
@@ -558,6 +580,8 @@ class TestNegotiator:
 
         assert bool(negotiator.negotiated_functions & TN3270E_RESPONSES)
         assert negotiator._functions_is_event.is_set()
+
+    @pytest.mark.asyncio
 
     async def test_negotiator_partial_negotiation_error_recovery(
         self, negotiator, memory_limit_500mb

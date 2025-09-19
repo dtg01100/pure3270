@@ -61,7 +61,8 @@ class TestNegotiatorMissingCoverage:
         # Test with invalid TN3270E option
         negotiator._parse_tn3270e_subnegotiation(b"\x99\x01\x02")  # Invalid option 0x99
 
-    def test_handle_device_type_subnegotiation_invalid_data(
+    @pytest.mark.asyncio
+    async def test_handle_device_type_subnegotiation_invalid_data(
         self, negotiator, memory_limit_500mb
     ):
         """Test handling of invalid device type subnegotiation data."""
@@ -72,7 +73,8 @@ class TestNegotiatorMissingCoverage:
             b"\x03\x01"
         )  # REJECT with no reason
 
-    def test_handle_functions_subnegotiation_invalid_data(
+    @pytest.mark.asyncio
+    async def test_handle_functions_subnegotiation_invalid_data(
         self, negotiator, memory_limit_500mb
     ):
         """Test handling of invalid functions subnegotiation data."""
@@ -81,7 +83,8 @@ class TestNegotiatorMissingCoverage:
         negotiator._handle_functions_subnegotiation(b"\x01")  # Missing function bits
         negotiator._handle_functions_subnegotiation(b"\x99\x01\x02")  # Invalid sub-type
 
-    def test_send_supported_device_types_no_writer(
+    @pytest.mark.asyncio
+    async def test_send_supported_device_types_no_writer(
         self, negotiator, memory_limit_500mb
     ):
         """Test sending device types when writer is None."""
@@ -96,7 +99,8 @@ class TestNegotiatorMissingCoverage:
         # This should log an error but not crash
         await negotiator._send_supported_functions()
 
-    def test_lu_name_property(self, negotiator, memory_limit_500mb):
+    @pytest.mark.asyncio
+    async def test_lu_name_property(self, negotiator, memory_limit_500mb):
         """Test LU name property getter and setter."""
         # Test getter when None
         assert negotiator.lu_name is None
@@ -109,7 +113,10 @@ class TestNegotiatorMissingCoverage:
         negotiator.lu_name = None
         assert negotiator.lu_name is None
 
-    def test_is_printer_session_active(self, negotiator, memory_limit_500mb):
+    @pytest.mark.asyncio
+
+
+    async def test_is_printer_session_active(self, negotiator, memory_limit_500mb):
         """Test printer session detection."""
         # Initially should be False
         assert negotiator.is_printer_session_active() is False
@@ -137,7 +144,10 @@ class TestNegotiatorMissingCoverage:
         with pytest.raises(ProtocolError):
             await negotiator.negotiate()
 
-    def test_handle_device_type_is_with_invalid_data(
+    @pytest.mark.asyncio
+
+
+    async def test_handle_device_type_is_with_invalid_data(
         self, negotiator, memory_limit_500mb
     ):
         """Test DEVICE-TYPE IS handling with invalid device type data."""
@@ -147,7 +157,10 @@ class TestNegotiatorMissingCoverage:
             bytes([TN3270E_IS]) + b"incomplete\x00"
         )
 
-    def test_handle_device_type_request_with_no_supported_types(
+    @pytest.mark.asyncio
+
+
+    async def test_handle_device_type_request_with_no_supported_types(
         self, negotiator, memory_limit_500mb
     ):
         """Test DEVICE-TYPE REQUEST handling when no supported types."""
@@ -155,11 +168,17 @@ class TestNegotiatorMissingCoverage:
         negotiator.supported_device_types = []
         negotiator._handle_device_type_subnegotiation(bytes([TN3270E_REQUEST]))
 
-    def test_handle_functions_is_with_empty_data(self, negotiator, memory_limit_500mb):
+    @pytest.mark.asyncio
+
+
+    async def test_handle_functions_is_with_empty_data(self, negotiator, memory_limit_500mb):
         """Test FUNCTIONS IS handling with empty function data."""
         negotiator._handle_functions_subnegotiation(bytes([TN3270E_IS]))
 
-    def test_handle_functions_request_with_no_supported_functions(
+    @pytest.mark.asyncio
+
+
+    async def test_handle_functions_request_with_no_supported_functions(
         self, negotiator, memory_limit_500mb
     ):
         """Test FUNCTIONS REQUEST handling when no supported functions."""
@@ -167,7 +186,10 @@ class TestNegotiatorMissingCoverage:
         negotiator.supported_functions = 0
         negotiator._handle_functions_subnegotiation(bytes([TN3270E_REQUEST]))
 
-    def test_send_supported_device_types_with_empty_supported_list(
+    @pytest.mark.asyncio
+
+
+    async def test_send_supported_device_types_with_empty_supported_list(
         self, negotiator, memory_limit_500mb
     ):
         """Test sending device types when supported list is empty."""
