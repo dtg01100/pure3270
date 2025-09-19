@@ -43,7 +43,7 @@ jobs:
         make html
 
     - name: Setup Pages
-      id: deployment
+      id: pages-setup
       if: github.ref == 'refs/heads/main'
       uses: actions/configure-pages@v5
 
