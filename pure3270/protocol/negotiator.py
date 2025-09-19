@@ -7,6 +7,7 @@ import asyncio
 import inspect
 import logging
 from enum import Enum  # Import Enum for state management
+import sys
 from typing import TYPE_CHECKING, Any, Awaitable, Dict, List, Optional
 
 from ..emulation.screen_buffer import ScreenBuffer
@@ -206,7 +207,10 @@ class Negotiator:
             except RuntimeError:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-            self._device_type_is_event = asyncio.Event(loop=loop)
+            if sys.version_info < (3, 10):
+                self._device_type_is_event = asyncio.Event(loop=loop)
+            else:
+                self._device_type_is_event = asyncio.Event()
         return self._device_type_is_event
 
     def _get_or_create_functions_event(self) -> asyncio.Event:
@@ -216,7 +220,10 @@ class Negotiator:
             except RuntimeError:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-            self._functions_is_event = asyncio.Event(loop=loop)
+            if sys.version_info < (3, 10):
+                self._functions_is_event = asyncio.Event(loop=loop)
+            else:
+                self._functions_is_event = asyncio.Event()
         return self._functions_is_event
 
     def _get_or_create_negotiation_complete(self) -> asyncio.Event:
@@ -226,7 +233,10 @@ class Negotiator:
             except RuntimeError:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-            self._negotiation_complete = asyncio.Event(loop=loop)
+            if sys.version_info < (3, 10):
+                self._negotiation_complete = asyncio.Event(loop=loop)
+            else:
+                self._negotiation_complete = asyncio.Event()
         return self._negotiation_complete
 
     # ------------------------------------------------------------------
