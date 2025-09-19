@@ -67,9 +67,12 @@ jobs:
       matrix:
         python-version: ${{ fromJson(needs.setup.outputs.python-versions) }}
       fail-fast: false  # Don't cancel other jobs if one fails, especially for new version testing
-    steps:
-    - uses: actions/checkout@v4
 
+    steps:
+    - name: Configure git default branch
+      run: git config --global init.defaultBranch main
+
+    - uses: actions/checkout@v4
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
