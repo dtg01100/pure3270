@@ -9,10 +9,10 @@ description = "Pure Python 3270 emulator"
 readme = "README.md"
 authors = [{name = "Pure3270 Developers"}]
 dependencies = ["ebcdic"]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
+    # Dropped Python 3.9 support
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -64,7 +64,7 @@ markers = [
 
 [tool.black]
 line-length = 88
-target-version = ['py39']
+target-version = ['py310']
 include = '\.pyi?$'
 extend-exclude = '''
 /(

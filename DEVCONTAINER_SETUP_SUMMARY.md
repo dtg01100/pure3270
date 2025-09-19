@@ -2,14 +2,14 @@
 
 ## Overview
 
-The Pure3270 project now has a comprehensive multi-Python development environment that enables local testing across all Python versions in our CI matrix (3.9, 3.10, 3.11, 3.12, 3.13).
+The Pure3270 project now has a comprehensive multi-Python development environment that enables local testing across all Python versions in our CI matrix (3.10, 3.11, 3.12, 3.13).
 
 ## Files Created/Modified
 
 ### ✅ New Files
 
 1. **`.devcontainer/Dockerfile`**
-   - Custom Docker image with pyenv and Python 3.9.21, 3.10.14, 3.11.10, 3.12.11, 3.13.1
+   - Custom Docker image with pyenv and Python 3.10.14, 3.11.10, 3.12.11, 3.13.1
    - Build tools and dependencies for Python compilation
    - User environment setup
 
@@ -55,12 +55,12 @@ test-all-pythons
 run-full-ci-all-pythons
 
 # Switch to specific Python version
-switch-python 3.9.21
+switch-python 3.10.14
 ```
 
-### 🐍 Python Version Management
-- **3.9.21** - Oldest supported version
-- **3.10.14** - LTS version
+- ### 🐍 Python Version Management
+- **3.10.14** - Oldest supported version
+- **3.11.10** - LTS version
 - **3.11.10** - LTS version
 - **3.12.11** - **Default** - Current stable
 - **3.13.1** - Latest version
@@ -114,7 +114,7 @@ test-all-pythons
 run-full-ci-all-pythons
 
 # Debug specific version
-switch-python 3.9.21
+switch-python 3.10.14
 python quick_test.py
 ```
 
@@ -131,12 +131,12 @@ Local setup exactly mirrors GitHub Actions:
 
 **GitHub Actions Matrix:**
 ```yaml
-python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+python-version: ["3.10", "3.11", "3.12", "3.13"]
 ```
 
 **Local Versions:**
-- 3.9.21 → CI "3.9"
 - 3.10.14 → CI "3.10"
+- 3.11.10 → CI "3.11"
 - 3.11.10 → CI "3.11"
 - 3.12.11 → CI "3.12"
 - 3.13.1 → CI "3.13"
@@ -160,7 +160,7 @@ export PATH="/home/vscode/.pyenv/bin:$PATH"
 eval "$(pyenv init -)"
 
 # Reinstall in specific version
-switch-python 3.9.21
+switch-python 3.10.14
 pip install -e .
 
 # List available versions

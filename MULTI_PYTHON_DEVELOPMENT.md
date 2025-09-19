@@ -1,6 +1,6 @@
 # Multi-Python Development Environment
 
-The Pure3270 project now supports comprehensive local testing across all Python versions in our CI matrix (3.9, 3.10, 3.11, 3.12, 3.13) using a Docker devcontainer with pyenv.
+The Pure3270 project now supports comprehensive local testing across all Python versions in our CI matrix (3.10, 3.11, 3.12, 3.13) using a Docker devcontainer with pyenv.
 
 ## Quick Start
 
@@ -16,7 +16,7 @@ test-all-pythons
 run-full-ci-all-pythons
 
 # Switch to a specific Python version
-switch-python 3.9.21
+switch-python 3.10.14
 switch-python 3.12.11
 
 # List all available Python versions
@@ -27,8 +27,8 @@ pyenv versions
 
 ```bash
 # Using pyenv directly
-pyenv shell 3.9.21
-python --version  # Should show Python 3.9.21
+pyenv shell 3.10.14
+python --version  # Should show Python 3.10.14
 
 # Using our convenience script
 switch-python 3.10.14
@@ -68,7 +68,7 @@ tox -e smoke
 tox -e fullci
 
 # Test specific version
-tox -e py39
+tox -e py310
 
 # Run linting
 tox -e lint
@@ -83,8 +83,8 @@ The following Python versions are installed and available:
 
 | Version | pyenv Name | Status | Notes |
 |---------|------------|--------|--------|
-| 3.9.21  | 3.9.21     | ✅ Active | Oldest supported version |
-| 3.10.14 | 3.10.14    | ✅ Active | LTS version |
+| 3.10.14 | 3.10.14    | ✅ Active | Oldest supported version |
+| 3.11.10 | 3.11.10    | ✅ Active | LTS version |
 | 3.11.10 | 3.11.10    | ✅ Active | LTS version |
 | 3.12.11 | 3.12.11    | ✅ Active | **Default** - Current stable |
 | 3.13.1  | 3.13.1     | ✅ Active | Latest version |
@@ -199,12 +199,12 @@ This local setup exactly mirrors our GitHub Actions CI matrix:
 ```yaml
 strategy:
   matrix:
-    python-version: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+  python-version: ["3.10", "3.11", "3.12", "3.13"]
 ```
 
 **Local Versions:**
-- 3.9.21 (maps to CI "3.9")
 - 3.10.14 (maps to CI "3.10")
+- 3.11.10 (maps to CI "3.11")
 - 3.11.10 (maps to CI "3.11")
 - 3.12.11 (maps to CI "3.12")
 - 3.13.1 (maps to CI "3.13")
