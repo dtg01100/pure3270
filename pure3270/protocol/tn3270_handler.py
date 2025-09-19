@@ -358,10 +358,7 @@ class TN3270Handler:
                 # Avoid busy loop if reader returns empty bytes
                 await asyncio.sleep(0.1)
                 # Process telnet stream synchronously; this will schedule negotiator tasks
-                result = self._process_telnet_stream(data)
-                # If the result is awaitable, await it to ensure completion
-                if inspect.isawaitable(result):
-                    await result
+                result = await self._process_telnet_stream(data)
         except asyncio.CancelledError:
             # Normal cancellation when negotiation completes
             pass

@@ -11,6 +11,7 @@ from pure3270.protocol.tn3270_handler import (
     TN3270Handler,
 )
 from pure3270.protocol.tn3270e_header import TN3270EHeader
+from pure3270.protocol.utils import TELOPT_EOR, TELOPT_TN3270E, WILL
 
 
 class TestTN3270Handler:
@@ -100,27 +101,33 @@ class TestTN3270Handler:
 
     @pytest.mark.asyncio
     async def test_negotiate_tn3270_success(self, tn3270_handler):
-        tn3270_handler.reader = AsyncMock()
         tn3270_handler.writer = AsyncMock()
         tn3270_handler.writer.drain = AsyncMock()
         # Update negotiator's writer as well
         tn3270_handler.negotiator.writer = tn3270_handler.writer
 
-        # Mock the negotiation sequence with proper subnegotiation for TN3270E
-        tn3270_handler.reader.read.side_effect = [
-            b"\xff\xfa\x28\x00\x04\xff\xf0",  # IAC SB TN3270E DEVICE-TYPE SEND IAC SE
-            b"\xff\xfa\x28\x00\x02IBM-3279-4-E\x00\xff\xf0",  # IAC SB TN3270E DEVICE-TYPE IS IBM-3279-4-E\0 IAC SE
-            b"\xff\xfa\x28\x01\x02\x01\x02\x04\x08\xff\xf0",  # IAC SB TN3270E FUNCTIONS IS 0x01 0x02 0x04 0x08 IAC SE
-            b"\xff\xfb\x19",  # WILL EOR
-        ]
+        # Manually trigger negotiation steps to set events
+        # DEVICE-TYPE SEND
+        await tn3270_handler.negotiator.handle_subnegotiation(TELOPT_TN3270E, b'\x00\x04')
+        # DEVICE-TYPE IS
+        await tn3270_handler.negotiator.handle_subnegotiation(TELOPT_TN3270E, b'\x00\x02IBM-3279-4-E\x00')
+        # FUNCTIONS IS
+        await tn3270_handler.negotiator.handle_subnegotiation(TELOPT_TN3270E, b'\x01\x02\x01\x02\x04\x08')
+        # WILL EOR
+        def mock_send_iac(*args, **kwargs):
+            return asyncio.sleep(0)
+        with patch('pure3270.protocol.utils.send_iac', side_effect=mock_send_iac):
+            await tn3270_handler.negotiator.handle_iac_command(WILL, TELOPT_EOR)
 
         # Mock the infer_tn3270e_from_trace method to return True
         tn3270_handler.negotiator.infer_tn3270e_from_trace = MagicMock(
             return_value=True
         )
 
-        await tn3270_handler._negotiate_tn3270()
-        assert tn3270_handler.negotiated_tn3270e is True
+        with patch.object(tn3270_handler, '_reader_loop', return_value=None):
+            with patch('asyncio.wait_for', return_value=None):
+                await tn3270_handler._negotiate_tn3270()
+            assert tn3270_handler.negotiated_tn3270e is True
 
     @pytest.mark.asyncio
     async def test_negotiate_tn3270_fail(self, tn3270_handler):

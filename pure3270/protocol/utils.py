@@ -223,10 +223,12 @@ def send_iac(writer: Optional[asyncio.StreamWriter], data: bytes) -> None:
 
     # Call write; AsyncMock.write may return a coroutine that needs awaiting.
     try:
-        writer.write(bytes([IAC]) + data)
+        result = writer.write(bytes([IAC]) + data)
+        _schedule_if_awaitable(result)
     except Exception:
         try:
-            writer.write(bytes([IAC]) + data)
+            result = writer.write(bytes([IAC]) + data)
+            _schedule_if_awaitable(result)
         except Exception:
             return
 
