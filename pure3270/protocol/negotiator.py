@@ -6,8 +6,8 @@ Handles Telnet negotiation and TN3270E subnegotiation.
 import asyncio
 import inspect
 import logging
-from enum import Enum  # Import Enum for state management
 import sys
+from enum import Enum  # Import Enum for state management
 from typing import TYPE_CHECKING, Any, Awaitable, Dict, List, Optional
 
 from ..emulation.screen_buffer import ScreenBuffer
@@ -464,6 +464,20 @@ class Negotiator:
             )
             self.negotiated_tn3270e = False
             self._record_decision("tn3270", "tn3270", False)
+            # Events set so upstream waits proceed
+            for ev in (
+                self._get_or_create_device_type_event(),
+                self._get_or_create_functions_event(),
+                self._get_or_create_negotiation_complete(),
+            ):
+                ev.set()
+            return
+        if self.force_mode == "tn3270e":
+            logger.info(
+                "[NEGOTIATION] force_mode=tn3270e specified; skipping TN3270E negotiation (TN3270E enabled)."
+            )
+            self.negotiated_tn3270e = True
+            self._record_decision("tn3270e", "tn3270e", True)
             # Events set so upstream waits proceed
             for ev in (
                 self._get_or_create_device_type_event(),

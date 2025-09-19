@@ -533,7 +533,7 @@ class TN3270Handler:
         logger.debug(f"receive_data called on handler {id(self)}")
         reader, _ = self._require_streams()
 
-        async def _perform_read() -> bytes:  # type: ignore[return]
+        async def _perform_read() -> bytes:
             async with safe_socket_operation():
                 logger.debug(f"Attempting to read data with timeout {timeout}")
                 result = await asyncio.wait_for(reader.read(4096), timeout=timeout)

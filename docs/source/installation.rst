@@ -1,13 +1,13 @@
 Installation
 ============
 
-Pure3270 requires Python 3.9 or later. It is recommended to use a virtual
+Pure3270 requires Python 3.10 or later. It is recommended to use a virtual
 environment for isolation.
 
 Requirements
 ------------
 
-* Python 3.9 or later
+* Python 3.10 or later
 * No external runtime dependencies (uses only Python standard library)
 
 Installation Methods

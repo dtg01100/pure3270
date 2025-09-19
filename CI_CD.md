@@ -33,7 +33,7 @@ See [CI_README.md](CI_README.md) for complete local CI documentation.
 
 ### 2. Full CI (`.github/workflows/ci.yml`)
 - Runs on PRs to main/develop and pushes to those branches
-- Tests multiple Python versions (3.9-3.13)
+- Tests multiple Python versions (3.10-3.13)
 - Comprehensive testing including integration tests, static analysis, coverage
 - **Local equivalent**: `./ci.sh full` or `python run_full_ci.py`
 - Release validation and package publishing
@@ -218,7 +218,7 @@ If you need to manually release:
 ./ci.sh github
 
 # Check specific Python version compatibility
-python3.9 -m pytest tests/  # If available
+python3.10 -m pytest tests/  # If available
 python3.11 -m pytest tests/
 ```
 

@@ -57,14 +57,17 @@ class safe_socket_operation:
     async def __aenter__(self) -> "safe_socket_operation":
         return self
 
-    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> bool:
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         if exc_type in (OSError, ssl.SSLError, asyncio.TimeoutError):
             logger.error(f"Socket/SSL operation failed: {exc_val}", exc_info=True)
             raise ProtocolError(f"Protocol operation failed: {exc_val}")
-        return False
+        return None
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> Any:
-        return self.__aexit__(exc_type, exc_val, exc_tb)
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        if exc_type in (OSError, ssl.SSLError, asyncio.TimeoutError):
+            logger.error(f"Socket/SSL operation failed: {exc_val}", exc_info=True)
+            raise ProtocolError(f"Protocol operation failed: {exc_val}")
+        return None
 
 
 def raise_protocol_error(message: str, exc: Optional[Exception] = None) -> None:
