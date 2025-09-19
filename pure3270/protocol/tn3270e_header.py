@@ -25,6 +25,8 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
+from .exceptions import ProtocolError
+
 
 class TN3270EHeader:
     """
@@ -162,3 +164,60 @@ class TN3270EHeader:
         return names.get(
             self.response_flag, f"UNKNOWN_RESPONSE_FLAG(0x{self.response_flag:02x})"
         )
+
+    def handle_negative_response(self, data: bytes) -> None:
+        """
+        Handle negative response by parsing the code and raising ProtocolError with details.
+
+        Args:
+            data: Bytes following the header, starting with the negative code byte.
+
+        Raises:
+            ProtocolError: With details of the negative response code and sense if applicable.
+        """
+        if not self.is_negative_response():
+            raise ValueError("Not a negative response header")
+
+        if len(data) < 1:
+            raise ProtocolError("Negative response missing code byte")
+
+        code = data[0]
+        code_map = {
+            0x01: "SEGMENT",
+            0x02: "USABLE-AREA",
+            0x03: "REQUEST",
+            0xFF: "SNA_NEGATIVE",
+        }
+        msg = code_map.get(code, f"UNKNOWN_NEGATIVE_CODE(0x{code:02x})")
+
+        sense = None
+        if code == 0xFF and len(data) >= 3:
+            # SNA sense code is 2 bytes big-endian
+            sense_code = (data[1] << 8) | data[2]
+            # Map to known SNA sense codes
+            from ..data_stream import (
+                SNA_SENSE_CODE_INVALID_FORMAT,
+                SNA_SENSE_CODE_INVALID_REQUEST,
+                SNA_SENSE_CODE_INVALID_SEQUENCE,
+                SNA_SENSE_CODE_LU_BUSY,
+                SNA_SENSE_CODE_NO_RESOURCES,
+                SNA_SENSE_CODE_NOT_SUPPORTED,
+                SNA_SENSE_CODE_SESSION_FAILURE,
+                SNA_SENSE_CODE_STATE_ERROR,
+                SNA_SENSE_CODE_SUCCESS,
+            )
+            sense_map = {
+                SNA_SENSE_CODE_SUCCESS: "SUCCESS",
+                SNA_SENSE_CODE_INVALID_REQUEST: "INVALID_REQUEST",
+                SNA_SENSE_CODE_INVALID_FORMAT: "INVALID_FORMAT",
+                SNA_SENSE_CODE_INVALID_SEQUENCE: "INVALID_SEQUENCE",
+                SNA_SENSE_CODE_LU_BUSY: "LU_BUSY",
+                SNA_SENSE_CODE_NO_RESOURCES: "NO_RESOURCES",
+                SNA_SENSE_CODE_NOT_SUPPORTED: "NOT_SUPPORTED",
+                SNA_SENSE_CODE_SESSION_FAILURE: "SESSION_FAILURE",
+                SNA_SENSE_CODE_STATE_ERROR: "STATE_ERROR",
+            }
+            sense = sense_map.get(sense_code, f"UNKNOWN_SENSE(0x{sense_code:04x})")
+            msg += f" with sense {sense}"
+
+        raise ProtocolError(f"Negative TN3270E response: {msg}")

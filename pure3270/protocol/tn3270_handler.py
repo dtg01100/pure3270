@@ -732,6 +732,9 @@ class TN3270Handler:
                     self.parser.parse(processed_data[header_len:], data_type=data_type)
                     return processed_data  # Printer status data doesn't update screen
 
+        # Strip trailing 3270 EOR (0x19) bytes before parsing
+        processed_data = processed_data.rstrip(b'\x19')
+
         # Pass data type to parser for appropriate handling (e.g., SCS data)
         try:
             self.parser.parse(processed_data[header_len:], data_type=data_type)

@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 from unittest.mock import patch as mock_patch  # noqa: F401
 
 import pytest
+import pytest_asyncio
 
 from pure3270.emulation.ebcdic import EBCDICCodec
 from pure3270.emulation.screen_buffer import ScreenBuffer
@@ -188,3 +189,87 @@ def memory_limit_100mb():
             )
         except (ValueError, OSError):
             pass
+
+
+async def mock_tn3270e_handle_success(reader, writer):
+    try:
+        # Send IAC DO TN3270E
+        writer.write(b'\xff\xfd\x1b')
+        await writer.drain()
+        
+        # Wait for client's IAC WILL TN3270E
+        data = await reader.readexactly(3)
+        
+        # Send SB TN3270E DEVICE-TYPE REQUEST
+        request_sb = b'\xff\xfa\x1b\x00\x01\xff\xf0'
+        writer.write(request_sb)
+        await writer.drain()
+        
+        # Wait for client's SB TN3270E DEVICE-TYPE RESPONSE (IBM-3278-2-E)
+        # Full SB: \xff\xfa\x1b \x00 \x02 IBM-3278-2-E \xff\xf0 ~ 18 bytes
+        sb_data = await reader.read(20)  # Read up to 20 bytes for SB
+        
+        # Send SB TN3270E FUNCTIONS (BIND-IMAGE EOR)
+        functions_sb = b'\xff\xfa\x1b\x02\x00\x01\x00\x07\x01\xff\xf0'
+        writer.write(functions_sb)
+        await writer.drain()
+        
+        # Send sample TN3270E data: header + Write + full screen spaces + EOR
+        header = b'\x00\x00\x00\x00'  # Type 0, flags 0, seq 0, hlen 0
+        screen_size = 24 * 80  # 1920
+        simple_data = b'\xf5' + b'\x40' * screen_size + b'\x19'  # Write + spaces + EOR (0x19 for EOR)
+        writer.write(header + simple_data)
+        await writer.drain()
+        
+        # Keep open for test to read
+        await asyncio.sleep(5)
+        
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Mock server error: {e}")
+    finally:
+        writer.close()
+        await writer.wait_closed()
+
+
+async def mock_tn3270e_handle_fallback(reader, writer):
+    try:
+        # Send IAC DONT TN3270E
+        writer.write(b'\xff\xfe\x1b')
+        await writer.drain()
+        
+        # Optionally send some basic Telnet or VT100, but for fallback, just wait
+        await asyncio.sleep(5)
+        
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Mock server error: {e}")
+    finally:
+        writer.close()
+        await writer.wait_closed()
+
+
+@pytest_asyncio.fixture
+async def mock_tn3270e_server():
+    """Async fixture for successful TN3270E mock server."""
+    server = await asyncio.start_server(mock_tn3270e_handle_success, '127.0.0.1', 2323)
+    serve_task = asyncio.create_task(server.serve_forever())
+    try:
+        yield server
+    finally:
+        serve_task.cancel()
+        server.close()
+        await server.wait_closed()
+        await serve_task
+
+
+@pytest_asyncio.fixture
+async def mock_tn3270e_server_fallback():
+    """Async fixture for fallback TN3270E mock server (sends DONT)."""
+    server = await asyncio.start_server(mock_tn3270e_handle_fallback, '127.0.0.1', 2324)
+    serve_task = asyncio.create_task(server.serve_forever())
+    try:
+        yield server
+    finally:
+        serve_task.cancel()
+        server.close()
+        await server.wait_closed()
+        await serve_task

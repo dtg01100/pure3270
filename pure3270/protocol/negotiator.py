@@ -178,6 +178,7 @@ class Negotiator:
             | TN3270E_SCS_CTL_CODES
         )
         self.negotiated_functions: int = 0
+        self.negotiated_response_mode: int = 0
         self._next_seq_number: int = 0  # For outgoing SEQ-NUMBER
         self._pending_requests: Dict[int, Any] = (
             {}
@@ -352,15 +353,16 @@ class Negotiator:
         )
         return header
 
-    async def _handle_tn3270e_response(self, header: TN3270EHeader) -> None:
+    async def _handle_tn3270e_response(self, header: TN3270EHeader, data: bytes = b'') -> None:
         """
         Handles an incoming TN3270E header, correlating it with pending requests.
-
+    
         Args:
             header: The received TN3270EHeader object.
+            data: Optional data following the header for negative responses.
         """
         logger.debug(
-            f"Entered _handle_tn3270e_response with header: data_type=0x{header.data_type:02x}, seq_number={header.seq_number}, request_flag=0x{header.request_flag:02x}, response_flag=0x{header.response_flag:02x}"
+            f"Entered _handle_tn3270e_response with header: data_type=0x{header.data_type:02x}, seq_number={header.seq_number}, request_flag=0x{header.request_flag:02x}, response_flag=0x{header.response_flag:02x}, data_len={len(data)}"
         )
         seq_number = header.seq_number
         if seq_number in self._pending_requests:
@@ -375,7 +377,16 @@ class Negotiator:
                 if header.is_positive_response():
                     logger.debug("Received positive response for DEVICE-TYPE SEND.")
                 elif header.is_negative_response():
-                    logger.warning("Received negative response for DEVICE-TYPE SEND.")
+                    retry_count = request_info.get('retry_count', 0)
+                    if retry_count < 3:
+                        request_info['retry_count'] = retry_count + 1
+                        self._pending_requests[seq_number] = request_info
+                        await asyncio.sleep(0.5 * (2 ** retry_count))
+                        await self._resend_request(request_type, seq_number)
+                        return
+                    else:
+                        header.handle_negative_response(data)
+                        logger.error("Max retries exceeded for DEVICE-TYPE SEND")
                 elif header.is_error_response():
                     logger.error("Received error response for DEVICE-TYPE SEND.")
                 self._get_or_create_device_type_event().set()
@@ -383,7 +394,16 @@ class Negotiator:
                 if header.is_positive_response():
                     logger.debug("Received positive response for FUNCTIONS SEND.")
                 elif header.is_negative_response():
-                    logger.warning("Received negative response for FUNCTIONS SEND.")
+                    retry_count = request_info.get('retry_count', 0)
+                    if retry_count < 3:
+                        request_info['retry_count'] = retry_count + 1
+                        self._pending_requests[seq_number] = request_info
+                        await asyncio.sleep(0.5 * (2 ** retry_count))
+                        await self._resend_request(request_type, seq_number)
+                        return
+                    else:
+                        header.handle_negative_response(data)
+                        logger.error("Max retries exceeded for FUNCTIONS SEND")
                 elif header.is_error_response():
                     logger.error("Received error response for FUNCTIONS SEND.")
                 self._get_or_create_functions_event().set()
@@ -1181,6 +1201,12 @@ class Negotiator:
         elif message_type == TN3270E_FUNCTIONS:
             # FUNCTIONS handling can be synchronous for observers
             self._handle_functions_subnegotiation(message_payload)
+        elif message_type == 0x15:  # RESPONSE-MODE
+            await self._handle_response_mode_subnegotiation(message_payload)
+        elif message_type == 0x16:  # USABLE-AREA
+            await self._handle_usable_area_subnegotiation(message_payload)
+        elif message_type == 0x0F:  # QUERY
+            await self._handle_query_subnegotiation(message_payload)
         elif message_type == BIND_IMAGE:
             logger.debug(
                 "Received BIND_IMAGE data type in TN3270E header. Data will be processed by DataStreamParser."
@@ -1450,7 +1476,7 @@ class Negotiator:
             )
             self._sna_session_state = new_state
 
-    def _handle_sna_response(self, sna_response: SnaResponse) -> None:
+    async def _handle_sna_response(self, sna_response: SnaResponse) -> None:
         """
         Handles incoming SNA response objects from the DataStreamParser.
         This method implements the state machine logic based on SNA responses.
@@ -1471,11 +1497,11 @@ class Negotiator:
             if sna_response.sense_code == SNA_SENSE_CODE_SESSION_FAILURE:
                 self._set_sna_session_state(SnaSessionState.SESSION_DOWN)
                 logger.error("SNA Session Failure detected. Session likely down.")
-                # Trigger session termination or re-establishment attempt
+                await self._attempt_sna_recovery(SNA_SENSE_CODE_SESSION_FAILURE)
             elif sna_response.sense_code == SNA_SENSE_CODE_LU_BUSY:
                 self._set_sna_session_state(SnaSessionState.LU_BUSY)
                 logger.warning("LU Busy. Retransmit or wait for LU available.")
-                # Implement retransmission logic or back-off strategy
+                await self._attempt_sna_recovery(SNA_SENSE_CODE_LU_BUSY)
             elif sna_response.sense_code == SNA_SENSE_CODE_INVALID_SEQUENCE:
                 self._set_sna_session_state(SnaSessionState.INVALID_SEQUENCE)
                 logger.error(
@@ -1606,3 +1632,151 @@ class Negotiator:
         )
         # Further actions based on SYSREQ command can be added here.
         # For now, just logging is sufficient as per the task.
+
+    async def _handle_response_mode_subnegotiation(self, data: bytes) -> None:
+        """
+        Handle RESPONSE-MODE subnegotiation message.
+        """
+        if not data:
+            logger.warning("Empty RESPONSE-MODE subnegotiation data")
+            return
+
+        sub_type = data[0]
+        if sub_type == TN3270E_SEND:
+            # Respond with IS and supported modes (BIND-IMAGE)
+            supported_modes = 0x02  # BIND-IMAGE
+            sub_data = bytes([0x15, TN3270E_IS, supported_modes])
+            if self.writer:
+                send_subnegotiation(self.writer, bytes([TELOPT_TN3270E]), sub_data)
+                await self.writer.drain()
+            logger.info("Sent RESPONSE-MODE IS with BIND-IMAGE support")
+        elif sub_type == TN3270E_IS:
+            if len(data) > 1:
+                self.negotiated_response_mode = data[1]
+                logger.info(f"Negotiated RESPONSE-MODE: 0x{data[1]:02x}")
+            else:
+                logger.warning("Empty RESPONSE-MODE IS data")
+        else:
+            logger.warning(f"Unhandled RESPONSE-MODE subtype: 0x{sub_type:02x}")
+
+    async def _handle_usable_area_subnegotiation(self, data: bytes) -> None:
+        """
+        Handle USABLE-AREA subnegotiation message.
+        """
+        if not data:
+            logger.warning("Empty USABLE-AREA subnegotiation data")
+            return
+
+        sub_type = data[0]
+        if sub_type == TN3270E_SEND:
+            # Respond with IS and screen dimensions (full usable area)
+            rows = self.screen_rows
+            cols = self.screen_cols
+            rows_be = rows.to_bytes(2, 'big')
+            cols_be = cols.to_bytes(2, 'big')
+            # Usable area same as full screen
+            usable_rows_be = rows_be
+            usable_cols_be = cols_be
+            is_data = bytes([TN3270E_IS]) + rows_be + cols_be + usable_rows_be + usable_cols_be
+            sub_data = bytes([0x16]) + is_data
+            if self.writer:
+                send_subnegotiation(self.writer, bytes([TELOPT_TN3270E]), sub_data)
+                await self.writer.drain()
+            logger.info(f"Sent USABLE-AREA IS: {rows}x{cols} (full usable)")
+        elif sub_type == TN3270E_IS:
+            if len(data) >= 9:
+                offset = 1
+                rows = (data[offset] << 8) | data[offset + 1]
+                cols = (data[offset + 2] << 8) | data[offset + 3]
+                usable_rows = (data[offset + 4] << 8) | data[offset + 5]
+                usable_cols = (data[offset + 6] << 8) | data[offset + 7]
+                logger.info(f"Received USABLE-AREA: {rows}x{cols}, usable {usable_rows}x{usable_cols}")
+            else:
+                logger.warning("Invalid USABLE-AREA IS length")
+        else:
+            logger.warning(f"Unhandled USABLE-AREA subtype: 0x{sub_type:02x}")
+
+async def _handle_query_subnegotiation(self, data: bytes) -> None:
+    """
+    Handle QUERY subnegotiation message.
+    """
+    if not data:
+        logger.warning("Empty QUERY subnegotiation data")
+        return
+
+    sub_type = data[0]
+    if sub_type == TN3270E_SEND:
+        # Respond with IS and full QUERY_REPLY (CHARACTERISTICS, AID, etc.)
+        # Basic QUERY_REPLY structured fields
+        # CHARACTERISTICS: model 2, LU 3278, USABLE 24x80
+        characteristics = b'\x0F\x81\x0A\x43\x02\xF1\xF0'  # SF 0x81, len 10, 'C', model 2, LU F1 (3278), USABLE F0 (24x80)
+        # AID: all
+        aid = b'\x0F\x82\x02\x41'  # SF 0x82, len 2, 'A' all
+        # Add more as needed, e.g., REPLY_MODES, USABLE-AREA
+        query_reply = characteristics + aid
+        sub_data = bytes([0x0F, TN3270E_IS]) + query_reply
+        if self.writer:
+            send_subnegotiation(self.writer, bytes([TELOPT_TN3270E]), sub_data)
+            await self.writer.drain()
+        logger.info("Sent QUERY IS with full QUERY_REPLY")
+    elif sub_type == TN3270E_IS:
+        if len(data) > 1:
+            self._parse_query_reply(data[1:])
+            logger.info("Parsed QUERY_REPLY and updated model/LU")
+        else:
+            logger.warning("Empty QUERY IS data")
+    else:
+        logger.warning(f"Unhandled QUERY subtype: 0x{sub_type:02x}")
+
+def _parse_query_reply(self, reply_data: bytes) -> None:
+    """
+    Parse QUERY_REPLY structured fields and update model/LU.
+    """
+    pos = 0
+    while pos < len(reply_data):
+        if reply_data[pos] != 0x0F:  # SFH
+            logger.warning("Invalid QUERY_REPLY format")
+            break
+        sf_id = reply_data[pos + 1]
+        length = reply_data[pos + 2]
+        if pos + 3 + length > len(reply_data):
+            break
+        sf_data = reply_data[pos + 3 : pos + 3 + length]
+        if sf_id == 0x81:  # CHARACTERISTICS
+            if len(sf_data) >= 5:
+                model = sf_data[1]
+                lu_type = sf_data[2]
+                self.negotiated_device_type = f"IBM-327{lu_type // 16}- {model}"
+                logger.info(f"Updated model/LU from QUERY_REPLY: {self.negotiated_device_type}")
+        # Add parsing for other SFs like AID, USABLE-AREA, etc.
+        pos += 3 + length
+
+async def _resend_request(self, request_type: str, seq_number: int) -> None:
+    """Re-send a pending request for retry."""
+    if request_type == "DEVICE-TYPE SEND":
+        self._send_supported_device_types()
+    elif request_type == "FUNCTIONS SEND":
+        await self._send_functions_is()
+    # Add for QUERY, BIND, etc.
+    logger.info(f"Re-sent {request_type} (SEQ {seq_number}) on retry")
+
+async def _attempt_sna_recovery(self, sense_code: int) -> None:
+    """Attempt recovery based on SNA sense code."""
+    if sense_code == SNA_SENSE_CODE_SESSION_FAILURE:
+        logger.info("Attempting SNA session recovery: re-negotiation")
+        try:
+            await self.negotiate()
+            await self._negotiate_tn3270()
+            self._set_sna_session_state(SnaSessionState.NORMAL)
+        except Exception as e:
+            logger.error(f"Recovery re-negotiation failed: {e}")
+            self._set_sna_session_state(SnaSessionState.SESSION_DOWN)
+    elif sense_code == SNA_SENSE_CODE_LU_BUSY:
+        logger.info("LU Busy, waiting and retrying BIND")
+        await asyncio.sleep(1)
+        # Retry BIND if applicable
+        if self.is_bind_image_active:
+            # Assume re-send BIND_IMAGE request
+            await self._resend_request("BIND-IMAGE", self._next_seq_number)
+        self._set_sna_session_state(SnaSessionState.NORMAL)
+    logger.debug(f"SNA recovery attempted for sense {sense_code}")
