@@ -6,8 +6,8 @@ Handles Telnet negotiation and TN3270E subnegotiation.
 import asyncio
 import inspect
 import logging
-from enum import Enum  # Import Enum for state management
 import sys
+from enum import Enum  # Import Enum for state management
 from typing import TYPE_CHECKING, Any, Awaitable, Dict, List, Optional
 
 from ..emulation.screen_buffer import ScreenBuffer
