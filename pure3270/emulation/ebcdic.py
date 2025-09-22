@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 # Optional dependency: prefer `ebcdic` package when available for explicit
 # encode/decode helpers, but fall back to the stdlib codec for CP037.
 try:
-    import ebcdic  # noqa: F401
+    import ebcdic  # noqa: F401  # type: ignore[import-not-found]
 except Exception:
     ebcdic = None
 
