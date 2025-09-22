@@ -19,17 +19,52 @@ from pure3270.protocol.tn3270_handler import TN3270Handler
 from pure3270.session import AsyncSession, Session, SessionError
 
 
-@pytest.fixture
-async def async_session():
+@pytest_asyncio.fixture
+async def real_async_session():
+    """Fixture providing a real AsyncSession with real TN3270Handler for better test coverage."""
+    from pure3270.emulation.screen_buffer import ScreenBuffer
+    from pure3270.protocol.tn3270_handler import TN3270Handler
+    from pure3270.protocol.negotiator import Negotiator
+    from pure3270.protocol.data_stream import DataStreamParser
+
+    # Create real components
+    screen_buffer = ScreenBuffer(rows=24, cols=80)
     session = AsyncSession("localhost", 23)
-    session._handler = AsyncMock(spec=TN3270Handler)
-    session._handler.send_data = AsyncMock(side_effect=[b"test", None])
-    session._handler.receive_data = AsyncMock(return_value=b"test output")
-    session._handler.close = AsyncMock()
-    session._handler.connected = False
-    type(session).handler = PropertyMock(return_value=session._handler)
-    # Don't mock connected here - let tests control it
-    # type(session).connected = PropertyMock(return_value=False)
+
+    # Create real handler with real components but mocked I/O
+    mock_reader = AsyncMock()
+    mock_writer = AsyncMock()
+
+    # Set up minimal mock responses for basic operation
+    mock_reader.readexactly.return_value = b"\xff\xfb\x27"  # IAC WILL TN3270E
+    mock_reader.read.return_value = b"\x28\x00\x01\x00"     # Basic response
+
+    parser = DataStreamParser(screen_buffer)
+    negotiator = Negotiator(
+        writer=mock_writer,
+        parser=parser,
+        screen_buffer=screen_buffer,
+        handler=None,  # Will be set below
+        is_printer_session=False,
+    )
+
+    handler = TN3270Handler(
+        reader=mock_reader,
+        writer=mock_writer,
+        screen_buffer=screen_buffer,
+        is_printer_session=False,
+    )
+    handler.negotiator = negotiator
+    negotiator.handler = handler
+
+    # Set up session with real handler
+    session._handler = handler
+    session._transport = AsyncMock()
+    session._transport.perform_telnet_negotiation.return_value = None
+    session._transport.perform_tn3270_negotiation.return_value = None
+    session._transport.teardown_connection = AsyncMock(side_effect=lambda: setattr(session._transport, 'connected', False))
+    session._transport.connected = True
+
     return session
 
 
@@ -145,9 +180,14 @@ class TestAsyncSession:
         mock_handler.return_value.send_data.assert_called_once_with(b"test data")
         assert async_session.connected is True
 
-    async def test_send_not_connected(self, async_session):
+    async def test_send_not_connected(self, real_async_session):
+        """Test that send raises error when not connected."""
         # Create a fresh session that is actually not connected
         fresh_session = AsyncSession("localhost", 23)
+        fresh_session._handler = None  # Ensure no handler
+
+        with pytest.raises(SessionError, match="not connected"):
+            await fresh_session.send(b"test data")
         with pytest.raises(SessionError) as exc_info:
             await fresh_session.send(b"data")
         e = exc_info.value
@@ -187,35 +227,38 @@ class TestAsyncSession:
         handler_instance.receive_data.assert_called_once_with(5.0)
         assert async_session.connected is True
 
-    async def test_read_not_connected(self, async_session):
+    async def test_read_not_connected(self, real_async_session):
+        """Test that read raises error when not connected."""
         # Create a fresh session that is actually not connected
         fresh_session = AsyncSession("localhost", 23)
+        fresh_session._handler = None  # Ensure no handler
+
+        with pytest.raises(SessionError, match="not connected"):
+            await fresh_session.read()
         with pytest.raises(SessionError):
             await fresh_session.read()
 
-    async def test_close(self, async_session):
-        # Remove the handler property mock for this test to allow real behavior
-        if hasattr(type(async_session), "handler"):
-            delattr(type(async_session), "handler")
+    async def test_close(self, real_async_session):
+        """Test closing a connected session."""
+        # Session should start as connected (transport.connected = True)
+        assert real_async_session.connected is True
 
-        async_session._handler = AsyncMock()
-        async_session._handler.close = AsyncMock()
-        async_session.connected = True
+        await real_async_session.close()
 
-        handler = async_session._handler
-        await async_session.close()
+        # Session should be disconnected and handler cleared
+        assert real_async_session.connected is False
+        assert real_async_session._handler is None
 
-        handler.close.assert_called_once()
-        assert async_session.connected is False
-        assert async_session._handler is None
+    async def test_close_no_handler(self, real_async_session):
+        """Test closing a session with no handler."""
+        # Create a fresh session with no handler
+        fresh_session = AsyncSession("localhost", 23)
+        fresh_session._handler = None
 
-    async def test_close_no_handler(self, async_session):
-        # Remove the handler property mock for this test to allow real behavior
-        if hasattr(type(async_session), "handler"):
-            delattr(type(async_session), "handler")
+        # Should not raise an exception
+        await fresh_session.close()
 
-        await async_session.close()
-        assert async_session.connected is False
+        assert fresh_session.connected is False
 
     @pytest.mark.asyncio
     async def test_connected(self):

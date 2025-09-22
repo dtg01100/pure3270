@@ -60,30 +60,51 @@ def ssl_wrapper():
     return SSLWrapper()
 
 
-@pytest.fixture
-def async_session():
-    """Fixture providing an AsyncSession with mocked components."""
-    from unittest.mock import AsyncMock, PropertyMock
-
+@pytest_asyncio.fixture
+def real_async_session():
+    """Fixture providing a real AsyncSession with real TN3270Handler for better test coverage."""
     from pure3270.emulation.screen_buffer import ScreenBuffer
     from pure3270.protocol.tn3270_handler import TN3270Handler
+    from pure3270.protocol.negotiator import Negotiator
+    from pure3270.protocol.data_stream import DataStreamParser
 
-    # Create session
+    # Create real components
+    screen_buffer = ScreenBuffer(rows=24, cols=80)
     session = AsyncSession("localhost", 23)
 
-    # Create mock handler with proper properties
-    mock_handler = AsyncMock(spec=TN3270Handler)
-    mock_handler.screen_buffer = PropertyMock(return_value=ScreenBuffer())
-    mock_handler.is_connected = PropertyMock(return_value=True)
-    mock_handler.connected = True
-    mock_handler.receive_data.return_value = b"test data"
+    # Create real handler with real components but mocked I/O
+    mock_reader = AsyncMock()
+    mock_writer = AsyncMock()
 
-    # Set internal state
-    session._handler = mock_handler
-    session.connected = True
-    session._transport = Mock()
+    # Set up minimal mock responses for basic operation
+    mock_reader.readexactly.return_value = b"\xff\xfb\x27"  # IAC WILL TN3270E
+    mock_reader.read.return_value = b"\x28\x00\x01\x00"     # Basic response
+
+    parser = DataStreamParser(screen_buffer)
+    negotiator = Negotiator(
+        writer=mock_writer,
+        parser=parser,
+        screen_buffer=screen_buffer,
+        handler=None,  # Will be set below
+        is_printer_session=False,
+    )
+
+    handler = TN3270Handler(
+        reader=mock_reader,
+        writer=mock_writer,
+        screen_buffer=screen_buffer,
+        is_printer_session=False,
+    )
+    handler.negotiator = negotiator
+    negotiator.handler = handler
+
+    # Set up session with real handler
+    session._handler = handler
+    session._transport = AsyncMock()
     session._transport.perform_telnet_negotiation.return_value = None
     session._transport.perform_tn3270_negotiation.return_value = None
+    session._transport.teardown_connection = AsyncMock(side_effect=lambda: setattr(session._transport, 'connected', False))
+    session._transport.connected = True
 
     return session
 
