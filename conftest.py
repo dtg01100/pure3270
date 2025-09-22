@@ -1,6 +1,5 @@
 import asyncio
-import sys
-import pytest
+
 import pytest_asyncio
 from pure3270.protocol.utils import (
     IAC, SB, SE, WILL, DO, DONT, TELOPT_EOR, TELOPT_TN3270E

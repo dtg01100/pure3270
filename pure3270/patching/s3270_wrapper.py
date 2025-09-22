@@ -38,7 +38,6 @@ class Pure3270S3270Wrapper:
 
         # Debug: log what args we received
         logger.debug(f"S3270 wrapper initialized with args: {args}")
-        print(f"DEBUG: S3270 wrapper args: {args}")
 
         # Create our pure3270 session
         from pure3270.session import Session

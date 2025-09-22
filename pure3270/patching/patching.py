@@ -11,7 +11,7 @@ from contextlib import contextmanager
 from typing import Any, Dict, Generator, Optional, Set
 from unittest.mock import patch as mock_patch
 
-from pure3270.patching.s3270_wrapper import Pure3270S3270Wrapper
+from pure3270.patching.s3270_wrapper import Pure3270S3270Wrapper, _global_hostname, _global_port
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +165,29 @@ class MonkeyPatchManager:
                         self._store_original("p3270.p3270.S3270", original_inner)
                         setattr(p3270_module, "S3270", Pure3270S3270Wrapper)
                         logger.info("Patched inner S3270 class")
+
+                # Patch P3270Client.connect to capture hostname
+                if hasattr(p3270, "P3270Client"):
+                    original_connect = getattr(p3270.P3270Client, "connect", None)
+                    if original_connect:
+                        self._store_original("p3270.P3270Client.connect", original_connect)
+
+                        def patched_connect(self, hostname=None, port=23):
+                            # Store hostname and port in global variables for the wrapper to use
+                            global _global_hostname, _global_port
+                            if hostname:
+                                _global_hostname = hostname
+                                _global_port = port
+                            else:
+                                # If no hostname provided, try to use instance attributes
+                                _global_hostname = getattr(self, 'hostName', 'localhost')
+                                _global_port = getattr(self, 'hostPort', 23)
+                            logger.debug(f"Patched connect called with hostname={_global_hostname}, port={_global_port}")
+                            # Call the original connect method
+                            return original_connect(self)
+
+                        setattr(p3270.P3270Client, "connect", patched_connect)
+                        logger.info("Patched P3270Client.connect")
             logger.info("Patches applied")
         except ImportError as e:
             logger.warning(f"p3270 not installed: {e}")
