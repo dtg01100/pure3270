@@ -11,7 +11,11 @@ from contextlib import contextmanager
 from typing import Any, Dict, Generator, Optional, Set
 from unittest.mock import patch as mock_patch
 
-from pure3270.patching.s3270_wrapper import Pure3270S3270Wrapper, _global_hostname, _global_port
+from pure3270.patching.s3270_wrapper import (
+    Pure3270S3270Wrapper,
+    _global_hostname,
+    _global_port,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -170,7 +174,9 @@ class MonkeyPatchManager:
                 if hasattr(p3270, "P3270Client"):
                     original_connect = getattr(p3270.P3270Client, "connect", None)
                     if original_connect:
-                        self._store_original("p3270.P3270Client.connect", original_connect)
+                        self._store_original(
+                            "p3270.P3270Client.connect", original_connect
+                        )
 
                         def patched_connect(self, hostname=None, port=23):
                             # Store hostname and port in global variables for the wrapper to use
@@ -180,9 +186,13 @@ class MonkeyPatchManager:
                                 _global_port = port
                             else:
                                 # If no hostname provided, try to use instance attributes
-                                _global_hostname = getattr(self, 'hostName', 'localhost')
-                                _global_port = getattr(self, 'hostPort', 23)
-                            logger.debug(f"Patched connect called with hostname={_global_hostname}, port={_global_port}")
+                                _global_hostname = getattr(
+                                    self, "hostName", "localhost"
+                                )
+                                _global_port = getattr(self, "hostPort", 23)
+                            logger.debug(
+                                f"Patched connect called with hostname={_global_hostname}, port={_global_port}"
+                            )
                             # Call the original connect method
                             return original_connect(self)
 

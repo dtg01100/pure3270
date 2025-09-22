@@ -64,9 +64,9 @@ def ssl_wrapper():
 def real_async_session():
     """Fixture providing a real AsyncSession with real TN3270Handler for better test coverage."""
     from pure3270.emulation.screen_buffer import ScreenBuffer
-    from pure3270.protocol.tn3270_handler import TN3270Handler
-    from pure3270.protocol.negotiator import Negotiator
     from pure3270.protocol.data_stream import DataStreamParser
+    from pure3270.protocol.negotiator import Negotiator
+    from pure3270.protocol.tn3270_handler import TN3270Handler
 
     # Create real components
     screen_buffer = ScreenBuffer(rows=24, cols=80)
@@ -78,7 +78,7 @@ def real_async_session():
 
     # Set up minimal mock responses for basic operation
     mock_reader.readexactly.return_value = b"\xff\xfb\x27"  # IAC WILL TN3270E
-    mock_reader.read.return_value = b"\x28\x00\x01\x00"     # Basic response
+    mock_reader.read.return_value = b"\x28\x00\x01\x00"  # Basic response
 
     parser = DataStreamParser(screen_buffer)
     negotiator = Negotiator(
@@ -103,7 +103,9 @@ def real_async_session():
     session._transport = AsyncMock()
     session._transport.perform_telnet_negotiation.return_value = None
     session._transport.perform_tn3270_negotiation.return_value = None
-    session._transport.teardown_connection = AsyncMock(side_effect=lambda: setattr(session._transport, 'connected', False))
+    session._transport.teardown_connection = AsyncMock(
+        side_effect=lambda: setattr(session._transport, "connected", False)
+    )
     session._transport.connected = True
 
     return session
@@ -215,14 +217,14 @@ def memory_limit_100mb():
 async def mock_tn3270e_handle_success(reader, writer):
     try:
         # Send IAC DO TN3270E
-        writer.write(b'\xff\xfd\x1b')
+        writer.write(b"\xff\xfd\x1b")
         await writer.drain()
 
         # Wait for client's IAC WILL TN3270E
         data = await reader.readexactly(3)
 
         # Send SB TN3270E DEVICE-TYPE REQUEST
-        request_sb = b'\xff\xfa\x1b\x00\x01\xff\xf0'
+        request_sb = b"\xff\xfa\x1b\x00\x01\xff\xf0"
         writer.write(request_sb)
         await writer.drain()
 
@@ -231,14 +233,16 @@ async def mock_tn3270e_handle_success(reader, writer):
         sb_data = await reader.read(20)  # Read up to 20 bytes for SB
 
         # Send SB TN3270E FUNCTIONS (BIND-IMAGE EOR)
-        functions_sb = b'\xff\xfa\x1b\x02\x00\x01\x00\x07\x01\xff\xf0'
+        functions_sb = b"\xff\xfa\x1b\x02\x00\x01\x00\x07\x01\xff\xf0"
         writer.write(functions_sb)
         await writer.drain()
 
         # Send sample TN3270E data: header + Write + full screen spaces + EOR
-        header = b'\x00\x00\x00\x00'  # Type 0, flags 0, seq 0, hlen 0
+        header = b"\x00\x00\x00\x00"  # Type 0, flags 0, seq 0, hlen 0
         screen_size = 24 * 80  # 1920
-        simple_data = b'\xf5' + b'\x40' * screen_size + b'\x19'  # Write + spaces + EOR (0x19 for EOR)
+        simple_data = (
+            b"\xf5" + b"\x40" * screen_size + b"\x19"
+        )  # Write + spaces + EOR (0x19 for EOR)
         writer.write(header + simple_data)
         await writer.drain()
 
@@ -255,7 +259,7 @@ async def mock_tn3270e_handle_success(reader, writer):
 async def mock_tn3270e_handle_fallback(reader, writer):
     try:
         # Send IAC DONT TN3270E
-        writer.write(b'\xff\xfe\x1b')
+        writer.write(b"\xff\xfe\x1b")
         await writer.drain()
 
         # Optionally send some basic Telnet or VT100, but for fallback, just wait
@@ -271,7 +275,7 @@ async def mock_tn3270e_handle_fallback(reader, writer):
 @pytest_asyncio.fixture
 async def mock_tn3270e_server():
     """Async fixture for successful TN3270E mock server."""
-    server = await asyncio.start_server(mock_tn3270e_handle_success, '127.0.0.1', 2323)
+    server = await asyncio.start_server(mock_tn3270e_handle_success, "127.0.0.1", 2323)
     serve_task = asyncio.create_task(server.serve_forever())
     try:
         yield server
@@ -285,7 +289,7 @@ async def mock_tn3270e_server():
 @pytest_asyncio.fixture
 async def mock_tn3270e_server_fallback():
     """Async fixture for fallback TN3270E mock server (sends DONT)."""
-    server = await asyncio.start_server(mock_tn3270e_handle_fallback, '127.0.0.1', 2324)
+    server = await asyncio.start_server(mock_tn3270e_handle_fallback, "127.0.0.1", 2324)
     serve_task = asyncio.create_task(server.serve_forever())
     try:
         yield server

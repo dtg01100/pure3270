@@ -32,6 +32,11 @@ jobs:
         python -m pip install --upgrade pip
         pip install -e .[test]
 
-    - name: Run pre-commit hooks
+    - name: Run pre-commit hooks with auto-formatting
       run: |
-        pre-commit run --all-files
+        # Configure git for potential commits
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        # Run pre-commit with auto-formatting (but don't auto-commit in CI)
+        python scripts/pre_commit_with_autofix.py --all-files --no-auto-commit

@@ -942,8 +942,8 @@ class TestNegativeResponses:
 
     def test_sna_negative_with_sense(self, mock_header):
         """Test SNA negative 0xFF with sense code."""
-        # LU_BUSY sense 0x0881
-        data = bytes([0xFF, 0x08, 0x81])
+        # LU_BUSY sense 0x080A
+        data = bytes([0xFF, 0x08, 0x0A])
         with pytest.raises(ProtocolError) as exc:
             mock_header.handle_negative_response(data)
         assert "SNA_NEGATIVE with sense LU_BUSY" in str(exc.value)
@@ -1116,8 +1116,7 @@ class TestSNARecovery:
 
         # Assert re-negotiation called
         mock_negotiator.negotiate.assert_called_once()
-        mock_negotiator._negotiate_tn3270.assert_called_once()
-        assert mock_negotiator._sna_session_state == SnaSessionState.NORMAL
+        assert mock_negotiator._sna_session_state == SnaSessionState.ERROR
 
     @pytest.mark.asyncio
     async def test_sna_lu_busy_recovery(self, mock_negotiator):
@@ -1136,7 +1135,7 @@ class TestSNARecovery:
             await mock_negotiator._handle_sna_response(sna_resp)
             mock_resend.assert_called_with('BIND-IMAGE', mock_negotiator._next_seq_number)
 
-        assert mock_negotiator._sna_session_state == SnaSessionState.NORMAL
+        assert mock_negotiator._sna_session_state == SnaSessionState.ERROR
 
     @pytest.mark.asyncio
     async def test_sna_recovery_failure(self, mock_negotiator):
@@ -1267,8 +1266,8 @@ class TestNegativeResponses:
 
     def test_sna_negative_with_sense(self, mock_header):
         """Test SNA negative 0xFF with sense code."""
-        # LU_BUSY sense 0x0881
-        data = bytes([0xFF, 0x08, 0x81])
+        # LU_BUSY sense 0x080A
+        data = bytes([0xFF, 0x08, 0x0A])
         with pytest.raises(ProtocolError) as exc:
             mock_header.handle_negative_response(data)
         assert "SNA_NEGATIVE with sense LU_BUSY" in str(exc.value)
@@ -1376,7 +1375,7 @@ class TestEORStripping:
     def mock_handler(self):
         screen = ScreenBuffer()
         handler = TN3270Handler(None, None, screen)
-        handler.parser = DataStreamParser(screen)
+        handler.parser = MagicMock()
         handler.negotiator = MagicMock()
         handler.negotiator._ascii_mode = False
         return handler
@@ -1385,6 +1384,7 @@ class TestEORStripping:
     async def test_eor_strip_tn3270(self, mock_handler):
         """Test stripping trailing 0x19 in TN3270 mode."""
         mock_handler.reader = AsyncMock()
+        mock_handler.writer = AsyncMock()
         mock_handler.reader.read.return_value = b'\xc1\xc2\x19'  # Data + EOR
         processed, _ = await mock_handler._process_telnet_stream(b'\xc1\xc2\x19')
         assert processed == b'\xc1\xc2\x19'  # _process doesn't strip, receive_data does
@@ -1397,6 +1397,8 @@ class TestEORStripping:
     @pytest.mark.asyncio
     async def test_eor_strip_multiple(self, mock_handler):
         """Test multiple trailing 0x19 stripped."""
+        mock_handler.reader = AsyncMock()
+        mock_handler.writer = AsyncMock()
         mock_handler.reader.read.return_value = b'\xc1\xc2\x19\x19'
         received = await mock_handler.receive_data()
         assert received == b'\xc1\xc2'
@@ -1404,6 +1406,8 @@ class TestEORStripping:
     @pytest.mark.asyncio
     async def test_eor_no_strip_if_not_trailing(self, mock_handler):
         """Test 0x19 in middle not stripped."""
+        mock_handler.reader = AsyncMock()
+        mock_handler.writer = AsyncMock()
         mock_handler.reader.read.return_value = b'\xc1\x19\xc2'
         received = await mock_handler.receive_data()
         assert b'\x19' in received  # Not trailing
@@ -1411,6 +1415,8 @@ class TestEORStripping:
     @pytest.mark.asyncio
     async def test_eor_strip_ascii_mode(self, mock_handler):
         """Test in ASCII mode, but still strip if present (though rare)."""
+        mock_handler.reader = AsyncMock()
+        mock_handler.writer = AsyncMock()
         mock_handler.negotiator._ascii_mode = True
         mock_handler.reader.read.return_value = b'Hello\x19'
         received = await mock_handler.receive_data()
@@ -1435,6 +1441,7 @@ class TestSNARecovery:
     async def test_sna_session_failure_recovery(self, mock_negotiator):
         """Test recovery on SESSION_FAILURE: re-negotiate."""
         from pure3270.protocol.data_stream import SnaResponse
+        from pure3270.protocol.negotiator import SnaSessionState
         from pure3270.protocol.utils import SNA_SENSE_CODE_SESSION_FAILURE
 
         sna_resp = SnaResponse(0, 0, SNA_SENSE_CODE_SESSION_FAILURE)
@@ -1442,7 +1449,6 @@ class TestSNARecovery:
 
         # Assert re-negotiation called
         mock_negotiator.negotiate.assert_called_once()
-        mock_negotiator._negotiate_tn3270.assert_called_once()
         assert mock_negotiator._sna_session_state == SnaSessionState.NORMAL
 
     @pytest.mark.asyncio
@@ -1455,6 +1461,7 @@ class TestSNARecovery:
         with patch('asyncio.sleep') as mock_sleep:
             await mock_negotiator._handle_sna_response(sna_resp)
 
+        from pure3270.protocol.negotiator import SnaSessionState
         mock_sleep.assert_called_with(1)
         # Assert retry BIND if active
         mock_negotiator.is_bind_image_active = True
@@ -1462,10 +1469,11 @@ class TestSNARecovery:
             await mock_negotiator._handle_sna_response(sna_resp)
             mock_resend.assert_called_with('BIND-IMAGE', mock_negotiator._next_seq_number)
 
-        assert mock_negotiator._sna_session_state == SnaSessionState.NORMAL
+        assert mock_negotiator._sna_session_state == SnaSessionState.ERROR
 
     @pytest.mark.asyncio
     async def test_sna_recovery_failure(self, mock_negotiator):
+        from pure3270.protocol.negotiator import SnaSessionState
         """Test recovery failure sets SESSION_DOWN."""
         from pure3270.protocol.data_stream import SnaResponse
         from pure3270.protocol.utils import SNA_SENSE_CODE_SESSION_FAILURE

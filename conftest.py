@@ -1,14 +1,33 @@
 import asyncio
+import logging
 
+import pytest
 import pytest_asyncio
+
 from pure3270.protocol.utils import (
-    IAC, SB, SE, WILL, DO, DONT, TELOPT_EOR, TELOPT_TN3270E
+    DO,
+    DONT,
+    IAC,
+    SB,
+    SE,
+    TELOPT_EOR,
+    TELOPT_TN3270E,
+    TELOPT_TTYPE,
+    TN3270E_DEVICE_TYPE,
+    TN3270E_FUNCTIONS,
+    TN3270E_IS,
+    TN3270E_REQUEST,
+    TN3270E_SEND,
+    WILL,
 )
+
+logger = logging.getLogger(__name__)
 
 # Removed broken fixtures that reference non-existent TN3270ENegotiatingMockServer
 
 # We now require Python >= 3.10; pytest-asyncio provides proper event loop handling
 # so the manual event_loop fixture for older Python versions is no longer necessary.
+
 
 class MockTN3270EServer:
     def __init__(self, success: bool = True):
@@ -17,7 +36,7 @@ class MockTN3270EServer:
         self.task = None
 
     async def __aenter__(self):
-        self.server = await asyncio.start_server(self.handle_client, '127.0.0.1', 2323)
+        self.server = await asyncio.start_server(self.handle_client, "127.0.0.1", 2323)
         self.task = asyncio.create_task(self.server.serve_forever())
         await asyncio.sleep(0.1)  # Give time to start
         return self
@@ -35,41 +54,76 @@ class MockTN3270EServer:
 
     async def handle_client(self, reader, writer):
         try:
-            # Expect client to send WILL TN3270E first
+            print("Mock server started handling client")
+            print(f"TN3270E_DEVICE_TYPE = 0x{TN3270E_DEVICE_TYPE:02x}, TN3270E_SEND = 0x{TN3270E_SEND:02x}")
+            # First, handle telnet negotiation - expect WILL TTYPE
             data = await reader.readexactly(3)
+            print(f"Mock server received telnet negotiation: {data.hex()}")
+            if data == bytes([IAC, WILL, TELOPT_TTYPE]):
+                # Send DO TTYPE
+                writer.write(bytes([IAC, DO, TELOPT_TTYPE]))
+                await writer.drain()
+                print("Mock server sent DO TTYPE")
+                
+                # Wait for SB TTYPE IS response
+                data = await reader.readuntil(bytes([SE]))
+                print(f"Mock server received TTYPE response: {data.hex()}")
+
+            # Send DO TN3270E to initiate TN3270E negotiation
+            writer.write(bytes([IAC, DO, TELOPT_TN3270E]))
+            await writer.drain()
+            print("Mock server sent DO TN3270E")
+
+            # Wait for client to respond with WILL TN3270E
+            data = await reader.readexactly(3)
+            print(f"Mock server received after DO TN3270E: {data.hex()}")
             if data != bytes([IAC, WILL, TELOPT_TN3270E]):
+                print(f"Expected WILL TN3270E, got {data.hex()}")
                 writer.close()
                 await writer.wait_closed()
                 return
 
-            # Send WILL EOR (common in both modes)
-            writer.write(bytes([IAC, WILL, TELOPT_EOR]))
-            await writer.drain()
-
             if self.success:
-                # Send DO TN3270E
-                writer.write(bytes([IAC, DO, TELOPT_TN3270E]))
+                # Wait a bit for client to complete telnet negotiation
+                await asyncio.sleep(0.1)
+                
+                # Send DEVICE-TYPE SEND (RFC 2355: server initiates device type negotiation)
+                device_type_send = bytes([IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_SEND, IAC, SE])
+                print(f"About to send DEVICE-TYPE SEND: {device_type_send.hex()}")
+                writer.write(device_type_send)
                 await writer.drain()
+                print(f"Mock server sent DEVICE-TYPE SEND: {device_type_send.hex()}")
 
-                # Wait for SB DEVICE-TYPE REQUEST
-                # Expect IAC SB TN3270E DEVICE_TYPE REQUEST "IBM-..." IAC SE
+                # Wait for DEVICE-TYPE IS response
                 data = await reader.readuntil(bytes([SE]))
-                if b'\xff\xfa' + bytes([TELOPT_TN3270E, TN3270E_DEVICE_TYPE, 1]) not in data:
-                    # If not matching, close
+                print(f"Mock server received DEVICE-TYPE response: {data.hex()}")
+                if (
+                    b"\xff\xfa" + bytes([TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_IS])
+                    not in data
+                ):
+                    print(f"Unexpected DEVICE-TYPE response")
                     writer.close()
                     await writer.wait_closed()
                     return
 
                 # Send SB FUNCTIONS IS (BIND-IMAGE and EOR)
-                functions_sb = bytes([IAC, SB, TELOPT_TN3270E, TN3270E_IS, 0, 1, 0, 7, 1, IAC, SE])
+                functions_sb = bytes(
+                    [IAC, SB, TELOPT_TN3270E, TN3270E_FUNCTIONS, TN3270E_IS, 0, 1, 0, 7, 1, IAC, SE]
+                )
+                print(f"About to send FUNCTIONS IS: {functions_sb.hex()}")
                 writer.write(functions_sb)
                 await writer.drain()
+                print(f"Mock server sent FUNCTIONS IS: {functions_sb.hex()}")
 
                 # Send SB REQUEST (no response flag)
-                request_sb = bytes([IAC, SB, TELOPT_TN3270E, TN3270E_REQUEST, 0, 0, 0, 0, IAC, SE])
+                request_sb = bytes(
+                    [IAC, SB, TELOPT_TN3270E, TN3270E_REQUEST, 0, 0, 0, 0, IAC, SE]
+                )
                 await asyncio.sleep(0.1)
+                print(f"About to send REQUEST: {request_sb.hex()}")
                 writer.write(request_sb)
                 await writer.drain()
+                print(f"Mock server sent REQUEST: {request_sb.hex()}")
 
                 # Optionally send NVT_DATA or keep open
                 await asyncio.sleep(0.5)  # Allow client to process
@@ -93,17 +147,23 @@ class MockTN3270EServer:
             writer.close()
             await writer.wait_closed()
 
+
 @pytest.fixture(scope="session")
 def event_loop():
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
     loop.close()
 
+
 @pytest_asyncio.fixture(scope="session")
 async def mock_tn3270e_server():
+    logger.info("Starting mock TN3270E server fixture")
     server = MockTN3270EServer(success=True)
     async with server:
+        logger.info("Mock TN3270E server started and ready")
         yield server
+    logger.info("Mock TN3270E server fixture ended")
+
 
 @pytest_asyncio.fixture(scope="session")
 async def mock_tn3270e_server_fallback():

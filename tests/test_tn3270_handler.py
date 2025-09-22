@@ -276,11 +276,19 @@ class TestTN3270Handler:
 
     @pytest.mark.asyncio
     async def test_process_telnet_stream_iac_do_dont_will_wont(self, tn3270_handler):
-        from pure3270.protocol.utils import DO, DONT, EOR, IAC
+        from pure3270.protocol.utils import (
+            DO,
+            DONT,
+            EOR,
+            IAC,
+        )
         from pure3270.protocol.utils import (
             TELOPT_BINARY as BINARY,  # Use alias for clarity
         )
-        from pure3270.protocol.utils import WILL, WONT
+        from pure3270.protocol.utils import (
+            WILL,
+            WONT,
+        )
 
         tn3270_handler.writer = AsyncMock()
         tn3270_handler.negotiator.writer = (

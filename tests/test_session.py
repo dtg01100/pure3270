@@ -23,9 +23,9 @@ from pure3270.session import AsyncSession, Session, SessionError
 async def real_async_session():
     """Fixture providing a real AsyncSession with real TN3270Handler for better test coverage."""
     from pure3270.emulation.screen_buffer import ScreenBuffer
-    from pure3270.protocol.tn3270_handler import TN3270Handler
-    from pure3270.protocol.negotiator import Negotiator
     from pure3270.protocol.data_stream import DataStreamParser
+    from pure3270.protocol.negotiator import Negotiator
+    from pure3270.protocol.tn3270_handler import TN3270Handler
 
     # Create real components
     screen_buffer = ScreenBuffer(rows=24, cols=80)

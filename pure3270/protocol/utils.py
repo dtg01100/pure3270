@@ -22,14 +22,14 @@ WONT = 0xFC
 DO = 0xFD
 DONT = 0xFE
 # Additional IAC commands per RFC 854
-GA = 0xF9   # Go Ahead
-EL = 0xF8   # Erase Line
-EC = 0xF7   # Erase Character
+GA = 0xF9  # Go Ahead
+EL = 0xF8  # Erase Line
+EC = 0xF7  # Erase Character
 AYT = 0xF6  # Are You There
-AO = 0xF5   # Abort Output
-IP = 0xF4   # Interrupt Process
+AO = 0xF5  # Abort Output
+IP = 0xF4  # Interrupt Process
 BRK = 0xF3  # Break
-DM = 0xF2   # Data Mark
+DM = 0xF2  # Data Mark
 NOP = 0xF1  # No Operation
 # Legacy aliases
 BREAK = 0xF3
@@ -74,7 +74,7 @@ TELOPT_OLD_ENVIRON = 0x24
 TELOPT_AUTHENTICATION = 0x25
 TELOPT_ENCRYPT = 0x26
 TELOPT_NEW_ENVIRON = 0x27
-TELOPT_TN3270E = 0x28  # TN3270E Telnet option
+TELOPT_TN3270E = 0x1B  # TN3270E Telnet option
 TELOPT_XAUTH = 0x29
 TELOPT_CHARSET = 0x2A
 TELOPT_RSP = 0x2B
@@ -96,14 +96,14 @@ EOR = 0x19  # End of Record (duplicate, but kept for clarity)
 
 # TN3270E Data Types (RFC 1646 Section 5.1)
 TN3270_DATA = 0x00  # 3270-DATA
-SCS_DATA = 0x01     # SCS-DATA
-RESPONSE = 0x02     # RESPONSE
-BIND_IMAGE = 0x03   # BIND-IMAGE
-UNBIND = 0x04       # UNBIND
-NVT_DATA = 0x05     # NVT-DATA
-REQUEST = 0x06      # REQUEST
-SSCP_LU_DATA = 0x07 # SSCP-LU-DATA
-PRINT_EOJ = 0x08    # PRINT-EOJ
+SCS_DATA = 0x01  # SCS-DATA
+RESPONSE = 0x02  # RESPONSE
+BIND_IMAGE = 0x03  # BIND-IMAGE
+UNBIND = 0x04  # UNBIND
+NVT_DATA = 0x05  # NVT-DATA
+REQUEST = 0x06  # REQUEST
+SSCP_LU_DATA = 0x07  # SSCP-LU-DATA
+PRINT_EOJ = 0x08  # PRINT-EOJ
 SNA_RESPONSE = 0x09  # New SNA Response Data Type
 SNA_RESPONSE_DATA_TYPE = 0x09  # SNA Response Data Type
 PRINTER_STATUS_DATA_TYPE = 0x0A  # New data type for Printer Status (TN3270E)
@@ -124,11 +124,48 @@ TN3270E_DATA_TYPES = (
 )
 
 # TN3270E Subnegotiation Message Types
-TN3270E_DEVICE_TYPE = 0x00
+TN3270E_DEVICE_TYPE = 0x0E
 TN3270E_FUNCTIONS = 0x01
 TN3270E_IS = 0x02
+TN3270E_QUERY = 0x03  # Query subnegotiation option
 TN3270E_REQUEST = 0x03
 TN3270E_SEND = 0x04
+
+# TN3270E Function Types
+TN3270E_BIND_IMAGE = 0x00
+TN3270E_DATA_STREAM_CTL = 0x01
+TN3270E_NEW_APPL = 0x02
+TN3270E_RESPONSES = 0x03
+TN3270E_SCS_CTL_CODES = 0x04
+TN3270E_SYSREQ_ATTN = 0x05
+
+# TN3270E Sysreq Key Constants
+TN3270E_SYSREQ_ATTN = 0x6C  # ATTN key
+TN3270E_SYSREQ_BREAK = 0xF3  # Break key
+TN3270E_SYSREQ_CANCEL = 0x6D  # Cancel key
+TN3270E_SYSREQ_LOGOFF = 0x7B  # Logoff key
+TN3270E_SYSREQ_MESSAGE_TYPE = 0x1C  # Message type for sysreq
+TN3270E_SYSREQ_PRINT = 0x7C  # Print key
+TN3270E_SYSREQ_RESTART = 0x7D  # Restart key
+
+# Additional sense codes for SNA responses
+SNA_SENSE_CODE_SUCCESS = 0x0000
+SNA_SENSE_CODE_SESSION_FAILURE = 0x082A
+
+# Additional TN3270E Sysreq constants
+TN3270E_SYSREQ = 0x05  # System request key (general)
+TN3270E_SYSREQ_BREAK = 0x06
+TN3270E_SYSREQ_ATTN = 0x05
+TN3270E_SYSREQ_CLEAR = 0x07
+TN3270E_SYSREQ_TEST = 0x08
+
+# TN3270E Response Flags
+TN3270E_RSF_ALWAYS_RESPONSE = 0x02
+TN3270E_RSF_ERROR_RESPONSE = 0x01
+TN3270E_RSF_NEGATIVE_RESPONSE = 0xFF
+TN3270E_RSF_NO_RESPONSE = 0x00
+TN3270E_RSF_POSITIVE_RESPONSE = 0x00
+TN3270E_RSF_REQUEST = 0x01
 
 # TN3270E Response Mode Constants
 TN3270E_RESPONSE_MODE = 0x15  # Response mode subnegotiation option
@@ -142,12 +179,50 @@ TN3270E_USABLE_AREA_IS = 0x00
 TN3270E_USABLE_AREA_SEND = 0x01
 
 # TN3270E Query Constants
-TN3270E_QUERY = 0x0F  # Query subnegotiation option
 TN3270E_QUERY_IS = 0x00
 TN3270E_QUERY_SEND = 0x01
 
-# TN3270E Device Types
-TN3270E_IBM_DYNAMIC = "IBM-DYNAMIC"
+# 3270 Data Stream Types and Constants
+NVT_DATA = 0x00
+TN3270_DATA = 0x01
+SNA_RESPONSE_DATA_TYPE = 0x02
+PRINTER_STATUS_DATA_TYPE = 0x03
+PRINT_EOJ = 0x04
+BIND_IMAGE = 0xF2  # Bind Image AID
+SCS_DATA = 0x05
+REQUEST = 0x10
+RESPONSE = 0x11
+
+# Structured Field Query Reply Types (all standard IDs)
+QUERY_REPLY_SUMMARY = 0x80
+QUERY_REPLY_CHARACTERISTICS = 0x81
+QUERY_REPLY_PRODUCT_DEFINED_DATA = 0x82
+QUERY_REPLY_COLOR = 0x85
+QUERY_REPLY_EXTENDED_ATTRIBUTES = 0x86
+QUERY_REPLY_LINE_TYPE = 0x87
+QUERY_REPLY_CHARACTER_SET = 0x88
+QUERY_REPLY_REPLY_MODES = 0x8B
+QUERY_REPLY_PORTABLE_CHARACTER_SET = 0x8C
+QUERY_REPLY_USABLE_AREA = 0x8D
+QUERY_REPLY_DBCS_ASIA = 0x8E
+QUERY_REPLY_DBCS_EUROPE = 0x8F
+QUERY_REPLY_DBCS_MIDDLE_EAST = 0x90
+QUERY_REPLY_IMPLICIT_PARTITION = 0x91
+QUERY_REPLY_DDM = 0x92
+QUERY_REPLY_DEVICE_TYPE = 0x84
+QUERY_REPLY_FIELD_OUTLINING = 0x8A
+QUERY_REPLY_GRAPHICS = 0x89
+QUERY_REPLY_GRID = 0x8E  # Example
+QUERY_REPLY_HIGHLIGHTING = 0x8A  # Example
+QUERY_REPLY_OEM_AUXILIARY_DEVICE = 0x8F  # Example
+QUERY_REPLY_PROCEDURE = 0x90  # Example
+QUERY_REPLY_RPQ_NAMES = 0x91  # Example
+QUERY_REPLY_SEGMENT = 0x92  # Example
+QUERY_REPLY_SF = 0x93  # Example
+QUERY_REPLY_TRANSPARENCY = 0x94  # Example
+QUERY_REPLY_FORMAT_STORAGE = 0x95  # Example
+
+# TN3270E Device Type Names
 TN3270E_IBM_3278_2 = "IBM-3278-2"
 TN3270E_IBM_3278_3 = "IBM-3278-3"
 TN3270E_IBM_3278_4 = "IBM-3278-4"
@@ -156,68 +231,14 @@ TN3270E_IBM_3279_2 = "IBM-3279-2"
 TN3270E_IBM_3279_3 = "IBM-3279-3"
 TN3270E_IBM_3279_4 = "IBM-3279-4"
 TN3270E_IBM_3279_5 = "IBM-3279-5"
-
-# TN3270E Functions
-TN3270E_BIND_IMAGE = 0x01
-TN3270E_DATA_STREAM_CTL = 0x02
-TN3270E_RESPONSES = 0x04
-TN3270E_SCS_CTL_CODES = 0x08
-TN3270E_SYSREQ = 0x10
-
-# TN3270E SYSREQ Subnegotiation Message Type and Commands
-TN3270E_SYSREQ_MESSAGE_TYPE = 0x03
-TN3270E_SYSREQ_ATTN = 0x01
-TN3270E_SYSREQ_BREAK = 0x02
-TN3270E_SYSREQ_CANCEL = 0x03
-TN3270E_SYSREQ_RESTART = 0x04
-TN3270E_SYSREQ_PRINT = 0x05
-TN3270E_SYSREQ_LOGOFF = 0x06
-
-# TN3270E Request Flags (RFC 1646 Section 5.2)
-TN3270E_RQF_NO_RESPONSE = 0x00      # No response required
-TN3270E_RQF_ERROR_RESPONSE = 0x01   # Error response only
-TN3270E_RQF_ALWAYS_RESPONSE = 0x02  # Always response
-
-# Legacy aliases for backward compatibility
-TN3270E_RQF_ERR_COND_CLEARED = 0x00
-TN3270E_RQF_MORE_THAN_ONE_RQST = 0x01
-TN3270E_RQF_CANCEL_RQST = 0x02
-
-# TN3270E Response Flags (RFC 1646 Section 5.2)
-TN3270E_RSF_POSITIVE_RESPONSE = 0x00    # Positive response
-TN3270E_RSF_NEGATIVE_RESPONSE = 0x01    # Negative response
-TN3270E_RSF_POSITIVE_ALT_RESPONSE = 0x02 # Positive response (alternate form)
-
-# Legacy aliases for backward compatibility
-TN3270E_RSF_NO_RESPONSE = 0x00
-TN3270E_RSF_ERROR_RESPONSE = 0x01
-TN3270E_RSF_ALWAYS_RESPONSE = 0x02
-
-# Structured Field Constants
-STRUCTURED_FIELD = 0x3C  # '<' character
-QUERY_REPLY_SF = 0x88
-READ_PARTITION_QUERY = 0x02
-READ_PARTITION_QUERY_LIST = 0x03
-
-# Query Reply Types
-QUERY_REPLY_DEVICE_TYPE = 0x01
-QUERY_REPLY_CHARACTERISTICS = 0x02
-QUERY_REPLY_HIGHLIGHTING = 0x03
-QUERY_REPLY_COLOR = 0x04
-QUERY_REPLY_EXTENDED_ATTRIBUTES = 0x05
-QUERY_REPLY_GRAPHICS = 0x06
-QUERY_REPLY_DBCS_ASIA = 0x07
-QUERY_REPLY_DBCS_EUROPE = 0x08
-QUERY_REPLY_DBCS_MIDDLE_EAST = 0x09
-QUERY_REPLY_LINE_TYPE = 0x0A
-QUERY_REPLY_OEM_AUXILIARY_DEVICE = 0x0B
-QUERY_REPLY_TRANSPARENCY = 0x0C
-QUERY_REPLY_FORMAT_STORAGE = 0x0D
-QUERY_REPLY_DDM = 0x0E
-QUERY_REPLY_RPQ_NAMES = 0x0F
-QUERY_REPLY_SEGMENT = 0x10
-QUERY_REPLY_PROCEDURE = 0x11
-QUERY_REPLY_GRID = 0x12
+TN3270E_IBM_3179_2 = "IBM-3179-2"
+TN3270E_IBM_3483_VI = "IBM-3483-VI"
+TN3270E_IBM_3196_A1 = "IBM-3196-A1"
+# Additional TN3270E Device Type Names
+TN3270E_IBM_DYNAMIC = "IBM-DYNAMIC"
+TN3270E_IBM_3270PC_G = "IBM-3270PC-G"
+TN3270E_IBM_3270PC_GA = "IBM-3270PC-GA"
+TN3270E_IBM_3270PC_GX = "IBM-3270PC-GX"
 
 
 def _schedule_if_awaitable(maybe_awaitable: Any) -> None:
@@ -240,25 +261,17 @@ def _schedule_if_awaitable(maybe_awaitable: Any) -> None:
         pass
 
 
-def send_iac(writer: Optional[asyncio.StreamWriter], data: bytes) -> None:
-    """
-    Send IAC command.
-
-    Args:
-        writer: StreamWriter.
-        data: Data bytes after IAC.
-    """
-    if not writer:
+def send_iac(writer: Optional[asyncio.StreamWriter], command: bytes) -> None:
+    """Send an IAC command to the writer."""
+    if writer is None:
+        logger.debug("[TELNET] Writer is None, skipping IAC send")
         return
-
-    # Call write; AsyncMock.write may return a coroutine that needs awaiting.
     try:
-        writer.write(bytes([IAC]) + data)
-    except Exception:
-        try:
-            writer.write(bytes([IAC]) + data)
-        except Exception:
-            return
+        writer.write(command)
+        # Don't await drain here to avoid blocking negotiation
+        logger.debug(f"[TELNET] Sent IAC command: {command.hex()}")
+    except Exception as e:
+        logger.error(f"[TELNET] Failed to send IAC command: {e}")
 
 
 def send_subnegotiation(

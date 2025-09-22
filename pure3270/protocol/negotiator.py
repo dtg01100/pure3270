@@ -10,8 +10,15 @@ import sys
 from enum import Enum  # Import Enum for state management
 from typing import TYPE_CHECKING, Any, Awaitable, Dict, List, Optional
 
+if TYPE_CHECKING:
+    from .tn3270_handler import TN3270Handler
+    from .data_stream import DataStreamParser
+    from .trace_recorder import TraceRecorder
+    from asyncio import StreamWriter
+
 from ..emulation.screen_buffer import ScreenBuffer
 from .data_stream import (  # Import SnaResponse and BindImage
+    BindImage,
     SNA_SENSE_CODE_INVALID_FORMAT,
     SNA_SENSE_CODE_INVALID_REQUEST,
     SNA_SENSE_CODE_INVALID_SEQUENCE,
@@ -19,86 +26,58 @@ from .data_stream import (  # Import SnaResponse and BindImage
     SNA_SENSE_CODE_NO_RESOURCES,
     SNA_SENSE_CODE_NOT_SUPPORTED,
     SNA_SENSE_CODE_SESSION_FAILURE,
-    SNA_SENSE_CODE_STATE_ERROR,
-    SNA_SENSE_CODE_SUCCESS,
-    BindImage,
-    DataStreamParser,
+    SNA_RESPONSE_DATA_TYPE,
     SnaResponse,
+    TN3270_DATA,
 )
+from .exceptions import NegotiationError, ProtocolError
 from .errors import (
     handle_drain,
     raise_negotiation_error,
     raise_protocol_error,
     safe_socket_operation,
 )
-from .exceptions import NegotiationError, ParseError, ProtocolError
 from .tn3270e_header import TN3270EHeader
-from .trace_recorder import TraceRecorder  # Optional diagnostic recorder
-from .utils import SNA_RESPONSE  # Import SNA_RESPONSE
-from .utils import TELOPT_BIND_UNIT  # TELOPT 48
 from .utils import (
-    BIND_IMAGE,
     DO,
     DONT,
-    NVT_DATA,
-    PRINT_EOJ,
-    QUERY_REPLY_CHARACTERISTICS,
-    REQUEST,
-    RESPONSE,
-    SCS_DATA,
-    SSCP_LU_DATA,
+    IAC,
+    SB,
+    SE,
+    SNA_RESPONSE,
+    SNA_SENSE_CODE_SUCCESS,
     TELOPT_BINARY,
+    TELOPT_ECHO,
     TELOPT_EOR,
-)
-from .utils import (
-    TELOPT_OLD_ENVIRON as TELOPT_TERMINAL_LOCATION,  # Alias for RFC 1646 (TELOPT 36)
-)
-from .utils import (
+    TELOPT_SGA,
+    TELOPT_TERMINAL_LOCATION,
     TELOPT_TN3270E,
     TELOPT_TTYPE,
-    TN3270_DATA,
     TN3270E_BIND_IMAGE,
     TN3270E_DATA_STREAM_CTL,
     TN3270E_DEVICE_TYPE,
     TN3270E_FUNCTIONS,
-    TN3270E_IBM_DYNAMIC,
     TN3270E_IS,
+    TN3270E_QUERY,
+    TN3270E_QUERY_IS,
+    TN3270E_QUERY_SEND,
     TN3270E_REQUEST,
     TN3270E_RESPONSE_MODE,
     TN3270E_RESPONSE_MODE_BIND_IMAGE,
     TN3270E_RESPONSE_MODE_IS,
     TN3270E_RESPONSE_MODE_SEND,
     TN3270E_RESPONSES,
-    TN3270E_RSF_ALWAYS_RESPONSE,
-    TN3270E_RSF_ERROR_RESPONSE,
-    TN3270E_RSF_NEGATIVE_RESPONSE,
-    TN3270E_RSF_NO_RESPONSE,
-    TN3270E_USABLE_AREA,
-    TN3270E_USABLE_AREA_IS,
-    TN3270E_USABLE_AREA_SEND,
-    TN3270E_QUERY,
-    TN3270E_QUERY_IS,
-    TN3270E_QUERY_SEND,
     TN3270E_RSF_POSITIVE_RESPONSE,
     TN3270E_SCS_CTL_CODES,
     TN3270E_SEND,
-    TN3270E_SYSREQ,
-    TN3270E_SYSREQ_ATTN,
-    TN3270E_SYSREQ_BREAK,
-    TN3270E_SYSREQ_CANCEL,
-    TN3270E_SYSREQ_LOGOFF,
-    TN3270E_SYSREQ_MESSAGE_TYPE,
-    TN3270E_SYSREQ_PRINT,
-    TN3270E_SYSREQ_RESTART,
-    UNBIND,
+    TN3270E_USABLE_AREA,
+    TN3270E_USABLE_AREA_IS,
+    TN3270E_USABLE_AREA_SEND,
     WILL,
     WONT,
     send_iac,
     send_subnegotiation,
 )
-
-if TYPE_CHECKING:
-    from .tn3270_handler import TN3270Handler
 
 logger = logging.getLogger(__name__)
 
@@ -122,14 +101,14 @@ class Negotiator:
 
     def __init__(
         self,
-        writer: Optional[asyncio.StreamWriter],
-        parser: Optional[DataStreamParser],
-        screen_buffer: ScreenBuffer,
+        writer: "asyncio.StreamWriter",
+        parser: Optional["DataStreamParser"] = None,
+        screen_buffer: Optional["ScreenBuffer"] = None,
         handler: Optional["TN3270Handler"] = None,
         is_printer_session: bool = False,
         force_mode: Optional[str] = None,
         allow_fallback: bool = True,
-        recorder: Optional[TraceRecorder] = None,
+        recorder: Optional["TraceRecorder"] = None,
     ):
         """
         Initialize the Negotiator.
@@ -149,6 +128,7 @@ class Negotiator:
         self.parser = parser
         self.screen_buffer = screen_buffer
         self.handler = handler
+        self.supported_device_types = ["IBM-3278-4-E"]
         self._ascii_mode = False
         logger.debug(f"Negotiator._ascii_mode initialized to {self._ascii_mode}")
         # Mode negotiation / override controls
@@ -158,6 +138,7 @@ class Negotiator:
                 "force_mode must be one of None, 'ascii', 'tn3270', 'tn3270e'"
             )
         self.allow_fallback = allow_fallback
+        self.recorder = None  # Disable tracing for now
         self.negotiated_tn3270e = False
         self._lu_name: Optional[str] = None
         self.screen_rows = 24
@@ -392,7 +373,7 @@ class Negotiator:
                     logger.debug("Received positive response for DEVICE-TYPE SEND.")
                 elif header.is_negative_response():
                     retry_count = request_info.get("retry_count", 0)
-                    if retry_count < 3:
+                    if retry_count < 2:
                         request_info["retry_count"] = retry_count + 1
                         self._pending_requests[seq_number] = request_info
                         await asyncio.sleep(0.5 * (2**retry_count))
@@ -409,7 +390,7 @@ class Negotiator:
                     logger.debug("Received positive response for FUNCTIONS SEND.")
                 elif header.is_negative_response():
                     retry_count = request_info.get("retry_count", 0)
-                    if retry_count < 3:
+                    if retry_count < 2:
                         request_info["retry_count"] = retry_count + 1
                         self._pending_requests[seq_number] = request_info
                         await asyncio.sleep(0.5 * (2**retry_count))
@@ -544,13 +525,15 @@ class Negotiator:
                         f"[NEGOTIATION] Waiting for DEVICE-TYPE with per-event timeout {step_timeout}s..."
                     )
                     await asyncio.wait_for(
-                        self._get_or_create_device_type_event().wait(), timeout=step_timeout
+                        self._get_or_create_device_type_event().wait(),
+                        timeout=step_timeout,
                     )
                     logger.debug(
                         f"[NEGOTIATION] Waiting for FUNCTIONS with per-event timeout {step_timeout}s..."
                     )
                     await asyncio.wait_for(
-                        self._get_or_create_functions_event().wait(), timeout=step_timeout
+                        self._get_or_create_functions_event().wait(),
+                        timeout=step_timeout,
                     )
                     # Overall wait for completion with remaining timeout
                     remaining_timeout = timeout - (2 * step_timeout)
@@ -568,7 +551,9 @@ class Negotiator:
                     )
                 except asyncio.TimeoutError:
                     if not self.allow_fallback:
-                        raise NegotiationError("TN3270E negotiation timed out and fallback disabled")
+                        raise NegotiationError(
+                            "TN3270E negotiation timed out and fallback disabled"
+                        )
                     logger.warning(
                         "[NEGOTIATION] TN3270E negotiation timed out, falling back to ASCII mode"
                     )
@@ -850,7 +835,14 @@ class Negotiator:
 
     async def _handle_do(self, option: int) -> None:
         """Handle DO command (server wants us to enable option)."""
-        from .utils import TELOPT_BINARY, TELOPT_EOR, TELOPT_TTYPE, WILL, WONT
+        from .utils import (
+            TELOPT_BINARY,
+            TELOPT_EOR,
+            TELOPT_TTYPE,
+            TELOPT_TN3270E,
+            WILL,
+            WONT,
+        )
 
         if option == TELOPT_BINARY:
             logger.info("[TELNET] Server DO BINARY - accepting")
@@ -868,6 +860,8 @@ class Negotiator:
             logger.info("[TELNET] Server DO TN3270E - accepting")
             if self.writer:
                 send_iac(self.writer, bytes([WILL, TELOPT_TN3270E]))
+            # Mark that TN3270E is supported by server
+            self._server_supports_tn3270e = True
         else:
             logger.info(f"[TELNET] Server DO unknown option 0x{option:02x} - rejecting")
             if self.writer:
@@ -987,24 +981,61 @@ class Negotiator:
                 logger.info(f"[TN3270E] Received IS response: {response_data.hex()}")
                 await self._handle_tn3270e_is(response_data)
                 break  # IS command consumes the rest of the payload
+            elif payload[i] == TN3270E_FUNCTIONS:
+                i += 1
+                if i < len(payload) and payload[i] == TN3270E_IS:
+                    i += 1
+                    functions_data = payload[i:]
+                    logger.info(
+                        f"[TN3270E] Received FUNCTIONS IS: {functions_data.hex()}"
+                    )
+                    self._functions = functions_data
+                    self._get_or_create_functions_event().set()
+
+                    # After receiving FUNCTIONS IS, send REQUEST with the same functions
+                    logger.info(
+                        f"[TN3270E] Sending REQUEST with functions: {functions_data.hex()}"
+                    )
+                    from .utils import send_subnegotiation
+
+                    send_subnegotiation(
+                        self.writer, bytes([TN3270E_REQUEST]), functions_data
+                    )
+                else:
+                    logger.warning("[TN3270E] Invalid FUNCTIONS subcommand")
+                break  # FUNCTIONS command consumes the rest of the payload
             elif payload[i] == TN3270E_RESPONSE_MODE:
                 # Response mode subnegotiation - handle separately
                 response_mode_data = payload[i:]
-                logger.info(f"[TN3270E] Received response mode subnegotiation: {response_mode_data.hex()}")
+                logger.info(
+                    f"[TN3270E] Received response mode subnegotiation: {response_mode_data.hex()}"
+                )
                 await self._handle_response_mode_subnegotiation(response_mode_data)
                 break  # Response mode consumes the rest of the payload
             elif payload[i] == TN3270E_USABLE_AREA:
                 # Usable area subnegotiation - handle separately
                 usable_area_data = payload[i:]
-                logger.info(f"[TN3270E] Received usable area subnegotiation: {usable_area_data.hex()}")
+                logger.info(
+                    f"[TN3270E] Received usable area subnegotiation: {usable_area_data.hex()}"
+                )
                 await self._handle_usable_area_subnegotiation(usable_area_data)
                 break  # Usable area consumes the rest of the payload
             elif payload[i] == TN3270E_QUERY:
                 # Query subnegotiation - handle separately
                 query_data = payload[i:]
-                logger.info(f"[TN3270E] Received query subnegotiation: {query_data.hex()}")
+                logger.info(
+                    f"[TN3270E] Received query subnegotiation: {query_data.hex()}"
+                )
                 await self._handle_query_subnegotiation(query_data)
                 break  # Query consumes the rest of the payload
+            elif payload[i] == TN3270E_REQUEST:
+                # REQUEST command - negotiation is complete
+                request_data = payload[i + 1 :]
+                logger.info(f"[TN3270E] Received REQUEST: {request_data.hex()}")
+                self.negotiated_functions = request_data[0] if request_data else 0
+                self.negotiated_tn3270e = True
+                self._get_or_create_negotiation_complete().set()
+                break  # REQUEST command consumes the rest of the payload
             else:
                 logger.warning(
                     f"[TN3270E] Unknown subnegotiation command 0x{payload[i]:02x}"
@@ -1044,7 +1075,9 @@ class Negotiator:
                 device_type_str = response_data.decode("ascii").rstrip("\x00")
                 if device_type_str:
                     self.negotiated_device_type = device_type_str
-                    logger.info(f"[TN3270E] Set device type from IS response: {self.negotiated_device_type}")
+                    logger.info(
+                        f"[TN3270E] Set device type from IS response: {self.negotiated_device_type}"
+                    )
                     # Set the device type event
                     self._get_or_create_device_type_event().set()
                     return
@@ -1123,14 +1156,20 @@ class Negotiator:
                     self.negotiated_functions = functions_data[0]
                 else:
                     # Handle multi-byte for backward compatibility, but prefer single byte
-                    self.negotiated_functions = int.from_bytes(functions_data, byteorder='big')
-                logger.info(f"[TN3270E] Negotiated functions: 0x{self.negotiated_functions:02x}")
+                    self.negotiated_functions = int.from_bytes(
+                        functions_data, byteorder="big"
+                    )
+                logger.info(
+                    f"[TN3270E] Negotiated functions: 0x{self.negotiated_functions:02x}"
+                )
                 # Set the functions event
                 self._get_or_create_functions_event().set()
             else:
                 logger.warning("[TN3270E] Empty functions data in IS response")
         else:
-            logger.warning(f"[TN3270E] Invalid functions subnegotiation format: {data.hex()}")
+            logger.warning(
+                f"[TN3270E] Invalid functions subnegotiation format: {data.hex()}"
+            )
 
     async def _handle_terminal_type_subnegotiation(self, payload: bytes) -> None:
         """
@@ -1193,18 +1232,18 @@ class Negotiator:
 
         if command == TN3270E_RESPONSE_MODE_SEND:
             # Server is requesting our response mode, respond with IS BIND-IMAGE
-            logger.info("[TN3270E] Received RESPONSE-MODE SEND, responding with IS BIND-IMAGE")
+            logger.info(
+                "[TN3270E] Received RESPONSE-MODE SEND, responding with IS BIND-IMAGE"
+            )
             if self.writer:
-                response_data = bytes([
-                    TN3270E_RESPONSE_MODE,  # 0x15
-                    TN3270E_RESPONSE_MODE_IS,  # 0x00
-                    TN3270E_RESPONSE_MODE_BIND_IMAGE  # 0x02
-                ])
-                send_subnegotiation(
-                    self.writer,
-                    bytes([TELOPT_TN3270E]),
-                    response_data
+                response_data = bytes(
+                    [
+                        TN3270E_RESPONSE_MODE,  # 0x15
+                        TN3270E_RESPONSE_MODE_IS,  # 0x00
+                        TN3270E_RESPONSE_MODE_BIND_IMAGE,  # 0x02
+                    ]
                 )
+                send_subnegotiation(self.writer, bytes([TELOPT_TN3270E]), response_data)
                 await self.writer.drain()
         elif command == TN3270E_RESPONSE_MODE_IS:
             # Server is telling us its response mode
@@ -1214,7 +1253,9 @@ class Negotiator:
                     logger.info("[TN3270E] Server response mode is BIND-IMAGE")
                     self.negotiated_response_mode = TN3270E_RESPONSE_MODE_BIND_IMAGE
                 else:
-                    logger.info(f"[TN3270E] Server response mode: 0x{response_mode:02x}")
+                    logger.info(
+                        f"[TN3270E] Server response mode: 0x{response_mode:02x}"
+                    )
                     self.negotiated_response_mode = response_mode
             else:
                 logger.warning("[TN3270E] Response mode IS command without mode data")
@@ -1245,24 +1286,30 @@ class Negotiator:
 
         if command == TN3270E_USABLE_AREA_SEND:
             # Server is requesting our usable area, respond with IS full area (24x80)
-            logger.info("[TN3270E] Received USABLE-AREA SEND, responding with IS full area")
+            logger.info(
+                "[TN3270E] Received USABLE-AREA SEND, responding with IS full area"
+            )
             if self.writer:
                 # Standard 24x80 terminal dimensions
                 rows, cols = 24, 80
-                rows_be = rows.to_bytes(2, 'big')
-                cols_be = cols.to_bytes(2, 'big')
+                rows_be = rows.to_bytes(2, "big")
+                cols_be = cols.to_bytes(2, "big")
 
                 # IS response with full usable area: rows, cols, rows, cols (all same for full area)
-                response_data = bytes([
-                    TN3270E_USABLE_AREA,  # 0x16
-                    TN3270E_USABLE_AREA_IS,  # 0x00
-                ]) + rows_be + cols_be + rows_be + cols_be
-
-                send_subnegotiation(
-                    self.writer,
-                    bytes([TELOPT_TN3270E]),
-                    response_data
+                response_data = (
+                    bytes(
+                        [
+                            TN3270E_USABLE_AREA,  # 0x16
+                            TN3270E_USABLE_AREA_IS,  # 0x00
+                        ]
+                    )
+                    + rows_be
+                    + cols_be
+                    + rows_be
+                    + cols_be
                 )
+
+                send_subnegotiation(self.writer, bytes([TELOPT_TN3270E]), response_data)
                 await self.writer.drain()
         elif command == TN3270E_USABLE_AREA_IS:
             # Server is telling us its usable area dimensions
@@ -1301,18 +1348,19 @@ class Negotiator:
             if self.writer:
                 # Standard QUERY_REPLY: CHARACTERISTICS + AID
                 # This is a basic query reply as specified in the test
-                query_reply = b'\x0F\x81\x0A\x43\x02\xF1\xF0\x0F\x82\x02\x41'
+                query_reply = b"\x0f\x81\x0a\x43\x02\xf1\xf0\x0f\x82\x02\x41"
 
-                response_data = bytes([
-                    TN3270E_QUERY,  # 0x0F
-                    TN3270E_QUERY_IS,  # 0x00
-                ]) + query_reply
-
-                send_subnegotiation(
-                    self.writer,
-                    bytes([TELOPT_TN3270E]),
-                    response_data
+                response_data = (
+                    bytes(
+                        [
+                            TN3270E_QUERY,  # 0x0F
+                            TN3270E_QUERY_IS,  # 0x00
+                        ]
+                    )
+                    + query_reply
                 )
+
+                send_subnegotiation(self.writer, bytes([TELOPT_TN3270E]), response_data)
                 await self.writer.drain()
         elif command == TN3270E_QUERY_IS:
             # Server is telling us its query reply
@@ -1346,7 +1394,7 @@ class Negotiator:
 
                     # For the test case, we know it expects "IBM-3278- 2"
                     # Let's use a simple approach based on the test data pattern
-                    if len(data) >= 7 and data[i+5] == 0xF1 and data[i+6] == 0xF0:
+                    if len(data) >= 7 and data[i + 5] == 0xF1 and data[i + 6] == 0xF0:
                         # This specific pattern in the test indicates model 2
                         model = " 2"  # Note the space before 2 as expected by test
                     else:
@@ -1359,7 +1407,9 @@ class Negotiator:
                     elif "IBM-3278" not in self.negotiated_device_type:
                         self.negotiated_device_type += f" IBM-3278-{model}"
 
-                    logger.info(f"[TN3270E] Parsed device model: {model}, updated device type: {self.negotiated_device_type}")
+                    logger.info(
+                        f"[TN3270E] Parsed device model: {model}, updated device type: {self.negotiated_device_type}"
+                    )
                 break
             i += 1
 
@@ -1450,6 +1500,15 @@ class Negotiator:
             await asyncio.sleep(1)
             if hasattr(self, "is_bind_image_active") and self.is_bind_image_active:
                 await self._resend_request("BIND-IMAGE", self._next_seq_number)
+        elif sna_response.sense_code == SNA_SENSE_CODE_SESSION_FAILURE:
+            logger.error("[SNA] Session failure, attempting re-negotiation")
+            self._sna_session_state = SnaSessionState.ERROR
+            try:
+                await self.negotiate()
+                self._sna_session_state = SnaSessionState.NORMAL
+            except Exception as e:
+                logger.error(f"[SNA] Re-negotiation failed: {e}")
+                self._sna_session_state = SnaSessionState.SESSION_DOWN
         else:
             logger.error(
                 f"[SNA] SNA error response: sense_code={sna_response.sense_code}"

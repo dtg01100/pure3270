@@ -44,37 +44,41 @@ class TestNegotiatorEnhancements:
         negotiator._parse_tn3270e_subnegotiation(b"\x01\x02\x03")
         # Should not raise exception, just log warning
 
-    def test_handle_device_type_subnegotiation(self, memory_limit_500mb):
+    @pytest.mark.asyncio
+    async def test_handle_device_type_subnegotiation(self, memory_limit_500mb):
         """Test handling device type subnegotiation."""
         parser = DataStreamParser(ScreenBuffer())
         screen_buffer = ScreenBuffer()
         negotiator = Negotiator(None, parser, screen_buffer)
 
-        # Test with invalid data
-        negotiator._handle_device_type_subnegotiation(b"\x01")
+        # Test with invalid data - should call _parse_tn3270e_subnegotiation
+        from pure3270.protocol.utils import TELOPT_TN3270E
+        await negotiator._parse_tn3270e_subnegotiation(bytes([TELOPT_TN3270E, 0x01]))
         # Should not raise exception, just log warning
 
         # Test with valid IS message but no device type
-        negotiator._handle_device_type_subnegotiation(b"\x02")
+        await negotiator._parse_tn3270e_subnegotiation(bytes([TELOPT_TN3270E, 0x02]))
         # Should not raise exception
 
         # Test with IBM-DYNAMIC device type
-        negotiator._handle_device_type_subnegotiation(b"\x02IBM-DYNAMIC\x00")
+        await negotiator._parse_tn3270e_subnegotiation(bytes([TELOPT_TN3270E, 0x02]) + b"IBM-DYNAMIC\x00")
         # Should set negotiated_device_type to IBM-DYNAMIC
         assert negotiator.negotiated_device_type == "IBM-DYNAMIC"
 
-    def test_handle_functions_subnegotiation(self, memory_limit_500mb):
+    @pytest.mark.asyncio
+    async def test_handle_functions_subnegotiation(self, memory_limit_500mb):
         """Test handling functions subnegotiation."""
         parser = DataStreamParser(ScreenBuffer())
         screen_buffer = ScreenBuffer()
         negotiator = Negotiator(None, parser, screen_buffer)
 
-        # Test with invalid data
-        negotiator._handle_functions_subnegotiation(b"\x01")
+        # Test with invalid data - should call _parse_tn3270e_subnegotiation
+        from pure3270.protocol.utils import TELOPT_TN3270E
+        await negotiator._parse_tn3270e_subnegotiation(bytes([TELOPT_TN3270E, 0x01]))
         # Should not raise exception, just log warning
 
         # Test with valid IS message but no functions
-        negotiator._handle_functions_subnegotiation(b"\x02")
+        await negotiator._parse_tn3270e_subnegotiation(bytes([TELOPT_TN3270E, 0x02]))
         # Should not raise exception
 
     def test_send_supported_device_types_no_writer(self, memory_limit_500mb):
@@ -94,4 +98,4 @@ class TestNegotiatorEnhancements:
         negotiator = Negotiator(None, parser, screen_buffer)
 
         # Should log error but not raise exception
-        await negotiator._send_supported_functions()
+        await negotiator._send_functions_is()

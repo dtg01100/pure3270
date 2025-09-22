@@ -195,7 +195,7 @@ class TN3270EHeader:
             # SNA sense code is 2 bytes big-endian
             sense_code = (data[1] << 8) | data[2]
             # Map to known SNA sense codes
-            from ..data_stream import (
+            from .utils import (
                 SNA_SENSE_CODE_INVALID_FORMAT,
                 SNA_SENSE_CODE_INVALID_REQUEST,
                 SNA_SENSE_CODE_INVALID_SEQUENCE,

@@ -137,11 +137,13 @@ pip install pytest-cov black flake8
 
 ### Pre-commit Hooks
 
-To maintain code quality and consistency, Pure3270 uses pre-commit hooks. These hooks automatically check and format code before each commit.
+To maintain code quality and consistency, Pure3270 uses pre-commit hooks. These hooks **automatically format code and create formatting commits** when needed.
+
+**NEW**: Pre-commit hooks now auto-fix formatting issues instead of just failing!
 
 To set up pre-commit hooks:
 
-```
+```bash
 # Install pre-commit (already included in test dependencies)
 pip install -e .[test]
 
@@ -149,10 +151,28 @@ pip install -e .[test]
 pre-commit install
 ```
 
-The hooks will now run automatically on each `git commit`. You can also run them manually:
+Now when you commit, the hooks will:
+1. Automatically apply `black` and `isort` formatting if needed
+2. Create a formatting commit with message "chore(format): apply black + isort auto-formatting [skip ci]"
+3. Proceed with your original commit
 
+```bash
+# Example workflow
+git add my_file.py
+git commit -m "Add new feature"
+# ✅ Auto-formats, creates formatting commit, then applies your commit
 ```
-# Run all hooks on all files
+
+You can also run hooks manually:
+
+```bash
+# Run with auto-formatting (recommended)
+./pre-commit.sh --all-files
+
+# Or use the underlying script
+python scripts/pre_commit_with_autofix.py --all-files
+
+# Traditional pre-commit (formatting checks only)
 pre-commit run --all-files
 ```
 

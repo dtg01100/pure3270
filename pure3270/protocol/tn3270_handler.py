@@ -716,8 +716,11 @@ class TN3270Handler:
                     VT100Parser = _RealVT100Parser
                 vt100_parser = VT100Parser(self.screen_buffer)
                 vt100_payload = processed_data
+                # Strip trailing EOR (0x19) or IAC EOR (FF 19) before VT100 parsing
                 if vt100_payload.endswith(b"\xff\x19"):
                     vt100_payload = vt100_payload[:-2]
+                elif vt100_payload.endswith(b"\x19"):
+                    vt100_payload = vt100_payload[:-1]
                 vt100_parser.parse(vt100_payload)
                 logger.debug("VT100 parsing completed successfully")
             except Exception as e:
@@ -725,6 +728,9 @@ class TN3270Handler:
                 import traceback
 
                 logger.warning(f"Traceback: {traceback.format_exc()}")
+            # Strip trailing EOR from returned data for consistency
+            if processed_data.endswith(b"\x19"):
+                processed_data = processed_data.rstrip(b"\x19")
             return processed_data
         # Parse and update screen buffer (simplified)
         logger.debug("In TN3270 mode, parsing 3270 data")
