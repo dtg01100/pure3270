@@ -31,6 +31,23 @@ from .negotiator import Negotiator
 from .tn3270e_header import TN3270EHeader
 from .trace_recorder import TraceRecorder
 from .utils import (
+    AO,
+    AYT,
+    BRK,
+    DM,
+    DO,
+    DONT,
+    EC,
+    EL,
+    EOR,
+    GA,
+    IAC,
+    IP,
+    NOP,
+    SB,
+    SE,
+    WILL,
+    WONT,
     TELOPT_TN3270E,
     TN3270_DATA,
     TN3270E_SYSREQ,
@@ -863,6 +880,48 @@ class TN3270Handler:
             if command == BRK:
                 # Match legacy test expectation
                 logger.debug("Received IAC BRK")
+                i += 2
+                continue
+
+            # Additional IAC commands per RFC 854
+            if command == GA:  # Go Ahead
+                logger.debug("[TELNET] IAC GA (Go Ahead)")
+                i += 2
+                continue
+
+            if command == EL:  # Erase Line
+                logger.debug("[TELNET] IAC EL (Erase Line)")
+                i += 2
+                continue
+
+            if command == EC:  # Erase Character
+                logger.debug("[TELNET] IAC EC (Erase Character)")
+                i += 2
+                continue
+
+            if command == AYT:  # Are You There
+                logger.debug("[TELNET] IAC AYT (Are You There)")
+                # Could send a response, but for TN3270 typically ignored
+                i += 2
+                continue
+
+            if command == AO:  # Abort Output
+                logger.debug("[TELNET] IAC AO (Abort Output)")
+                i += 2
+                continue
+
+            if command == IP:  # Interrupt Process
+                logger.debug("[TELNET] IAC IP (Interrupt Process)")
+                i += 2
+                continue
+
+            if command == DM:  # Data Mark
+                logger.debug("[TELNET] IAC DM (Data Mark)")
+                i += 2
+                continue
+
+            if command == NOP:  # No Operation
+                logger.debug("[TELNET] IAC NOP (No Operation)")
                 i += 2
                 continue
 

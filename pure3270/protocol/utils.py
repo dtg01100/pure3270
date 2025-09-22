@@ -21,9 +21,17 @@ WILL = 0xFB
 WONT = 0xFC
 DO = 0xFD
 DONT = 0xFE
-IP = 0xF7  # Interrupt Process
-AO = 0xF5  # Abort Output
-BRK = 0xF3  # Break Process
+# Additional IAC commands per RFC 854
+GA = 0xF9   # Go Ahead
+EL = 0xF8   # Erase Line
+EC = 0xF7   # Erase Character
+AYT = 0xF6  # Are You There
+AO = 0xF5   # Abort Output
+IP = 0xF4   # Interrupt Process
+BRK = 0xF3  # Break
+DM = 0xF2   # Data Mark
+NOP = 0xF1  # No Operation
+# Legacy aliases
 BREAK = 0xF3
 # Telnet Options
 TELOPT_BINARY = 0x00
@@ -86,17 +94,16 @@ TELOPT_EXOPL = 0xFF  # Extended-Options-List
 TN3270E = 0x28  # TN3270E Telnet option (duplicate, but kept for clarity)
 EOR = 0x19  # End of Record (duplicate, but kept for clarity)
 
-# TN3270E Data Types
-TN3270_DATA = 0x00
-TN3270E_DATA = 0x01
-SCS_DATA = 0x01
-RESPONSE = 0x02
-BIND_IMAGE = 0x03
-UNBIND = 0x04
-NVT_DATA = 0x05
-REQUEST = 0x06
-SSCP_LU_DATA = 0x07
-PRINT_EOJ = 0x08
+# TN3270E Data Types (RFC 1646 Section 5.1)
+TN3270_DATA = 0x00  # 3270-DATA
+SCS_DATA = 0x01     # SCS-DATA
+RESPONSE = 0x02     # RESPONSE
+BIND_IMAGE = 0x03   # BIND-IMAGE
+UNBIND = 0x04       # UNBIND
+NVT_DATA = 0x05     # NVT-DATA
+REQUEST = 0x06      # REQUEST
+SSCP_LU_DATA = 0x07 # SSCP-LU-DATA
+PRINT_EOJ = 0x08    # PRINT-EOJ
 SNA_RESPONSE = 0x09  # New SNA Response Data Type
 SNA_RESPONSE_DATA_TYPE = 0x09  # SNA Response Data Type
 PRINTER_STATUS_DATA_TYPE = 0x0A  # New data type for Printer Status (TN3270E)
@@ -104,7 +111,6 @@ PRINTER_STATUS_DATA_TYPE = 0x0A  # New data type for Printer Status (TN3270E)
 # TN3270E Data Types tuple for validation
 TN3270E_DATA_TYPES = (
     TN3270_DATA,
-    TN3270E_DATA,
     SCS_DATA,
     RESPONSE,
     BIND_IMAGE,
@@ -123,6 +129,22 @@ TN3270E_FUNCTIONS = 0x01
 TN3270E_IS = 0x02
 TN3270E_REQUEST = 0x03
 TN3270E_SEND = 0x04
+
+# TN3270E Response Mode Constants
+TN3270E_RESPONSE_MODE = 0x15  # Response mode subnegotiation option
+TN3270E_RESPONSE_MODE_IS = 0x00
+TN3270E_RESPONSE_MODE_SEND = 0x01
+TN3270E_RESPONSE_MODE_BIND_IMAGE = 0x02
+
+# TN3270E Usable Area Constants
+TN3270E_USABLE_AREA = 0x16  # Usable area subnegotiation option
+TN3270E_USABLE_AREA_IS = 0x00
+TN3270E_USABLE_AREA_SEND = 0x01
+
+# TN3270E Query Constants
+TN3270E_QUERY = 0x0F  # Query subnegotiation option
+TN3270E_QUERY_IS = 0x00
+TN3270E_QUERY_SEND = 0x01
 
 # TN3270E Device Types
 TN3270E_IBM_DYNAMIC = "IBM-DYNAMIC"
@@ -151,17 +173,25 @@ TN3270E_SYSREQ_RESTART = 0x04
 TN3270E_SYSREQ_PRINT = 0x05
 TN3270E_SYSREQ_LOGOFF = 0x06
 
-# TN3270E Request Flags
+# TN3270E Request Flags (RFC 1646 Section 5.2)
+TN3270E_RQF_NO_RESPONSE = 0x00      # No response required
+TN3270E_RQF_ERROR_RESPONSE = 0x01   # Error response only
+TN3270E_RQF_ALWAYS_RESPONSE = 0x02  # Always response
+
+# Legacy aliases for backward compatibility
 TN3270E_RQF_ERR_COND_CLEARED = 0x00
 TN3270E_RQF_MORE_THAN_ONE_RQST = 0x01
 TN3270E_RQF_CANCEL_RQST = 0x02
 
-# TN3270E Response Flags
+# TN3270E Response Flags (RFC 1646 Section 5.2)
+TN3270E_RSF_POSITIVE_RESPONSE = 0x00    # Positive response
+TN3270E_RSF_NEGATIVE_RESPONSE = 0x01    # Negative response
+TN3270E_RSF_POSITIVE_ALT_RESPONSE = 0x02 # Positive response (alternate form)
+
+# Legacy aliases for backward compatibility
 TN3270E_RSF_NO_RESPONSE = 0x00
 TN3270E_RSF_ERROR_RESPONSE = 0x01
 TN3270E_RSF_ALWAYS_RESPONSE = 0x02
-TN3270E_RSF_POSITIVE_RESPONSE = 0x00
-TN3270E_RSF_NEGATIVE_RESPONSE = 0x02
 
 # Structured Field Constants
 STRUCTURED_FIELD = 0x3C  # '<' character
