@@ -101,7 +101,7 @@ class Negotiator:
 
     def __init__(
         self,
-        writer: "asyncio.StreamWriter",
+        writer: Optional["asyncio.StreamWriter"],
         parser: Optional["DataStreamParser"] = None,
         screen_buffer: Optional["ScreenBuffer"] = None,
         handler: Optional["TN3270Handler"] = None,
@@ -128,7 +128,6 @@ class Negotiator:
         self.parser = parser
         self.screen_buffer = screen_buffer
         self.handler = handler
-        self.supported_device_types = ["IBM-3278-4-E"]
         self._ascii_mode = False
         logger.debug(f"Negotiator._ascii_mode initialized to {self._ascii_mode}")
         # Mode negotiation / override controls
@@ -138,7 +137,6 @@ class Negotiator:
                 "force_mode must be one of None, 'ascii', 'tn3270', 'tn3270e'"
             )
         self.allow_fallback = allow_fallback
-        self.recorder = None  # Disable tracing for now
         self.negotiated_tn3270e = False
         self._lu_name: Optional[str] = None
         self.screen_rows = 24

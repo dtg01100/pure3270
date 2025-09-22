@@ -151,6 +151,13 @@ TN3270E_SYSREQ_RESTART = 0x7D  # Restart key
 # Additional sense codes for SNA responses
 SNA_SENSE_CODE_SUCCESS = 0x0000
 SNA_SENSE_CODE_SESSION_FAILURE = 0x082A
+SNA_SENSE_CODE_INVALID_FORMAT = 0x1001  # Invalid message format
+SNA_SENSE_CODE_NOT_SUPPORTED = 0x1002  # Function not supported
+SNA_SENSE_CODE_INVALID_REQUEST = 0x0801  # Invalid Request
+SNA_SENSE_CODE_LU_BUSY = 0x080A  # LU Busy
+SNA_SENSE_CODE_INVALID_SEQUENCE = 0x1008  # Invalid Sequence
+SNA_SENSE_CODE_NO_RESOURCES = 0x080F  # No Resources
+SNA_SENSE_CODE_STATE_ERROR = 0x1003  # State Error
 
 # Additional TN3270E Sysreq constants
 TN3270E_SYSREQ = 0x05  # System request key (general)
