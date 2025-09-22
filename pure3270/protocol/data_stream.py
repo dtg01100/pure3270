@@ -621,13 +621,16 @@ class DataStreamParser:
         addr_high = self._read_byte()
         addr_low = self._read_byte()
         address = (addr_high << 8) | addr_low
-        # 3270 address format: address = row * 80 + col
-        row = address // 80
-        col = address % 80
+        # 3270 address format: address = row * cols + col
+        # Use actual screen width instead of hardcoded 80
+        cols = self.screen.cols if self.screen else 80
+        row = address // cols
+        col = address % cols
         # Clamp to screen bounds
-        row = min(row, self.screen.rows - 1)
-        col = min(col, self.screen.cols - 1)
-        self.screen.set_position(row, col)
+        row = min(row, self.screen.rows - 1) if self.screen else min(row, 23)
+        col = min(col, self.screen.cols - 1) if self.screen else min(col, 79)
+        if self.screen:
+            self.screen.set_position(row, col)
         # Sync tracked position using ensured parser (avoids Optional access)
         parser = self._ensure_parser()
         self._pos = parser._pos

@@ -347,16 +347,27 @@ class TN3270Handler:
             # Keep reading until the negotiator signals full completion
             negotiation_complete = self.negotiator._get_or_create_negotiation_complete()
             while not negotiation_complete.is_set():
+                # Check for cancellation before each read operation
+                current_task = asyncio.current_task()
+                if current_task and current_task.cancelled():
+                    break
+
                 if self.reader is None:
                     break
-                data = await asyncio.wait_for(self.reader.read(4096), timeout=1.0)
+
+                try:
+                    data = await asyncio.wait_for(self.reader.read(4096), timeout=1.0)
+                except asyncio.TimeoutError:
+                    # Continue the loop on timeout to check negotiation completion
+                    continue
+
                 if not data:
                     raise EOFError("Stream ended")
+
                 # Accumulate negotiation trace for fallback logic when negotiator is mocked
                 # Accumulate negotiation bytes (attribute pre-declared)
                 self._negotiation_trace += data
-                # Avoid busy loop if reader returns empty bytes
-                await asyncio.sleep(0.1)
+
                 # Process telnet stream synchronously; this will schedule negotiator tasks
                 result = self._process_telnet_stream(data)
                 # If the result is awaitable, await it to ensure completion
@@ -374,7 +385,7 @@ class TN3270Handler:
             # Reraise to propagate to caller
             raise
 
-    async def _negotiate_tn3270(self, timeout: float = 10.0) -> None:
+    async def _negotiate_tn3270(self, timeout: Optional[float] = None) -> None:
         """
         Negotiate TN3270E subnegotiation.
 

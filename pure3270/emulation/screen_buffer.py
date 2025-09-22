@@ -224,26 +224,38 @@ class ScreenBuffer(BufferWriter):
         if 0 <= row < self.rows and 0 <= col < self.cols:
             pos = row * self.cols + col
             attr_offset = pos * 3
-            # Check that attr_offset is within bounds of attributes array
-            if attr_offset + 2 < len(self.attributes):
-                is_protected = bool(
-                    self.attributes[attr_offset] & 0x40
-                )  # Bit 6: protected
-                if is_protected and not circumvent_protection:
-                    return  # Skip writing to protected field
-                self.buffer[pos] = ebcdic_byte
-                # Set full attributes: protection (bit 6 in byte 0), fg=0xF0 (default), bg=0xF0 (default)
-                self.attributes[attr_offset : attr_offset + 3] = bytes(
-                    [0x40 if protected else 0, 0xF0, 0xF0]
-                )
 
-                # Update field content and mark as modified if this position belongs to a field
-                modified_field_found = self._update_field_content(
-                    int(row), int(col), ebcdic_byte
+            # Ensure buffer position is valid
+            if pos >= len(self.buffer):
+                logger.error(
+                    f"Buffer position {pos} out of bounds (buffer size: {len(self.buffer)})"
                 )
-                # Only detect new fields if we didn't update an existing one
-                if not modified_field_found:
-                    self._detect_fields()
+                return
+
+            # Check that attr_offset is within bounds of attributes array
+            if attr_offset + 2 >= len(self.attributes):
+                logger.error(
+                    f"Attribute offset {attr_offset} out of bounds (attributes size: {len(self.attributes)})"
+                )
+                return
+
+            is_protected = bool(self.attributes[attr_offset] & 0x40)  # Bit 6: protected
+            if is_protected and not circumvent_protection:
+                return  # Skip writing to protected field
+
+            self.buffer[pos] = ebcdic_byte
+            # Set full attributes: protection (bit 6 in byte 0), fg=0xF0 (default), bg=0xF0 (default)
+            self.attributes[attr_offset : attr_offset + 3] = bytes(
+                [0x40 if protected else 0, 0xF0, 0xF0]
+            )
+
+            # Update field content and mark as modified if this position belongs to a field
+            modified_field_found = self._update_field_content(
+                int(row), int(col), ebcdic_byte
+            )
+            # Only detect new fields if we didn't update an existing one
+            if not modified_field_found:
+                self._detect_fields()
 
     def _update_field_content(self, row: int, col: int, ebcdic_byte: int) -> bool:
         """
@@ -267,6 +279,18 @@ class ScreenBuffer(BufferWriter):
                 # Recalculate the field content from the buffer to ensure consistency
                 start_idx = start_row * self.cols + start_col
                 end_idx = end_row * self.cols + end_col
+
+                # Ensure indices are within buffer bounds
+                if start_idx < 0:
+                    start_idx = 0
+                if end_idx >= self.size:
+                    end_idx = self.size - 1
+                if start_idx > end_idx:
+                    logger.warning(
+                        f"Invalid field bounds: start_idx={start_idx}, end_idx={end_idx}"
+                    )
+                    continue
+
                 new_content = bytes(self.buffer[start_idx : end_idx + 1])
                 new_field = field._replace(content=new_content, modified=True)
                 self.fields[idx] = new_field
@@ -279,6 +303,14 @@ class ScreenBuffer(BufferWriter):
 
         :param data: Raw 3270 data stream bytes.
         """
+        # Limit processing to prevent buffer overflow attacks
+        max_data_len = self.size * 2  # Allow some overflow but not unlimited
+        if len(data) > max_data_len:
+            logger.warning(
+                f"Data stream too large ({len(data)} bytes), truncating to {max_data_len}"
+            )
+            data = data[:max_data_len]
+
         i = 0
         while i < len(data):
             order = data[i]
@@ -303,8 +335,12 @@ class ScreenBuffer(BufferWriter):
                     if self.cursor_col >= self.cols:
                         self.cursor_col = 0
                         self.cursor_row += 1
+                        # Prevent unlimited wraparound - stop at buffer end
                         if self.cursor_row >= self.rows:
-                            self.cursor_row = 0  # wrap around
+                            logger.warning(
+                                "Reached end of screen buffer, stopping data stream processing"
+                            )
+                            break
         # Update fields (basic detection)
         self._detect_fields()
 

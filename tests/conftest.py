@@ -196,34 +196,34 @@ async def mock_tn3270e_handle_success(reader, writer):
         # Send IAC DO TN3270E
         writer.write(b'\xff\xfd\x1b')
         await writer.drain()
-        
+
         # Wait for client's IAC WILL TN3270E
         data = await reader.readexactly(3)
-        
+
         # Send SB TN3270E DEVICE-TYPE REQUEST
         request_sb = b'\xff\xfa\x1b\x00\x01\xff\xf0'
         writer.write(request_sb)
         await writer.drain()
-        
+
         # Wait for client's SB TN3270E DEVICE-TYPE RESPONSE (IBM-3278-2-E)
         # Full SB: \xff\xfa\x1b \x00 \x02 IBM-3278-2-E \xff\xf0 ~ 18 bytes
         sb_data = await reader.read(20)  # Read up to 20 bytes for SB
-        
+
         # Send SB TN3270E FUNCTIONS (BIND-IMAGE EOR)
         functions_sb = b'\xff\xfa\x1b\x02\x00\x01\x00\x07\x01\xff\xf0'
         writer.write(functions_sb)
         await writer.drain()
-        
+
         # Send sample TN3270E data: header + Write + full screen spaces + EOR
         header = b'\x00\x00\x00\x00'  # Type 0, flags 0, seq 0, hlen 0
         screen_size = 24 * 80  # 1920
         simple_data = b'\xf5' + b'\x40' * screen_size + b'\x19'  # Write + spaces + EOR (0x19 for EOR)
         writer.write(header + simple_data)
         await writer.drain()
-        
+
         # Keep open for test to read
         await asyncio.sleep(5)
-        
+
     except Exception as e:
         logging.getLogger(__name__).error(f"Mock server error: {e}")
     finally:
@@ -236,10 +236,10 @@ async def mock_tn3270e_handle_fallback(reader, writer):
         # Send IAC DONT TN3270E
         writer.write(b'\xff\xfe\x1b')
         await writer.drain()
-        
+
         # Optionally send some basic Telnet or VT100, but for fallback, just wait
         await asyncio.sleep(5)
-        
+
     except Exception as e:
         logging.getLogger(__name__).error(f"Mock server error: {e}")
     finally:

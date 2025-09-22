@@ -7,21 +7,21 @@ from typing import Optional
 
 
 async def safe_read(
-    reader: asyncio.StreamReader, 
-    n: int, 
+    reader: asyncio.StreamReader,
+    n: int,
     timeout: float = 5.0
 ) -> bytes:
     """
     Safely read data from an asyncio StreamReader with timeout.
-    
+
     Args:
         reader: The asyncio StreamReader to read from
         n: Maximum number of bytes to read
         timeout: Timeout in seconds (default 5.0)
-        
+
     Returns:
         The bytes read from the stream
-        
+
     Raises:
         asyncio.TimeoutError: If the read operation times out
         ConnectionError: If the connection is lost during read

@@ -918,16 +918,16 @@ async def test_tn3270e_handshake_success(mock_tn3270e_server):
     """Test successful TN3270E handshake negotiation."""
     session = AsyncSession("127.0.0.1", 2323)
     await session.connect()
-    
+
     assert session.connected is True
     assert session.handler.negotiated_tn3270e is True
-    
+
     data = await session.read()
     assert len(data) > 0
-    
+
     screen = session.screen_buffer
     assert all(b == 0x40 for b in screen.buffer[:len(data)])  # Partial match
-    
+
     await session.close()
 
 
@@ -936,11 +936,11 @@ async def test_tn3270e_handshake_fallback(mock_tn3270e_server_fallback):
     """Test fallback when server sends DONT TN3270E."""
     session = AsyncSession("localhost", 2323)
     await session.connect()
-    
+
     assert session.connected is True
     # Negotiation falls back to non-TN3270E
     assert session.handler.negotiated_tn3270e is False
-    
+
     # Should not raise ProtocolError, but fallback
     # If it raises, adjust assertion
     with pytest.raises(ProtocolError):
