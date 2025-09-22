@@ -12,8 +12,6 @@ import sys
 
 import pytest
 
-from safe_read import safe_read
-
 # Add the current directory to the path so we can import pure3270
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
@@ -130,10 +128,8 @@ async def test_mock_connectivity():
                     try:
                         while True:
                             try:
-                                data = await safe_read(reader, 1024, timeout=1.0)
-                            except Exception:
-                                continue
-                            if data is None:
+                                data = await asyncio.wait_for(reader.read(1024), timeout=1.0)
+                            except asyncio.TimeoutError:
                                 continue
                             if not data:
                                 break
