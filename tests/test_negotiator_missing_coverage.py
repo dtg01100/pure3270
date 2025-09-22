@@ -69,9 +69,7 @@ class TestNegotiatorMissingCoverage:
         # Test with data that doesn't match expected format
         await negotiator._handle_tn3270e_is(b"")
         await negotiator._handle_tn3270e_is(b"\x01")  # Missing sub-type
-        await negotiator._handle_tn3270e_is(
-            b"\x03\x01"
-        )  # REJECT with no reason
+        await negotiator._handle_tn3270e_is(b"\x03\x01")  # REJECT with no reason
 
     @pytest.mark.asyncio
     async def test_handle_functions_subnegotiation_invalid_data(

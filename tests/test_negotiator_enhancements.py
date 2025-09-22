@@ -53,6 +53,7 @@ class TestNegotiatorEnhancements:
 
         # Test with invalid data - should call _parse_tn3270e_subnegotiation
         from pure3270.protocol.utils import TELOPT_TN3270E
+
         await negotiator._parse_tn3270e_subnegotiation(bytes([TELOPT_TN3270E, 0x01]))
         # Should not raise exception, just log warning
 
@@ -61,7 +62,9 @@ class TestNegotiatorEnhancements:
         # Should not raise exception
 
         # Test with IBM-DYNAMIC device type
-        await negotiator._parse_tn3270e_subnegotiation(bytes([TELOPT_TN3270E, 0x02]) + b"IBM-DYNAMIC\x00")
+        await negotiator._parse_tn3270e_subnegotiation(
+            bytes([TELOPT_TN3270E, 0x02]) + b"IBM-DYNAMIC\x00"
+        )
         # Should set negotiated_device_type to IBM-DYNAMIC
         assert negotiator.negotiated_device_type == "IBM-DYNAMIC"
 
@@ -74,6 +77,7 @@ class TestNegotiatorEnhancements:
 
         # Test with invalid data - should call _parse_tn3270e_subnegotiation
         from pure3270.protocol.utils import TELOPT_TN3270E
+
         await negotiator._parse_tn3270e_subnegotiation(bytes([TELOPT_TN3270E, 0x01]))
         # Should not raise exception, just log warning
 

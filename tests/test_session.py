@@ -37,7 +37,7 @@ async def real_async_session():
 
     # Set up minimal mock responses for basic operation
     mock_reader.readexactly.return_value = b"\xff\xfb\x27"  # IAC WILL TN3270E
-    mock_reader.read.return_value = b"\x28\x00\x01\x00"     # Basic response
+    mock_reader.read.return_value = b"\x28\x00\x01\x00"  # Basic response
 
     parser = DataStreamParser(screen_buffer)
     negotiator = Negotiator(
@@ -62,7 +62,9 @@ async def real_async_session():
     session._transport = AsyncMock()
     session._transport.perform_telnet_negotiation.return_value = None
     session._transport.perform_tn3270_negotiation.return_value = None
-    session._transport.teardown_connection = AsyncMock(side_effect=lambda: setattr(session._transport, 'connected', False))
+    session._transport.teardown_connection = AsyncMock(
+        side_effect=lambda: setattr(session._transport, "connected", False)
+    )
     session._transport.connected = True
 
     return session
@@ -953,6 +955,7 @@ s3270.model: 3279
 
     # Macro DSL removed: execute_macro tests removed
 
+
 from pure3270.protocol.exceptions import ProtocolError
 
 
@@ -969,7 +972,7 @@ async def test_tn3270e_handshake_success(mock_tn3270e_server):
     assert len(data) > 0
 
     screen = session.screen_buffer
-    assert all(b == 0x40 for b in screen.buffer[:len(data)])  # Partial match
+    assert all(b == 0x40 for b in screen.buffer[: len(data)])  # Partial match
 
     await session.close()
 

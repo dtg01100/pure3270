@@ -55,7 +55,9 @@ class MockTN3270EServer:
     async def handle_client(self, reader, writer):
         try:
             print("Mock server started handling client")
-            print(f"TN3270E_DEVICE_TYPE = 0x{TN3270E_DEVICE_TYPE:02x}, TN3270E_SEND = 0x{TN3270E_SEND:02x}")
+            print(
+                f"TN3270E_DEVICE_TYPE = 0x{TN3270E_DEVICE_TYPE:02x}, TN3270E_SEND = 0x{TN3270E_SEND:02x}"
+            )
             # First, handle telnet negotiation - expect WILL TTYPE
             data = await reader.readexactly(3)
             print(f"Mock server received telnet negotiation: {data.hex()}")
@@ -64,7 +66,7 @@ class MockTN3270EServer:
                 writer.write(bytes([IAC, DO, TELOPT_TTYPE]))
                 await writer.drain()
                 print("Mock server sent DO TTYPE")
-                
+
                 # Wait for SB TTYPE IS response
                 data = await reader.readuntil(bytes([SE]))
                 print(f"Mock server received TTYPE response: {data.hex()}")
@@ -86,9 +88,19 @@ class MockTN3270EServer:
             if self.success:
                 # Wait a bit for client to complete telnet negotiation
                 await asyncio.sleep(0.1)
-                
+
                 # Send DEVICE-TYPE SEND (RFC 2355: server initiates device type negotiation)
-                device_type_send = bytes([IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_SEND, IAC, SE])
+                device_type_send = bytes(
+                    [
+                        IAC,
+                        SB,
+                        TELOPT_TN3270E,
+                        TN3270E_DEVICE_TYPE,
+                        TN3270E_SEND,
+                        IAC,
+                        SE,
+                    ]
+                )
                 print(f"About to send DEVICE-TYPE SEND: {device_type_send.hex()}")
                 writer.write(device_type_send)
                 await writer.drain()
@@ -98,7 +110,8 @@ class MockTN3270EServer:
                 data = await reader.readuntil(bytes([SE]))
                 print(f"Mock server received DEVICE-TYPE response: {data.hex()}")
                 if (
-                    b"\xff\xfa" + bytes([TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_IS])
+                    b"\xff\xfa"
+                    + bytes([TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_IS])
                     not in data
                 ):
                     print(f"Unexpected DEVICE-TYPE response")
@@ -108,7 +121,20 @@ class MockTN3270EServer:
 
                 # Send SB FUNCTIONS IS (BIND-IMAGE and EOR)
                 functions_sb = bytes(
-                    [IAC, SB, TELOPT_TN3270E, TN3270E_FUNCTIONS, TN3270E_IS, 0, 1, 0, 7, 1, IAC, SE]
+                    [
+                        IAC,
+                        SB,
+                        TELOPT_TN3270E,
+                        TN3270E_FUNCTIONS,
+                        TN3270E_IS,
+                        0,
+                        1,
+                        0,
+                        7,
+                        1,
+                        IAC,
+                        SE,
+                    ]
                 )
                 print(f"About to send FUNCTIONS IS: {functions_sb.hex()}")
                 writer.write(functions_sb)

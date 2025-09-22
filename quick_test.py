@@ -128,7 +128,9 @@ async def test_mock_connectivity():
                     try:
                         while True:
                             try:
-                                data = await asyncio.wait_for(reader.read(1024), timeout=1.0)
+                                data = await asyncio.wait_for(
+                                    reader.read(1024), timeout=1.0
+                                )
                             except asyncio.TimeoutError:
                                 continue
                             if not data:

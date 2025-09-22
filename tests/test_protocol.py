@@ -738,7 +738,9 @@ class TestTN3270Handshake:
 
     @pytest.mark.asyncio
     @patch("asyncio.open_connection")
-    async def test_successful_tn3270e_negotiation(self, mock_open, mock_connection, memory_limit_500mb):
+    async def test_successful_tn3270e_negotiation(
+        self, mock_open, mock_connection, memory_limit_500mb
+    ):
         mock_reader, mock_writer = mock_connection
         mock_open.return_value = (mock_reader, mock_writer)
 
@@ -753,7 +755,9 @@ class TestTN3270Handshake:
         negotiator_instance.writer = mock_writer
 
         # Trigger negotiation (simulate connect/negotiation call)
-        await negotiator_instance.handle_iac_command(negotiator.DO, 40)  # Handle DO TN3270E
+        await negotiator_instance.handle_iac_command(
+            negotiator.DO, 40
+        )  # Handle DO TN3270E
 
         # Assert client responds with IAC WILL TN3270E
         expected_will = b"\xff\xfb\x28"
@@ -768,6 +772,7 @@ class TestTN3270Handshake:
     @pytest.mark.asyncio
     async def test_suboption_handling(self, mock_connection, memory_limit_500mb):
         import tracemalloc
+
         tracemalloc.start()
 
         mock_reader, mock_writer = mock_connection
@@ -789,7 +794,9 @@ class TestTN3270Handshake:
 
         # Simulate handling the suboption - this method is async, so we need to await it
         # Skip SB, TELOPT, and FUNCTIONS command, pass just the IS data
-        data = functions_sb[3:-2]  # Skip SB TELOPT FUNCTIONS and SE at end: just IS + function data
+        data = functions_sb[
+            3:-2
+        ]  # Skip SB TELOPT FUNCTIONS and SE at end: just IS + function data
         await negotiator_instance._handle_functions_subnegotiation(data)
 
         # TN3270E negotiation hasn't completed yet, so negotiated_tn3270e should still be False
@@ -797,17 +804,25 @@ class TestTN3270Handshake:
 
         # Assert functions set: BIND-IMAGE (0x01)
         from pure3270.protocol.utils import TN3270E_BIND_IMAGE
-        assert bool(negotiator_instance.negotiated_functions & TN3270E_BIND_IMAGE)  # BIND-IMAGE 0x01
+
+        assert bool(
+            negotiator_instance.negotiated_functions & TN3270E_BIND_IMAGE
+        )  # BIND-IMAGE 0x01
 
         # For tn3270e_header parses EOR flag: perhaps create a header and check if EOR is considered
         # Assuming header doesn't directly parse functions, but for test, mock a response with EOR context
-        header = tn3270e_header.TN3270EHeader(data_type=0x00, response_flag=0x01, seq_number=1)  # BIND-IMAGE positive
+        header = tn3270e_header.TN3270EHeader(
+            data_type=0x00, response_flag=0x01, seq_number=1
+        )  # BIND-IMAGE positive
         assert header.data_type == 0x00  # BIND-IMAGE
         # EOR is a function, not in header; perhaps assert parsing succeeds with EOR implied
 
     @pytest.mark.asyncio
-    async def test_invalid_suboption_edge_case(self, mock_connection, memory_limit_500mb):
+    async def test_invalid_suboption_edge_case(
+        self, mock_connection, memory_limit_500mb
+    ):
         import tracemalloc
+
         tracemalloc.start()
 
         mock_reader, mock_writer = mock_connection
@@ -828,7 +843,9 @@ class TestTN3270Handshake:
         negotiator_instance.writer = mock_writer
 
         # Simulate handling - skip SB, TELOPT, FUNCTIONS and SE
-        data = invalid_sb[3:-2]  # Skip SB TELOPT FUNCTIONS and SE at end: just IS + function data
+        data = invalid_sb[
+            3:-2
+        ]  # Skip SB TELOPT FUNCTIONS and SE at end: just IS + function data
         await negotiator_instance._handle_functions_subnegotiation(data)
 
         # The function handles invalid data gracefully by parsing what it can
@@ -853,10 +870,12 @@ class TestNewSubnegotiations:
     async def test_response_mode_send(self, mock_negotiator):
         """Test RESPONSE-MODE SEND -> IS BIND-IMAGE."""
         data = bytes([0x15, 0x01])  # RESPONSE-MODE SEND
-        with patch('pure3270.protocol.utils.send_subnegotiation') as mock_send:
+        with patch("pure3270.protocol.utils.send_subnegotiation") as mock_send:
             await mock_negotiator._handle_response_mode_subnegotiation(data)
             expected_sub = bytes([0x15, 0x00, 0x02])  # IS BIND-IMAGE 0x02
-            mock_send.assert_called_with(mock_negotiator.writer, bytes([TELOPT_TN3270E]), expected_sub)
+            mock_send.assert_called_with(
+                mock_negotiator.writer, bytes([TELOPT_TN3270E]), expected_sub
+            )
         await mock_negotiator.writer.drain.assert_called_once()
 
     @pytest.mark.asyncio
@@ -870,19 +889,25 @@ class TestNewSubnegotiations:
     async def test_usable_area_send(self, mock_negotiator):
         """Test USABLE-AREA SEND -> IS 24x80 full usable."""
         data = bytes([0x16, 0x01])  # USABLE-AREA SEND
-        with patch('pure3270.protocol.utils.send_subnegotiation') as mock_send:
+        with patch("pure3270.protocol.utils.send_subnegotiation") as mock_send:
             await mock_negotiator._handle_usable_area_subnegotiation(data)
             rows, cols = 24, 80
-            rows_be = rows.to_bytes(2, 'big')
-            cols_be = cols.to_bytes(2, 'big')
-            expected_is = bytes([0x00]) + rows_be + cols_be + rows_be + cols_be  # IS full
+            rows_be = rows.to_bytes(2, "big")
+            cols_be = cols.to_bytes(2, "big")
+            expected_is = (
+                bytes([0x00]) + rows_be + cols_be + rows_be + cols_be
+            )  # IS full
             expected_sub = bytes([0x16]) + expected_is
-            mock_send.assert_called_with(mock_negotiator.writer, bytes([TELOPT_TN3270E]), expected_sub)
+            mock_send.assert_called_with(
+                mock_negotiator.writer, bytes([TELOPT_TN3270E]), expected_sub
+            )
 
     @pytest.mark.asyncio
     async def test_usable_area_is(self, mock_negotiator):
         """Test USABLE-AREA IS updates screen dimensions."""
-        data = bytes([0x00, 0x00, 0x18, 0x00, 0x50, 0x00, 0x18, 0x00, 0x50])  # IS 24x80 full
+        data = bytes(
+            [0x00, 0x00, 0x18, 0x00, 0x50, 0x00, 0x18, 0x00, 0x50]
+        )  # IS 24x80 full
         await mock_negotiator._handle_usable_area_subnegotiation(data)
         assert mock_negotiator.screen_rows == 24
         assert mock_negotiator.screen_cols == 80
@@ -893,18 +918,22 @@ class TestNewSubnegotiations:
     async def test_query_send(self, mock_negotiator):
         """Test QUERY SEND -> IS full QUERY_REPLY."""
         data = bytes([0x0F, 0x01])  # QUERY SEND
-        with patch('pure3270.protocol.utils.send_subnegotiation') as mock_send:
+        with patch("pure3270.protocol.utils.send_subnegotiation") as mock_send:
             await mock_negotiator._handle_query_subnegotiation(data)
             # Expected QUERY_REPLY: CHARACTERISTICS + AID
-            expected_reply = b'\x0F\x81\x0A\x43\x02\xF1\xF0\x0F\x82\x02\x41'  # As in code
+            expected_reply = (
+                b"\x0F\x81\x0A\x43\x02\xF1\xF0\x0F\x82\x02\x41"  # As in code
+            )
             expected_is = bytes([0x00]) + expected_reply
             expected_sub = bytes([0x0F]) + expected_is
-            mock_send.assert_called_with(mock_negotiator.writer, bytes([TELOPT_TN3270E]), expected_sub)
+            mock_send.assert_called_with(
+                mock_negotiator.writer, bytes([TELOPT_TN3270E]), expected_sub
+            )
 
     @pytest.mark.asyncio
     async def test_query_is_parse(self, mock_negotiator):
         """Test QUERY IS parses and updates model/LU."""
-        characteristics = b'\x0F\x81\x0A\x43\x02\xF1\xF0'  # Model 2, LU 3278
+        characteristics = b"\x0F\x81\x0A\x43\x02\xF1\xF0"  # Model 2, LU 3278
         data = bytes([0x00]) + characteristics
         await mock_negotiator._handle_query_subnegotiation(data)
         assert "IBM-3278- 2" in mock_negotiator.negotiated_device_type
@@ -917,7 +946,10 @@ class TestNegativeResponses:
     def mock_header(self):
         from pure3270.protocol.tn3270e_header import TN3270EHeader
         from pure3270.protocol.utils import TN3270E_RSF_NEGATIVE_RESPONSE
-        return TN3270EHeader(data_type=RESPONSE, response_flag=TN3270E_RSF_NEGATIVE_RESPONSE)
+
+        return TN3270EHeader(
+            data_type=RESPONSE, response_flag=TN3270E_RSF_NEGATIVE_RESPONSE
+        )
 
     def test_negative_segment(self, mock_header):
         """Test SEGMENT negative code 0x01."""
@@ -958,15 +990,18 @@ class TestNegativeResponses:
     def test_negative_missing_code(self, mock_header):
         """Test negative without code byte."""
         with pytest.raises(ProtocolError) as exc:
-            mock_header.handle_negative_response(b'')
+            mock_header.handle_negative_response(b"")
         assert "missing code byte" in str(exc.value)
 
     def test_negative_not_negative(self, mock_header):
         """Test handle_negative_response on non-negative header."""
         from pure3270.protocol.utils import TN3270E_RSF_POSITIVE_RESPONSE
-        pos_header = TN3270EHeader(data_type=RESPONSE, response_flag=TN3270E_RSF_POSITIVE_RESPONSE)
+
+        pos_header = TN3270EHeader(
+            data_type=RESPONSE, response_flag=TN3270E_RSF_POSITIVE_RESPONSE
+        )
         with pytest.raises(ValueError) as exc:
-            pos_header.handle_negative_response(b'\x01')
+            pos_header.handle_negative_response(b"\x01")
         assert "Not a negative response header" in str(exc.value)
 
 
@@ -990,18 +1025,23 @@ class TestRetries:
 
         # Simulate pending request
         seq = 1
-        mock_negotiator._pending_requests[seq] = {'type': 'DEVICE-TYPE SEND', 'retry_count': 0}
+        mock_negotiator._pending_requests[seq] = {
+            "type": "DEVICE-TYPE SEND",
+            "retry_count": 0,
+        }
 
-        header = TN3270EHeader(seq_number=seq, response_flag=TN3270E_RSF_NEGATIVE_RESPONSE)
-        data = b'\x01'  # SEGMENT negative
+        header = TN3270EHeader(
+            seq_number=seq, response_flag=TN3270E_RSF_NEGATIVE_RESPONSE
+        )
+        data = b"\x01"  # SEGMENT negative
 
         # First call: retry 1
         await mock_negotiator._handle_tn3270e_response(header, data)
-        assert mock_negotiator._pending_requests[seq]['retry_count'] == 1
+        assert mock_negotiator._pending_requests[seq]["retry_count"] == 1
 
         # Second: retry 2
         await mock_negotiator._handle_tn3270e_response(header, data)
-        assert mock_negotiator._pending_requests[seq]['retry_count'] == 2
+        assert mock_negotiator._pending_requests[seq]["retry_count"] == 2
 
         # Third: max retries, raise error
         with pytest.raises(ProtocolError):
@@ -1014,33 +1054,38 @@ class TestRetries:
         from pure3270.protocol.utils import TN3270E_RSF_NEGATIVE_RESPONSE
 
         seq = 2
-        mock_negotiator._pending_requests[seq] = {'type': 'FUNCTIONS SEND', 'retry_count': 0}
+        mock_negotiator._pending_requests[seq] = {
+            "type": "FUNCTIONS SEND",
+            "retry_count": 0,
+        }
 
-        header = TN3270EHeader(seq_number=seq, response_flag=TN3270E_RSF_NEGATIVE_RESPONSE)
-        data = b'\x03'  # REQUEST negative
+        header = TN3270EHeader(
+            seq_number=seq, response_flag=TN3270E_RSF_NEGATIVE_RESPONSE
+        )
+        data = b"\x03"  # REQUEST negative
 
         await mock_negotiator._handle_tn3270e_response(header, data)
-        assert mock_negotiator._pending_requests[seq]['retry_count'] == 1
+        assert mock_negotiator._pending_requests[seq]["retry_count"] == 1
 
         with pytest.raises(ProtocolError):
             # Simulate max retries by setting count to 3
-            mock_negotiator._pending_requests[seq]['retry_count'] = 3
+            mock_negotiator._pending_requests[seq]["retry_count"] = 3
             await mock_negotiator._handle_tn3270e_response(header, data)
 
     @pytest.mark.asyncio
     async def test_resend_device_type(self, mock_negotiator):
         """Test _resend_request calls _send_supported_device_types."""
         seq = 1
-        with patch.object(mock_negotiator, '_send_supported_device_types') as mock_send:
-            await mock_negotiator._resend_request('DEVICE-TYPE SEND', seq)
+        with patch.object(mock_negotiator, "_send_supported_device_types") as mock_send:
+            await mock_negotiator._resend_request("DEVICE-TYPE SEND", seq)
             mock_send.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_resend_functions(self, mock_negotiator):
         """Test _resend_request calls _send_functions_is."""
         seq = 2
-        with patch.object(mock_negotiator, '_send_functions_is') as mock_send:
-            await mock_negotiator._resend_request('FUNCTIONS SEND', seq)
+        with patch.object(mock_negotiator, "_send_functions_is") as mock_send:
+            await mock_negotiator._resend_request("FUNCTIONS SEND", seq)
             mock_send.assert_called_once()
 
 
@@ -1054,41 +1099,43 @@ class TestEORStripping:
         handler.parser = DataStreamParser(screen)
         handler.negotiator = MagicMock()
         handler.negotiator._ascii_mode = False
-        handler._process_telnet_stream = AsyncMock(return_value=(b'\xc1\xc2\x19', False))
+        handler._process_telnet_stream = AsyncMock(
+            return_value=(b"\xc1\xc2\x19", False)
+        )
         return handler
 
     @pytest.mark.asyncio
     async def test_eor_strip_tn3270(self, mock_handler):
         """Test stripping trailing 0x19 in TN3270 mode."""
         mock_handler.reader = AsyncMock()
-        mock_handler.reader.read.return_value = b'\xc1\xc2\x19'  # Data + EOR
+        mock_handler.reader.read.return_value = b"\xc1\xc2\x19"  # Data + EOR
         received = await mock_handler.receive_data()
-        assert received == b'\xc1\xc2'  # Stripped
+        assert received == b"\xc1\xc2"  # Stripped
 
         # Verify parser called without EOR
-        mock_handler.parser.parse.assert_called_with(b'\xc1\xc2', data_type=TN3270_DATA)
+        mock_handler.parser.parse.assert_called_with(b"\xc1\xc2", data_type=TN3270_DATA)
 
     @pytest.mark.asyncio
     async def test_eor_strip_multiple(self, mock_handler):
         """Test multiple trailing 0x19 stripped."""
-        mock_handler._process_telnet_stream.return_value = (b'\xc1\xc2\x19\x19', False)
+        mock_handler._process_telnet_stream.return_value = (b"\xc1\xc2\x19\x19", False)
         received = await mock_handler.receive_data()
-        assert received == b'\xc1\xc2'
+        assert received == b"\xc1\xc2"
 
     @pytest.mark.asyncio
     async def test_eor_no_strip_if_not_trailing(self, mock_handler):
         """Test 0x19 in middle not stripped."""
-        mock_handler._process_telnet_stream.return_value = (b'\xc1\x19\xc2', False)
+        mock_handler._process_telnet_stream.return_value = (b"\xc1\x19\xc2", False)
         received = await mock_handler.receive_data()
-        assert b'\x19' in received  # Not trailing
+        assert b"\x19" in received  # Not trailing
 
     @pytest.mark.asyncio
     async def test_eor_strip_ascii_mode(self, mock_handler):
         """Test in ASCII mode, but still strip if present (though rare)."""
         mock_handler.negotiator._ascii_mode = True
-        mock_handler._process_telnet_stream.return_value = (b'Hello\x19', False)
+        mock_handler._process_telnet_stream.return_value = (b"Hello\x19", False)
         received = await mock_handler.receive_data()
-        assert received == b'Hello'  # Stripped even in ASCII
+        assert received == b"Hello"  # Stripped even in ASCII
 
 
 class TestSNARecovery:
@@ -1125,15 +1172,17 @@ class TestSNARecovery:
         from pure3270.protocol.utils import SNA_SENSE_CODE_LU_BUSY
 
         sna_resp = SnaResponse(0, 0, SNA_SENSE_CODE_LU_BUSY)
-        with patch('asyncio.sleep') as mock_sleep:
+        with patch("asyncio.sleep") as mock_sleep:
             await mock_negotiator._handle_sna_response(sna_resp)
 
         mock_sleep.assert_called_with(1)
         # Assert retry BIND if active
         mock_negotiator.is_bind_image_active = True
-        with patch.object(mock_negotiator, '_resend_request') as mock_resend:
+        with patch.object(mock_negotiator, "_resend_request") as mock_resend:
             await mock_negotiator._handle_sna_response(sna_resp)
-            mock_resend.assert_called_with('BIND-IMAGE', mock_negotiator._next_seq_number)
+            mock_resend.assert_called_with(
+                "BIND-IMAGE", mock_negotiator._next_seq_number
+            )
 
         assert mock_negotiator._sna_session_state == SnaSessionState.ERROR
 
@@ -1166,10 +1215,12 @@ class TestNewSubnegotiations:
     async def test_response_mode_send(self, mock_negotiator):
         """Test RESPONSE-MODE SEND -> IS BIND-IMAGE."""
         data = bytes([0x15, 0x01])  # RESPONSE-MODE SEND
-        with patch('pure3270.protocol.negotiator.send_subnegotiation') as mock_send:
+        with patch("pure3270.protocol.negotiator.send_subnegotiation") as mock_send:
             await mock_negotiator._handle_response_mode_subnegotiation(data)
             expected_sub = bytes([0x15, 0x00, 0x02])  # IS BIND-IMAGE 0x02
-            mock_send.assert_called_with(mock_negotiator.writer, bytes([TELOPT_TN3270E]), expected_sub)
+            mock_send.assert_called_with(
+                mock_negotiator.writer, bytes([TELOPT_TN3270E]), expected_sub
+            )
         mock_negotiator.writer.drain.assert_called_once()
 
     @pytest.mark.asyncio
@@ -1185,23 +1236,29 @@ class TestNewSubnegotiations:
         data = bytes([0x16, 0x01])  # USABLE-AREA SEND
         await mock_negotiator._handle_usable_area_subnegotiation(data)
         rows, cols = 24, 80
-        rows_be = rows.to_bytes(2, 'big')
-        cols_be = cols.to_bytes(2, 'big')
+        rows_be = rows.to_bytes(2, "big")
+        cols_be = cols.to_bytes(2, "big")
         expected_is = bytes([0x00]) + rows_be + cols_be + rows_be + cols_be  # IS full
         expected_sub = bytes([0x16]) + expected_is
-        with patch('pure3270.protocol.negotiator.send_subnegotiation') as mock_send:
+        with patch("pure3270.protocol.negotiator.send_subnegotiation") as mock_send:
             await mock_negotiator._handle_usable_area_subnegotiation(data)
             rows, cols = 24, 80
-            rows_be = rows.to_bytes(2, 'big')
-            cols_be = cols.to_bytes(2, 'big')
-            expected_is = bytes([0x00]) + rows_be + cols_be + rows_be + cols_be  # IS full
+            rows_be = rows.to_bytes(2, "big")
+            cols_be = cols.to_bytes(2, "big")
+            expected_is = (
+                bytes([0x00]) + rows_be + cols_be + rows_be + cols_be
+            )  # IS full
             expected_sub = bytes([0x16]) + expected_is
-            mock_send.assert_called_with(mock_negotiator.writer, bytes([TELOPT_TN3270E]), expected_sub)
+            mock_send.assert_called_with(
+                mock_negotiator.writer, bytes([TELOPT_TN3270E]), expected_sub
+            )
 
     @pytest.mark.asyncio
     async def test_usable_area_is(self, mock_negotiator):
         """Test USABLE-AREA IS updates screen dimensions."""
-        data = bytes([0x00, 0x00, 0x18, 0x00, 0x50, 0x00, 0x18, 0x00, 0x50])  # IS 24x80 full
+        data = bytes(
+            [0x00, 0x00, 0x18, 0x00, 0x50, 0x00, 0x18, 0x00, 0x50]
+        )  # IS 24x80 full
         await mock_negotiator._handle_usable_area_subnegotiation(data)
         assert mock_negotiator.screen_rows == 24
         assert mock_negotiator.screen_cols == 80
@@ -1214,21 +1271,25 @@ class TestNewSubnegotiations:
         data = bytes([0x0F, 0x01])  # QUERY SEND
         await mock_negotiator._handle_query_subnegotiation(data)
         # Expected QUERY_REPLY: CHARACTERISTICS + AID
-        expected_reply = b'\x0F\x81\x0A\x43\x02\xF1\xF0\x0F\x82\x02\x41'  # As in code
+        expected_reply = b"\x0F\x81\x0A\x43\x02\xF1\xF0\x0F\x82\x02\x41"  # As in code
         expected_is = bytes([0x00]) + expected_reply
         expected_sub = bytes([0x0F]) + expected_is
-        with patch('pure3270.protocol.negotiator.send_subnegotiation') as mock_send:
+        with patch("pure3270.protocol.negotiator.send_subnegotiation") as mock_send:
             await mock_negotiator._handle_query_subnegotiation(data)
             # Expected QUERY_REPLY: CHARACTERISTICS + AID
-            expected_reply = b'\x0F\x81\x0A\x43\x02\xF1\xF0\x0F\x82\x02\x41'  # As in code
+            expected_reply = (
+                b"\x0F\x81\x0A\x43\x02\xF1\xF0\x0F\x82\x02\x41"  # As in code
+            )
             expected_is = bytes([0x00]) + expected_reply
             expected_sub = bytes([0x0F]) + expected_is
-            mock_send.assert_called_with(mock_negotiator.writer, bytes([TELOPT_TN3270E]), expected_sub)
+            mock_send.assert_called_with(
+                mock_negotiator.writer, bytes([TELOPT_TN3270E]), expected_sub
+            )
 
     @pytest.mark.asyncio
     async def test_query_is_parse(self, mock_negotiator):
         """Test QUERY IS parses and updates model/LU."""
-        characteristics = b'\x0F\x81\x0A\x43\x02\xF1\xF0'  # Model 2, LU 3278
+        characteristics = b"\x0F\x81\x0A\x43\x02\xF1\xF0"  # Model 2, LU 3278
         data = bytes([0x00]) + characteristics
         await mock_negotiator._handle_query_subnegotiation(data)
         assert "IBM-3278- 2" in mock_negotiator.negotiated_device_type
@@ -1241,7 +1302,10 @@ class TestNegativeResponses:
     def mock_header(self):
         from pure3270.protocol.tn3270e_header import TN3270EHeader
         from pure3270.protocol.utils import TN3270E_RSF_NEGATIVE_RESPONSE
-        return TN3270EHeader(data_type=RESPONSE, response_flag=TN3270E_RSF_NEGATIVE_RESPONSE)
+
+        return TN3270EHeader(
+            data_type=RESPONSE, response_flag=TN3270E_RSF_NEGATIVE_RESPONSE
+        )
 
     def test_negative_segment(self, mock_header):
         """Test SEGMENT negative code 0x01."""
@@ -1282,15 +1346,18 @@ class TestNegativeResponses:
     def test_negative_missing_code(self, mock_header):
         """Test negative without code byte."""
         with pytest.raises(ProtocolError) as exc:
-            mock_header.handle_negative_response(b'')
+            mock_header.handle_negative_response(b"")
         assert "missing code byte" in str(exc.value)
 
     def test_negative_not_negative(self, mock_header):
         """Test handle_negative_response on non-negative header."""
         from pure3270.protocol.utils import TN3270E_RSF_POSITIVE_RESPONSE
-        pos_header = TN3270EHeader(data_type=RESPONSE, response_flag=TN3270E_RSF_POSITIVE_RESPONSE)
+
+        pos_header = TN3270EHeader(
+            data_type=RESPONSE, response_flag=TN3270E_RSF_POSITIVE_RESPONSE
+        )
         with pytest.raises(ValueError) as exc:
-            pos_header.handle_negative_response(b'\x01')
+            pos_header.handle_negative_response(b"\x01")
         assert "Not a negative response header" in str(exc.value)
 
 
@@ -1314,18 +1381,23 @@ class TestRetries:
 
         # Simulate pending request
         seq = 1
-        mock_negotiator._pending_requests[seq] = {'type': 'DEVICE-TYPE SEND', 'retry_count': 0}
+        mock_negotiator._pending_requests[seq] = {
+            "type": "DEVICE-TYPE SEND",
+            "retry_count": 0,
+        }
 
-        header = TN3270EHeader(seq_number=seq, response_flag=TN3270E_RSF_NEGATIVE_RESPONSE)
-        data = b'\x01'  # SEGMENT negative
+        header = TN3270EHeader(
+            seq_number=seq, response_flag=TN3270E_RSF_NEGATIVE_RESPONSE
+        )
+        data = b"\x01"  # SEGMENT negative
 
         # First call: retry 1
         await mock_negotiator._handle_tn3270e_response(header, data)
-        assert mock_negotiator._pending_requests[seq]['retry_count'] == 1
+        assert mock_negotiator._pending_requests[seq]["retry_count"] == 1
 
         # Second: retry 2
         await mock_negotiator._handle_tn3270e_response(header, data)
-        assert mock_negotiator._pending_requests[seq]['retry_count'] == 2
+        assert mock_negotiator._pending_requests[seq]["retry_count"] == 2
 
         # Third: max retries, raise error
         with pytest.raises(ProtocolError):
@@ -1338,33 +1410,38 @@ class TestRetries:
         from pure3270.protocol.utils import TN3270E_RSF_NEGATIVE_RESPONSE
 
         seq = 2
-        mock_negotiator._pending_requests[seq] = {'type': 'FUNCTIONS SEND', 'retry_count': 0}
+        mock_negotiator._pending_requests[seq] = {
+            "type": "FUNCTIONS SEND",
+            "retry_count": 0,
+        }
 
-        header = TN3270EHeader(seq_number=seq, response_flag=TN3270E_RSF_NEGATIVE_RESPONSE)
-        data = b'\x03'  # REQUEST negative
+        header = TN3270EHeader(
+            seq_number=seq, response_flag=TN3270E_RSF_NEGATIVE_RESPONSE
+        )
+        data = b"\x03"  # REQUEST negative
 
         await mock_negotiator._handle_tn3270e_response(header, data)
-        assert mock_negotiator._pending_requests[seq]['retry_count'] == 1
+        assert mock_negotiator._pending_requests[seq]["retry_count"] == 1
 
         with pytest.raises(ProtocolError):
             # Simulate max retries by setting count to 3
-            mock_negotiator._pending_requests[seq]['retry_count'] = 3
+            mock_negotiator._pending_requests[seq]["retry_count"] = 3
             await mock_negotiator._handle_tn3270e_response(header, data)
 
     @pytest.mark.asyncio
     async def test_resend_device_type(self, mock_negotiator):
         """Test _resend_request calls _send_supported_device_types."""
         seq = 1
-        with patch.object(mock_negotiator, '_send_supported_device_types') as mock_send:
-            await mock_negotiator._resend_request('DEVICE-TYPE SEND', seq)
+        with patch.object(mock_negotiator, "_send_supported_device_types") as mock_send:
+            await mock_negotiator._resend_request("DEVICE-TYPE SEND", seq)
             mock_send.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_resend_functions(self, mock_negotiator):
         """Test _resend_request calls _send_functions_is."""
         seq = 2
-        with patch.object(mock_negotiator, '_send_functions_is') as mock_send:
-            await mock_negotiator._resend_request('FUNCTIONS SEND', seq)
+        with patch.object(mock_negotiator, "_send_functions_is") as mock_send:
+            await mock_negotiator._resend_request("FUNCTIONS SEND", seq)
             mock_send.assert_called_once()
 
 
@@ -1385,32 +1462,32 @@ class TestEORStripping:
         """Test stripping trailing 0x19 in TN3270 mode."""
         mock_handler.reader = AsyncMock()
         mock_handler.writer = AsyncMock()
-        mock_handler.reader.read.return_value = b'\xc1\xc2\x19'  # Data + EOR
-        processed, _ = await mock_handler._process_telnet_stream(b'\xc1\xc2\x19')
-        assert processed == b'\xc1\xc2\x19'  # _process doesn't strip, receive_data does
+        mock_handler.reader.read.return_value = b"\xc1\xc2\x19"  # Data + EOR
+        processed, _ = await mock_handler._process_telnet_stream(b"\xc1\xc2\x19")
+        assert processed == b"\xc1\xc2\x19"  # _process doesn't strip, receive_data does
         received = await mock_handler.receive_data()
-        assert received == b'\xc1\xc2'  # Stripped
+        assert received == b"\xc1\xc2"  # Stripped
 
         # Verify parser called without EOR
-        mock_handler.parser.parse.assert_called_with(b'\xc1\xc2', data_type=TN3270_DATA)
+        mock_handler.parser.parse.assert_called_with(b"\xc1\xc2", data_type=TN3270_DATA)
 
     @pytest.mark.asyncio
     async def test_eor_strip_multiple(self, mock_handler):
         """Test multiple trailing 0x19 stripped."""
         mock_handler.reader = AsyncMock()
         mock_handler.writer = AsyncMock()
-        mock_handler.reader.read.return_value = b'\xc1\xc2\x19\x19'
+        mock_handler.reader.read.return_value = b"\xc1\xc2\x19\x19"
         received = await mock_handler.receive_data()
-        assert received == b'\xc1\xc2'
+        assert received == b"\xc1\xc2"
 
     @pytest.mark.asyncio
     async def test_eor_no_strip_if_not_trailing(self, mock_handler):
         """Test 0x19 in middle not stripped."""
         mock_handler.reader = AsyncMock()
         mock_handler.writer = AsyncMock()
-        mock_handler.reader.read.return_value = b'\xc1\x19\xc2'
+        mock_handler.reader.read.return_value = b"\xc1\x19\xc2"
         received = await mock_handler.receive_data()
-        assert b'\x19' in received  # Not trailing
+        assert b"\x19" in received  # Not trailing
 
     @pytest.mark.asyncio
     async def test_eor_strip_ascii_mode(self, mock_handler):
@@ -1418,9 +1495,9 @@ class TestEORStripping:
         mock_handler.reader = AsyncMock()
         mock_handler.writer = AsyncMock()
         mock_handler.negotiator._ascii_mode = True
-        mock_handler.reader.read.return_value = b'Hello\x19'
+        mock_handler.reader.read.return_value = b"Hello\x19"
         received = await mock_handler.receive_data()
-        assert received == b'Hello'  # Stripped even in ASCII
+        assert received == b"Hello"  # Stripped even in ASCII
 
 
 class TestSNARecovery:
@@ -1458,22 +1535,26 @@ class TestSNARecovery:
         from pure3270.protocol.utils import SNA_SENSE_CODE_LU_BUSY
 
         sna_resp = SnaResponse(0, 0, SNA_SENSE_CODE_LU_BUSY)
-        with patch('asyncio.sleep') as mock_sleep:
+        with patch("asyncio.sleep") as mock_sleep:
             await mock_negotiator._handle_sna_response(sna_resp)
 
         from pure3270.protocol.negotiator import SnaSessionState
+
         mock_sleep.assert_called_with(1)
         # Assert retry BIND if active
         mock_negotiator.is_bind_image_active = True
-        with patch.object(mock_negotiator, '_resend_request') as mock_resend:
+        with patch.object(mock_negotiator, "_resend_request") as mock_resend:
             await mock_negotiator._handle_sna_response(sna_resp)
-            mock_resend.assert_called_with('BIND-IMAGE', mock_negotiator._next_seq_number)
+            mock_resend.assert_called_with(
+                "BIND-IMAGE", mock_negotiator._next_seq_number
+            )
 
         assert mock_negotiator._sna_session_state == SnaSessionState.ERROR
 
     @pytest.mark.asyncio
     async def test_sna_recovery_failure(self, mock_negotiator):
         from pure3270.protocol.negotiator import SnaSessionState
+
         """Test recovery failure sets SESSION_DOWN."""
         from pure3270.protocol.data_stream import SnaResponse
         from pure3270.protocol.utils import SNA_SENSE_CODE_SESSION_FAILURE

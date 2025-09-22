@@ -46,8 +46,6 @@ from .utils import (
     NOP,
     SB,
     SE,
-    WILL,
-    WONT,
     TELOPT_TN3270E,
     TN3270_DATA,
     TN3270E_SYSREQ,
@@ -58,6 +56,8 @@ from .utils import (
     TN3270E_SYSREQ_MESSAGE_TYPE,
     TN3270E_SYSREQ_PRINT,
     TN3270E_SYSREQ_RESTART,
+    WILL,
+    WONT,
     send_iac,
     send_subnegotiation,
 )

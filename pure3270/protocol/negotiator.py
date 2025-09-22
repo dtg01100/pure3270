@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 
 from ..emulation.screen_buffer import ScreenBuffer
 from .data_stream import (  # Import SnaResponse and BindImage
-    BindImage,
+    SNA_RESPONSE_DATA_TYPE,
     SNA_SENSE_CODE_INVALID_FORMAT,
     SNA_SENSE_CODE_INVALID_REQUEST,
     SNA_SENSE_CODE_INVALID_SEQUENCE,
@@ -26,17 +26,17 @@ from .data_stream import (  # Import SnaResponse and BindImage
     SNA_SENSE_CODE_NO_RESOURCES,
     SNA_SENSE_CODE_NOT_SUPPORTED,
     SNA_SENSE_CODE_SESSION_FAILURE,
-    SNA_RESPONSE_DATA_TYPE,
-    SnaResponse,
     TN3270_DATA,
+    BindImage,
+    SnaResponse,
 )
-from .exceptions import NegotiationError, ProtocolError
 from .errors import (
     handle_drain,
     raise_negotiation_error,
     raise_protocol_error,
     safe_socket_operation,
 )
+from .exceptions import NegotiationError, ProtocolError
 from .tn3270e_header import TN3270EHeader
 from .utils import (
     DO,
@@ -838,8 +838,8 @@ class Negotiator:
         from .utils import (
             TELOPT_BINARY,
             TELOPT_EOR,
-            TELOPT_TTYPE,
             TELOPT_TN3270E,
+            TELOPT_TTYPE,
             WILL,
             WONT,
         )

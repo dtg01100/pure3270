@@ -37,6 +37,6 @@ jobs:
         # Configure git for potential commits
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
-        
+
         # Run pre-commit with auto-formatting (but don't auto-commit in CI)
         python scripts/pre_commit_with_autofix.py --all-files --no-auto-commit

@@ -1,0 +1,26 @@
+exclude_dirs:
+  - "tests"
+  - "examples"
+  - "__pycache__"
+  - ".git"
+  - "build"
+  - "dist"
+  - "venv*"
+  - ".venv*"
+  - "htmlcov"
+  - "archive"
+
+skips:
+  - "B101"
+  - "B601"
+
+include:
+  - "*.py"
+
+severity:
+  - "HIGH"
+  - "MEDIUM"
+
+confidence:
+  - "HIGH"
+  - "MEDIUM"
