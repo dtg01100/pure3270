@@ -4,15 +4,25 @@ Based on IBM Code Page 037.
 """
 
 import logging
-from typing import Optional, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
 # Optional dependency: prefer `ebcdic` package when available for explicit
 # encode/decode helpers, but fall back to the stdlib codec for CP037.
+# Declare the name at module scope with an Any type so static checkers see a
+# consistent symbol regardless of whether the optional package is present.
+ebcdic: Any = None
 try:
-    import ebcdic  # noqa: F401  # type: ignore[import-not-found]
+    # Dynamically import the optional `ebcdic` package at runtime. Using
+    # importlib.import_module avoids a static `import ebcdic` statement so
+    # mypy won't attempt to check the package when it is installed without
+    # type information in CI environments.
+    import importlib
+
+    ebcdic = importlib.import_module("ebcdic")
 except Exception:
+    # Leave ebcdic as None when the package is not present.
     ebcdic = None
 
 

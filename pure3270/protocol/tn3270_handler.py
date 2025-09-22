@@ -110,16 +110,41 @@ def _call_maybe_schedule(func: Callable[..., Any], *args: Any, **kwargs: Any) ->
             return await coro
 
         try:
+            # If there is a running loop, schedule the awaitable as a background
+            # task and attach a done-callback to log exceptions. If there is no
+            # running loop, run it to completion synchronously using
+            # asyncio.run(). This is safer than attempting to call
+            # loop.run_until_complete() on an already-running loop.
             loop = asyncio.get_running_loop()
-            task = loop.create_task(_wrap_and_await(result))
-            # Await the task to ensure completion and avoid unawaited coroutines
-            loop.run_until_complete(task)
         except RuntimeError:
             # No running loop; run to completion synchronously
             try:
                 asyncio.run(_wrap_and_await(result))
             except Exception:
-                # If even that fails, ignore to preserve test-oriented sync behavior
+                # Preserve original behavior of ignoring failures in this
+                # best-effort sync/sync-mocking scenario.
+                pass
+        else:
+            # Running loop present: create a background task and attach a
+            # no-op done callback that will surface exceptions to the loop's
+            # exception handler. We don't await here to preserve caller
+            # semantics when they expect scheduling instead of blocking.
+            task = loop.create_task(_wrap_and_await(result))
+            try:
+                # Attach a callback to log exceptions so they aren't lost.
+                def _log_task_failure(t: asyncio.Task) -> None:
+                    exc = t.exception()
+                    if exc is not None:
+                        # Re-raise inside a local except block so logger.exception
+                        # captures the traceback for the original exception.
+                        try:
+                            raise exc
+                        except Exception:
+                            logger.exception("Background task raised")
+
+                task.add_done_callback(_log_task_failure)
+            except Exception:
+                # If adding a callback fails, ignore and continue.
                 pass
     return result
 
@@ -306,6 +331,10 @@ class TN3270Handler:
         self._negotiation_trace = b""  # Initialize negotiation trace buffer
         self.recorder = recorder
         self._ascii_mode = False
+        # Background tasks created by the handler (reader loops, scheduled
+        # callbacks). We keep references so close() can cancel them and
+        # avoid orphaned tasks that survive beyond the handler lifecycle.
+        self._bg_tasks: list[asyncio.Task] = []
 
     async def _retry_operation(
         self, operation: Callable[[], Awaitable[T]], max_retries: int = 3
@@ -379,6 +408,9 @@ class TN3270Handler:
                     continue
 
                 if not data:
+                    # Treat end-of-stream as EOF and proactively signal
+                    # negotiation completion so waiting coroutines can proceed
+                    # to fallback logic instead of hanging indefinitely.
                     raise EOFError("Stream ended")
 
                 # Accumulate negotiation trace for fallback logic when negotiator is mocked
@@ -396,7 +428,15 @@ class TN3270Handler:
         except StopAsyncIteration:
             # AsyncMock.reader.read may raise StopAsyncIteration when its side_effect
             # sequence is exhausted in tests. Treat this as end-of-stream and exit.
-            pass
+            # Signal negotiation completion events so negotiator doesn't hang.
+            try:
+                if self.negotiator is not None:
+                    self.negotiator._get_or_create_device_type_event().set()
+                    self.negotiator._get_or_create_functions_event().set()
+                    self.negotiator._get_or_create_negotiation_complete().set()
+            except Exception:
+                pass
+            return
         except Exception:
             logger.exception("Exception in negotiation reader loop", exc_info=True)
             # Reraise to propagate to caller
@@ -452,11 +492,27 @@ class TN3270Handler:
                 # Fall through to normal path if any issue
                 pass
 
-            reader_task = asyncio.create_task(self._reader_loop())
+            # Create a tracked background reader task so we can cancel it
+            # cleanly during shutdown. Use the running loop to schedule the
+            # task in a way compatible with test fixtures that may inject
+            # their own event loop.
             try:
-                await _call_maybe_await(
+                loop = asyncio.get_running_loop()
+                reader_task = loop.create_task(self._reader_loop())
+            except RuntimeError:
+                # No running loop; fall back to create_task which will raise
+                # if used incorrectly in sync contexts.
+                reader_task = asyncio.create_task(self._reader_loop())
+            self._bg_tasks.append(reader_task)
+            try:
+                # Ensure negotiator negotiation cannot hang indefinitely by
+                # enforcing an outer timeout. If caller provided a timeout we
+                # use that; otherwise fall back to a conservative default.
+                negotiate_coro = _call_maybe_await(
                     self.negotiator._negotiate_tn3270, timeout=timeout
                 )
+                outer_timeout = timeout if (timeout is not None) else 10.0
+                await asyncio.wait_for(negotiate_coro, timeout=outer_timeout)
                 # Ensure handler reflects ASCII fallback if negotiator switched modes
                 try:
                     if getattr(self.negotiator, "_ascii_mode", False):
@@ -1103,6 +1159,15 @@ class TN3270Handler:
                 self.writer.close()
                 await self.writer.wait_closed()
                 self.writer = None
+        # Cancel any background tasks we created to avoid dangling tasks
+        for t in list(self._bg_tasks):
+            if not t.done():
+                t.cancel()
+                try:
+                    await t
+                except (asyncio.CancelledError, Exception):
+                    pass
+        self._bg_tasks.clear()
         self._connected = False
 
     def is_connected(self) -> bool:
