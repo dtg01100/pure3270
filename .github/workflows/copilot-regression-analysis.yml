@@ -22,7 +22,7 @@ jobs:
 
     - name: Determine event and labels
       id: label_check
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
@@ -52,7 +52,7 @@ jobs:
 
     - name: Try assign copilot
       id: try_assign
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
@@ -96,7 +96,7 @@ jobs:
 
     - name: Analyze with Copilot
       if: steps.label_check.outputs.should_run == 'true' || steps.check_comment.outputs.analyze == 'true'
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
