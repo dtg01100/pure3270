@@ -981,10 +981,18 @@ class AsyncSession:
 
     async def execute(self, command: str) -> str:
         """Execute external command (s3270 Execute() action)."""
+        import shlex
         import subprocess
 
-        result = subprocess.run(command, shell=True, capture_output=True, text=True)
-        return result.stdout + result.stderr
+        # Use shlex.split to safely parse the command string and avoid shell injection
+        # This prevents shell injection attacks while maintaining compatibility
+        try:
+            command_args = shlex.split(command)
+            result = subprocess.run(command_args, capture_output=True, text=True)
+            return result.stdout + result.stderr
+        except ValueError as e:
+            # Handle malformed command strings
+            return f"Error: Invalid command format: {e}"
 
     async def key(self, keyname: str) -> None:
         """

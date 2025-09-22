@@ -206,6 +206,7 @@ class TN3270EHeader:
                 SNA_SENSE_CODE_STATE_ERROR,
                 SNA_SENSE_CODE_SUCCESS,
             )
+
             sense_map = {
                 SNA_SENSE_CODE_SUCCESS: "SUCCESS",
                 SNA_SENSE_CODE_INVALID_REQUEST: "INVALID_REQUEST",

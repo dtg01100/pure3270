@@ -733,7 +733,7 @@ class TN3270Handler:
                     return processed_data  # Printer status data doesn't update screen
 
         # Strip trailing 3270 EOR (0x19) bytes before parsing
-        processed_data = processed_data.rstrip(b'\x19')
+        processed_data = processed_data.rstrip(b"\x19")
 
         # Pass data type to parser for appropriate handling (e.g., SCS data)
         try:

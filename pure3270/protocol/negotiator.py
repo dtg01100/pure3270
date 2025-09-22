@@ -563,7 +563,7 @@ class Negotiator:
                         sna_response = SnaResponse(
                             SNA_COMMAND_RESPONSE, SNA_FLAGS_RSP, SNA_SENSE_CODE_SUCCESS
                         )
-                        self._handle_sna_response(sna_response)
+                        await self._handle_sna_response(sna_response)
                     logger.debug(
                         "[NEGOTIATION] SNA response for printer BIND handled (stub)"
                     )
