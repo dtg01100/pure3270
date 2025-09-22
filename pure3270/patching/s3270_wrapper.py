@@ -7,6 +7,10 @@ from typing import Any, List, Optional
 
 logger = logging.getLogger(__name__)
 
+# Global variables to store connection parameters from p3270 client
+_global_hostname: Optional[str] = None
+_global_port: int = 23
+
 
 class Pure3270S3270Wrapper:
     """
@@ -32,10 +36,14 @@ class Pure3270S3270Wrapper:
         self.buffer: Optional[str] = None
         self.statusMsg: Optional[str] = None
 
+        # Debug: log what args we received
+        logger.debug(f"S3270 wrapper initialized with args: {args}")
+        print(f"DEBUG: S3270 wrapper args: {args}")
+
         # Create our pure3270 session
         from pure3270.session import Session
 
-        self._session = Session()
+        self._session = Session(force_mode='ascii')
 
         # Increment instance counter
         Pure3270S3270Wrapper.numOfInstances += 1
@@ -145,8 +153,8 @@ class Pure3270S3270Wrapper:
 
         # Parse the hostname from the command
         # Format is Connect(B:hostname) or Connect(L:lu@hostname)
-        hostname = "localhost"  # Default
-        port = 23  # Default
+        hostname = _global_hostname or "localhost"  # Use global if set, otherwise default
+        port = _global_port  # Use global port
 
         try:
             # Extract the parameter from inside the parentheses
@@ -468,11 +476,41 @@ class Pure3270S3270Wrapper:
         """Handle Ascii command."""
         # Parse Ascii command: Ascii(row, col, length) or Ascii(row, col, rows, cols)
         try:
-            params = cmd[6:-1]  # Extract parameters from Ascii(...)
-            param_list = list(map(int, params.split(",")))
-            logger.info(f"Handling ascii command with params: {param_list}")
-            # For now, we'll just set an empty buffer and status
-            self.buffer = ""  # In a real implementation, we'd extract text from screen
+            params_str = cmd[6:-1]  # Extract parameters from Ascii(...)
+            if params_str.strip() == "":
+                # No parameters: return entire screen
+                self.buffer = self._session.screen_buffer.to_text()
+            else:
+                # Parse parameters
+                param_list = list(map(int, params_str.split(",")))
+                logger.info(f"Handling ascii command with params: {param_list}")
+                if len(param_list) == 3:
+                    # Ascii(row, col, length)
+                    row, col, length = param_list
+                    screen_text = self._session.screen_buffer.to_text()
+                    # Convert to lines
+                    lines = screen_text.split('\n')
+                    if row < len(lines):
+                        line = lines[row]
+                        if col < len(line):
+                            self.buffer = line[col:col + length]
+                        else:
+                            self.buffer = ""
+                    else:
+                        self.buffer = ""
+                elif len(param_list) == 4:
+                    # Ascii(row, col, rows, cols) - rectangular area
+                    row, col, rows, cols = param_list
+                    screen_text = self._session.screen_buffer.to_text()
+                    lines = screen_text.split('\n')
+                    result = []
+                    for r in range(row, min(row + rows, len(lines))):
+                        line = lines[r]
+                        result.append(line[col:col + cols])
+                    self.buffer = '\n'.join(result)
+                else:
+                    # Unknown format
+                    self.buffer = ""
             self.statusMsg = self._create_status()
             return True
         except Exception as e:

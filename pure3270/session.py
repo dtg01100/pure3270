@@ -82,21 +82,33 @@ class Session:
         self._recorder = None
 
     def _run_async(self, coro: Any) -> Any:
-        """Run an async coroutine, handling both sync and async contexts.
+        """Run an async coroutine, handling both sync and async contexts."""
+        if not hasattr(coro, "__await__"):
+            return coro
 
-        NOTE: The current implementation intentionally avoids executing when already
-        inside a running loop. A future enhancement could schedule the task instead.
-        """
         try:
-            loop = asyncio.get_running_loop()
-            # We're in an async context - this is problematic for sync methods
-            # For now, let's avoid the issue by not running async operations in async contexts
-            # The session should be connected before being used in async tests
-            if hasattr(coro, "__await__"):
-                # Don't run async operations when already in async context
-                return None
-            else:
-                return coro
+            asyncio.get_running_loop()
+            # We're in a running loop, run the coroutine in a separate thread
+            # with its own event loop to avoid "asyncio.run() cannot be called
+            # from a running event loop" error
+            import threading
+
+            result = [None]
+            exception = [None]
+
+            def run_in_thread():
+                try:
+                    result[0] = asyncio.run(coro)
+                except Exception as e:
+                    exception[0] = e
+
+            thread = threading.Thread(target=run_in_thread)
+            thread.start()
+            thread.join()
+
+            if exception[0]:
+                raise exception[0]
+            return result[0]
         except RuntimeError:
             # No running loop, use asyncio.run
             return asyncio.run(coro)
@@ -147,8 +159,8 @@ class Session:
         if not self._async_session:
             raise SessionError("Session not connected.")
         if not self._async_session.connected:
-            asyncio.run(self._async_session.connect())
-        asyncio.run(self._async_session.send(data))
+            self._run_async(self._async_session.connect())
+        self._run_async(self._async_session.send(data))
 
     def read(self, timeout: float = 5.0) -> bytes:
         """
@@ -166,8 +178,8 @@ class Session:
         if not self._async_session:
             raise SessionError("Session not connected.")
         if not self._async_session.connected:
-            asyncio.run(self._async_session.connect())
-        return asyncio.run(self._async_session.read(timeout))
+            self._run_async(self._async_session.connect())
+        return self._run_async(self._async_session.read(timeout))
 
     def get_aid(self) -> Optional[int]:
         """Get AID synchronously (last known AID value)."""
@@ -178,7 +190,7 @@ class Session:
     def close(self) -> None:
         """Close the session synchronously."""
         if self._async_session:
-            asyncio.run(self._async_session.close())
+            self._run_async(self._async_session.close())
             self._async_session = None
 
     def get_trace_events(self) -> List[Any]:
@@ -193,7 +205,7 @@ class Session:
     def close_script(self) -> None:
         """Close script synchronously (s3270 CloseScript() action)."""
         if self._async_session:
-            asyncio.run(self._async_session.close_script())
+            self._run_async(self._async_session.close_script())
 
     def ascii(self, data: bytes) -> str:
         """
@@ -274,7 +286,7 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.cursor_select())
+        self._run_async(self._async_session.cursor_select())
 
     def delete_field(self) -> None:
         """
@@ -285,7 +297,7 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.delete_field())
+        self._run_async(self._async_session.delete_field())
 
     def echo(self, text: str) -> None:
         """Echo text (s3270 Echo() action)."""
@@ -300,7 +312,7 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.circum_not())
+        self._run_async(self._async_session.circum_not())
 
     def script(self, commands: str) -> None:
         """
@@ -314,49 +326,49 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.script(commands))
+        self._run_async(self._async_session.script(commands))
 
     def execute(self, command: str) -> str:
         """Execute external command synchronously (s3270 Execute() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        return asyncio.run(self._async_session.execute(command))
+        return self._run_async(self._async_session.execute(command))
 
     def capabilities(self) -> str:
         """Get capabilities synchronously (s3270 Capabilities() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        return asyncio.run(self._async_session.capabilities())
+        return self._run_async(self._async_session.capabilities())
 
     def interrupt(self) -> None:
         """Send interrupt synchronously (s3270 Interrupt() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.interrupt())
+        self._run_async(self._async_session.interrupt())
 
     def key(self, keyname: str) -> None:
         """Send key synchronously (s3270 Key() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.key(keyname))
+        self._run_async(self._async_session.key(keyname))
 
     def query(self, query_type: str = "All") -> str:
         """Query screen synchronously (s3270 Query() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        return asyncio.run(self._async_session.query(query_type))
+        return self._run_async(self._async_session.query(query_type))
 
     def set_option(self, option: str, value: str) -> None:
         """Set option synchronously (s3270 Set() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.set(option, value))
+        self._run_async(self._async_session.set_option(option, value))
 
     def exit(self) -> None:
         """Exit synchronously (s3270 Exit() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.exit())
+        self._run_async(self._async_session.exit())
 
     def keyboard_disable(self) -> None:
         """Disable keyboard input (s3270 KeyboardDisable() action)."""
@@ -369,7 +381,7 @@ class Session:
         """Send Enter key synchronously (s3270 Enter() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.enter())
+        self._run_async(self._async_session.enter())
 
     def erase(self) -> None:
         """
@@ -380,7 +392,7 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.erase())
+        self._run_async(self._async_session.erase())
 
     def erase_eof(self) -> None:
         """
@@ -391,7 +403,7 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.erase_eof())
+        self._run_async(self._async_session.erase_eof())
 
     def home(self) -> None:
         """
@@ -402,7 +414,7 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.home())
+        self._run_async(self._async_session.home())
 
     def left(self) -> None:
         """
@@ -413,7 +425,7 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.left())
+        self._run_async(self._async_session.left())
 
     def right(self) -> None:
         """
@@ -424,7 +436,7 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.right())
+        self._run_async(self._async_session.right())
 
     def up(self) -> None:
         """
@@ -435,7 +447,7 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.up())
+        self._run_async(self._async_session.up())
 
     def down(self) -> None:
         """
@@ -446,7 +458,7 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.down())
+        self._run_async(self._async_session.down())
 
     def backspace(self) -> None:
         """
@@ -457,7 +469,7 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.backspace())
+        self._run_async(self._async_session.backspace())
 
     def tab(self) -> None:
         """
@@ -468,7 +480,7 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.tab())
+        self._run_async(self._async_session.tab())
 
     def backtab(self) -> None:
         """
@@ -479,7 +491,7 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.backtab())
+        self._run_async(self._async_session.backtab())
 
     def compose(self, text: str) -> None:
         """
@@ -493,7 +505,7 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.compose(text))
+        self._run_async(self._async_session.compose(text))
 
     def cookie(self, cookie_string: str) -> None:
         """
@@ -507,7 +519,7 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.cookie(cookie_string))
+        self._run_async(self._async_session.cookie(cookie_string))
 
     def expect(self, pattern: str, timeout: float = 10.0) -> bool:
         """
@@ -525,7 +537,7 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        return asyncio.run(self._async_session.expect(pattern, timeout))
+        return self._run_async(self._async_session.expect(pattern, timeout))
 
     def fail(self, message: str) -> None:
         """
@@ -540,7 +552,7 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.fail(message))
+        self._run_async(self._async_session.fail(message))
 
     def pf(self, n: int) -> None:
         """
@@ -555,7 +567,7 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.pf(n))
+        self._run_async(self._async_session.pf(n))
 
     def pa(self, n: int) -> None:
         """
@@ -570,7 +582,7 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        asyncio.run(self._async_session.pa(n))
+        self._run_async(self._async_session.pa(n))
 
     @property
     def screen_buffer(self) -> ScreenBuffer:
