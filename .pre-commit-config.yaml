@@ -10,16 +10,14 @@ repos:
     rev: 24.8.0
     hooks:
       - id: black
-        name: black (check only)
-        args: [--check, --diff]
-        # When this fails, run: python scripts/auto_format_commit.py
+        name: black (auto-format)
+        args: [--line-length=88]
   - repo: https://github.com/pycqa/isort
     rev: 5.13.2
     hooks:
       - id: isort
-        name: isort (check only)
-        args: [--profile=black, --check-only, --diff]
-        # When this fails, run: python scripts/auto_format_commit.py
+        name: isort (auto-format)
+        args: [--profile=black]
   - repo: https://github.com/pycqa/flake8
     rev: 7.1.1
     hooks:
