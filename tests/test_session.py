@@ -977,7 +977,7 @@ async def test_tn3270e_handshake_success(mock_tn3270e_server):
 @pytest.mark.asyncio
 async def test_tn3270e_handshake_fallback(mock_tn3270e_server_fallback):
     """Test fallback when server sends DONT TN3270E."""
-    session = AsyncSession("localhost", 2323)
+    session = AsyncSession("localhost", 2324)
     await session.connect()
 
     assert session.connected is True
