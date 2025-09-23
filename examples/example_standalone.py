@@ -63,4 +63,4 @@ finally:
     session.close()
     print("Session closed.")
 
-print("Standalone demonstration complete. No patching or p3270 required.")
+print("Standalone demonstration complete. Pure3270 native implementation.")
