@@ -18,6 +18,7 @@ from typing import (
 
 from ..emulation.printer_buffer import PrinterBuffer  # Import PrinterBuffer
 from ..emulation.screen_buffer import ScreenBuffer  # Import ScreenBuffer
+from ..utils.logging_utils import log_debug_operation, log_parsing_warning
 from .utils import (
     BIND_IMAGE,
     NVT_DATA,
@@ -371,6 +372,37 @@ class DataStreamParser:
         """Get the current AID value."""
         return self.aid
 
+    def _validate_screen_buffer(self, operation: str) -> None:
+        """Validate that screen buffer is initialized."""
+        if self.screen is None:
+            raise ParseError(f"Screen buffer not initialized for {operation}")
+
+    def _validate_min_data(self, operation: str, min_bytes: int) -> bool:
+        """Validate minimum data availability and log warning if insufficient."""
+        parser = self._ensure_parser()
+        if parser.remaining() < min_bytes:
+            log_parsing_warning(
+                logger, f"Incomplete {operation} order", f"need {min_bytes} bytes"
+            )
+            return False
+        return True
+
+    def _read_byte_safe(self, operation: str) -> int:
+        """Safely read a byte with consistent error handling."""
+        try:
+            return self._read_byte()
+        except ParseError:
+            raise ParseError(f"Incomplete {operation} order at position {self._pos}")
+
+    def _read_address_bytes(self, operation: str) -> int:
+        """Safely read 2-byte address with consistent error handling."""
+        try:
+            parser = self._ensure_parser()
+            address_bytes = parser.read_fixed(2)
+            return struct.unpack(">H", address_bytes)[0]
+        except ParseError:
+            raise ParseError(f"Incomplete {operation} address at position {self._pos}")
+
     def parse(self, data: bytes, data_type: int = TN3270_DATA) -> None:
         """
         Parse 3270 data stream or other data types.
@@ -652,43 +684,34 @@ class DataStreamParser:
 
     def _handle_sf(self) -> None:
         """Handle Start Field."""
-        if self.screen is None:
-            raise ParseError("Screen buffer not initialized")
-        try:
-            attr = self._read_byte()
-        except ParseError:
-            raise ParseError("Incomplete SF order")
+        self._validate_screen_buffer("SF")
+        attr = self._read_byte_safe("SF")
         row, col = self.screen.get_position()
         self.screen.set_attribute(attr)
         self.screen.set_position(row, col + 1)
         parser = self._ensure_parser()
         self._pos = parser._pos
-        logger.debug(f"Start field with attribute 0x{attr:02x}")
+        log_debug_operation(logger, f"Start field with attribute 0x{attr:02x}")
 
     def _handle_ra(self) -> None:
         """Handle Repeat to Address (RMA)."""
-        if self.screen is None:
-            raise ParseError("Screen buffer not initialized")
-        parser = self._ensure_parser()
-        if parser.remaining() < 3:
-            logger.warning("Incomplete RA order")
+        self._validate_screen_buffer("RA")
+        if not self._validate_min_data("RA", 3):
             return
+
         # Save current position before RA
         current_row, current_col = self.screen.get_position()
-        try:
-            attr_type = self._read_byte()
-        except ParseError:
-            raise ParseError(f"Incomplete RA order at position {self._pos}")
-        try:
-            address_bytes = parser.read_fixed(2)
-        except ParseError:
-            raise ParseError(f"Incomplete RA address at position {self._pos}")
-        address = struct.unpack(">H", address_bytes)[0]
+        attr_type = self._read_byte_safe("RA")
+        address = self._read_address_bytes("RA")
+
         target_row = ((address >> 8) & 0x3F) << 2 | ((address & 0xFF) & 0xC0) >> 6
         target_col = address & 0x3F
-        logger.warning(
-            f"RA stub: Repeat 0x{attr_type:02x} from ({current_row}, {current_col}) to ({target_row}, {target_col})"
+        log_parsing_warning(
+            logger,
+            "RA stub",
+            f"Repeat 0x{attr_type:02x} from ({current_row}, {current_col}) to ({target_row}, {target_col})",
         )
+
         # Minimal emulation: insert attr_type from current to target (linear distance)
         current_pos = current_row * self.screen.cols + current_col
         target_pos = target_row * self.screen.cols + target_col
@@ -702,15 +725,16 @@ class DataStreamParser:
 
     def _handle_rmf(self) -> None:
         """Handle Repeat to Modified Field (RMF)."""
-        parser = self._ensure_parser()
-        if parser.remaining() < 2:
-            logger.warning("Incomplete RMF order")
+        if not self._validate_min_data("RMF", 2):
             return
         repeat_count = self._read_byte()
         attr_byte = self._read_byte()
-        logger.warning(
-            f"RMF stub: Repeat {repeat_count} times 0x{attr_byte:02x} in current field"
+        log_parsing_warning(
+            logger,
+            "RMF stub",
+            f"Repeat {repeat_count} times 0x{attr_byte:02x} in current field",
         )
+
         # Minimal emulation: insert attr_byte up to repeat_count (cap to avoid overflow)
         max_repeat = min(
             repeat_count,
@@ -730,24 +754,22 @@ class DataStreamParser:
 
     def _handle_ge(self) -> None:
         """Handle Graphic Escape (GE)."""
-        parser = self._ensure_parser()
-        if parser.remaining() < 1:
-            logger.warning("Incomplete GE order")
+        if not self._validate_min_data("GE", 1):
             return
         graphic_byte = self._read_byte()
-        logger.warning(f"GE stub: Insert graphic 0x{graphic_byte:02x}")
+        log_parsing_warning(logger, "GE stub", f"Insert graphic 0x{graphic_byte:02x}")
         self._insert_data(graphic_byte)
         # No position advance beyond insert
 
     def _handle_ic(self) -> None:
         """Handle Insert Cursor."""
         self.screen.move_cursor_to_first_input_field()
-        logger.debug("Insert cursor - moved to first input field")
+        log_debug_operation(logger, "Insert cursor - moved to first input field")
 
     def _handle_pt(self) -> None:
         """Handle Program Tab."""
         self.screen.program_tab()
-        logger.debug("Program tab")
+        log_debug_operation(logger, "Program tab")
 
     def _handle_scs(self) -> None:
         """Handle SCS control codes order."""

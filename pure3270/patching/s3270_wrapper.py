@@ -5,6 +5,12 @@ Wrapper class to make pure3270 compatible with p3270's S3270 interface.
 import logging
 from typing import Any, List, Optional
 
+from ..utils.logging_utils import (
+    log_command_error,
+    log_command_handling,
+    log_session_error,
+)
+
 logger = logging.getLogger(__name__)
 
 # Global variables to store connection parameters from p3270 client
@@ -185,80 +191,105 @@ class Pure3270S3270Wrapper:
         # Actually connect to the host
         try:
             self._session.connect(host=hostname, port=port)
-            self.statusMsg = self._create_status(connection_state=f"C({hostname})")
+            self._set_success_status(connection_state=f"C({hostname})")
             return True
         except Exception as e:
             logger.error(f"Error connecting to {hostname}:{port}: {e}")
-            self.statusMsg = self._create_error_status()
+            self._set_error_status()
             return False
 
     def _handle_disconnect(self) -> bool:
         """Handle Disconnect command."""
         logger.info("Handling disconnect command")
-        self.statusMsg = self._create_status(connection_state="N")
+        self._set_success_status(connection_state="N")
         return True
 
     def _handle_quit(self) -> bool:
         """Handle Quit command."""
         logger.info("Handling quit command")
-        self.statusMsg = self._create_status()
+        self._set_success_status()
         return True
 
     def _handle_enter(self) -> bool:
         """Handle Enter command."""
-        logger.info("Handling enter command")
-        # Send Enter key action
+        return self._execute_session_action("enter", "enter")
+
+    def _handle_backspace(self) -> bool:
+        """Handle BackSpace command."""
+        return self._execute_session_action("backspace", "backspace")
+
+    def _handle_home(self) -> bool:
+        """Handle Home command."""
+        return self._execute_session_action("home", "home")
+
+    def _handle_clear(self) -> bool:
+        """Handle Clear command."""
+        return self._execute_session_action("clear", "erase")
+
+    def _handle_delete(self) -> bool:
+        """Handle Delete command."""
+        return self._execute_session_action("delete", "erase")
+
+    def _handle_delete_field(self) -> bool:
+        """Handle DeleteField command."""
+        return self._execute_session_action("delete field", "erase_eof")
+
+    def _execute_parametrized_action(
+        self, cmd: str, action_name: str, method_name: str, param_parser
+    ) -> bool:
+        """
+        Generic handler for parametrized session actions.
+
+        Args:
+            cmd: The full command string
+            action_name: Human readable name for logging
+            method_name: Method name to call on self._session
+            param_parser: Function to parse parameters from cmd string
+
+        Returns:
+            True if action succeeded, False otherwise
+        """
         try:
-            self._session.enter()
+            params = param_parser(cmd)
+            log_command_handling(logger, action_name, str(params))
+
+            # Get the method from the session and call it
+            method = getattr(self._session, method_name)
+            if isinstance(params, (list, tuple)):
+                method(*params)
+            else:
+                method(params)
+
             self.statusMsg = self._create_status()
             return True
         except Exception as e:
-            logger.error(f"Error sending Enter: {e}")
+            log_command_error(logger, action_name, cmd, e)
             self.statusMsg = self._create_error_status()
             return False
 
     def _handle_pf(self, cmd: str) -> bool:
         """Handle PF command."""
-        # Parse PF number: PF(1), PF(2), etc.
-        try:
-            pf_num = int(cmd[3:-1])  # Extract number from PF(n)
-            logger.info(f"Handling PF command: {pf_num}")
-            # Send PF key action
-            self._session.pf(pf_num)
-            self.statusMsg = self._create_status()
-            return True
-        except Exception as e:
-            logger.error(f"Error handling PF command '{cmd}': {e}")
-            self.statusMsg = self._create_error_status()
-            return False
+
+        def parse_pf(cmd_str):
+            return int(cmd_str[3:-1])  # Extract number from PF(n)
+
+        return self._execute_parametrized_action(cmd, "PF", "pf", parse_pf)
 
     def _handle_pa(self, cmd: str) -> bool:
         """Handle PA command."""
-        # Parse PA number: PA(1), PA(2), etc.
-        try:
-            pa_num = int(cmd[3:-1])  # Extract number from PA(n)
-            logger.info(f"Handling PA command: {pa_num}")
-            # Send PA key action
-            self._session.pa(pa_num)
-            self.statusMsg = self._create_status()
-            return True
-        except Exception as e:
-            logger.error(f"Error handling PA command '{cmd}': {e}")
-            self.statusMsg = self._create_error_status()
-            return False
 
-    def _handle_backspace(self) -> bool:
-        """Handle BackSpace command."""
-        logger.info("Handling backspace command")
-        # Send BackSpace key action
-        try:
-            self._session.backspace()  # Using backspace method
-            self.statusMsg = self._create_status()
-            return True
-        except Exception as e:
-            logger.error(f"Error sending BackSpace: {e}")
-            self.statusMsg = self._create_error_status()
-            return False
+        def parse_pa(cmd_str):
+            return int(cmd_str[3:-1])  # Extract number from PA(n)
+
+        return self._execute_parametrized_action(cmd, "PA", "pa", parse_pa)
+
+    def _handle_string(self, cmd: str) -> bool:
+        """Handle String command."""
+
+        def parse_string(cmd_str):
+            return cmd_str[7:-1]  # Remove String( and )
+
+        return self._execute_parametrized_action(cmd, "string", "compose", parse_string)
 
     def _handle_backtab(self) -> bool:
         """Handle BackTab command."""
@@ -266,19 +297,6 @@ class Pure3270S3270Wrapper:
         # Send BackTab key action
         self.statusMsg = self._create_status()
         return True
-
-    def _handle_home(self) -> bool:
-        """Handle Home command."""
-        logger.info("Handling home command")
-        # Send Home key action
-        try:
-            self._session.home()
-            self.statusMsg = self._create_status()
-            return True
-        except Exception as e:
-            logger.error(f"Error sending Home: {e}")
-            self.statusMsg = self._create_error_status()
-            return False
 
     def _handle_tab(self) -> bool:
         """Handle Tab command."""
@@ -302,45 +320,6 @@ class Pure3270S3270Wrapper:
             self.statusMsg = self._create_error_status()
             return False
 
-    def _handle_clear(self) -> bool:
-        """Handle Clear command."""
-        logger.info("Handling clear command")
-        # Send Clear action using erase method
-        try:
-            self._session.erase()
-            self.statusMsg = self._create_status()
-            return True
-        except Exception as e:
-            logger.error(f"Error handling Clear: {e}")
-            self.statusMsg = self._create_error_status()
-            return False
-
-    def _handle_delete(self) -> bool:
-        """Handle Delete command."""
-        logger.info("Handling delete command")
-        # Send Delete action
-        try:
-            self._session.erase()  # Using erase as equivalent
-            self.statusMsg = self._create_status()
-            return True
-        except Exception as e:
-            logger.error(f"Error handling Delete: {e}")
-            self.statusMsg = self._create_error_status()
-            return False
-
-    def _handle_delete_field(self) -> bool:
-        """Handle DeleteField command."""
-        logger.info("Handling delete field command")
-        # Send DeleteField action
-        try:
-            self._session.erase_eof()  # Using erase_eof as equivalent
-            self.statusMsg = self._create_status()
-            return True
-        except Exception as e:
-            logger.error(f"Error handling DeleteField: {e}")
-            self.statusMsg = self._create_error_status()
-            return False
-
     def _handle_delete_word(self) -> bool:
         """Handle DeleteWord command."""
         logger.info("Handling delete word command")
@@ -348,70 +327,94 @@ class Pure3270S3270Wrapper:
         self.statusMsg = self._create_status()
         return True
 
-    def _handle_erase(self) -> bool:
-        """Handle Erase command."""
-        logger.info("Handling erase command")
-        # Send Erase action
+    def _execute_session_action(
+        self, action_name: str, method_name: str, *args, **kwargs
+    ) -> bool:
+        """
+        Generic handler for session actions that follow the common pattern:
+        log info, try calling session method, create status, handle exception with error status.
+
+        Args:
+            action_name: Human readable name for logging
+            method_name: Method name to call on self._session
+            *args: Arguments to pass to the session method
+            **kwargs: Keyword arguments to pass to the session method
+
+        Returns:
+            True if action succeeded, False otherwise
+        """
+        log_command_handling(logger, action_name)
         try:
-            self._session.erase()
-            self.statusMsg = self._create_status()
+            # Get the method from the session and call it
+            method = getattr(self._session, method_name)
+            method(*args, **kwargs)
+            self._set_success_status()
             return True
         except Exception as e:
-            logger.error(f"Error handling Erase: {e}")
-            self.statusMsg = self._create_error_status()
+            log_session_error(logger, action_name, e)
+            self._set_error_status()
             return False
+
+    def _execute_parametrized_action(
+        self, cmd: str, action_name: str, method_name: str, param_parser
+    ) -> bool:
+        """
+        Generic handler for parametrized session actions.
+
+        Args:
+            cmd: The full command string
+            action_name: Human readable name for logging
+            method_name: Method name to call on self._session
+            param_parser: Function to parse parameters from cmd string
+
+        Returns:
+            True if action succeeded, False otherwise
+        """
+        try:
+            params = param_parser(cmd)
+            log_command_handling(logger, action_name, str(params))
+
+            # Get the method from the session and call it
+            method = getattr(self._session, method_name)
+            if isinstance(params, (list, tuple)):
+                method(*params)
+            else:
+                method(params)
+
+            self._set_success_status()
+            return True
+        except Exception as e:
+            log_command_error(logger, action_name, cmd, e)
+            self._set_error_status()
+            return False
+
+    def _set_success_status(self, **overrides) -> None:
+        """Set a success status with optional field overrides."""
+        self.statusMsg = self._create_status(**overrides)
+
+    def _set_error_status(self) -> None:
+        """Set an error status."""
+        self.statusMsg = self._create_error_status()
+
+    def _handle_erase(self) -> bool:
+        """Handle Erase command."""
+        return self._execute_session_action("erase", "erase")
 
     def _handle_down(self) -> bool:
         """Handle Down command."""
-        logger.info("Handling down command")
-        # Send Down action
-        try:
-            self._session.down()
-            self.statusMsg = self._create_status()
-            return True
-        except Exception as e:
-            logger.error(f"Error handling Down: {e}")
-            self.statusMsg = self._create_error_status()
-            return False
+        return self._execute_session_action("down", "down")
 
     def _handle_up(self) -> bool:
         """Handle Up command."""
-        logger.info("Handling up command")
-        # Send Up action
-        try:
-            self._session.up()
-            self.statusMsg = self._create_status()
-            return True
-        except Exception as e:
-            logger.error(f"Error handling Up: {e}")
-            self.statusMsg = self._create_error_status()
-            return False
+        return self._execute_session_action("up", "up")
 
     def _handle_left(self) -> bool:
         """Handle Left command."""
-        logger.info("Handling left command")
-        # Send Left action
-        try:
-            self._session.left()
-            self.statusMsg = self._create_status()
-            return True
-        except Exception as e:
-            logger.error(f"Error handling Left: {e}")
-            self.statusMsg = self._create_error_status()
-            return False
+        return self._execute_session_action("left", "left")
 
     def _handle_right(self) -> bool:
         """Handle Right command."""
-        logger.info("Handling right command")
-        # Send Right action
-        try:
-            self._session.right()
-            self.statusMsg = self._create_status()
-            return True
-        except Exception as e:
-            logger.error(f"Error handling Right: {e}")
-            self.statusMsg = self._create_error_status()
-            return False
+        return self._execute_session_action("right", "right")
 
     def _handle_move_cursor(self, cmd: str) -> bool:
         """Handle MoveCursor command."""
@@ -426,22 +429,6 @@ class Pure3270S3270Wrapper:
             return True
         except Exception as e:
             logger.error(f"Error handling MoveCursor command '{cmd}': {e}")
-            self.statusMsg = self._create_error_status()
-            return False
-
-    def _handle_string(self, cmd: str) -> bool:
-        """Handle String command."""
-        # Parse string: String("text")
-        try:
-            # Extract text from String("text")
-            text = cmd[7:-1]  # Remove String( and )
-            logger.info(f"Handling string command: {text}")
-            # Send text using compose method
-            self._session.compose(text)
-            self.statusMsg = self._create_status()
-            return True
-        except Exception as e:
-            logger.error(f"Error handling String command '{cmd}': {e}")
             self.statusMsg = self._create_error_status()
             return False
 
