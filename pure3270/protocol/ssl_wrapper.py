@@ -36,6 +36,14 @@ class SSLWrapper:
         self.capath = capath
         self.context: Optional[ssl.SSLContext] = None
 
+        # Warn immediately if verification is disabled
+        if not verify:
+            logger.warning(
+                "🚨 SSL verification disabled at SSLWrapper creation. "
+                "This creates security vulnerabilities and should only be used "
+                "for testing. Production systems should verify certificates."
+            )
+
     def create_context(self) -> ssl.SSLContext:
         """
         Create an SSLContext for secure connections.
@@ -51,7 +59,17 @@ class SSLWrapper:
             if not self.verify:
                 self.context.check_hostname = False
                 self.context.verify_mode = ssl.CERT_NONE
-                logger.warning("SSL verification disabled")
+                logger.warning(
+                    "🚨 SECURITY WARNING: SSL certificate verification is DISABLED! "
+                    "This makes the connection vulnerable to man-in-the-middle attacks. "
+                    "Only use verify=False for testing/development environments. "
+                    "Production deployments should ALWAYS verify certificates."
+                )
+                logger.warning(
+                    "🔔 DEPRECATION NOTICE: The verify=False option will be deprecated "
+                    "in a future version. Consider using proper certificate validation "
+                    "or configuring custom CA certificates."
+                )
             else:
                 if self.cafile:
                     self.context.load_verify_locations(cafile=self.cafile)

@@ -3,6 +3,8 @@ Session management for pure3270, handling synchronous and asynchronous 3270 conn
 """
 
 import asyncio
+import concurrent.futures
+import functools
 import logging
 import os
 import re
@@ -27,6 +29,25 @@ from .protocol.tn3270_handler import TN3270Handler
 from .session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
+
+
+def _require_connected_session(func: Callable) -> Callable:
+    """
+    Decorator to ensure the session has a connected async session.
+
+    Automatically connects if the session exists but is not connected.
+    Raises SessionError if no async session exists.
+    """
+
+    @functools.wraps(func)
+    def wrapper(self: "Session", *args, **kwargs):
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        if not self._async_session.connected:
+            self._run_async(self._async_session.connect())
+        return func(self, *args, **kwargs)
+
+    return wrapper
 
 
 class SessionError(Exception):
@@ -80,6 +101,10 @@ class Session:
         self._allow_fallback = allow_fallback
         self._enable_trace = enable_trace
         self._recorder = None
+        # Shared thread pool for efficient async execution
+        self._thread_pool = concurrent.futures.ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix="pure3270-session"
+        )
 
     def _run_async(self, coro: Any) -> Any:
         """Run an async coroutine, handling both sync and async contexts."""
@@ -88,27 +113,13 @@ class Session:
 
         try:
             asyncio.get_running_loop()
-            # We're in a running loop, run the coroutine in a separate thread
-            # with its own event loop to avoid "asyncio.run() cannot be called
-            # from a running event loop" error
-            import threading
 
-            result = [None]
-            exception = [None]
+            # We're in a running loop, use the thread pool to avoid blocking
+            def run_in_executor():
+                return asyncio.run(coro)
 
-            def run_in_thread():
-                try:
-                    result[0] = asyncio.run(coro)
-                except Exception as e:
-                    exception[0] = e
-
-            thread = threading.Thread(target=run_in_thread)
-            thread.start()
-            thread.join()
-
-            if exception[0]:
-                raise exception[0]
-            return result[0]
+            future = self._thread_pool.submit(run_in_executor)
+            return future.result()
         except RuntimeError:
             # No running loop, use asyncio.run
             return asyncio.run(coro)
@@ -146,6 +157,7 @@ class Session:
         if not self._async_session.connected:
             self._run_async(self._async_session.connect())
 
+    @_require_connected_session
     def send(self, data: bytes) -> None:
         """
         Send data to the session.
@@ -156,12 +168,9 @@ class Session:
         Raises:
             SessionError: If send fails.
         """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        if not self._async_session.connected:
-            self._run_async(self._async_session.connect())
         self._run_async(self._async_session.send(data))
 
+    @_require_connected_session
     def read(self, timeout: float = 5.0) -> bytes:
         """
         Read data from the session.
@@ -175,10 +184,6 @@ class Session:
         Raises:
             SessionError: If read fails.
         """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        if not self._async_session.connected:
-            self._run_async(self._async_session.connect())
         return self._run_async(self._async_session.read(timeout))
 
     def get_aid(self) -> Optional[int]:
@@ -192,6 +197,22 @@ class Session:
         if self._async_session:
             self._run_async(self._async_session.close())
             self._async_session = None
+        # Shut down the thread pool to prevent resource leaks
+        if hasattr(self, "_thread_pool"):
+            self._thread_pool.shutdown(wait=True)
+
+    def __enter__(self) -> "Session":
+        """Enter the context manager."""
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[type],
+        exc_val: Optional[Exception],
+        exc_tb: Optional[Any],
+    ) -> None:
+        """Exit the context manager and ensure cleanup."""
+        self.close()
 
     def get_trace_events(self) -> List[Any]:
         if not self._async_session:
@@ -207,6 +228,7 @@ class Session:
         if self._async_session:
             self._run_async(self._async_session.close_script())
 
+    @_require_connected_session
     def ascii(self, data: bytes) -> str:
         """
         Convert EBCDIC data to ASCII text (s3270 Ascii() action).
@@ -217,10 +239,9 @@ class Session:
         Returns:
             ASCII string representation.
         """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
         return self._async_session.ascii(data)
 
+    @_require_connected_session
     def ebcdic(self, text: str) -> bytes:
         """
         Convert ASCII text to EBCDIC data (s3270 Ebcdic() action).
@@ -231,10 +252,9 @@ class Session:
         Returns:
             EBCDIC bytes representation.
         """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
         return self._async_session.ebcdic(text)
 
+    @_require_connected_session
     def ascii1(self, byte_val: int) -> str:
         """
         Convert a single EBCDIC byte to ASCII character (s3270 Ascii1() action).
@@ -245,8 +265,6 @@ class Session:
         Returns:
             ASCII character.
         """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
         return self._async_session.ascii1(byte_val)
 
     def ebcdic1(self, char: str) -> int:
@@ -346,28 +364,24 @@ class Session:
             raise SessionError("Session not connected.")
         self._run_async(self._async_session.interrupt())
 
+    @_require_connected_session
     def key(self, keyname: str) -> None:
         """Send key synchronously (s3270 Key() action)."""
-        if not self._async_session:
-            raise SessionError("Session not connected.")
         self._run_async(self._async_session.key(keyname))
 
+    @_require_connected_session
     def query(self, query_type: str = "All") -> str:
         """Query screen synchronously (s3270 Query() action)."""
-        if not self._async_session:
-            raise SessionError("Session not connected.")
         return self._run_async(self._async_session.query(query_type))
 
+    @_require_connected_session
     def set_option(self, option: str, value: str) -> None:
         """Set option synchronously (s3270 Set() action)."""
-        if not self._async_session:
-            raise SessionError("Session not connected.")
         self._run_async(self._async_session.set_option(option, value))
 
+    @_require_connected_session
     def exit(self) -> None:
         """Exit synchronously (s3270 Exit() action)."""
-        if not self._async_session:
-            raise SessionError("Session not connected.")
         self._run_async(self._async_session.exit())
 
     def keyboard_disable(self) -> None:
@@ -943,6 +957,19 @@ class AsyncSession:
             self._handler = None
         if self._transport:
             await self._transport.teardown_connection()
+
+    async def __aenter__(self) -> "AsyncSession":
+        """Enter the async context manager."""
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: Optional[type],
+        exc_val: Optional[Exception],
+        exc_tb: Optional[Any],
+    ) -> None:
+        """Exit the async context manager and ensure cleanup."""
+        await self.close()
 
     @property
     def connected(self) -> bool:
