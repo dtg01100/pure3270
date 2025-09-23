@@ -411,7 +411,14 @@ class TN3270Handler:
                     # Treat end-of-stream as EOF and proactively signal
                     # negotiation completion so waiting coroutines can proceed
                     # to fallback logic instead of hanging indefinitely.
-                    raise EOFError("Stream ended")
+                    try:
+                        if self.negotiator is not None:
+                            self.negotiator._get_or_create_device_type_event().set()
+                            self.negotiator._get_or_create_functions_event().set()
+                            self.negotiator._get_or_create_negotiation_complete().set()
+                    except Exception:
+                        pass
+                    return
 
                 # Accumulate negotiation trace for fallback logic when negotiator is mocked
                 # Accumulate negotiation bytes (attribute pre-declared)
