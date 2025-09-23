@@ -86,13 +86,19 @@ def sync_session():
     return session
 
 
+# Patch async_session fixture to only apply mocks for non-handshake tests
 @pytest_asyncio.fixture
-async def async_session():
+async def async_session(request):
     session = AsyncSession("localhost", 23)
-    session._handler = AsyncMock(spec=TN3270Handler)
-    session._handler.send_data = AsyncMock()
-    session._handler.receive_data = AsyncMock(return_value=b"test output")
-    type(session).handler = PropertyMock(return_value=session._handler)
+    # Only patch handler for tests that are not handshake tests
+    if not (
+        request.node.name.startswith("test_tn3270e_handshake_success")
+        or request.node.name.startswith("test_tn3270e_handshake_fallback")
+    ):
+        session._handler = AsyncMock(spec=TN3270Handler)
+        session._handler.send_data = AsyncMock()
+        session._handler.receive_data = AsyncMock(return_value=b"test output")
+        type(session).handler = PropertyMock(return_value=session._handler)
     # Don't mock connected here - let tests control it
     # type(session).connected = PropertyMock(return_value=False)
     return session
@@ -965,8 +971,10 @@ async def test_tn3270e_handshake_success(mock_tn3270e_server):
     session = AsyncSession("127.0.0.1", 2323)
     await session.connect()
 
+    # Use the real handler, not a mock
+    handler = session.handler
     assert session.connected is True
-    assert session.handler.negotiated_tn3270e is True
+    assert handler.negotiated_tn3270e is True
 
     data = await session.read()
     assert len(data) > 0
@@ -983,9 +991,11 @@ async def test_tn3270e_handshake_fallback(mock_tn3270e_server_fallback):
     session = AsyncSession("localhost", 2324)
     await session.connect()
 
+    # Use the real handler, not a mock
+    handler = session.handler
     assert session.connected is True
     # Negotiation falls back to non-TN3270E
-    assert session.handler.negotiated_tn3270e is False
+    assert handler.negotiated_tn3270e is False
 
     # Should not raise ProtocolError, but fallback
     # If it raises, adjust assertion

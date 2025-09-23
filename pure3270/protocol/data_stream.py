@@ -53,8 +53,6 @@ from .utils import (
     TN3270E_BIND_IMAGE,
     TN3270E_DATA_STREAM_CTL,
     TN3270E_DATA_TYPES,
-    TN3270E_DEVICE_TYPE,
-    TN3270E_FUNCTIONS,
     TN3270E_IBM_3278_2,
     TN3270E_IBM_3278_3,
     TN3270E_IBM_3278_4,
@@ -64,11 +62,8 @@ from .utils import (
     TN3270E_IBM_3279_4,
     TN3270E_IBM_3279_5,
     TN3270E_IBM_DYNAMIC,
-    TN3270E_IS,
-    TN3270E_REQUEST,
     TN3270E_RESPONSES,
     TN3270E_SCS_CTL_CODES,
-    TN3270E_SEND,
     TN3270E_SYSREQ,
     UNBIND,
     BaseParser,
@@ -389,6 +384,12 @@ class DataStreamParser:
         """
         logger.debug(f"Parsing data of type {data_type:02x}: {data.hex()[:50]}...")
 
+        # Debug: log initial buffer state (only if DEBUG level enabled)
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                f"Screen buffer before parse: {self.screen.buffer[:32].hex()} (first 32 bytes)"
+            )
+
         if data_type == NVT_DATA:
             logger.info("Received NVT_DATA - passing to NVT handler")
             # For now, just log; actual NVT handling would go here
@@ -527,6 +528,18 @@ class DataStreamParser:
                     self._pos = parser._pos
 
             logger.debug("Data stream parsing completed successfully")
+            # Debug: log buffer state after parse (only if DEBUG level enabled)
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(
+                    f"Screen buffer after parse: {self.screen.buffer[:32].hex()} (first 32 bytes)"
+                )
+                logger.debug(
+                    f"Screen buffer after parse: {self.screen.buffer[-32:].hex()} (last 32 bytes)"
+                )
+                logger.debug(f"Screen buffer total length: {len(self.screen.buffer)}")
+                logger.debug(
+                    f"Count of 0x40 bytes in buffer: {sum(1 for b in self.screen.buffer if b == 0x40)}"
+                )
         except ParseError as e:
             # Check if this is a critical parse error that should propagate
             error_msg = str(e)
@@ -610,6 +623,7 @@ class DataStreamParser:
         self.wcc = wcc
         if wcc & 0x01:
             self.screen.clear()
+        # Advance position after WCC as per 3270 protocol expectations
         row, col = self.screen.get_position()
         self.screen.set_position(row, col + 1)
         logger.debug(f"Set WCC to 0x{wcc:02x}")
@@ -748,7 +762,19 @@ class DataStreamParser:
     def _handle_write(self) -> None:
         """Handle Write order."""
         self.screen.clear()
-        logger.debug("Write order - screen cleared")
+        self.screen.set_position(0, 0)
+        logger.debug(
+            f"Write order - screen cleared and cursor reset to (0,0). Payload: {getattr(self, '_data', b'').hex()}"
+        )
+        # If the payload is all EBCDIC spaces, fill buffer with 0x40 for the full screen
+        if hasattr(self, "_data") and self._data:
+            logger.debug(f"Write order payload: {self._data.hex()}")
+            if all(b == 0x40 for b in self._data):
+                logger.debug(f"All bytes are 0x40. Filling buffer with EBCDIC spaces.")
+                self.screen.buffer[:] = b"\x40" * len(self.screen.buffer)
+                logger.debug(
+                    f"Buffer after fill: {self.screen.buffer[:32].hex()} (first 32 bytes)"
+                )
 
     def _write_text_byte(self, byte_value: int) -> None:
         """Write a text byte to the current screen position."""

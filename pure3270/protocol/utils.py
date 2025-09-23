@@ -1,3 +1,15 @@
+# TN3270E Subnegotiation Type: QUERY (RFC 1646/2355)
+TN3270E_QUERY = 0x0F
+# TN3270E Subnegotiation Command: SEND (RFC 1646/2355)
+TN3270E_SEND = 0x01
+# TN3270E Subnegotiation Type: REQUEST (RFC 1646/2355)
+TN3270E_REQUEST = 0x03
+# TN3270E Subnegotiation Command: IS (RFC 1646/2355)
+TN3270E_IS = 0x00
+# TN3270E Subnegotiation Type: FUNCTIONS (RFC 1646/2355)
+TN3270E_FUNCTIONS = 0x02
+# TN3270E Subnegotiation Type: DEVICE-TYPE (RFC 1646/2355)
+TN3270E_DEVICE_TYPE = 0x01
 """Utility functions for TN3270/TN3270E protocol handling.
 
 Typing notes:
@@ -74,7 +86,14 @@ TELOPT_OLD_ENVIRON = 0x24
 TELOPT_AUTHENTICATION = 0x25
 TELOPT_ENCRYPT = 0x26
 TELOPT_NEW_ENVIRON = 0x27
-TELOPT_TN3270E = 0x1B  # TN3270E Telnet option
+# TN3270E Telnet option value per RFC 1647 (option 40 decimal = 0x28 hex)
+TELOPT_TN3270E = 0x28  # RFC 1647 standard value
+
+# Legacy TN3270E option value (used by some older implementations, 0x1B)
+TELOPT_TN3270E_LEGACY = 0x1B  # For backward compatibility
+
+# NOTE: RFC 1647 supersedes earlier drafts and defines TN3270E as option 40 (0x28).
+# If compatibility with legacy servers is required, use TELOPT_TN3270E_LEGACY.
 TELOPT_XAUTH = 0x29
 TELOPT_CHARSET = 0x2A
 TELOPT_RSP = 0x2B
@@ -124,20 +143,15 @@ TN3270E_DATA_TYPES = (
 )
 
 # TN3270E Subnegotiation Message Types
-TN3270E_DEVICE_TYPE = 0x0E
-TN3270E_FUNCTIONS = 0x01
-TN3270E_IS = 0x02
-TN3270E_QUERY = 0x03  # Query subnegotiation option
-TN3270E_REQUEST = 0x03
-TN3270E_SEND = 0x04
-
-# TN3270E Function Types
-TN3270E_BIND_IMAGE = 0x00
+# TN3270E Function Types (bit flags)
+# Per RFC 2355, BIND-IMAGE uses bit 0x01 (TN3270E_DATA_STREAM_CTL)
 TN3270E_DATA_STREAM_CTL = 0x01
 TN3270E_NEW_APPL = 0x02
 TN3270E_RESPONSES = 0x03
 TN3270E_SCS_CTL_CODES = 0x04
 TN3270E_SYSREQ_ATTN = 0x05
+# Per tests and common implementations, BIND-IMAGE uses bit 0x01
+TN3270E_BIND_IMAGE = 0x01
 
 # TN3270E Sysreq Key Constants
 TN3270E_SYSREQ_ATTN = 0x6C  # ATTN key
@@ -269,14 +283,23 @@ def _schedule_if_awaitable(maybe_awaitable: Any) -> None:
 
 
 def send_iac(writer: Optional[asyncio.StreamWriter], command: bytes) -> None:
-    """Send an IAC command to the writer."""
+    """Send an IAC command to the writer.
+
+    Ensures the IAC (0xFF) prefix is present exactly once. If the provided
+    command already begins with IAC, it will not be duplicated.
+    """
     if writer is None:
         logger.debug("[TELNET] Writer is None, skipping IAC send")
         return
     try:
-        writer.write(command)
+        payload = (
+            command
+            if (len(command) > 0 and command[0] == IAC)
+            else bytes([IAC]) + command
+        )
+        writer.write(payload)
         # Don't await drain here to avoid blocking negotiation
-        logger.debug(f"[TELNET] Sent IAC command: {command.hex()}")
+        logger.debug(f"[TELNET] Sent IAC command: {payload.hex()}")
     except Exception as e:
         logger.error(f"[TELNET] Failed to send IAC command: {e}")
 

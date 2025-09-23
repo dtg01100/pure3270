@@ -31,13 +31,18 @@ def run(
     cmd: List[str], *, check: bool = True, capture: bool = False
 ) -> subprocess.CompletedProcess:
     """Run a command with consistent error handling."""
-    kwargs = {}
-    if capture:
-        kwargs["stdout"] = subprocess.PIPE
-        kwargs["stderr"] = subprocess.PIPE
-        kwargs["text"] = True
+    stdout = subprocess.PIPE if capture else None
+    stderr = subprocess.PIPE if capture else None
+    text = capture
     try:
-        return subprocess.run(cmd, cwd=REPO_ROOT, check=check, **kwargs)
+        return subprocess.run(
+            cmd,
+            cwd=str(REPO_ROOT),
+            check=check,
+            stdout=stdout,
+            stderr=stderr,
+            text=text,
+        )
     except subprocess.CalledProcessError as e:
         if capture and e.stdout:
             sys.stderr.write(e.stdout)
