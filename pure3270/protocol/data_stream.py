@@ -78,6 +78,18 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Public API exports
+__all__ = [
+    # Constants re-exported from utils
+    "TN3270_DATA",
+    "SNA_RESPONSE_DATA_TYPE",
+    # Main classes
+    "DataStreamParser",
+    "DataStreamSender",
+    "SnaResponse",
+    "BindImage",
+]
+
 
 # 3270 Data Stream Orders
 WCC = 0xF5
@@ -399,7 +411,8 @@ class DataStreamParser:
         try:
             parser = self._ensure_parser()
             address_bytes = parser.read_fixed(2)
-            return struct.unpack(">H", address_bytes)[0]
+            unpacked: tuple[int, ...] = struct.unpack(">H", address_bytes)
+            return unpacked[0]
         except ParseError:
             raise ParseError(f"Incomplete {operation} address at position {self._pos}")
 

@@ -178,7 +178,9 @@ class MonkeyPatchManager:
                             "p3270.P3270Client.connect", original_connect
                         )
 
-                        def patched_connect(self, hostname=None, port=23):
+                        def patched_connect(
+                            self: Any, hostname: Optional[str] = None, port: int = 23
+                        ) -> Any:
                             # Store hostname and port in global variables for the wrapper to use
                             global _global_hostname, _global_port
                             if hostname:

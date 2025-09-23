@@ -3,7 +3,7 @@ Wrapper class to make pure3270 compatible with p3270's S3270 interface.
 """
 
 import logging
-from typing import Any, List, Optional
+from typing import Any, Callable, List, Optional
 
 from ..utils.logging_utils import (
     log_command_error,
@@ -235,7 +235,7 @@ class Pure3270S3270Wrapper:
         return self._execute_session_action("delete field", "erase_eof")
 
     def _execute_parametrized_action(
-        self, cmd: str, action_name: str, method_name: str, param_parser
+        self, cmd: str, action_name: str, method_name: str, param_parser: Callable[[str], Any]
     ) -> bool:
         """
         Generic handler for parametrized session actions.
@@ -270,7 +270,7 @@ class Pure3270S3270Wrapper:
     def _handle_pf(self, cmd: str) -> bool:
         """Handle PF command."""
 
-        def parse_pf(cmd_str):
+        def parse_pf(cmd_str: str) -> int:
             return int(cmd_str[3:-1])  # Extract number from PF(n)
 
         return self._execute_parametrized_action(cmd, "PF", "pf", parse_pf)
@@ -278,7 +278,7 @@ class Pure3270S3270Wrapper:
     def _handle_pa(self, cmd: str) -> bool:
         """Handle PA command."""
 
-        def parse_pa(cmd_str):
+        def parse_pa(cmd_str: str) -> int:
             return int(cmd_str[3:-1])  # Extract number from PA(n)
 
         return self._execute_parametrized_action(cmd, "PA", "pa", parse_pa)
@@ -286,7 +286,7 @@ class Pure3270S3270Wrapper:
     def _handle_string(self, cmd: str) -> bool:
         """Handle String command."""
 
-        def parse_string(cmd_str):
+        def parse_string(cmd_str: str) -> str:
             return cmd_str[7:-1]  # Remove String( and )
 
         return self._execute_parametrized_action(cmd, "string", "compose", parse_string)
@@ -328,7 +328,7 @@ class Pure3270S3270Wrapper:
         return True
 
     def _execute_session_action(
-        self, action_name: str, method_name: str, *args, **kwargs
+        self, action_name: str, method_name: str, *args: Any, **kwargs: Any
     ) -> bool:
         """
         Generic handler for session actions that follow the common pattern:
@@ -355,40 +355,7 @@ class Pure3270S3270Wrapper:
             self._set_error_status()
             return False
 
-    def _execute_parametrized_action(
-        self, cmd: str, action_name: str, method_name: str, param_parser
-    ) -> bool:
-        """
-        Generic handler for parametrized session actions.
-
-        Args:
-            cmd: The full command string
-            action_name: Human readable name for logging
-            method_name: Method name to call on self._session
-            param_parser: Function to parse parameters from cmd string
-
-        Returns:
-            True if action succeeded, False otherwise
-        """
-        try:
-            params = param_parser(cmd)
-            log_command_handling(logger, action_name, str(params))
-
-            # Get the method from the session and call it
-            method = getattr(self._session, method_name)
-            if isinstance(params, (list, tuple)):
-                method(*params)
-            else:
-                method(params)
-
-            self._set_success_status()
-            return True
-        except Exception as e:
-            log_command_error(logger, action_name, cmd, e)
-            self._set_error_status()
-            return False
-
-    def _set_success_status(self, **overrides) -> None:
+    def _set_success_status(self, **overrides: Any) -> None:
         """Set a success status with optional field overrides."""
         self.statusMsg = self._create_status(**overrides)
 

@@ -9,7 +9,20 @@ import logging
 import os
 import re
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Callable, Dict, List, Optional, Tuple, Union
+from typing import (
+    Any,
+    AsyncIterator,
+    Callable,
+    Coroutine,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    TypeVar,
+)
+
+T = TypeVar("T")
 
 from pure3270.patching import enable_replacement
 from pure3270.protocol.utils import (
@@ -31,7 +44,7 @@ from .session_manager import SessionManager
 logger = logging.getLogger(__name__)
 
 
-def _require_connected_session(func: Callable) -> Callable:
+def _require_connected_session(func: Callable[..., Any]) -> Callable[..., Any]:
     """
     Decorator to ensure the session has a connected async session.
 
@@ -40,9 +53,11 @@ def _require_connected_session(func: Callable) -> Callable:
     """
 
     @functools.wraps(func)
-    def wrapper(self: "Session", *args, **kwargs):
+    def wrapper(self: "Session", *args: Any, **kwargs: Any) -> Any:
         if not self._async_session:
             raise SessionError("Session not connected.")
+        # At this point, mypy knows _async_session is not None
+        assert self._async_session is not None  # Type narrowing for mypy
         if not self._async_session.connected:
             self._run_async(self._async_session.connect())
         return func(self, *args, **kwargs)
@@ -106,16 +121,16 @@ class Session:
             max_workers=1, thread_name_prefix="pure3270-session"
         )
 
-    def _run_async(self, coro: Any) -> Any:
+    def _run_async(self, coro: Coroutine[Any, Any, T]) -> T:
         """Run an async coroutine, handling both sync and async contexts."""
         if not hasattr(coro, "__await__"):
-            return coro
+            return coro  # type: ignore
 
         try:
             asyncio.get_running_loop()
 
             # We're in a running loop, use the thread pool to avoid blocking
-            def run_in_executor():
+            def run_in_executor() -> T:
                 return asyncio.run(coro)
 
             future = self._thread_pool.submit(run_in_executor)
@@ -168,6 +183,7 @@ class Session:
         Raises:
             SessionError: If send fails.
         """
+        assert self._async_session is not None  # Ensured by decorator
         self._run_async(self._async_session.send(data))
 
     @_require_connected_session
@@ -184,6 +200,7 @@ class Session:
         Raises:
             SessionError: If read fails.
         """
+        assert self._async_session is not None  # Ensured by decorator
         return self._run_async(self._async_session.read(timeout))
 
     def get_aid(self) -> Optional[int]:
@@ -239,6 +256,7 @@ class Session:
         Returns:
             ASCII string representation.
         """
+        assert self._async_session is not None  # Ensured by decorator
         return self._async_session.ascii(data)
 
     @_require_connected_session
@@ -252,6 +270,7 @@ class Session:
         Returns:
             EBCDIC bytes representation.
         """
+        assert self._async_session is not None  # Ensured by decorator
         return self._async_session.ebcdic(text)
 
     @_require_connected_session
@@ -265,6 +284,7 @@ class Session:
         Returns:
             ASCII character.
         """
+        assert self._async_session is not None  # Ensured by decorator
         return self._async_session.ascii1(byte_val)
 
     def ebcdic1(self, char: str) -> int:
@@ -367,21 +387,25 @@ class Session:
     @_require_connected_session
     def key(self, keyname: str) -> None:
         """Send key synchronously (s3270 Key() action)."""
+        assert self._async_session is not None  # Ensured by decorator
         self._run_async(self._async_session.key(keyname))
 
     @_require_connected_session
     def query(self, query_type: str = "All") -> str:
         """Query screen synchronously (s3270 Query() action)."""
+        assert self._async_session is not None  # Ensured by decorator
         return self._run_async(self._async_session.query(query_type))
 
     @_require_connected_session
     def set_option(self, option: str, value: str) -> None:
         """Set option synchronously (s3270 Set() action)."""
+        assert self._async_session is not None  # Ensured by decorator
         self._run_async(self._async_session.set_option(option, value))
 
     @_require_connected_session
     def exit(self) -> None:
         """Exit synchronously (s3270 Exit() action)."""
+        assert self._async_session is not None  # Ensured by decorator
         self._run_async(self._async_session.exit())
 
     def keyboard_disable(self) -> None:
@@ -1004,19 +1028,6 @@ class AsyncSession:
     def managed(self) -> "AsyncSession":
         """Return a managed context that automatically closes the session on exit."""
         return self
-
-    async def __aenter__(self) -> "AsyncSession":
-        """Async context manager entry."""
-        return self
-
-    async def __aexit__(
-        self,
-        exc_type: Optional[type],
-        exc_val: Optional[Exception],
-        exc_tb: Optional[Any],
-    ) -> None:
-        """Async context manager exit - closes the session."""
-        await self.close()
 
     async def execute(self, command: str) -> str:
         """Execute external command (s3270 Execute() action)."""

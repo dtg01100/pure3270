@@ -132,7 +132,7 @@ def _call_maybe_schedule(func: Callable[..., Any], *args: Any, **kwargs: Any) ->
             task = loop.create_task(_wrap_and_await(result))
             try:
                 # Attach a callback to log exceptions so they aren't lost.
-                def _log_task_failure(t: asyncio.Task) -> None:
+                def _log_task_failure(t: "asyncio.Task[Any]") -> None:
                     exc = t.exception()
                     if exc is not None:
                         # Re-raise inside a local except block so logger.exception
@@ -390,7 +390,7 @@ class TN3270Handler:
         # Background tasks created by the handler (reader loops, scheduled
         # callbacks). We keep references so close() can cancel them and
         # avoid orphaned tasks that survive beyond the handler lifecycle.
-        self._bg_tasks: list[asyncio.Task] = []
+        self._bg_tasks: list["asyncio.Task[Any]"] = []
         # Buffer to hold any non-negotiation payload that arrives during
         # the negotiation reader loop so it can be delivered to the first
         # receive_data() call after connect.
@@ -772,9 +772,6 @@ class TN3270Handler:
                     if result is not None:
                         return result
                     continue
-
-            # Always return bytes, never None
-            return b""
 
         return await self._retry_operation(_read_and_process_until_payload)
 
