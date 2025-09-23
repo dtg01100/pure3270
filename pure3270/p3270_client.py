@@ -17,136 +17,218 @@ class InvalidConfiguration(Exception):
 
 
 class P3270Client:
+    def connect(self):
+        """
+        Establish connection to TN3270 host using pure3270.Session.
+        """
+        if self._connected:
+            return
+        from pure3270.session import Session
+        self._pure_session = Session()
+        if self.ssl:
+            import ssl
+            ssl_context = ssl.create_default_context()
+        else:
+            ssl_context = None
+        self._pure_session.connect(self.hostName, port=self.hostPort, ssl_context=ssl_context)
+        self._connected = True
+        # Optionally update screen size from session if available
+        screen_buffer = getattr(self._pure_session, "screen_buffer", None)
+        if screen_buffer is not None:
+            self._screen_rows = getattr(screen_buffer, "rows", 24)
+            self._screen_cols = getattr(screen_buffer, "cols", 80)
+
+    def disconnect(self):
+        """
+        Disconnect from TN3270 host and clean up session.
+        """
+        if self._pure_session:
+            self._pure_session.close()
+        self._connected = False
+        self._pure_session = None
+
+    def getScreen(self):
+        """
+        Return current screen content as ASCII text.
+        """
+        if not self._connected or not self._pure_session:
+            return ""
+        
+        # Force a read to update the screen buffer
+        try:
+            self._pure_session.read(timeout=1.0)
+        except Exception as e:
+            logger.debug(f"Read failed in getScreen: {e}")
+        
+        screen_buffer = getattr(self._pure_session, "screen_buffer", None)
+        if screen_buffer is not None and hasattr(screen_buffer, "ascii_buffer"):
+            screen_text = screen_buffer.ascii_buffer
+        elif screen_buffer is not None and hasattr(screen_buffer, "to_text"):
+            screen_text = screen_buffer.to_text()
+        else:
+            # Fallback: try to read and decode
+            screen_data = self._pure_session.read(timeout=1.0)
+            if isinstance(screen_data, bytes):
+                screen_text = self._pure_session.ascii(screen_data)
+            elif isinstance(screen_data, str):
+                screen_text = screen_data
+            else:
+                screen_text = str(screen_data)
+        self._last_screen = screen_text
+        return screen_text
     """
     Native P3270Client implementation that matches p3270.P3270Client API exactly.
     Uses pure3270.Session internally instead of spawning s3270 subprocess.
     """
 
+
     # Class variable to track instances (matches p3270 behavior)
     numOfInstances = 0
 
-    def __init__(
-        self,
-        luName=None,
-        hostName="localhost",
-        hostPort="23",
-        modelName="3279-2",
-        configFile=None,
-        verifyCert="yes",
-        enableTLS="no",
-        codePage="cp037",
-        path=None,
-        timeoutInSec=20,
-    ):
+    def __init__(self, hostName: str = None, hostPort: int = 23, ssl: bool = False, *args, **kwargs):
         """
-        Initialize P3270Client with exact same signature as p3270.P3270Client.
-
-        Args:
-            luName: Logical unit name (ignored in pure implementation)
-            hostName: Host to connect to (default: 'localhost')
-            hostPort: Port to connect to (default: '23')
-            modelName: Terminal model (default: '3279-2')
-            configFile: Configuration file path (ignored)
-            verifyCert: Verify SSL certificates (default: 'yes')
-            enableTLS: Enable TLS/SSL (default: 'no')
-            codePage: Character encoding (default: 'cp037')
-            path: s3270 binary path (ignored in pure implementation)
-            timeoutInSec: Connection timeout in seconds (default: 20)
+        Initialize P3270Client with hostName and hostPort, matching p3270 API.
         """
-        # Store all configuration parameters to match p3270 behavior
-        self.luName = luName
+        type(self).numOfInstances += 1
         self.hostName = hostName
-        self.hostPort = int(hostPort) if isinstance(hostPort, str) else hostPort
-        self.modelName = modelName
-        self.configFile = configFile
-        self.verifyCert = verifyCert
-        self.enableTLS = enableTLS
-        self.timeout = timeoutInSec
-        self.path = path
-
-        # Initialize internal state
-        self._connected = False
+        self.hostPort = hostPort
+        self.ssl = ssl
         self._pure_session = None
+        self._connected = False
         self._last_screen = ""
         self._cursor_row = 0
         self._cursor_col = 0
         self._screen_rows = 24
         self._screen_cols = 80
+        # Optionally accept other p3270-compatible args
+        self._init_args = args
+        self._init_kwargs = kwargs
+        # If hostName is provided, connect immediately (matches p3270 behavior)
+        if self.hostName:
+            self.connect()
 
-        # Create pure3270 session
-        from pure3270.session import Session
-
-        ssl_enabled = enableTLS.lower() in ("yes", "true", "1", "on")
-        self._pure_session = Session(
-            host=None,  # Will be set in connect()
-            port=self.hostPort,
-            ssl_context=None if not ssl_enabled else True,
-            force_mode="ascii",
-        )
-
-        # Mark as valid configuration (matches p3270 behavior)
-        self._isValid = True
-
-        # Increment instance counter
-        P3270Client.numOfInstances += 1
-        logger.debug(f"Created P3270Client instance #{P3270Client.numOfInstances}")
-
-    def makeArgs(self) -> List[str]:
+    def _sendCommand(self, command: str) -> Any:
         """
-        Generate s3270 command line arguments (for compatibility).
-        Returns empty list since we don't use s3270 binary.
+        Send a command to the session and handle response, matching p3270 behavior.
+        After commands that expect a screen update, immediately read and update the buffer.
         """
-        return []
-
-    def connect(self) -> None:
-        """Connect to the configured host."""
-        if not self._pure_session:
-            raise InvalidConfiguration("Session not properly initialized")
-
         try:
-            # Use stored configuration
-            ssl_enabled = self.enableTLS.lower() in ("yes", "true", "1", "on")
-            ssl_context = ssl_enabled  # Session.connect accepts boolean for ssl_context
+            # ...existing code...
+            update_screen = False
+            if command in [
+                "Enter",
+                "Clear",
+                "Home",
+                "Tab",
+                "BackTab",
+                "BackSpace",
+                "Up",
+                "Down",
+                "Left",
+                "Right",
+            ]:
+                self._pure_session.send(f"key {command}".encode("ascii"))
+                update_screen = True
+            elif command.startswith("PF("):
+                pf_num = command[3:-1]
+                self._pure_session.send(f"key PF{pf_num}".encode("ascii"))
+                update_screen = True
+            elif command.startswith("PA("):
+                pa_num = command[3:-1]
+                self._pure_session.send(f"key PA{pa_num}".encode("ascii"))
+                update_screen = True
+            elif command.startswith("String("):
+                text = command[7:-1]
+                self._pure_session.send(f"String({text})".encode("ascii"))
+                update_screen = True
+            elif command.startswith("MoveCursor("):
+                coords = command[11:-1]
+                row, col = coords.split(",")
+                self._pure_session.send(f"MoveCursor {row} {col}".encode("ascii"))
+                update_screen = True
+            elif command.startswith("Connect("):
+                param = command[8:-1]
+                host = param
+                if param.startswith("B:"):
+                    host = param[2:]
+                elif param.startswith("L:") and "@" in param:
+                    host = param.split("@", 1)[1]
+                if ":" in host:
+                    host_parts = host.split(":", 1)
+                    self.hostName = host_parts[0]
+                    self.hostPort = int(host_parts[1])
+                else:
+                    self.hostName = host
+                self.connect()
+                update_screen = True
+            elif command == "Disconnect":
+                self.disconnect()
+            elif command == "Quit":
+                self.disconnect()
+            elif command.startswith("Ascii("):
+                params = command[6:-1]
+                if params:
+                    param_list = [int(x.strip()) for x in params.split(",")]
+                    if len(param_list) == 3:
+                        row, col, length = param_list
+                        return self.readTextAtPosition(row, col, length)
+                    elif len(param_list) == 4:
+                        row, col, rows, cols = param_list
+                        return self.readTextArea(row, col, row + rows - 1, col + cols - 1)
+                else:
+                    return self.getScreen()
+            elif command.startswith("Wait("):
+                params = command[5:-1]
+                try:
+                    if "," in params:
+                        timeout_str = params.split(",")[0]
+                        timeout = float(timeout_str)
+                    else:
+                        timeout = float(params)
+                    time.sleep(min(timeout, 10.0))
+                except ValueError:
+                    time.sleep(1.0)
+            elif command.startswith("PrintText("):
+                params = command[10:-1]
+                return self.getScreen()
+            elif command == "NoOpCommand":
+                pass
+            else:
+                self._pure_session.send(command.encode("ascii"))
 
-            # Note: Session.connect doesn't take timeout parameter directly
-            self._pure_session.connect(
-                host=self.hostName, port=self.hostPort, ssl_context=ssl_context
-            )
-            self._connected = True
-            self._last_screen = self.getScreen()
-            logger.info(f"Connected to {self.hostName}:{self.hostPort}")
+            if update_screen:
+                # Immediately read and update the buffer after screen-changing commands
+                try:
+                    self._pure_session.read(timeout=1.0)
+                except Exception as e:
+                    logger.debug(f"Screen update after command '{command}' failed: {e}")
+
+            logger.debug(f"Sent command: {command}")
+
         except Exception as e:
-            logger.error(f"Connection failed: {e}")
-            raise
-
-    def disconnect(self) -> None:
-        """Disconnect from host."""
-        if self._pure_session:
-            self._pure_session.close()
-        self._connected = False
-        logger.info("Disconnected from host")
-
-    def endSession(self) -> None:
-        """End the session (alias for disconnect)."""
-        self.disconnect()
-
-    def isConnected(self) -> bool:
-        """Return True if connected to host."""
-        return self._connected
-
-    def getScreen(self) -> str:
-        """Get the current screen content as text."""
+            logger.error(f"Error sending command '{command}': {e}")
+        """Get the current screen content as text (always ASCII/Unicode)."""
         if not self._connected or not self._pure_session:
             return ""
 
         try:
-            # Read current screen buffer
-            screen_data = self._pure_session.read(timeout=1.0)
-            if isinstance(screen_data, bytes):
-                # Convert bytes to string
-                screen_text = self._pure_session.ascii(screen_data)
+            # Use the decoded buffer directly
+            screen_buffer = getattr(self._pure_session, "screen_buffer", None)
+            if screen_buffer is not None and hasattr(screen_buffer, "ascii_buffer"):
+                screen_text = screen_buffer.ascii_buffer
             else:
-                screen_text = str(screen_data)
+                # Fallback: use to_text() if available
+                if screen_buffer is not None and hasattr(screen_buffer, "to_text"):
+                    screen_text = screen_buffer.to_text()
+                else:
+                    # Fallback: try to read and decode
+                    screen_data = self._pure_session.read(timeout=1.0)
+                    if isinstance(screen_data, bytes):
+                        screen_text = self._pure_session.ascii(screen_data)
+                    elif isinstance(screen_data, str):
+                        screen_text = screen_data
+                    else:
+                        screen_text = str(screen_data)
 
             self._last_screen = screen_text
             return screen_text

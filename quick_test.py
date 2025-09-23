@@ -209,6 +209,18 @@ async def main():
         ("Mock Connectivity", test_mock_connectivity),
     ]
 
+    # Add inline ASCII mode detection smoke test
+    def ascii_mode_smoke():
+        from pure3270.protocol.tn3270_handler import TN3270Handler
+        from pure3270.emulation.screen_buffer import ScreenBuffer
+        handler = TN3270Handler(None, None, ScreenBuffer())
+        sample = b"\x1b[2J\x1b[HWELCOME"  # VT100 clear + home + text
+        result = handler._process_telnet_stream(sample)
+        cleaned_data, ascii_flag = result  # _AwaitableResult iterable
+        return bool(ascii_flag)
+
+    tests.append(("ASCII Mode Detection", ascii_mode_smoke))
+
     results = []
     for test_name, test_func in tests:
         print(f"Testing {test_name}...")

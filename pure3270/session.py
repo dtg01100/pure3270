@@ -96,47 +96,45 @@ class Session:
         enable_trace: bool = False,
     ):
         """
-        Initialize a synchronous session.
-
-        Args:
-            host: The target host IP or hostname (can be set later in connect()).
-            port: The target port (default 23 for Telnet).
-            ssl_context: Optional SSL context for secure connections.
-
-        Raises:
-            ConnectionError: If connection initialization fails.
+        Initialize a synchronous session with a dedicated thread and event loop.
         """
         self._host = host
         self._port = port
         self._ssl_context = ssl_context
-        # Async session created on first connect
-        self._async_session = None  # type: Optional["AsyncSession"]
+        self._async_session = None
         self._force_mode = force_mode
         self._allow_fallback = allow_fallback
         self._enable_trace = enable_trace
         self._recorder = None
-        # Shared thread pool for efficient async execution
-        self._thread_pool = concurrent.futures.ThreadPoolExecutor(
-            max_workers=1, thread_name_prefix="pure3270-session"
-        )
+        self._loop = None
+        self._thread = None
+        self._shutdown_event = None
+
+    def _ensure_loop(self):
+        if self._loop is not None and self._thread.is_alive():
+            return
+        import threading
+        import queue
+        self._shutdown_event = threading.Event()
+        ready = queue.Queue()
+        def loop_runner():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            self._loop = loop
+            ready.put(True)
+            loop.run_forever()
+            loop.close()
+        self._thread = threading.Thread(target=loop_runner, name="pure3270-session-loop", daemon=True)
+        self._thread.start()
+        ready.get()  # Wait until loop is ready
 
     def _run_async(self, coro: Coroutine[Any, Any, T]) -> T:
-        """Run an async coroutine, handling both sync and async contexts."""
-        if not hasattr(coro, "__await__"):
-            return coro  # type: ignore
+        """Run an async coroutine in the dedicated session thread/loop."""
+        self._ensure_loop()
+        fut = asyncio.run_coroutine_threadsafe(coro, self._loop)
+        return fut.result()
 
-        try:
-            asyncio.get_running_loop()
-
-            # We're in a running loop, use the thread pool to avoid blocking
-            def run_in_executor() -> T:
-                return asyncio.run(coro)
-
-            future = self._thread_pool.submit(run_in_executor)
-            return future.result()
-        except RuntimeError:
-            # No running loop, use asyncio.run
-            return asyncio.run(coro)
+    # (Removed obsolete _run_async; only dedicated thread/loop version remains)
 
     def connect(
         self,
@@ -209,13 +207,19 @@ class Session:
         return self._async_session.get_aid()
 
     def close(self) -> None:
-        """Close the session synchronously."""
+        """Close the session synchronously and shut down the event loop/thread."""
         if self._async_session:
             self._run_async(self._async_session.close())
             self._async_session = None
-        # Shut down the thread pool to prevent resource leaks
-        if hasattr(self, "_thread_pool"):
-            self._thread_pool.shutdown(wait=True)
+        # Shut down the event loop and thread
+        if self._loop is not None:
+            def stop_loop():
+                self._loop.stop()
+            asyncio.run_coroutine_threadsafe(self._loop.shutdown_asyncgens(), self._loop).result()
+            self._loop.call_soon_threadsafe(stop_loop)
+            self._thread.join(timeout=2)
+            self._loop = None
+            self._thread = None
 
     def __enter__(self) -> "Session":
         """Enter the context manager."""

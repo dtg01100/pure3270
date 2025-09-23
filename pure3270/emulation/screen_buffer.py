@@ -144,6 +144,20 @@ logger = logging.getLogger(__name__)
 
 
 class ScreenBuffer(BufferWriter):
+    @property
+    def ascii_buffer(self) -> str:
+        """Return the entire screen buffer as a decoded ASCII/Unicode string."""
+        lines = []
+        for row in range(self.rows):
+            line_bytes = bytes(self.buffer[row * self.cols : (row + 1) * self.cols])
+            if self._ascii_mode:
+                # In ASCII mode, buffer contains ASCII bytes directly
+                line_text = line_bytes.decode('ascii', errors='replace')
+            else:
+                # In 3270 mode, buffer contains EBCDIC bytes that need conversion
+                line_text, _ = EBCDICCodec().decode(line_bytes)
+            lines.append(line_text)
+        return "\n".join(lines)
     """Manages the 3270 screen buffer, including characters, attributes, and fields."""
 
     def __init__(self, rows: int = 24, cols: int = 80, init_value: int = 0x40):
@@ -162,6 +176,7 @@ class ScreenBuffer(BufferWriter):
         self.rows = rows
         self.cols = cols
         self.size = rows * cols
+        self._ascii_mode = False  # Track whether we're in ASCII or EBCDIC mode
         # EBCDIC character buffer - initialize to spaces
         self.buffer = bytearray([init_value] * self.size)
         # Attributes buffer: 3 bytes per position (protection, foreground, background/highlight)
@@ -180,12 +195,32 @@ class ScreenBuffer(BufferWriter):
 
     def clear(self) -> None:
         """Clear the screen buffer and reset fields."""
-        self.buffer = bytearray(b"\x40" * self.size)
+        init_value = 0x20 if self._ascii_mode else 0x40  # ASCII space vs EBCDIC space
+        self.buffer = bytearray([init_value] * self.size)
         self.attributes = bytearray([0] * len(self.attributes))
         self._extended_attributes.clear()
         self.fields = []
         self._detect_fields()
         self.set_position(0, 0)
+
+    def set_ascii_mode(self, ascii_mode: bool = True) -> None:
+        """
+        Set ASCII mode for the screen buffer.
+        
+        Args:
+            ascii_mode: True for ASCII mode, False for EBCDIC mode
+        """
+        logger.debug(f"ScreenBuffer setting ASCII mode: {ascii_mode}")
+        self._ascii_mode = ascii_mode
+        if ascii_mode:
+            # Convert existing EBCDIC spaces to ASCII spaces
+            for i in range(len(self.buffer)):
+                if self.buffer[i] == 0x40:  # EBCDIC space
+                    self.buffer[i] = 0x20  # ASCII space
+
+    def is_ascii_mode(self) -> bool:
+        """Return True if screen buffer is in ASCII mode."""
+        return self._ascii_mode
 
     def set_position(self, row: int, col: int, wrap: bool = False) -> None:
         """Set cursor position with clamping to valid range."""

@@ -276,34 +276,45 @@ class VT100Parser:
                 self.current_row < self.screen_buffer.rows
                 and self.current_col < self.screen_buffer.cols
             ):
-                # Convert ASCII to EBCDIC for storage in screen buffer
-                try:
-                    # Try to use the existing EBCDIC translation utilities
-                    from ..emulation.ebcdic import translate_ascii_to_ebcdic
+                # In ASCII mode, store ASCII characters directly without EBCDIC conversion
+                if getattr(self.screen_buffer, '_ascii_mode', False):
+                    # ASCII mode: store ASCII bytes directly
+                    ascii_byte = ord(char) if isinstance(char, str) else char
+                    pos = (
+                        self.current_row * self.screen_buffer.cols
+                        + self.current_col
+                    )
+                    if pos < len(self.screen_buffer.buffer):
+                        self.screen_buffer.buffer[pos] = ascii_byte
+                else:
+                    # EBCDIC mode: convert ASCII to EBCDIC for storage in screen buffer
+                    try:
+                        # Try to use the existing EBCDIC translation utilities
+                        from ..emulation.ebcdic import translate_ascii_to_ebcdic
 
-                    ebcdic_bytes = translate_ascii_to_ebcdic(char)
-                    if ebcdic_bytes:
-                        ebcdic_byte = ebcdic_bytes[0]
-                        pos = (
-                            self.current_row * self.screen_buffer.cols
-                            + self.current_col
-                        )
-                        if pos < len(self.screen_buffer.buffer):
-                            self.screen_buffer.buffer[pos] = ebcdic_byte
-                    else:
-                        # Fallback to space if conversion fails
-                        pos = (
-                            self.current_row * self.screen_buffer.cols
-                            + self.current_col
-                        )
+                        ebcdic_bytes = translate_ascii_to_ebcdic(char)
+                        if ebcdic_bytes:
+                            ebcdic_byte = ebcdic_bytes[0]
+                            pos = (
+                                self.current_row * self.screen_buffer.cols
+                                + self.current_col
+                            )
+                            if pos < len(self.screen_buffer.buffer):
+                                self.screen_buffer.buffer[pos] = ebcdic_byte
+                        else:
+                            # Fallback to space if conversion fails
+                            pos = (
+                                self.current_row * self.screen_buffer.cols
+                                + self.current_col
+                            )
+                            if pos < len(self.screen_buffer.buffer):
+                                self.screen_buffer.buffer[pos] = 0x40  # Space in EBCDIC
+                    except Exception as e:
+                        logger.debug(f"Error converting character '{char}' to EBCDIC: {e}")
+                        # Store as space if conversion fails
+                        pos = self.current_row * self.screen_buffer.cols + self.current_col
                         if pos < len(self.screen_buffer.buffer):
                             self.screen_buffer.buffer[pos] = 0x40  # Space in EBCDIC
-                except Exception as e:
-                    logger.debug(f"Error converting character '{char}' to EBCDIC: {e}")
-                    # Store as space if conversion fails
-                    pos = self.current_row * self.screen_buffer.cols + self.current_col
-                    if pos < len(self.screen_buffer.buffer):
-                        self.screen_buffer.buffer[pos] = 0x40  # Space in EBCDIC
 
             # Move cursor
             self.current_col += 1
@@ -344,16 +355,19 @@ class VT100Parser:
                 1: Clear from beginning of screen to cursor
                 2: Clear entire screen
         """
+        # Use appropriate space character based on screen buffer mode
+        space_char = 0x20 if getattr(self.screen_buffer, '_ascii_mode', False) else 0x40
+        
         if param == 0:
             # Clear from cursor to end of screen
             start_pos = self.current_row * self.screen_buffer.cols + self.current_col
             for i in range(start_pos, len(self.screen_buffer.buffer)):
-                self.screen_buffer.buffer[i] = 0x40  # Space
+                self.screen_buffer.buffer[i] = space_char
         elif param == 1:
             # Clear from beginning of screen to cursor
             end_pos = self.current_row * self.screen_buffer.cols + self.current_col
             for i in range(0, end_pos + 1):
-                self.screen_buffer.buffer[i] = 0x40  # Space
+                self.screen_buffer.buffer[i] = space_char
         elif param == 2:
             # Clear entire screen
             self.screen_buffer.clear()
@@ -368,6 +382,9 @@ class VT100Parser:
                 1: Clear from beginning of line to cursor
                 2: Clear entire line
         """
+        # Use appropriate space character based on screen buffer mode
+        space_char = 0x20 if getattr(self.screen_buffer, '_ascii_mode', False) else 0x40
+        
         if param == 0:
             # Clear from cursor to end of line
             start_pos = self.current_row * self.screen_buffer.cols + self.current_col
@@ -375,13 +392,13 @@ class VT100Parser:
                 self.current_row * self.screen_buffer.cols + self.screen_buffer.cols
             )
             for i in range(start_pos, min(end_pos, len(self.screen_buffer.buffer))):
-                self.screen_buffer.buffer[i] = 0x40  # Space
+                self.screen_buffer.buffer[i] = space_char
         elif param == 1:
             # Clear from beginning of line to cursor
             start_pos = self.current_row * self.screen_buffer.cols
             end_pos = self.current_row * self.screen_buffer.cols + self.current_col
             for i in range(start_pos, min(end_pos + 1, len(self.screen_buffer.buffer))):
-                self.screen_buffer.buffer[i] = 0x40  # Space
+                self.screen_buffer.buffer[i] = space_char
         elif param == 2:
             # Clear entire line
             start_pos = self.current_row * self.screen_buffer.cols
@@ -389,7 +406,7 @@ class VT100Parser:
                 self.current_row * self.screen_buffer.cols + self.screen_buffer.cols
             )
             for i in range(start_pos, min(end_pos, len(self.screen_buffer.buffer))):
-                self.screen_buffer.buffer[i] = 0x40  # Space
+                self.screen_buffer.buffer[i] = space_char
 
     def _index(self) -> None:
         """Index (IND) - Move cursor down one line, scrolling if needed."""

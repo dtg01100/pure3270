@@ -49,6 +49,8 @@ from .utils import (
     TELOPT_BINARY,
     TELOPT_ECHO,
     TELOPT_EOR,
+    TELOPT_NAWS,
+    TELOPT_NEW_ENVIRON,
     TELOPT_SGA,
     TELOPT_TERMINAL_LOCATION,
     TELOPT_TN3270E,
@@ -559,11 +561,11 @@ class Negotiator:
                             "TN3270E negotiation timed out and fallback disabled"
                         )
                     logger.warning(
-                        "[NEGOTIATION] TN3270E negotiation timed out, falling back to ASCII mode"
+                        "[NEGOTIATION] TN3270E negotiation timed out, falling back to basic TN3270 mode"
                     )
-                    self.set_ascii_mode()
+                    # Don't set ASCII mode - continue with basic TN3270
                     self.negotiated_tn3270e = False
-                    self._record_decision(self.force_mode or "auto", "ascii", True)
+                    self._record_decision(self.force_mode or "auto", "tn3270", True)
                     # Set events to unblock any waiting negotiation
                     for ev in (
                         self._get_or_create_device_type_event(),
@@ -830,14 +832,14 @@ class Negotiator:
                 "[TELNET] Server refuses TN3270E - will fall back to TN3270 or ASCII"
             )
             self._server_supports_tn3270e = False
-            # If not forcing TN3270E and fallback is allowed, fall back to ASCII mode
+            # If not forcing TN3270E and fallback is allowed, fall back to basic TN3270 mode
             if self.force_mode != "tn3270e" and self.allow_fallback:
                 logger.info(
-                    "[TELNET] Server refused TN3270E, falling back to ASCII mode"
+                    "[TELNET] Server refused TN3270E, falling back to basic TN3270 mode"
                 )
-                self.set_ascii_mode()
+                # Don't set ASCII mode - continue with basic TN3270
                 self.negotiated_tn3270e = False
-                self._record_decision(self.force_mode or "auto", "ascii", True)
+                self._record_decision(self.force_mode or "auto", "tn3270", True)
                 # Set events to unblock any waiting negotiation
                 self._get_or_create_device_type_event().set()
                 self._get_or_create_functions_event().set()
@@ -848,6 +850,8 @@ class Negotiator:
         from .utils import (
             TELOPT_BINARY,
             TELOPT_EOR,
+            TELOPT_NAWS,
+            TELOPT_NEW_ENVIRON,
             TELOPT_TN3270E,
             TELOPT_TTYPE,
             WILL,
@@ -862,6 +866,19 @@ class Negotiator:
             logger.info("[TELNET] Server DO EOR - accepting")
             if self.writer:
                 send_iac(self.writer, bytes([WILL, TELOPT_EOR]))
+        elif option == TELOPT_NAWS:
+            logger.info("[TELNET] Server DO NAWS - accepting")
+            if self.writer:
+                send_iac(self.writer, bytes([WILL, TELOPT_NAWS]))
+                # Send window size subnegotiation (80x24 is standard 3270)
+                await self._send_naws_subnegotiation(80, 24)
+        elif option == TELOPT_NEW_ENVIRON:
+            # Some servers (like pub400.com) incorrectly use NEW_ENVIRON for window size
+            logger.info("[TELNET] Server DO NEW_ENVIRON - treating as NAWS for compatibility")
+            if self.writer:
+                send_iac(self.writer, bytes([WILL, TELOPT_NEW_ENVIRON]))
+                # Send window size using NEW_ENVIRON option number for compatibility
+                await self._send_naws_subnegotiation_with_option(TELOPT_NEW_ENVIRON, 80, 24)
         elif option == TELOPT_TTYPE:
             logger.info("[TELNET] Server DO TTYPE - accepting")
             if self.writer:
@@ -960,6 +977,12 @@ class Negotiator:
         if option == TELOPT_TTYPE:
             # Terminal type subnegotiation
             await self._handle_terminal_type_subnegotiation(sub_payload)
+        elif option == TELOPT_NAWS:
+            # Window size subnegotiation - just log it, we don't need to respond
+            logger.info(f"[NAWS] Server sent window size subnegotiation: {sub_payload.hex()}")
+        elif option == TELOPT_NEW_ENVIRON:
+            # Some servers use NEW_ENVIRON for window size - treat like NAWS
+            logger.info(f"[NEW_ENVIRON] Server sent subnegotiation (treating as NAWS): {sub_payload.hex()}")
         elif option == TELOPT_TN3270E:
             # This should have been handled by the specialized method, but handle it here as fallback
             await self._parse_tn3270e_subnegotiation(bytes([option]) + sub_payload)
@@ -1206,6 +1229,62 @@ class Negotiator:
                 f"[TN3270E] Invalid functions subnegotiation format: {data.hex()}"
             )
 
+    async def _send_naws_subnegotiation(self, width: int, height: int) -> None:
+        """
+        Send NAWS (Negotiate About Window Size) subnegotiation with window dimensions.
+
+        Args:
+            width: Terminal width in columns.
+            height: Terminal height in rows.
+        """
+        logger.info(f"[NAWS] Sending window size: {width}x{height}")
+        
+        if self.writer:
+            from .utils import IAC, SB, SE, TELOPT_NAWS
+            
+            # NAWS format: IAC SB NAWS width1 width2 height1 height2 IAC SE
+            # Width and height are sent as 2-byte big-endian values
+            width_bytes = width.to_bytes(2, byteorder='big')
+            height_bytes = height.to_bytes(2, byteorder='big')
+            
+            naws_data = (
+                bytes([IAC, SB, TELOPT_NAWS]) +
+                width_bytes + height_bytes +
+                bytes([IAC, SE])
+            )
+            
+            self.writer.write(naws_data)
+            await self.writer.drain()
+            logger.debug(f"[NAWS] Sent subnegotiation: {naws_data.hex()}")
+
+    async def _send_naws_subnegotiation_with_option(self, option: int, width: int, height: int) -> None:
+        """
+        Send NAWS-style subnegotiation using the specified option number.
+
+        Args:
+            option: Telnet option number to use.
+            width: Terminal width in columns.
+            height: Terminal height in rows.
+        """
+        logger.info(f"[NAWS] Sending window size via option {option}: {width}x{height}")
+        
+        if self.writer:
+            from .utils import IAC, SB, SE
+            
+            # NAWS format: IAC SB OPTION width1 width2 height1 height2 IAC SE
+            width_bytes = width.to_bytes(2, byteorder='big')
+            height_bytes = height.to_bytes(2, byteorder='big')
+            
+            naws_data = (
+                bytes([IAC, SB, option]) +
+                width_bytes + height_bytes +
+                bytes([IAC, SE])
+            )
+            
+            self.writer.write(naws_data)
+            await self.writer.drain()
+            logger.debug(f"[NAWS] Sent subnegotiation with option {option}: {naws_data.hex()}")
+
     async def _handle_terminal_type_subnegotiation(self, payload: bytes) -> None:
         """
         Handle terminal type subnegotiation.
@@ -1215,25 +1294,27 @@ class Negotiator:
         """
         logger.info(f"[TTYPE] Handling terminal type subnegotiation: {payload.hex()}")
 
-        if len(payload) >= 2:
+        if len(payload) >= 1:
             command = payload[0]
-            if command == TN3270E_IS:
-                # Server is sending terminal type
+            if command == TN3270E_IS and len(payload) > 1:
+                # Server is announcing its terminal type (rare – typically client sends IS)
                 term_type = payload[1:].decode("ascii", errors="ignore").rstrip("\x00")
                 logger.info(f"[TTYPE] Server terminal type: {term_type}")
             elif command == TN3270E_SEND:
-                # Server requests our terminal type
+                # Server requests our terminal type per RFC 1091 (SEND=0x01, IS=0x00)
+                terminal_type = b"IBM-3278-2"  # Base model; can be made configurable later
                 logger.info(
-                    "[TTYPE] Server requested terminal type, sending IBM-3278-2"
+                    f"[TTYPE] Server requested terminal type, replying with {terminal_type.decode()}"
                 )
                 if self.writer:
                     from .utils import send_subnegotiation
 
-                    response = b"\x00IBM-3278-2\x00"
+                    # Proper format: IAC SB TTYPE IS <terminal-string> IAC SE
+                    # Do NOT prepend an extra NUL before the terminal string (previous implementation bug)
                     send_subnegotiation(
                         self.writer,
                         bytes([TELOPT_TTYPE]),
-                        bytes([TN3270E_IS]) + response,
+                        bytes([TN3270E_IS]) + terminal_type,
                     )
                     await self.writer.drain()
         else:

@@ -235,17 +235,43 @@ class TN3270Handler:
                         i += 2
                         continue
                     elif cmd in (DO, DONT, WILL, WONT):
-                        # Option negotiation: skip option byte
+                        # Option negotiation: process through negotiator
+                        if i + 2 < length:
+                            option = data[i + 2]
+                            # Process the IAC command through the negotiator
+                            try:
+                                import asyncio
+                                # Create a task to handle the IAC command asynchronously
+                                if hasattr(self, 'negotiator') and self.negotiator:
+                                    asyncio.create_task(self.negotiator.handle_iac_command(cmd, option))
+                            except Exception as e:
+                                logger.warning(f"[TELNET] Error processing IAC command {cmd:02x} {option:02x}: {e}")
                         i += 3
                         continue
                     elif cmd == SB:
-                        # Subnegotiation: skip until IAC SE
-                        i += 2
-                        while i < length:
-                            if data[i] == IAC and i + 1 < length and data[i + 1] == SE:
-                                i += 2
-                                break
-                            i += 1
+                        # Subnegotiation: extract and process through negotiator
+                        start_i = i + 2
+                        sub_start = start_i
+                        if start_i < length:
+                            option = data[start_i]
+                            i = start_i + 1
+                            # Find the end of subnegotiation (IAC SE)
+                            while i < length:
+                                if data[i] == IAC and i + 1 < length and data[i + 1] == SE:
+                                    # Extract subnegotiation payload (excluding option byte)
+                                    sub_payload = data[sub_start + 1:i]
+                                    # Process through negotiator
+                                    try:
+                                        import asyncio
+                                        if hasattr(self, 'negotiator') and self.negotiator:
+                                            asyncio.create_task(self.negotiator.handle_subnegotiation(option, sub_payload))
+                                    except Exception as e:
+                                        logger.warning(f"[TELNET] Error processing subnegotiation {option:02x}: {e}")
+                                    i += 2
+                                    break
+                                i += 1
+                        else:
+                            i += 2
                         continue
                     else:
                         # Unknown IAC command, skip
@@ -631,9 +657,14 @@ class TN3270Handler:
         """
         Set the handler to ASCII mode fallback.
 
-        Disables EBCDIC processing.
+        Disables EBCDIC processing and sets screen buffer to ASCII mode.
         """
+        logger.debug("TN3270Handler setting ASCII mode")
         self.negotiator.set_ascii_mode()
+        # Also set screen buffer to ASCII mode
+        if hasattr(self.screen_buffer, 'set_ascii_mode'):
+            self.screen_buffer.set_ascii_mode(True)
+            logger.debug("Screen buffer set to ASCII mode")
 
     def _require_streams(self) -> Tuple[asyncio.StreamReader, asyncio.StreamWriter]:
         """Internal helper to assert reader/writer presence and return narrowed types."""
@@ -747,6 +778,8 @@ class TN3270Handler:
                         setattr(self.negotiator, "_ascii_mode", True)
                     except Exception:
                         pass
+                    # Ensure handler-level ascii mode; prevents 3270 parser usage further down
+                    self._ascii_mode = True
 
                 try:
                     ascii_mode = (
@@ -786,6 +819,11 @@ class TN3270Handler:
 
         if b"\x1b" in processed_data or b"\\x1b" in processed_data:
             try:
+                # Ensure screen buffer is in ASCII mode before VT100 parsing
+                if hasattr(self.screen_buffer, 'set_ascii_mode') and not getattr(self.screen_buffer, '_ascii_mode', False):
+                    self.screen_buffer.set_ascii_mode(True)
+                    logger.debug("Screen buffer set to ASCII mode for VT100 parsing")
+                    
                 if VT100Parser is None:
                     from .vt100_parser import VT100Parser as _RealVT100Parser
 
@@ -1304,6 +1342,42 @@ class TN3270Handler:
     def connected(self, value: bool) -> None:
         """Set connected state for testing."""
         self._connected = value
+
+    def _strip_ansi_sequences(self, data: bytes) -> bytes:
+        """
+        Strip ANSI/VT100 escape sequences from data while preserving text content.
+        
+        This handles hybrid hosts like pub400.com that send ANSI positioning codes
+        mixed with regular text content.
+        
+        Args:
+            data: Bytes potentially containing ANSI sequences.
+            
+        Returns:
+            Data with ANSI sequences stripped.
+        """
+        if not data:
+            return data
+            
+        # Convert to string for regex processing
+        try:
+            text = data.decode('ascii', errors='ignore')
+        except:
+            return data
+            
+        # Strip ANSI escape sequences using regex
+        import re
+        # Match ESC[ followed by any number of digits, semicolons, and letters
+        ansi_escape = re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
+        # Also strip other common escape sequences  
+        other_escapes = re.compile(r'\x1b[()#78cDM]')
+        
+        # Remove ANSI sequences
+        text = ansi_escape.sub('', text)
+        text = other_escapes.sub('', text)
+        
+        # Convert back to bytes
+        return text.encode('ascii', errors='ignore')
 
     def _detect_vt100_sequences(self, data: bytes) -> bool:
         """
