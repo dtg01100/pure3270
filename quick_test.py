@@ -57,33 +57,23 @@ def test_imports_and_basic_creation():
         return False
 
 
-def test_p3270_patching():
-    """Test that p3270 patching works."""
+def test_native_p3270_client():
+    """Test that native P3270Client works."""
     try:
-        import pure3270
+        from pure3270 import P3270Client
 
-        pure3270.enable_replacement()
-        import p3270
+        # Create native client
+        client = P3270Client()
 
-        # Create client
-        client = p3270.P3270Client()
-
-        # Check that it's using our wrapper
-        if "pure3270" in str(type(client.s3270)):
-            print("✓ p3270 patching works")
+        # Check basic functionality
+        if hasattr(client, 'connect') and hasattr(client, 'send') and hasattr(client, 'read'):
+            print("✓ Native P3270Client works")
             return True
         else:
-            print("✗ p3270 patching failed")
-            return False
-    except ImportError as e:
-        if "p3270" in str(e):
-            print("⚠ p3270 not installed, skipping patching test")
-            return True  # Consider this a pass since p3270 is optional
-        else:
-            print(f"✗ p3270 patching test failed: {e}")
+            print("✗ Native P3270Client missing expected methods")
             return False
     except Exception as e:
-        print(f"✗ p3270 patching test failed: {e}")
+        print(f"✗ Native P3270Client test failed: {e}")
         return False
 
 
@@ -214,7 +204,7 @@ async def main():
     # Run tests
     tests = [
         ("Imports and Basic Creation", test_imports_and_basic_creation),
-        ("p3270 Patching", test_p3270_patching),
+        ("Native P3270Client", test_native_p3270_client),
         ("Navigation Methods", test_navigation_methods),
         ("Mock Connectivity", test_mock_connectivity),
     ]
