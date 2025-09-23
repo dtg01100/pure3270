@@ -24,7 +24,6 @@ from typing import (
 
 T = TypeVar("T")
 
-from pure3270.patching import enable_replacement
 from pure3270.protocol.utils import (
     TN3270E_SYSREQ_ATTN,
     TN3270E_SYSREQ_BREAK,
@@ -731,13 +730,6 @@ class AsyncSession:
             # Add more as needed
         }
         self.aid_bytes = set(self.aid_map.values())
-        self._patching_enabled = False
-        try:
-            enable_replacement()
-            self._patching_enabled = True
-        except (AttributeError, ValueError) as e:
-            logger.warning("Incompatible patching")
-            self._patching_enabled = False
         self.logger = logging.getLogger(__name__)
         self._force_mode = force_mode
         self._allow_fallback = allow_fallback

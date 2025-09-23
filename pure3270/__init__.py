@@ -10,8 +10,8 @@ import logging
 import os
 import sys
 
-from .patching import enable_replacement
 from .session import AsyncSession, Session
+from .p3270_client import P3270Client
 
 
 class JSONFormatter(logging.Formatter):
@@ -102,6 +102,6 @@ if __name__ == "__main__":
 __all__ = [
     "Session",
     "AsyncSession",
-    "enable_replacement",
+    "P3270Client",
     "setup_logging",
 ]
