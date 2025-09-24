@@ -161,135 +161,6 @@ class ScreenSnapshot:
         return snapshot
 
 
-def take_snapshot(screen_buffer: ScreenBuffer) -> ScreenSnapshot:
-    """Convenience function to take a snapshot of a ScreenBuffer."""
-    return ScreenSnapshot(screen_buffer)
-
-
-def create_ascii_mode_snapshot(screen_buffer: ScreenBuffer) -> ScreenSnapshot:
-    """Create a snapshot with the screen buffer in ASCII mode."""
-    original_mode = screen_buffer.is_ascii_mode()
-    screen_buffer.set_ascii_mode(True)
-
-    try:
-        snapshot = ScreenSnapshot(screen_buffer)
-        return snapshot
-    finally:
-        # Always restore original mode
-        screen_buffer.set_ascii_mode(original_mode)
-
-
-def create_ebcdic_mode_snapshot(screen_buffer: ScreenBuffer) -> ScreenSnapshot:
-    """Create a snapshot with the screen buffer in EBCDIC mode."""
-    original_mode = screen_buffer.is_ascii_mode()
-    screen_buffer.set_ascii_mode(False)
-
-    try:
-        snapshot = ScreenSnapshot(screen_buffer)
-        return snapshot
-    finally:
-        # Always restore original mode
-        screen_buffer.set_ascii_mode(original_mode)
-
-
-def compare_snapshots_cross_mode(
-    snapshot1: ScreenSnapshot, snapshot2: ScreenSnapshot
-) -> "SnapshotComparison":
-    """Compare two snapshots that may be in different modes.
-
-    This function handles the complexity of comparing snapshots that might be
-    in different character modes (ASCII vs EBCDIC) by normalizing them for comparison.
-    """
-    # If both snapshots are in the same mode, use regular comparison
-    if snapshot1.metadata["ascii_mode"] == snapshot2.metadata["ascii_mode"]:
-        return compare_snapshots(snapshot1, snapshot2)
-
-    # For cross-mode comparison, we need to compare the semantic content
-    # rather than the raw bytes. This is a simplified approach that compares
-    # the decoded text content.
-
-    # Create temporary screen buffers from snapshots
-    buffer1 = snapshot1.to_screen_buffer()
-    buffer2 = snapshot2.to_screen_buffer()
-
-    # Get the text representation for comparison
-    text1 = buffer1.to_text()
-    text2 = buffer2.to_text()
-
-    # Create a simplified comparison result
-    comparison = SnapshotComparison(snapshot1, snapshot2)
-    comparison.is_identical = text1 == text2
-
-    if not comparison.is_identical:
-        comparison.differences["cross_mode_text"] = {
-            "text1": text1,
-            "text2": text2,
-            "ascii_mode1": snapshot1.metadata["ascii_mode"],
-            "ascii_mode2": snapshot2.metadata["ascii_mode"],
-        }
-
-    return comparison
-
-
-class ModeAwareSnapshotComparator:
-    """Advanced comparator that handles both ASCII and EBCDIC modes intelligently."""
-
-    def __init__(self, mode_handling: str = "strict"):
-        """Initialize comparator with mode handling strategy.
-
-        Args:
-            mode_handling: How to handle mode differences
-                - "strict": Only compare snapshots in same mode
-                - "convert": Convert to common mode for comparison
-                - "semantic": Compare semantic content across modes
-        """
-        self.mode_handling = mode_handling
-
-    def compare(
-        self, snapshot1: ScreenSnapshot, snapshot2: ScreenSnapshot
-    ) -> SnapshotComparison:
-        """Compare two snapshots using the configured mode handling strategy."""
-        if self.mode_handling == "strict":
-            return compare_snapshots(snapshot1, snapshot2)
-        elif self.mode_handling == "convert":
-            return self._compare_with_conversion(snapshot1, snapshot2)
-        elif self.mode_handling == "semantic":
-            return compare_snapshots_cross_mode(snapshot1, snapshot2)
-        else:
-            raise ValueError(f"Unknown mode handling strategy: {self.mode_handling}")
-
-    def _compare_with_conversion(
-        self, snapshot1: ScreenSnapshot, snapshot2: ScreenSnapshot
-    ) -> SnapshotComparison:
-        """Compare snapshots by converting to a common mode."""
-        # Determine target mode (prefer ASCII if either is ASCII)
-        target_mode = (
-            snapshot1.metadata["ascii_mode"] or snapshot2.metadata["ascii_mode"]
-        )
-
-        # Convert snapshots to target mode
-        buffer1 = snapshot1.to_screen_buffer()
-        buffer2 = snapshot2.to_screen_buffer()
-
-        original_mode1 = buffer1.is_ascii_mode()
-        original_mode2 = buffer2.is_ascii_mode()
-
-        try:
-            buffer1.set_ascii_mode(bool(target_mode))
-            buffer2.set_ascii_mode(bool(target_mode))
-
-            # Create new snapshots in target mode
-            converted_snapshot1 = ScreenSnapshot(buffer1)
-            converted_snapshot2 = ScreenSnapshot(buffer2)
-
-            return compare_snapshots(converted_snapshot1, converted_snapshot2)
-
-        finally:
-            # Restore original modes
-            buffer1.set_ascii_mode(original_mode1)
-            buffer2.set_ascii_mode(original_mode2)
-
-
 class SnapshotComparison:
     """Represents the result of comparing two snapshots."""
 
@@ -392,6 +263,37 @@ class SnapshotComparison:
                 print(f"  After:  {diff_data['after']}")
             else:
                 print(f"  {diff_data}")
+
+
+def take_snapshot(screen_buffer: ScreenBuffer) -> ScreenSnapshot:
+    """Convenience function to take a snapshot of a ScreenBuffer."""
+    return ScreenSnapshot(screen_buffer)
+
+
+def create_ascii_mode_snapshot(screen_buffer: ScreenBuffer) -> ScreenSnapshot:
+    """Create a snapshot with the screen buffer in ASCII mode."""
+    original_mode = screen_buffer.is_ascii_mode()
+    screen_buffer.set_ascii_mode(True)
+
+    try:
+        snapshot = ScreenSnapshot(screen_buffer)
+        return snapshot
+    finally:
+        # Always restore original mode
+        screen_buffer.set_ascii_mode(original_mode)
+
+
+def create_ebcdic_mode_snapshot(screen_buffer: ScreenBuffer) -> ScreenSnapshot:
+    """Create a snapshot with the screen buffer in EBCDIC mode."""
+    original_mode = screen_buffer.is_ascii_mode()
+    screen_buffer.set_ascii_mode(False)
+
+    try:
+        snapshot = ScreenSnapshot(screen_buffer)
+        return snapshot
+    finally:
+        # Always restore original mode
+        screen_buffer.set_ascii_mode(original_mode)
 
 
 def compare_snapshots(
