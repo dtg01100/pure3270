@@ -6,9 +6,11 @@ Handles Telnet negotiation and TN3270E subnegotiation.
 import asyncio
 import inspect
 import logging
+import random
 import sys
+import time
 from enum import Enum  # Import Enum for state management
-from typing import TYPE_CHECKING, Any, Awaitable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional, Union
 
 if TYPE_CHECKING:
     from .tn3270_handler import TN3270Handler
@@ -29,7 +31,7 @@ from .errors import (
     raise_protocol_error,
     safe_socket_operation,
 )
-from .exceptions import NegotiationError, ProtocolError
+from .exceptions import NegotiationError, NotConnectedError, ProtocolError
 from .tn3270e_header import TN3270EHeader
 from .utils import (
     DO,
@@ -200,6 +202,132 @@ class Negotiator:
         # Optional trace recorder for diagnostics / tests
         self.recorder = recorder  # type: Optional[TraceRecorder]
 
+        # Optimized error recovery configuration for faster negotiation
+        self._retry_config = {
+            "max_retries": 3,  # Reduced max retries
+            "base_delay": 0.1,  # Reduced base delay
+            "max_delay": 2.0,  # Reduced max delay
+            "backoff_factor": 1.5,  # Reduced backoff factor
+            "jitter": True,
+            "retryable_errors": (
+                ConnectionError,
+                TimeoutError,
+                OSError,
+                asyncio.TimeoutError,
+                NegotiationError,
+            ),
+        }
+
+        # Configurable timeouts - Optimized for < 1.0s target
+        self._timeouts = {
+            "negotiation": 5.0,  # Reduced overall negotiation timeout
+            "device_type": 2.0,  # Reduced device type timeout
+            "functions": 2.0,  # Reduced functions timeout
+            "response": 1.0,  # Reduced response timeout
+            "drain": 0.5,  # Reduced drain timeout
+            "connection": 3.0,  # Reduced connection timeout
+            "telnet_negotiation": 3.0,  # Reduced telnet negotiation timeout
+            "tn3270e_negotiation": 4.0,  # Reduced TN3270E negotiation timeout
+            "step_timeout": 1.0,  # Reduced step timeout
+            "retry_delay": 0.2,  # Reduced retry delay
+            "max_retry_delay": 5.0,  # Reduced max retry delay
+        }
+
+        # x3270-compatible timing profiles - optimized for < 1.0s target
+        self._x3270_timing_profiles = {
+            "ultra_fast": {
+                "initial_delay": 0.01,  # Minimal initial delay
+                "post_ttype_delay": 0.02,  # Minimal delay after WILL TTYPE
+                "post_do_delay": 0.01,  # Minimal delay after DO responses
+                "negotiation_step_delay": 0.005,  # Minimal step delay
+                "device_type_delay": 0.02,  # Minimal device type delay
+                "functions_delay": 0.02,  # Minimal functions delay
+                "bind_image_delay": 0.01,  # Minimal BIND-IMAGE delay
+                "response_timeout": 0.5,  # Fast response timeout
+                "total_negotiation_timeout": 2.0,  # Total timeout for ultra-fast
+            },
+            "standard": {
+                "initial_delay": 0.02,  # Reduced initial delay
+                "post_ttype_delay": 0.05,  # Reduced delay after WILL TTYPE
+                "post_do_delay": 0.02,  # Reduced delay after DO responses
+                "negotiation_step_delay": 0.01,  # Reduced step delay
+                "device_type_delay": 0.05,  # Reduced device type delay
+                "functions_delay": 0.05,  # Reduced functions delay
+                "bind_image_delay": 0.02,  # Reduced BIND-IMAGE delay
+                "response_timeout": 1.5,  # Optimized response timeout
+                "total_negotiation_timeout": 5.0,  # Optimized total timeout
+            },
+            "conservative": {
+                "initial_delay": 0.05,
+                "post_ttype_delay": 0.1,
+                "post_do_delay": 0.05,
+                "negotiation_step_delay": 0.02,
+                "device_type_delay": 0.1,
+                "functions_delay": 0.1,
+                "bind_image_delay": 0.05,
+                "response_timeout": 3.0,
+                "total_negotiation_timeout": 10.0,
+            },
+            "aggressive": {
+                "initial_delay": 0.01,
+                "post_ttype_delay": 0.02,
+                "post_do_delay": 0.01,
+                "negotiation_step_delay": 0.005,
+                "device_type_delay": 0.02,
+                "functions_delay": 0.02,
+                "bind_image_delay": 0.01,
+                "response_timeout": 1.0,
+                "total_negotiation_timeout": 3.0,
+            },
+        }
+
+        # Current timing profile (default to standard)
+        self._current_timing_profile = "standard"
+
+        # Optimized timing precision controls for faster negotiation
+        self._timing_config = {
+            "enable_timing_validation": True,
+            "min_step_duration": 0.005,  # Reduced min step duration
+            "max_step_duration": 10.0,  # Reduced max step duration
+            "step_timeout_tolerance": 0.2,  # Reduced timeout tolerance
+            "negotiation_phase_timeout": 2.0,  # Reduced phase timeout
+            "adaptive_timeout": True,
+            "timeout_backoff_factor": 1.2,  # Reduced backoff factor
+            "timing_profile": "ultra_fast",  # Default to ultra-fast profile
+            "enable_step_delays": True,
+            "enable_timing_monitoring": True,
+            "timing_metrics_enabled": True,
+        }
+
+        # Timing metrics collection
+        self._timing_metrics = {
+            "negotiation_start_time": None,
+            "negotiation_end_time": None,
+            "step_timings": {},
+            "total_negotiation_time": 0.0,
+            "steps_completed": 0,
+            "timeouts_occurred": 0,
+            "delays_applied": 0,
+        }
+
+        # Connection state tracking
+        self._connection_state: Dict[str, Any] = {
+            "is_connected": False,
+            "last_activity": None,
+            "consecutive_failures": 0,
+            "total_failures": 0,
+            "last_error": None,
+            "recovery_attempts": 0,
+        }
+
+        # Recovery state
+        self._recovery_state: Dict[str, Any] = {
+            "is_recovering": False,
+            "recovery_start_time": None,
+            "pending_operations": [],
+            "recovery_attempts": 0,
+        }
+
     def _get_or_create_device_type_event(self) -> asyncio.Event:
         if self._device_type_is_event is None:
             try:
@@ -238,6 +366,383 @@ class Negotiator:
             else:
                 self._negotiation_complete = asyncio.Event()
         return self._negotiation_complete
+
+    # ------------------------------------------------------------------
+    # Enhanced Error Recovery Methods
+    # ------------------------------------------------------------------
+
+    def _update_connection_state(
+        self, success: bool = True, error: Optional[Exception] = None
+    ) -> None:
+        """Update connection state tracking."""
+        current_time = time.time()
+
+        if success:
+            self._connection_state["is_connected"] = True
+            self._connection_state["last_activity"] = current_time
+            self._connection_state["consecutive_failures"] = 0
+            if error:
+                self._connection_state["last_error"] = None
+        else:
+            self._connection_state["is_connected"] = False
+            self._connection_state["consecutive_failures"] += 1
+            self._connection_state["total_failures"] += 1
+            self._connection_state["last_error"] = error
+
+        logger.debug(f"Connection state updated: {self._connection_state}")
+
+    def _is_retryable_error(self, error: Exception) -> bool:
+        """Check if an error is retryable based on configuration."""
+        return isinstance(error, self._retry_config["retryable_errors"])
+
+    def _calculate_backoff_delay(self, attempt: int) -> float:
+        """Calculate delay for exponential backoff with jitter."""
+        base_delay = self._retry_config["base_delay"]
+        backoff_factor = self._retry_config["backoff_factor"]
+        max_delay = self._retry_config["max_delay"]
+
+        # Exponential backoff: base_delay * (backoff_factor ^ attempt)
+        delay = base_delay * (backoff_factor**attempt)
+
+        # Cap at max_delay
+        delay = min(delay, max_delay)
+
+        # Add jitter if enabled
+        if self._retry_config["jitter"]:
+            # Add random jitter between 0% and 25% of the delay
+            jitter_range = delay * 0.25
+            delay += random.uniform(-jitter_range, jitter_range)
+
+        return max(0, delay)  # Ensure non-negative
+
+    async def _retry_with_backoff(
+        self,
+        operation_name: str,
+        operation_func: Callable[[], Awaitable[Any]],
+        context: Optional[Dict[str, Any]] = None,
+        custom_retry_config: Optional[Dict[str, Any]] = None,
+    ) -> Any:
+        """
+        Execute an async operation with exponential backoff retry logic.
+
+        Args:
+            operation_name: Name of the operation for logging
+            operation_func: Async function to retry
+            context: Additional context for error reporting
+            custom_retry_config: Override default retry configuration
+
+        Returns:
+            Result of the operation
+
+        Raises:
+            Exception: Final exception after all retries exhausted
+        """
+        retry_config = {**self._retry_config, **(custom_retry_config or {})}
+        max_retries = retry_config["max_retries"]
+        last_exception = None
+
+        logger.debug(f"Starting {operation_name} with retry config: {retry_config}")
+
+        for attempt in range(max_retries + 1):
+            try:
+                # Update recovery state
+                if attempt > 0:
+                    self._recovery_state["recovery_attempts"] += 1
+                    logger.info(
+                        f"Retry attempt {attempt}/{max_retries} for {operation_name}"
+                    )
+
+                # Execute the operation
+                result = await operation_func()
+
+                # Success - update state and return
+                if attempt > 0:
+                    logger.info(f"{operation_name} succeeded after {attempt} retries")
+                self._update_connection_state(success=True)
+                return result
+
+            except Exception as e:
+                last_exception = e
+                self._update_connection_state(success=False, error=e)
+
+                # Check if error is retryable
+                if not self._is_retryable_error(e):
+                    logger.error(
+                        f"{operation_name} failed with non-retryable error: {e}"
+                    )
+                    raise e
+
+                # Check if we've exhausted retries
+                if attempt >= max_retries:
+                    logger.error(
+                        f"{operation_name} failed after {max_retries} retries: {e}"
+                    )
+                    break
+
+                # Calculate and apply backoff delay
+                delay = self._calculate_backoff_delay(attempt)
+                logger.warning(
+                    f"{operation_name} failed (attempt {attempt + 1}/{max_retries + 1}): {e}. "
+                    f"Retrying in {delay:.2f}s"
+                )
+
+                # Add context to error for better debugging
+                if context:
+                    if hasattr(e, "add_context"):
+                        e.add_context("operation", operation_name)
+                        e.add_context("attempt", attempt + 1)
+                        e.add_context("max_retries", max_retries)
+                        for key, value in context.items():
+                            e.add_context(key, value)
+
+                await asyncio.sleep(delay)
+
+        # All retries exhausted
+        error_context = {
+            "operation": operation_name,
+            "total_attempts": max_retries + 1,
+            "final_error": str(last_exception),
+            **(context or {}),
+        }
+
+        logger.error(f"{operation_name} permanently failed: {last_exception}")
+        raise last_exception
+
+    def _validate_connection_state(self) -> bool:
+        """Validate current connection state for operations."""
+        if not self._connection_state["is_connected"]:
+            logger.warning("Connection state indicates disconnection")
+            return False
+
+        # Check for too many consecutive failures
+        max_consecutive_failures = 3
+        if self._connection_state["consecutive_failures"] >= max_consecutive_failures:
+            logger.error(
+                f"Too many consecutive failures ({self._connection_state['consecutive_failures']}) - "
+                "connection may be unstable"
+            )
+            return False
+
+        # Check if writer is still valid
+        if self.writer is None:
+            logger.error("Writer is None - cannot perform operations")
+            return False
+
+        return True
+
+    async def _cleanup_on_failure(self, error: Exception) -> None:
+        """Perform cleanup operations when a failure occurs."""
+        logger.debug(f"Performing cleanup after failure: {error}")
+
+        try:
+            # Reset negotiation state
+            self._reset_negotiation_state()
+
+            # Clear any pending operations
+            self._recovery_state["pending_operations"].clear()
+
+            # Update recovery state
+            self._recovery_state["is_recovering"] = False
+            if self._recovery_state["recovery_start_time"]:
+                recovery_duration = (
+                    time.time() - self._recovery_state["recovery_start_time"]
+                )
+                logger.info(f"Recovery completed in {recovery_duration:.2f}s")
+
+            # Log cleanup completion
+            logger.debug("Cleanup completed successfully")
+
+        except Exception as cleanup_error:
+            logger.error(f"Error during cleanup: {cleanup_error}")
+
+    async def _safe_drain_writer(self, timeout: Optional[float] = None) -> None:
+        """Safely drain the writer with timeout and error handling."""
+        if not self.writer:
+            logger.warning("No writer available for draining")
+            return
+
+        timeout = timeout or self._timeouts["drain"]
+
+        try:
+            await asyncio.wait_for(self.writer.drain(), timeout=timeout)
+            logger.debug("Writer drained successfully")
+        except asyncio.TimeoutError:
+            logger.error(f"Writer drain timed out after {timeout}s")
+            raise TimeoutError(f"Writer drain timeout after {timeout}s")
+        except Exception as e:
+            logger.error(f"Error draining writer: {e}")
+            raise ProtocolError(f"Writer drain failed: {e}") from e
+
+    def _configure_timeouts(self, **timeouts: float) -> None:
+        """Configure timeout values for different operations."""
+        for key, value in timeouts.items():
+            if key in self._timeouts:
+                self._timeouts[key] = value
+                logger.debug(f"Updated timeout {key}: {value}s")
+            else:
+                logger.warning(f"Unknown timeout key: {key}")
+
+    def _configure_retry(self, **retry_config: Any) -> None:
+        """Configure retry behavior."""
+        for key, value in retry_config.items():
+            if key in self._retry_config:
+                self._retry_config[key] = value
+                logger.debug(f"Updated retry config {key}: {value}")
+            else:
+                logger.warning(f"Unknown retry config key: {key}")
+
+    def _configure_timing(self, **timing_config: Any) -> None:
+        """Configure timing behavior for negotiation steps."""
+        for key, value in timing_config.items():
+            if key in self._timing_config:
+                self._timing_config[key] = value
+                logger.debug(f"Updated timing config {key}: {value}")
+            else:
+                logger.warning(f"Unknown timing config key: {key}")
+
+    def _configure_x3270_timing_profile(self, profile: str = "standard") -> None:
+        """Configure x3270-compatible timing profile."""
+        if profile not in self._x3270_timing_profiles:
+            logger.warning(f"Unknown timing profile: {profile}, using 'standard'")
+            profile = "standard"
+
+        self._current_timing_profile = profile
+        self._timing_config["timing_profile"] = profile
+        logger.info(f"Configured x3270 timing profile: {profile}")
+
+    def _get_current_timing_profile(self) -> Dict[str, float]:
+        """Get the current x3270 timing profile."""
+        return self._x3270_timing_profiles[self._current_timing_profile]
+
+    def _apply_step_delay(self, step_name: str) -> None:
+        """Apply x3270-compatible delay for a negotiation step."""
+        if not self._timing_config["enable_step_delays"]:
+            return
+
+        profile = self._get_current_timing_profile()
+        delay_map = {
+            "initial": profile["initial_delay"],
+            "post_ttype": profile["post_ttype_delay"],
+            "post_do": profile["post_do_delay"],
+            "negotiation_step": profile["negotiation_step_delay"],
+            "device_type": profile["device_type_delay"],
+            "functions": profile["functions_delay"],
+            "bind_image": profile["bind_image_delay"],
+        }
+
+        delay = delay_map.get(step_name, profile["negotiation_step_delay"])
+        if delay > 0:
+            time.sleep(delay)
+            self._timing_metrics["delays_applied"] += 1
+            logger.debug(f"[TIMING] Applied {delay:.3f}s delay for step: {step_name}")
+
+    def _record_timing_metric(self, step_name: str, duration: float) -> None:
+        """Record timing metrics for a negotiation step."""
+        if not self._timing_config["timing_metrics_enabled"]:
+            return
+
+        self._timing_metrics["step_timings"][step_name] = duration
+        self._timing_metrics["steps_completed"] += 1
+
+        if self._timing_config["enable_timing_monitoring"]:
+            profile = self._get_current_timing_profile()
+            expected_timeout = profile.get("response_timeout", 3.0)
+
+            if duration > expected_timeout:
+                logger.warning(
+                    f"[TIMING] Step {step_name} took {duration:.3f}s (expected < {expected_timeout:.3f}s)"
+                )
+            else:
+                logger.debug(f"[TIMING] Step {step_name} completed in {duration:.3f}s")
+
+    def _start_negotiation_timing(self) -> None:
+        """Start timing metrics collection for negotiation."""
+        if not self._timing_config["timing_metrics_enabled"]:
+            return
+
+        self._timing_metrics["negotiation_start_time"] = time.time()
+        self._timing_metrics["step_timings"].clear()
+        self._timing_metrics["steps_completed"] = 0
+        self._timing_metrics["timeouts_occurred"] = 0
+        self._timing_metrics["delays_applied"] = 0
+        logger.debug("[TIMING] Started negotiation timing collection")
+
+    def _end_negotiation_timing(self) -> None:
+        """End timing metrics collection and log summary."""
+        if not self._timing_config["timing_metrics_enabled"]:
+            return
+
+        end_time = time.time()
+        start_time = self._timing_metrics["negotiation_start_time"]
+
+        if start_time:
+            total_time = end_time - start_time
+            self._timing_metrics["negotiation_end_time"] = end_time
+            self._timing_metrics["total_negotiation_time"] = total_time
+
+            logger.info(f"[TIMING] Negotiation completed in {total_time:.3f}s")
+            logger.info(
+                f"[TIMING] Steps completed: {self._timing_metrics['steps_completed']}"
+            )
+            logger.info(
+                f"[TIMING] Delays applied: {self._timing_metrics['delays_applied']}"
+            )
+            logger.info(
+                f"[TIMING] Timeouts occurred: {self._timing_metrics['timeouts_occurred']}"
+            )
+
+            if self._timing_metrics["step_timings"]:
+                logger.info(
+                    f"[TIMING] Step timings: {self._timing_metrics['step_timings']}"
+                )
+
+    def _validate_timing_constraints(self, operation: str, duration: float) -> bool:
+        """Validate timing constraints for negotiation operations."""
+        if not self._timing_config["enable_timing_validation"]:
+            return True
+
+        min_duration = self._timing_config["min_step_duration"]
+        max_duration = self._timing_config["max_step_duration"]
+
+        if duration < min_duration:
+            logger.warning(
+                f"[TIMING] Operation {operation} completed too quickly ({duration:.3f}s < {min_duration}s)"
+            )
+            return False
+
+        if duration > max_duration:
+            logger.error(
+                f"[TIMING] Operation {operation} took too long ({duration:.3f}s > {max_duration}s)"
+            )
+            return False
+
+        return True
+
+    def _calculate_adaptive_timeout(self, base_timeout: float, attempt: int) -> float:
+        """Calculate adaptive timeout based on attempt number and configuration."""
+        if not self._timing_config["adaptive_timeout"]:
+            return base_timeout
+
+        backoff_factor = self._timing_config["timeout_backoff_factor"]
+        max_timeout = self._timeouts.get("negotiation", 30.0)
+
+        # Exponential backoff with cap
+        adaptive_timeout = base_timeout * (backoff_factor**attempt)
+        return min(adaptive_timeout, max_timeout)
+
+    def _get_step_timeout(self, step_name: str) -> float:
+        """Get timeout for a specific negotiation step."""
+        # Map step names to timeout keys
+        step_timeout_map = {
+            "device_type": "device_type",
+            "functions": "functions",
+            "negotiation": "negotiation",
+            "telnet": "telnet_negotiation",
+            "tn3270e": "tn3270e_negotiation",
+        }
+
+        timeout_key = step_timeout_map.get(step_name, "step_timeout")
+        return self._timeouts.get(timeout_key, self._timeouts["step_timeout"])
 
     # ------------------------------------------------------------------
     # Recorder helpers
@@ -378,16 +883,25 @@ class Negotiator:
                 if header.is_positive_response():
                     logger.debug("Received positive response for DEVICE-TYPE SEND.")
                 elif header.is_negative_response():
+                    # Use enhanced retry logic
                     retry_count = request_info.get("retry_count", 0)
-                    if retry_count < 2:
+                    if retry_count < self._retry_config["max_retries"]:
                         request_info["retry_count"] = retry_count + 1
                         self._pending_requests[seq_number] = request_info
-                        await asyncio.sleep(0.5 * (2**retry_count))
+
+                        # Use exponential backoff with jitter
+                        delay = self._calculate_backoff_delay(retry_count)
+                        logger.warning(
+                            f"DEVICE-TYPE SEND failed, retrying in {delay:.2f}s (attempt {retry_count + 1})"
+                        )
+                        await asyncio.sleep(delay)
                         await self._resend_request(request_type, seq_number)
                         return
                     else:
                         header.handle_negative_response(data)
-                        logger.error("Max retries exceeded for DEVICE-TYPE SEND")
+                        logger.error(
+                            f"Max retries ({self._retry_config['max_retries']}) exceeded for DEVICE-TYPE SEND"
+                        )
                 elif header.is_error_response():
                     logger.error("Received error response for DEVICE-TYPE SEND.")
                 self._get_or_create_device_type_event().set()
@@ -395,16 +909,25 @@ class Negotiator:
                 if header.is_positive_response():
                     logger.debug("Received positive response for FUNCTIONS SEND.")
                 elif header.is_negative_response():
+                    # Use enhanced retry logic
                     retry_count = request_info.get("retry_count", 0)
-                    if retry_count < 2:
+                    if retry_count < self._retry_config["max_retries"]:
                         request_info["retry_count"] = retry_count + 1
                         self._pending_requests[seq_number] = request_info
-                        await asyncio.sleep(0.5 * (2**retry_count))
+
+                        # Use exponential backoff with jitter
+                        delay = self._calculate_backoff_delay(retry_count)
+                        logger.warning(
+                            f"FUNCTIONS SEND failed, retrying in {delay:.2f}s (attempt {retry_count + 1})"
+                        )
+                        await asyncio.sleep(delay)
                         await self._resend_request(request_type, seq_number)
                         return
                     else:
                         header.handle_negative_response(data)
-                        logger.error("Max retries exceeded for FUNCTIONS SEND")
+                        logger.error(
+                            f"Max retries ({self._retry_config['max_retries']}) exceeded for FUNCTIONS SEND"
+                        )
                 elif header.is_error_response():
                     logger.error("Received error response for FUNCTIONS SEND.")
                 self._get_or_create_functions_event().set()
@@ -427,40 +950,94 @@ class Negotiator:
 
     async def negotiate(self) -> None:
         """
-        Perform initial Telnet negotiation.
+        Perform initial Telnet negotiation with x3270-compatible timing.
 
-        Sends DO TERMINAL-TYPE and waits for responses.
+        Sends DO TERMINAL-TYPE and waits for responses with precise timing
+        that matches x3270's negotiation patterns.
 
         Raises:
-            NegotiationError: If negotiation fails.
+            NegotiationError: If negotiation fails after all retries.
         """
-        if self.writer is None:
-            raise ProtocolError("Writer is None; cannot negotiate.")
-        async with safe_socket_operation():
-            logger.info(
-                "[NEGOTIATION] Sending IAC WILL TERMINAL-TYPE (client initiates per RFC 1646)"
+        if not self._validate_connection_state():
+            raise NotConnectedError("Invalid connection state for negotiation")
+
+        # Start timing metrics collection
+        self._start_negotiation_timing()
+
+        async def _perform_negotiation() -> None:
+            """Internal negotiation operation for retry logic with x3270 timing."""
+            if self.writer is None:
+                raise ProtocolError("Writer is None; cannot negotiate.")
+
+            try:
+                async with safe_socket_operation():
+                    # Apply initial delay (x3270 pattern)
+                    self._apply_step_delay("initial")
+
+                    logger.info(
+                        "[NEGOTIATION] Sending IAC WILL TERMINAL-TYPE (client initiates per RFC 1646)"
+                    )
+                    send_iac(self.writer, b"\xfb\x18")  # WILL TERMINAL-TYPE
+                    self._record_telnet("out", WILL, TELOPT_TTYPE)
+                    logger.debug("[NEGOTIATION] Sent IAC WILL TERMINAL-TYPE (fb 18)")
+
+                    # Apply post-TTYPE delay (x3270 pattern)
+                    self._apply_step_delay("post_ttype")
+
+                    # Per RFC 1646 Section 3: Client sends WILL TERMINAL-TYPE, server responds with DO TERMINAL-TYPE
+                    # Don't send DO TERMINAL-TYPE as client - wait for server's response
+                    await self._safe_drain_writer()
+                    logger.info(
+                        "[NEGOTIATION] Initial TTYPE negotiation command sent. Awaiting server DO response..."
+                    )
+
+                    # Record timing for this step
+                    step_start = time.time()
+                    self._record_timing_metric(
+                        "initial_ttype", time.time() - step_start
+                    )
+
+            except Exception as e:
+                logger.error(f"Negotiation operation failed: {e}")
+                self._timing_metrics["timeouts_occurred"] += 1
+                raise
+
+        # Use retry logic for negotiation with x3270 timing
+        context = {
+            "operation": "initial_negotiation",
+            "protocol": "telnet",
+            "stage": "terminal_type",
+            "timing_profile": self._current_timing_profile,
+        }
+
+        try:
+            await self._retry_with_backoff(
+                "initial_telnet_negotiation",
+                _perform_negotiation,
+                context=context,
+                custom_retry_config={"max_retries": 3},
             )
-            send_iac(self.writer, b"\xfb\x18")  # WILL TERMINAL-TYPE
-            self._record_telnet("out", WILL, TELOPT_TTYPE)
-            logger.debug("[NEGOTIATION] Sent IAC WILL TERMINAL-TYPE (fb 18)")
-            # Per RFC 1646 Section 3: Client sends WILL TERMINAL-TYPE, server responds with DO TERMINAL-TYPE
-            # Don't send DO TERMINAL-TYPE as client - wait for server's response
-            await self.writer.drain()
-            logger.info(
-                "[NEGOTIATION] Initial TTYPE negotiation command sent. Awaiting server DO response..."
-            )
+        except Exception as e:
+            logger.error(f"Initial negotiation failed after retries: {e}")
+            await self._cleanup_on_failure(e)
+            self._end_negotiation_timing()
+            raise NegotiationError(f"Initial negotiation failed: {e}") from e
+
         # The response for further negotiation is handled by handle_iac_command
+        # End timing metrics collection
+        self._end_negotiation_timing()
 
     async def _negotiate_tn3270(self, timeout: Optional[float] = None) -> None:
         """
-        Negotiate TN3270E subnegotiation.
-        Waits for server-initiated SEND and responds via handle_subnegotiation.
+        Negotiate TN3270E subnegotiation with x3270-compatible timing.
+        Waits for server-initiated SEND and responds via handle_subnegotiation
+        with precise timing that matches x3270's negotiation patterns.
 
         Args:
             timeout: Maximum time to wait for negotiation responses.
 
         Raises:
-            NegotiationError: On subnegotiation failure or timeout.
+            NegotiationError: On subnegotiation failure or timeout after retries.
         """
         # Short-circuit for forced modes that do not require TN3270E negotiation
         if self.force_mode == "ascii":
@@ -498,26 +1075,38 @@ class Negotiator:
             # For forced TN3270E, proceed with negotiation but handle failures according to allow_fallback
             # Fall through to normal negotiation logic below
 
-        if self.writer is None:
-            raise ProtocolError("Writer is None; cannot negotiate TN3270.")
+        if not self._validate_connection_state():
+            raise NotConnectedError("Invalid connection state for TN3270 negotiation")
 
         # Clear events before starting negotiation
         self._get_or_create_device_type_event().clear()
         self._get_or_create_functions_event().clear()
         self._get_or_create_negotiation_complete().clear()
 
+        # Set up timeouts with x3270-compatible values
+        if timeout is None:
+            profile = self._get_current_timing_profile()
+            timeout = profile["total_negotiation_timeout"]
+
+        # Update recovery state
+        self._recovery_state["is_recovering"] = False
+        self._recovery_state["recovery_start_time"] = None
+
         logger.info(
-            "[NEGOTIATION] Starting TN3270E negotiation: waiting for server DEVICE-TYPE SEND."
+            f"[NEGOTIATION] Starting TN3270E negotiation with {self._current_timing_profile} timing profile: waiting for server DEVICE-TYPE SEND."
         )
 
-        try:
-            async with safe_socket_operation():
-                # Calculate per-step timeouts based on overall timeout
-                if timeout is None:
-                    timeout = 30.0  # Default timeout
-                step_timeout = min(
-                    timeout / 3, 10.0
-                )  # Divide timeout into 3 steps, max 10s per step
+        async def _perform_tn3270_negotiation() -> None:
+            """Internal TN3270 negotiation operation for retry logic."""
+            if self.writer is None:
+                raise ProtocolError("Writer is None; cannot negotiate TN3270.")
+
+            try:
+                async with safe_socket_operation():
+                    # Calculate per-step timeouts based on overall timeout
+                    step_timeout = min(
+                        timeout / 3, self._timeouts["device_type"]
+                    )  # Divide timeout into 3 steps, max per-step timeout
 
                 # Validate negotiation state before starting
                 if not self._server_supports_tn3270e and self.force_mode != "tn3270e":
@@ -619,75 +1208,28 @@ class Negotiator:
                 # Ensure events are created and set for completion
                 self._get_or_create_negotiation_complete().set()
 
-        except asyncio.TimeoutError:
-            if self.force_mode == "tn3270e" and not self.allow_fallback:
-                logger.error(
-                    "[NEGOTIATION] TN3270E negotiation timed out and fallback disabled (force_mode=tn3270e); raising error."
-                )
-                self._record_error("timeout forcing tn3270e without fallback")
-                # Ensure events are set so any awaiters unblock
-                for ev in (
-                    self._get_or_create_device_type_event(),
-                    self._get_or_create_functions_event(),
-                    self._get_or_create_negotiation_complete(),
-                ):
-                    ev.set()
-                raise_negotiation_error(
-                    "TN3270E negotiation timed out (fallback disabled)"
-                )
-            logger.warning(
-                "[NEGOTIATION] TN3270E negotiation timed out. Falling back to ASCII/VT100 mode."
+            except Exception as e:
+                logger.error(f"TN3270 negotiation operation failed: {e}")
+                raise
+
+        # Use retry logic for TN3270 negotiation
+        context = {
+            "operation": "tn3270_negotiation",
+            "protocol": "tn3270e",
+            "timeout": timeout,
+        }
+
+        try:
+            await self._retry_with_backoff(
+                "tn3270e_negotiation",
+                _perform_tn3270_negotiation,
+                context=context,
+                custom_retry_config={"max_retries": 3},
             )
-            if self.allow_fallback:
-                self.set_ascii_mode()
-                self._record_decision(self.force_mode or "auto", "ascii", True)
-            self.negotiated_tn3270e = False
-            for ev in (
-                self._get_or_create_device_type_event(),
-                self._get_or_create_functions_event(),
-                self._get_or_create_negotiation_complete(),
-            ):
-                ev.set()
-            raise_negotiation_error("TN3270E negotiation timed out")
-        except asyncio.CancelledError:
-            # Treat cancellation as a benign event (e.g. session close) without noisy traceback
-            logger.debug("[NEGOTIATION] TN3270E negotiation task cancelled")
-            # Propagate so upstream logic (e.g. context manager) can respond appropriately
-            raise
         except Exception as e:
-            # If a forced failure has been recorded (e.g., WONT TN3270E with fallback disabled)
-            if (
-                self._forced_failure
-                and self.force_mode == "tn3270e"
-                and not self.allow_fallback
-            ):
-                logger.error(
-                    f"[NEGOTIATION] TN3270E negotiation explicitly refused and fallback disabled: {e}"
-                )
-                self._record_error(f"refused tn3270e without fallback: {e}")
-                for ev in (
-                    self._get_or_create_device_type_event(),
-                    self._get_or_create_functions_event(),
-                    self._get_or_create_negotiation_complete(),
-                ):
-                    ev.set()
-                raise_negotiation_error(
-                    "TN3270E negotiation refused by host (fallback disabled)", e
-                )
-            logger.error(
-                f"[NEGOTIATION] Error during TN3270E negotiation: {e}", exc_info=True
-            )
-            if self.allow_fallback:
-                self.set_ascii_mode()
-                self._record_decision(self.force_mode or "auto", "ascii", True)
-            self.negotiated_tn3270e = False
-            for ev in (
-                self._get_or_create_device_type_event(),
-                self._get_or_create_functions_event(),
-                self._get_or_create_negotiation_complete(),
-            ):
-                ev.set()
-            raise_negotiation_error(f"TN3270E negotiation failed: {e}", e)
+            logger.error(f"TN3270 negotiation failed after retries: {e}")
+            await self._cleanup_on_failure(e)
+            raise NegotiationError(f"TN3270 negotiation failed: {e}") from e
 
     def set_ascii_mode(self) -> None:
         """
@@ -874,11 +1416,15 @@ class Negotiator:
                 await self._send_naws_subnegotiation(80, 24)
         elif option == TELOPT_NEW_ENVIRON:
             # Some servers (like pub400.com) incorrectly use NEW_ENVIRON for window size
-            logger.info("[TELNET] Server DO NEW_ENVIRON - treating as NAWS for compatibility")
+            logger.info(
+                "[TELNET] Server DO NEW_ENVIRON - treating as NAWS for compatibility"
+            )
             if self.writer:
                 send_iac(self.writer, bytes([WILL, TELOPT_NEW_ENVIRON]))
                 # Send window size using NEW_ENVIRON option number for compatibility
-                await self._send_naws_subnegotiation_with_option(TELOPT_NEW_ENVIRON, 80, 24)
+                await self._send_naws_subnegotiation_with_option(
+                    TELOPT_NEW_ENVIRON, 80, 24
+                )
         elif option == TELOPT_TTYPE:
             logger.info("[TELNET] Server DO TTYPE - accepting")
             if self.writer:
@@ -934,7 +1480,7 @@ class Negotiator:
                 pass
         logger.debug(f"Sent TERMINAL-LOCATION IS with LU name: {self._lu_name}")
         if self.writer is not None:
-            await self.writer.drain()  # Ensure the data is sent immediately
+            await self._safe_drain_writer()  # Ensure the data is sent immediately
 
     def is_printer_session_active(self) -> bool:
         """
@@ -979,10 +1525,14 @@ class Negotiator:
             await self._handle_terminal_type_subnegotiation(sub_payload)
         elif option == TELOPT_NAWS:
             # Window size subnegotiation - just log it, we don't need to respond
-            logger.info(f"[NAWS] Server sent window size subnegotiation: {sub_payload.hex()}")
+            logger.info(
+                f"[NAWS] Server sent window size subnegotiation: {sub_payload.hex()}"
+            )
         elif option == TELOPT_NEW_ENVIRON:
             # Some servers use NEW_ENVIRON for window size - treat like NAWS
-            logger.info(f"[NEW_ENVIRON] Server sent subnegotiation (treating as NAWS): {sub_payload.hex()}")
+            logger.info(
+                f"[NEW_ENVIRON] Server sent subnegotiation (treating as NAWS): {sub_payload.hex()}"
+            )
         elif option == TELOPT_TN3270E:
             # This should have been handled by the specialized method, but handle it here as fallback
             await self._parse_tn3270e_subnegotiation(bytes([option]) + sub_payload)
@@ -1238,26 +1788,29 @@ class Negotiator:
             height: Terminal height in rows.
         """
         logger.info(f"[NAWS] Sending window size: {width}x{height}")
-        
+
         if self.writer:
             from .utils import IAC, SB, SE, TELOPT_NAWS
-            
+
             # NAWS format: IAC SB NAWS width1 width2 height1 height2 IAC SE
             # Width and height are sent as 2-byte big-endian values
-            width_bytes = width.to_bytes(2, byteorder='big')
-            height_bytes = height.to_bytes(2, byteorder='big')
-            
+            width_bytes = width.to_bytes(2, byteorder="big")
+            height_bytes = height.to_bytes(2, byteorder="big")
+
             naws_data = (
-                bytes([IAC, SB, TELOPT_NAWS]) +
-                width_bytes + height_bytes +
-                bytes([IAC, SE])
+                bytes([IAC, SB, TELOPT_NAWS])
+                + width_bytes
+                + height_bytes
+                + bytes([IAC, SE])
             )
-            
+
             self.writer.write(naws_data)
             await self.writer.drain()
             logger.debug(f"[NAWS] Sent subnegotiation: {naws_data.hex()}")
 
-    async def _send_naws_subnegotiation_with_option(self, option: int, width: int, height: int) -> None:
+    async def _send_naws_subnegotiation_with_option(
+        self, option: int, width: int, height: int
+    ) -> None:
         """
         Send NAWS-style subnegotiation using the specified option number.
 
@@ -1267,23 +1820,23 @@ class Negotiator:
             height: Terminal height in rows.
         """
         logger.info(f"[NAWS] Sending window size via option {option}: {width}x{height}")
-        
+
         if self.writer:
             from .utils import IAC, SB, SE
-            
+
             # NAWS format: IAC SB OPTION width1 width2 height1 height2 IAC SE
-            width_bytes = width.to_bytes(2, byteorder='big')
-            height_bytes = height.to_bytes(2, byteorder='big')
-            
+            width_bytes = width.to_bytes(2, byteorder="big")
+            height_bytes = height.to_bytes(2, byteorder="big")
+
             naws_data = (
-                bytes([IAC, SB, option]) +
-                width_bytes + height_bytes +
-                bytes([IAC, SE])
+                bytes([IAC, SB, option]) + width_bytes + height_bytes + bytes([IAC, SE])
             )
-            
+
             self.writer.write(naws_data)
             await self.writer.drain()
-            logger.debug(f"[NAWS] Sent subnegotiation with option {option}: {naws_data.hex()}")
+            logger.debug(
+                f"[NAWS] Sent subnegotiation with option {option}: {naws_data.hex()}"
+            )
 
     async def _handle_terminal_type_subnegotiation(self, payload: bytes) -> None:
         """
@@ -1302,7 +1855,9 @@ class Negotiator:
                 logger.info(f"[TTYPE] Server terminal type: {term_type}")
             elif command == TN3270E_SEND:
                 # Server requests our terminal type per RFC 1091 (SEND=0x01, IS=0x00)
-                terminal_type = b"IBM-3278-2"  # Base model; can be made configurable later
+                terminal_type = (
+                    b"IBM-3278-2"  # Base model; can be made configurable later
+                )
                 logger.info(
                     f"[TTYPE] Server requested terminal type, replying with {terminal_type.decode()}"
                 )
@@ -1655,12 +2210,15 @@ class Negotiator:
             logger.warning(f"[TN3270E] Unknown request type for resend: {request_type}")
 
     async def _send_supported_device_types(self) -> None:
-        """Send supported device types to the server."""
+        """Send supported device types to the server with x3270 timing."""
         logger.debug("[TN3270E] Sending supported device types")
 
         if not self.supported_device_types:
             logger.warning("[TN3270E] No supported device types configured")
             return
+
+        # Apply device type delay (x3270 pattern)
+        self._apply_step_delay("device_type")
 
         # Send DEVICE-TYPE IS with first supported device type
         device_type = self.supported_device_types[0]
@@ -1677,11 +2235,18 @@ class Negotiator:
             payload += b"\x00"  # Null terminator
 
             send_subnegotiation(self.writer, bytes([TN3270E_DEVICE_TYPE]), payload)
-            await self.writer.drain()
+            await self._safe_drain_writer()
+
+            # Record timing for this step
+            step_start = time.time()
+            self._record_timing_metric("device_type_send", time.time() - step_start)
 
     async def _send_functions_is(self) -> None:
-        """Send FUNCTIONS IS response to the server."""
+        """Send FUNCTIONS IS response to the server with x3270 timing."""
         logger.debug("[TN3270E] Sending FUNCTIONS IS")
+
+        # Apply functions delay (x3270 pattern)
+        self._apply_step_delay("functions")
 
         # Send FUNCTIONS IS with negotiated functions
         functions = self.negotiated_functions
@@ -1693,7 +2258,11 @@ class Negotiator:
             # Functions are sent as a single byte per RFC 1646
             payload = bytes([TN3270E_IS, functions & 0xFF])
             send_subnegotiation(self.writer, bytes([TN3270E_FUNCTIONS]), payload)
-            await self.writer.drain()
+            await self._safe_drain_writer()
+
+            # Record timing for this step
+            step_start = time.time()
+            self._record_timing_metric("functions_send", time.time() - step_start)
 
     def handle_bind_image(self, bind_image: BindImage) -> None:
         """

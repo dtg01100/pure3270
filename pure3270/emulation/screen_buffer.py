@@ -152,12 +152,13 @@ class ScreenBuffer(BufferWriter):
             line_bytes = bytes(self.buffer[row * self.cols : (row + 1) * self.cols])
             if self._ascii_mode:
                 # In ASCII mode, buffer contains ASCII bytes directly
-                line_text = line_bytes.decode('ascii', errors='replace')
+                line_text = line_bytes.decode("ascii", errors="replace")
             else:
                 # In 3270 mode, buffer contains EBCDIC bytes that need conversion
                 line_text, _ = EBCDICCodec().decode(line_bytes)
             lines.append(line_text)
         return "\n".join(lines)
+
     """Manages the 3270 screen buffer, including characters, attributes, and fields."""
 
     def __init__(self, rows: int = 24, cols: int = 80, init_value: int = 0x40):
@@ -206,7 +207,7 @@ class ScreenBuffer(BufferWriter):
     def set_ascii_mode(self, ascii_mode: bool = True) -> None:
         """
         Set ASCII mode for the screen buffer.
-        
+
         Args:
             ascii_mode: True for ASCII mode, False for EBCDIC mode
         """
@@ -334,35 +335,43 @@ class ScreenBuffer(BufferWriter):
 
     def update_from_stream(self, data: bytes) -> None:
         """
-        Update buffer from a 3270 data stream (basic implementation).
+        Update buffer from a 3270 data stream with progressive limits and graceful handling.
 
         :param data: Raw 3270 data stream bytes.
         """
-        # Limit processing to prevent buffer overflow attacks
+        # Progressive buffer size limits with graceful degradation
         max_data_len = self.size * 2  # Allow some overflow but not unlimited
         if len(data) > max_data_len:
             logger.warning(
-                f"Data stream too large ({len(data)} bytes), truncating to {max_data_len}"
+                f"Data stream too large ({len(data)} bytes), applying progressive limits"
             )
-            data = data[:max_data_len]
+            # Apply progressive truncation with priority preservation
+            data = self._apply_progressive_limits(data, max_data_len)
 
         i = 0
-        while i < len(data):
+        processed_bytes = 0
+        max_processed = self.size * 3  # Allow more processing than buffer size
+
+        while i < len(data) and processed_bytes < max_processed:
             order = data[i]
             i += 1
+            processed_bytes += 1
+
             if order == 0xF5:  # Write
                 if i < len(data):
                     i += 1  # skip WCC
+                    processed_bytes += 1
                 continue
             elif order == 0x10:  # SBA
                 if i + 1 < len(data):
                     i += 2  # skip address bytes
+                    processed_bytes += 2
                 self.set_position(0, 0)  # Address 0x0000 -> row 0, col 0
                 continue
             elif order in (0x05, 0x0D):  # Unknown/EOA
                 continue
             else:
-                # Treat as data byte
+                # Treat as data byte with graceful overflow handling
                 pos = self.cursor_row * self.cols + self.cursor_col
                 if pos < self.size:
                     self.buffer[pos] = order
@@ -370,14 +379,73 @@ class ScreenBuffer(BufferWriter):
                     if self.cursor_col >= self.cols:
                         self.cursor_col = 0
                         self.cursor_row += 1
-                        # Prevent unlimited wraparound - stop at buffer end
+                        # Graceful wraparound with buffer bounds checking
                         if self.cursor_row >= self.rows:
-                            logger.warning(
-                                "Reached end of screen buffer, stopping data stream processing"
+                            logger.debug(
+                                "Reached end of screen buffer, wrapping to beginning"
                             )
-                            break
+                            self.cursor_row = 0
+                            self.cursor_col = 0
+                else:
+                    # Graceful overflow: wrap to beginning instead of stopping
+                    logger.debug("Buffer overflow, wrapping to beginning")
+                    self.cursor_row = 0
+                    self.cursor_col = 0
+                    if pos < self.size * 2:  # Allow some overflow wrapping
+                        self.buffer[0] = order
+                        self.cursor_col = 1
+
+        if processed_bytes >= max_processed:
+            logger.warning(
+                f"Processed maximum bytes ({max_processed}), truncating remaining data"
+            )
+
         # Update fields (basic detection)
         self._detect_fields()
+
+    def _apply_progressive_limits(self, data: bytes, max_len: int) -> bytes:
+        """
+        Apply progressive limits to data stream with priority preservation.
+
+        :param data: Original data stream
+        :param max_len: Maximum allowed length
+        :return: Truncated data with preserved priority sections
+        """
+        if len(data) <= max_len:
+            return data
+
+        # Preserve critical TN3270E headers and commands
+        critical_markers = [
+            b"\xff\xfa\x24",  # TN3270E subnegotiation start
+            b"\xff\xfd\x24",  # DO TN3270E
+            b"\xff\xfb\x24",  # WILL TN3270E
+            b"\x03\x00\x00\x00",  # BIND header
+        ]
+
+        # Find the last critical marker within the limit
+        truncated_data = data[:max_len]
+        best_cut_point = max_len
+
+        for marker in critical_markers:
+            marker_pos = truncated_data.rfind(marker)
+            if marker_pos > best_cut_point // 2:  # Only consider markers in second half
+                best_cut_point = marker_pos + len(marker)
+
+        # Cut at the best point found
+        if best_cut_point < max_len:
+            best_cut_point = min(best_cut_point + 32, max_len)  # Add some padding
+
+        result = data[:best_cut_point]
+
+        # Log the truncation details
+        truncated_bytes = len(data) - len(result)
+        logger.info(
+            f"Applied progressive limits: kept {len(result)} bytes, "
+            f"truncated {truncated_bytes} bytes, "
+            f"preserved critical sections"
+        )
+
+        return result
 
     def _detect_fields(self) -> None:
         logger.debug("Starting _detect_fields")

@@ -246,7 +246,7 @@ asyncio.run(main())
 
 ### Benefits
 - ✅ **No monkey-patching required**: Cleaner, more maintainable code
-- ✅ **No s3270 binary dependency**: Pure Python implementation  
+- ✅ **No s3270 binary dependency**: Pure Python implementation
 - ✅ **No subprocess overhead**: Better performance
 - ✅ **Identical API**: 100% compatible with p3270.P3270Client
 - ✅ **Better error handling**: Native Python exceptions
@@ -285,7 +285,7 @@ client.sendText("Hello")
 client.getScreen()
 client.readTextAtPosition(0, 0, 10)
 
-# Keyboard operations  
+# Keyboard operations
 client.sendEnter()
 client.sendPF(1)
 client.sendPA(2)
@@ -725,9 +725,46 @@ Contributions are welcome! Please follow these steps:
 
 1. Fork the repository and create a feature branch.
 2. Install dev dependencies and run tests/linting locally.
-3. Make changes and add tests for new features.
-4. Ensure code passes `black` formatting and `flake8` linting.
-5. Submit a pull request with a clear description of changes.
+3. **Add proper attribution** for any third-party code using the attribution scaffolding system.
+4. Make changes and add tests for new features.
+5. Ensure code passes `black` formatting and `flake8` linting.
+6. Submit a pull request with a clear description of changes.
+
+### Attribution Requirements
+
+When contributing code that is ported from or inspired by third-party sources, you must include proper attribution:
+
+#### Attribution Scaffolding System
+
+Pure3270 provides an attribution scaffolding system to ensure consistent, legally compliant attribution:
+
+```bash
+# Interactive mode (recommended)
+python tools/generate_attribution.py --interactive
+
+# Or use command-line options
+python tools/generate_attribution.py --type module \
+    --source "IBM s3270/x3270" \
+    --url "https://github.com/rhacker/x3270" \
+    --license "BSD-3-Clause" \
+    --description "TN3270 protocol implementation based on s3270"
+```
+
+#### Attribution Types Available:
+- **Module-level**: For entire files with ported code
+- **Function/method**: For specific functions from third-party sources
+- **Class**: For classes inspired by other implementations
+- **Protocol**: For RFC-based protocol implementations
+- **s3270 compatibility**: For code maintaining s3270 compatibility
+- **EBCDIC codec**: For encoding/decoding implementations
+
+#### Validation
+Run attribution validation tests:
+```bash
+python -m pytest tests/test_attribution_validation.py -v
+```
+
+See `tools/ATTRIBUTION_GUIDE.md` for comprehensive documentation.
 
 See the tests for examples. For major changes, open an issue first.
 

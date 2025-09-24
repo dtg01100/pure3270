@@ -1,0 +1,42 @@
+{
+  "test_info": {
+    "test_id": "handshake_validation_1758714877",
+    "host": "pub400.com",
+    "port": 992,
+    "timestamp": 1758714877.700851,
+    "success": true,
+    "phase": "performance"
+  },
+  "timing_metrics": {
+    "total_duration": 0.18,
+    "connection_duration": 0.1,
+    "negotiation_duration": 0.05,
+    "handshake_duration": 0.02,
+    "screen_validation_duration": 0.01,
+    "step_timings": {},
+    "timeouts": 0,
+    "retries": 0
+  },
+  "protocol_compliance": {
+    "tn3270e_negotiated": true,
+    "rfc2355_compliant": true,
+    "device_type_sent": true,
+    "functions_negotiated": 255,
+    "bind_image_received": true,
+    "structured_fields_supported": true,
+    "fallback_to_tn3270": false
+  },
+  "screen_validation": {
+    "initial_screen_received": true,
+    "login_prompt_detected": true,
+    "screen_buffer_captured": true,
+    "expected_content_found": true,
+    "screen_rows": 24,
+    "screen_cols": 80,
+    "buffer_size": 1920
+  },
+  "errors": [],
+  "warnings": [],
+  "logs": [],
+  "state_history": []
+}

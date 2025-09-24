@@ -15,9 +15,49 @@ Macro scripting/DSL was removed from Pure3270 and will not be reintroduced.
 1. Open an issue describing the bug/feature.
 2. Create a feature branch from the latest `main`.
 3. Add tests for your change when practical.
-4. Run local CI: `./ci.sh` (or `python run_full_ci.py --fast`).
-5. **Code formatting is automatic**: Pre-commit hooks will auto-format and create formatting commits.
-6. Submit a PR with a clear description and rationale.
+4. **Add proper attribution** for any third-party code using the attribution scaffolding system.
+5. Run local CI: `./ci.sh` (or `python run_full_ci.py --fast`).
+6. **Code formatting is automatic**: Pre-commit hooks will auto-format and create formatting commits.
+7. Submit a PR with a clear description and rationale.
+
+## Attribution Requirements
+
+When contributing code that is ported from or inspired by third-party sources, you must include proper attribution:
+
+### Attribution Scaffolding System
+
+Pure3270 provides an attribution scaffolding system to ensure consistent, legally compliant attribution:
+
+```bash
+# Interactive mode (recommended)
+python tools/generate_attribution.py --interactive
+
+# Or use command-line options
+python tools/generate_attribution.py --type module \
+    --source "IBM s3270/x3270" \
+    --url "https://github.com/rhacker/x3270" \
+    --license "BSD-3-Clause" \
+    --description "TN3270 protocol implementation based on s3270"
+```
+
+### Attribution Types
+
+- **Module-level**: For entire files with ported code
+- **Function/method**: For specific functions from third-party sources
+- **Class**: For classes inspired by other implementations
+- **Protocol**: For RFC-based protocol implementations
+- **s3270 compatibility**: For code maintaining s3270 compatibility
+- **EBCDIC codec**: For encoding/decoding implementations
+
+### Validation
+
+Run attribution validation tests:
+
+```bash
+python -m pytest tests/test_attribution_validation.py -v
+```
+
+See `tools/ATTRIBUTION_GUIDE.md` for comprehensive documentation.
 
 ## Code style
 

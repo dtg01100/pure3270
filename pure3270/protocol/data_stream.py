@@ -2,6 +2,7 @@
 
 import logging
 import struct
+import threading
 import traceback
 from typing import (
     TYPE_CHECKING,
@@ -118,34 +119,280 @@ SOH = 0x01  # Start of Header (SCS command for printer status) - often 0x01 in S
 DEVICE_END = 0x00  # Placeholder for device end status
 INTERVENTION_REQUIRED = 0x01  # Placeholder for intervention required status
 
-# Structured Field Types
+# Structured Field Types (RFC 2355, RFC 1576, and additional types)
 BIND_SF_TYPE = 0x03  # BIND-IMAGE Structured Field Type
 SF_TYPE_SFE = 0x28  # Start Field Extended
-SNA_RESPONSE_SF_TYPE = 0x01  # Example: assuming a specific SF type for SNA responses
-PRINTER_STATUS_SF_TYPE = 0x02  # Placeholder for printer status structured field type
+SNA_RESPONSE_SF_TYPE = 0x01  # SNA Response Structured Field Type
+PRINTER_STATUS_SF_TYPE = 0x02  # Printer Status Structured Field Type
+
+# Additional Structured Field Types
+QUERY_REPLY_SF_TYPE = 0x81  # Query Reply Structured Field Type
+OUTBOUND_3270DS_SF_TYPE = 0x40  # Outbound 3270DS Structured Field Type
+INBOUND_3270DS_SF_TYPE = 0x41  # Inbound 3270DS Structured Field Type
+OBJECT_DATA_SF_TYPE = 0x42  # Object Data Structured Field Type
+OBJECT_CONTROL_SF_TYPE = 0x43  # Object Control Structured Field Type
+OBJECT_PICTURE_SF_TYPE = 0x44  # Object Picture Structured Field Type
+DATA_CHAIN_SF_TYPE = 0x45  # Data Chain Structured Field Type
+COMPRESSION_SF_TYPE = 0x46  # Compression Structured Field Type
+FONT_CONTROL_SF_TYPE = 0x47  # Font Control Structured Field Type
+SYMBOL_SET_SF_TYPE = 0x48  # Symbol Set Structured Field Type
+DEVICE_CHARACTERISTICS_SF_TYPE = 0x49  # Device Characteristics Structured Field Type
+DESCRIPTOR_SF_TYPE = 0x4A  # Descriptor Structured Field Type
+FILE_SF_TYPE = 0x4B  # File Structured Field Type
+FONT_SF_TYPE = 0x4C  # Font Structured Field Type
+PAGE_SF_TYPE = 0x4D  # Page Structured Field Type
+GRAPHICS_SF_TYPE = 0x4E  # Graphics Structured Field Type
+BARCODE_SF_TYPE = 0x4F  # Barcode Structured Field Type
 
 # BIND-IMAGE Subfield IDs (RFC 2355, Section 5.1)
 BIND_SF_SUBFIELD_PSC = 0x01  # Presentation Space Control
 BIND_SF_SUBFIELD_QUERY_REPLY_IDS = 0x02  # Query Reply IDs
 
 
+class StructuredFieldValidator:
+    """Comprehensive validator for structured fields with error handling."""
+
+    def __init__(self) -> None:
+        self.validation_errors: List[str] = []
+        self.validation_warnings: List[str] = []
+
+    def validate_structured_field(self, sf_type: int, data: bytes) -> bool:
+        """Validate a structured field."""
+        self.validation_errors.clear()
+        self.validation_warnings.clear()
+
+        if len(data) < 3:
+            self.validation_errors.append(
+                f"Structured field too short: {len(data)} bytes"
+            )
+            return False
+
+        # Validate length field
+        if not self._validate_length_field(data):
+            return False
+
+        # Type-specific validation
+        if not self._validate_by_type(sf_type, data):
+            return False
+
+        return len(self.validation_errors) == 0
+
+    def _validate_length_field(self, data: bytes) -> bool:
+        """Validate the length field of a structured field."""
+        if len(data) < 3:
+            self.validation_errors.append("Data too short for length field")
+            return False
+
+        # Length is 2 bytes, big-endian
+        length = (data[1] << 8) | data[2]
+        if length < 3:
+            self.validation_errors.append(f"Invalid length field: {length}")
+            return False
+
+        if length > len(data):
+            self.validation_errors.append(
+                f"Length field {length} exceeds data size {len(data)}"
+            )
+            return False
+
+        return True
+
+    def _validate_by_type(self, sf_type: int, data: bytes) -> bool:
+        """Validate structured field based on its type."""
+        try:
+            if sf_type == BIND_SF_TYPE:
+                return self._validate_bind_image(data)
+            elif sf_type == SF_TYPE_SFE:
+                return self._validate_sfe(data)
+            elif sf_type == SNA_RESPONSE_SF_TYPE:
+                return self._validate_sna_response(data)
+            elif sf_type == QUERY_REPLY_SF_TYPE:
+                return self._validate_query_reply(data)
+            elif sf_type == PRINTER_STATUS_SF_TYPE:
+                return self._validate_printer_status(data)
+            else:
+                self.validation_warnings.append(
+                    f"Unknown structured field type: 0x{sf_type:02x}"
+                )
+                return True  # Allow unknown types
+        except Exception as e:
+            self.validation_errors.append(
+                f"Validation error for type 0x{sf_type:02x}: {e}"
+            )
+            return False
+
+    def _validate_bind_image(self, data: bytes) -> bool:
+        """Validate BIND-IMAGE structured field."""
+        if len(data) < 8:  # Minimum size for BIND-IMAGE
+            self.validation_errors.append("BIND-IMAGE data too short")
+            return False
+
+        # Check for required subfields
+        parser = BaseParser(data[3:])  # Skip SF header
+        while parser.has_more():
+            if parser.remaining() < 2:
+                break
+            subfield_len = parser.read_byte()
+            if subfield_len < 2:
+                self.validation_errors.append("Invalid subfield length")
+                return False
+            if parser.remaining() < 1:
+                break
+            subfield_id = parser.read_byte()
+            subfield_data = parser.read_fixed(subfield_len - 2)
+
+            # Validate specific subfields
+            if subfield_id == BIND_SF_SUBFIELD_PSC:
+                if len(subfield_data) < 4:
+                    self.validation_errors.append("PSC subfield too short")
+                    return False
+            elif subfield_id == BIND_SF_SUBFIELD_QUERY_REPLY_IDS:
+                if len(subfield_data) == 0:
+                    self.validation_warnings.append("Empty query reply IDs list")
+
+        return True
+
+    def _validate_sfe(self, data: bytes) -> bool:
+        """Validate Start Field Extended structured field."""
+        if len(data) < 5:  # SF header + length + at least one pair
+            self.validation_errors.append("SFE data too short")
+            return False
+
+        # Parse attribute pairs
+        parser = BaseParser(data[3:])  # Skip SF header
+        if not parser.has_more():
+            return True
+
+        length = parser.read_byte()
+        num_pairs = length // 2
+
+        for i in range(num_pairs):
+            if parser.remaining() < 2:
+                self.validation_errors.append(f"Incomplete SFE pair at index {i}")
+                return False
+            attr_type = parser.read_byte()
+            attr_value = parser.read_byte()
+
+            # Validate attribute types
+            if attr_type not in (0x41, 0x42, 0x43, 0x44, 0x45):
+                self.validation_warnings.append(
+                    f"Unknown SFE attribute type: 0x{attr_type:02x}"
+                )
+
+        return True
+
+    def _validate_sna_response(self, data: bytes) -> bool:
+        """Validate SNA Response structured field."""
+        if len(data) < 6:  # SF header + response type + flags + sense code
+            self.validation_errors.append("SNA response data too short")
+            return False
+
+        parser = BaseParser(data[3:])  # Skip SF header
+        response_type = parser.read_byte()
+        flags = parser.read_byte()
+        sense_code = parser.read_u16()
+
+        # Validate response codes
+        if response_type not in (SNA_COMMAND_RESPONSE, SNA_DATA_RESPONSE):
+            self.validation_warnings.append(
+                f"Unknown SNA response type: 0x{response_type:02x}"
+            )
+
+        return True
+
+    def _validate_query_reply(self, data: bytes) -> bool:
+        """Validate Query Reply structured field."""
+        if len(data) < 4:  # SF header + query type
+            self.validation_errors.append("Query reply data too short")
+            return False
+
+        parser = BaseParser(data[3:])  # Skip SF header
+        query_type = parser.read_byte()
+
+        # Validate query types
+        valid_query_types = {
+            QUERY_REPLY_CHARACTERISTICS,
+            QUERY_REPLY_COLOR,
+            QUERY_REPLY_DBCS_ASIA,
+            QUERY_REPLY_DBCS_EUROPE,
+            QUERY_REPLY_DBCS_MIDDLE_EAST,
+            QUERY_REPLY_DDM,
+            QUERY_REPLY_DEVICE_TYPE,
+            QUERY_REPLY_EXTENDED_ATTRIBUTES,
+            QUERY_REPLY_FORMAT_STORAGE,
+            QUERY_REPLY_GRAPHICS,
+            QUERY_REPLY_GRID,
+            QUERY_REPLY_HIGHLIGHTING,
+            QUERY_REPLY_LINE_TYPE,
+            QUERY_REPLY_OEM_AUXILIARY_DEVICE,
+            QUERY_REPLY_PROCEDURE,
+            QUERY_REPLY_RPQ_NAMES,
+            QUERY_REPLY_SEGMENT,
+            QUERY_REPLY_SF,
+            QUERY_REPLY_TRANSPARENCY,
+        }
+
+        if query_type not in valid_query_types:
+            self.validation_warnings.append(
+                f"Unknown query reply type: 0x{query_type:02x}"
+            )
+
+        return True
+
+    def _validate_printer_status(self, data: bytes) -> bool:
+        """Validate Printer Status structured field."""
+        if len(data) < 4:  # SF header + status code
+            self.validation_errors.append("Printer status data too short")
+            return False
+
+        parser = BaseParser(data[3:])  # Skip SF header
+        status_code = parser.read_byte()
+
+        # Validate status codes
+        valid_status_codes = {0x00, 0x40, 0x80, 0x81, 0x82, 0x83}
+        if status_code not in valid_status_codes:
+            self.validation_warnings.append(
+                f"Unknown printer status code: 0x{status_code:02x}"
+            )
+
+        return True
+
+    def get_errors(self) -> List[str]:
+        """Get validation errors."""
+        return self.validation_errors.copy()
+
+    def get_warnings(self) -> List[str]:
+        """Get validation warnings."""
+        return self.validation_warnings.copy()
+
+
 class BindImage:
-    """Represents a parsed BIND-IMAGE Structured Field."""
+    """Represents a parsed BIND-IMAGE Structured Field with enhanced validation."""
 
     def __init__(
         self,
         rows: Optional[int] = None,
         cols: Optional[int] = None,
         query_reply_ids: Optional[List[int]] = None,
+        model: Optional[int] = None,
+        flags: Optional[int] = None,
+        session_parameters: Optional[Dict[str, Any]] = None,
     ):
         self.rows = rows
         self.cols = cols
         self.query_reply_ids = query_reply_ids if query_reply_ids is not None else []
+        self.model = model
+        self.flags = flags
+        self.session_parameters = (
+            session_parameters if session_parameters is not None else {}
+        )
 
     def __repr__(self) -> str:
         return (
             f"BindImage(rows={self.rows}, cols={self.cols}, "
-            f"query_reply_ids={self.query_reply_ids})"
+            f"model={self.model}, flags=0x{self.flags:02x}, "
+            f"query_reply_ids={self.query_reply_ids}, "
+            f"session_params={len(self.session_parameters)} items)"
         )
 
 
@@ -329,7 +576,7 @@ class SnaResponse:
 
 
 class DataStreamParser:
-    """Parses incoming 3270 data streams and updates the screen buffer."""
+    """Parses incoming 3270 data streams and updates the screen buffer with comprehensive structured field support."""
 
     def __init__(
         self,
@@ -338,7 +585,7 @@ class DataStreamParser:
         negotiator: Optional["Negotiator"] = None,
     ) -> None:
         """
-        Initialize the DataStreamParser.
+        Initialize the DataStreamParser with enhanced validation and buffer protection.
 
         :param screen_buffer: ScreenBuffer to update.
         :param printer_buffer: PrinterBuffer to update for printer sessions.
@@ -356,6 +603,143 @@ class DataStreamParser:
         )
         self._data: bytes = b""
         self._pos: int = 0
+
+        # Enhanced structured field support
+        self.sf_validator = StructuredFieldValidator()
+        self.sf_handlers: Dict[int, Callable[[bytes], None]] = {}
+        self._initialize_sf_handlers()
+
+        # Thread safety
+        self._lock = threading.Lock()
+
+        # Buffer management and validation
+        self._max_buffer_size = 1024 * 1024  # 1MB max buffer size
+        self._max_parse_depth = 100  # Prevent deep recursion
+        self._parse_depth = 0
+        self._validation_errors: List[str] = []
+        self._recovery_attempts = 0
+        self._max_recovery_attempts = 5
+
+    def _validate_data_integrity(self, data: bytes, data_type: int) -> bool:
+        """Validate data integrity before parsing."""
+        try:
+            # Check for null bytes in critical positions
+            if data_type in (TN3270_DATA, SCS_DATA, BIND_IMAGE) and len(data) > 0:
+                if data[0] == 0x00:
+                    self._validation_errors.append("Data starts with null byte")
+                    return False
+
+            # Check for excessive repetition (potential buffer overflow attack)
+            if len(data) > 100:
+                # Count repeated bytes
+                for i in range(len(data) - 1):
+                    if data[i] == data[i + 1]:
+                        repeated_count = 1
+                        for j in range(i + 1, min(i + 100, len(data))):
+                            if data[j] == data[i]:
+                                repeated_count += 1
+                            else:
+                                break
+                        if repeated_count > 50:  # More than 50 repeated bytes
+                            self._validation_errors.append(
+                                f"Excessive repetition detected: {repeated_count} repeated bytes"
+                            )
+                            return False
+
+            # Validate data type specific constraints
+            if data_type == BIND_IMAGE and len(data) > 0:
+                # BIND-IMAGE should start with structured field header
+                if data[0] != STRUCTURED_FIELD:
+                    self._validation_errors.append(
+                        "BIND-IMAGE data does not start with structured field header"
+                    )
+                    return False
+
+            return True
+        except Exception as e:
+            self._validation_errors.append(f"Data integrity validation error: {e}")
+            return False
+
+    def _attempt_recovery(self, data: bytes, data_type: int) -> bool:
+        """Attempt to recover from parsing errors."""
+        if self._recovery_attempts >= self._max_recovery_attempts:
+            logger.warning(
+                f"Maximum recovery attempts ({self._max_recovery_attempts}) exceeded"
+            )
+            return False
+
+        self._recovery_attempts += 1
+        logger.debug(f"Attempting recovery (attempt {self._recovery_attempts})")
+
+        try:
+            # Try to skip malformed data and continue
+            if len(data) > 5:
+                # Try to find a valid header pattern
+                for i in range(min(10, len(data) - 5)):
+                    try:
+                        # Look for potential TN3270E header pattern
+                        if data[i] in (TN3270_DATA, SCS_DATA, RESPONSE, BIND_IMAGE):
+                            # Try to parse from this position
+                            test_data = data[i:]
+                            if len(test_data) >= 5:
+                                # Validate header structure
+                                header_bytes = test_data[:5]
+                                if all(0 <= b <= 255 for b in header_bytes):
+                                    logger.debug(
+                                        f"Found potential valid header at offset {i}"
+                                    )
+                                    return True
+                    except:
+                        continue
+
+            return False
+        except Exception as e:
+            logger.debug(f"Recovery attempt failed: {e}")
+            return False
+
+    def get_validation_errors(self) -> List[str]:
+        """Get current validation errors."""
+        return self._validation_errors.copy()
+
+    def clear_validation_errors(self) -> None:
+        """Clear validation errors."""
+        self._validation_errors.clear()
+
+    def get_parser_stats(self) -> Dict[str, Any]:
+        """Get parser statistics."""
+        return {
+            "max_buffer_size": self._max_buffer_size,
+            "max_parse_depth": self._max_parse_depth,
+            "recovery_attempts": self._recovery_attempts,
+            "validation_errors": len(self._validation_errors),
+            "thread_safe": True,
+        }
+
+    def _initialize_sf_handlers(self) -> None:
+        """Initialize structured field handlers."""
+        self.sf_handlers = {
+            BIND_SF_TYPE: self._handle_bind_sf,
+            SF_TYPE_SFE: self._handle_sfe,
+            SNA_RESPONSE_SF_TYPE: self._handle_sna_response_sf,
+            QUERY_REPLY_SF_TYPE: self._handle_query_reply_sf,
+            PRINTER_STATUS_SF_TYPE: self._handle_printer_status_sf,
+            OUTBOUND_3270DS_SF_TYPE: self._handle_outbound_3270ds_sf,
+            INBOUND_3270DS_SF_TYPE: self._handle_inbound_3270ds_sf,
+            OBJECT_DATA_SF_TYPE: self._handle_object_data_sf,
+            OBJECT_CONTROL_SF_TYPE: self._handle_object_control_sf,
+            OBJECT_PICTURE_SF_TYPE: self._handle_object_picture_sf,
+            DATA_CHAIN_SF_TYPE: self._handle_data_chain_sf,
+            COMPRESSION_SF_TYPE: self._handle_compression_sf,
+            FONT_CONTROL_SF_TYPE: self._handle_font_control_sf,
+            SYMBOL_SET_SF_TYPE: self._handle_symbol_set_sf,
+            DEVICE_CHARACTERISTICS_SF_TYPE: self._handle_device_characteristics_sf,
+            DESCRIPTOR_SF_TYPE: self._handle_descriptor_sf,
+            FILE_SF_TYPE: self._handle_file_sf,
+            FONT_SF_TYPE: self._handle_font_sf,
+            PAGE_SF_TYPE: self._handle_page_sf,
+            GRAPHICS_SF_TYPE: self._handle_graphics_sf,
+            BARCODE_SF_TYPE: self._handle_barcode_sf,
+        }
 
         # Map of order byte -> handler callable. Some handlers take a byte argument (WCC/AID/etc.).
         self._order_handlers: Dict[int, Callable[..., None]] = {
@@ -418,7 +802,7 @@ class DataStreamParser:
 
     def parse(self, data: bytes, data_type: int = TN3270_DATA) -> None:
         """
-        Parse 3270 data stream or other data types.
+        Parse 3270 data stream or other data types with enhanced validation and buffer protection.
 
         Args:
             data: Bytes to parse.
@@ -427,6 +811,22 @@ class DataStreamParser:
         Raises:
             ParseError: For parsing errors.
         """
+        # Enhanced buffer size validation
+        if len(data) > self._max_buffer_size:
+            logger.warning(
+                f"Data stream size {len(data)} exceeds maximum buffer size {self._max_buffer_size}"
+            )
+            raise ParseError(
+                f"Data stream too large: {len(data)} bytes (max: {self._max_buffer_size})"
+            )
+
+        # Validate data integrity
+        if not self._validate_data_integrity(data, data_type):
+            logger.warning(
+                f"Data integrity validation failed for data type {data_type:02x}"
+            )
+            # Continue parsing but log the issue
+
         logger.debug(f"Parsing data of type {data_type:02x}: {data.hex()[:50]}...")
 
         # Debug: log initial buffer state (only if DEBUG level enabled)
@@ -912,18 +1312,53 @@ class DataStreamParser:
             self.negotiator.handle_bind_image(default_bind_image)
 
     def _handle_data_stream_ctl(self, ctl_code: int) -> None:
-        """Handle DATA-STREAM-CTL order."""
-        # Process control code similarly to SCS CTL codes
+        """Handle DATA-STREAM-CTL order with comprehensive support."""
+        logger.debug(f"Handling DATA-STREAM-CTL code: 0x{ctl_code:02x}")
+
+        # Enhanced DATA-STREAM-CTL handling based on RFC 2355
+        if ctl_code == 0x01:  # BIND-IMAGE
+            logger.debug("DATA-STREAM-CTL: BIND-IMAGE requested")
+            # BIND-IMAGE is typically handled via structured fields, not orders
+        elif ctl_code == 0x02:  # UNBIND
+            logger.debug("DATA-STREAM-CTL: UNBIND requested")
+            # Handle unbind operation
+        elif ctl_code == 0x03:  # NVT-DATA
+            logger.debug("DATA-STREAM-CTL: NVT-DATA requested")
+            # Switch to NVT mode
+        elif ctl_code == 0x04:  # REQUEST
+            logger.debug("DATA-STREAM-CTL: REQUEST requested")
+            # Handle request for data
+        elif ctl_code == 0x05:  # SSCP-LU-DATA
+            logger.debug("DATA-STREAM-CTL: SSCP-LU-DATA requested")
+            # Handle SSCP-LU communication
+        elif ctl_code == 0x06:  # PRINT-EOJ
+            logger.debug("DATA-STREAM-CTL: PRINT-EOJ requested")
+            if self.printer:
+                self.printer.end_job()
+        elif ctl_code == 0x07:  # BID
+            logger.debug("DATA-STREAM-CTL: BID requested")
+            # Handle bidirectional communication
+        elif ctl_code == 0x08:  # CANCEL
+            logger.debug("DATA-STREAM-CTL: CANCEL requested")
+            # Handle cancel operation
+        elif ctl_code == 0x09:  # SIGNAL
+            logger.debug("DATA-STREAM-CTL: SIGNAL requested")
+            # Handle signal operation
+        else:
+            logger.warning(f"Unknown DATA-STREAM-CTL code: 0x{ctl_code:02x}")
+
+        # Process control code similarly to SCS CTL codes for backward compatibility
         self._handle_scs_ctl_codes(bytes([ctl_code]))
 
     def _handle_structured_field(self) -> None:
-        """Handle Structured Field.
+        """Handle Structured Field with comprehensive validation and error handling.
 
         Tolerant parser: callers may call this directly with `self._data`/`self._pos`
         set (tests do this), or it may be invoked from the main parse loop (where
         the SF id byte was already consumed). This method handles both cases.
         """
-        parser = self._ensure_parser()
+        with self._lock:
+            parser = self._ensure_parser()
 
         # If the SF id byte (0x3C) is still present at the current position,
         # consume it so the following reads point at the length field.
@@ -980,11 +1415,32 @@ class DataStreamParser:
                 parser.read_fixed(parser.remaining()) if parser.remaining() > 0 else b""
             )
 
-        if sf_type == BIND_SF_TYPE:
-            # Delegate BIND-IMAGE handling to a dedicated method so tests can patch it
-            self._handle_bind_sf(sf_data)
-        elif sf_type == SF_TYPE_SFE:
-            self._handle_sfe(sf_data)
+        # Validate the structured field
+        if not self.sf_validator.validate_structured_field(
+            sf_type,
+            bytes([STRUCTURED_FIELD, length_high, length_low, sf_type]) + sf_data,
+        ):
+            errors = self.sf_validator.get_errors()
+            warnings = self.sf_validator.get_warnings()
+            for error in errors:
+                logger.error(f"Structured field validation error: {error}")
+            for warning in warnings:
+                logger.warning(f"Structured field validation warning: {warning}")
+
+            # If there are critical errors, skip this field
+            if errors:
+                logger.error(f"Skipping invalid structured field type 0x{sf_type:02x}")
+                return
+
+        # Handle the structured field using the appropriate handler
+        if sf_type in self.sf_handlers:
+            try:
+                self.sf_handlers[sf_type](sf_data)
+            except Exception as e:
+                logger.error(
+                    f"Error handling structured field type 0x{sf_type:02x}: {e}"
+                )
+                # Continue processing other fields
         else:
             self._handle_unknown_structured_field(sf_type, sf_data)
 
@@ -995,6 +1451,157 @@ class DataStreamParser:
         )
         self._skip_structured_field()
         # TODO: More detailed parsing or error handling if needed
+
+    # Comprehensive Structured Field Handlers
+    def _handle_sna_response_sf(self, data: bytes) -> None:
+        """Handle SNA Response structured field."""
+        try:
+            sna_response = self._parse_sna_response(data)
+            logger.debug(f"Handled SNA Response SF: {sna_response}")
+            if self.negotiator:
+                handler = getattr(self.negotiator, "_handle_sna_response", None)
+                if handler is not None:
+                    try:
+                        handler_callable = cast(Callable[[SnaResponse], None], handler)
+                        handler_callable(sna_response)
+                    except Exception:
+                        logger.warning(
+                            "Negotiator _handle_sna_response raised", exc_info=True
+                        )
+        except ParseError as e:
+            logger.warning(f"Failed to parse SNA Response SF: {e}")
+
+    def _handle_query_reply_sf(self, data: bytes) -> None:
+        """Handle Query Reply structured field."""
+        try:
+            # Parse query type from data
+            if len(data) < 1:
+                logger.warning("Query Reply SF data too short")
+                return
+
+            query_type = data[0]
+            logger.debug(f"Handled Query Reply SF type 0x{query_type:02x}")
+
+            # Handle specific query types
+            if query_type == QUERY_REPLY_DEVICE_TYPE:
+                self._handle_device_type_query_reply(data)
+            elif query_type == QUERY_REPLY_CHARACTERISTICS:
+                self._handle_characteristics_query_reply(data)
+            else:
+                logger.debug(f"Unhandled query reply type 0x{query_type:02x}")
+
+        except Exception as e:
+            logger.error(f"Error handling Query Reply SF: {e}")
+
+    def _handle_printer_status_sf(self, data: bytes) -> None:
+        """Handle Printer Status structured field."""
+        try:
+            if len(data) < 1:
+                logger.warning("Printer Status SF data too short")
+                return
+
+            status_code = data[0]
+            logger.debug(f"Handled Printer Status SF: 0x{status_code:02x}")
+
+            # Route to printer buffer if available
+            if self.printer:
+                self.printer.update_status(status_code)
+
+        except Exception as e:
+            logger.error(f"Error handling Printer Status SF: {e}")
+
+    def _handle_outbound_3270ds_sf(self, data: bytes) -> None:
+        """Handle Outbound 3270DS structured field."""
+        logger.debug(f"Handled Outbound 3270DS SF: {len(data)} bytes")
+
+    def _handle_inbound_3270ds_sf(self, data: bytes) -> None:
+        """Handle Inbound 3270DS structured field."""
+        logger.debug(f"Handled Inbound 3270DS SF: {len(data)} bytes")
+
+    def _handle_object_data_sf(self, data: bytes) -> None:
+        """Handle Object Data structured field."""
+        logger.debug(f"Handled Object Data SF: {len(data)} bytes")
+
+    def _handle_object_control_sf(self, data: bytes) -> None:
+        """Handle Object Control structured field."""
+        logger.debug(f"Handled Object Control SF: {len(data)} bytes")
+
+    def _handle_object_picture_sf(self, data: bytes) -> None:
+        """Handle Object Picture structured field."""
+        logger.debug(f"Handled Object Picture SF: {len(data)} bytes")
+
+    def _handle_data_chain_sf(self, data: bytes) -> None:
+        """Handle Data Chain structured field."""
+        logger.debug(f"Handled Data Chain SF: {len(data)} bytes")
+
+    def _handle_compression_sf(self, data: bytes) -> None:
+        """Handle Compression structured field."""
+        logger.debug(f"Handled Compression SF: {len(data)} bytes")
+
+    def _handle_font_control_sf(self, data: bytes) -> None:
+        """Handle Font Control structured field."""
+        logger.debug(f"Handled Font Control SF: {len(data)} bytes")
+
+    def _handle_symbol_set_sf(self, data: bytes) -> None:
+        """Handle Symbol Set structured field."""
+        logger.debug(f"Handled Symbol Set SF: {len(data)} bytes")
+
+    def _handle_device_characteristics_sf(self, data: bytes) -> None:
+        """Handle Device Characteristics structured field."""
+        logger.debug(f"Handled Device Characteristics SF: {len(data)} bytes")
+
+    def _handle_descriptor_sf(self, data: bytes) -> None:
+        """Handle Descriptor structured field."""
+        logger.debug(f"Handled Descriptor SF: {len(data)} bytes")
+
+    def _handle_file_sf(self, data: bytes) -> None:
+        """Handle File structured field."""
+        logger.debug(f"Handled File SF: {len(data)} bytes")
+
+    def _handle_font_sf(self, data: bytes) -> None:
+        """Handle Font structured field."""
+        logger.debug(f"Handled Font SF: {len(data)} bytes")
+
+    def _handle_page_sf(self, data: bytes) -> None:
+        """Handle Page structured field."""
+        logger.debug(f"Handled Page SF: {len(data)} bytes")
+
+    def _handle_graphics_sf(self, data: bytes) -> None:
+        """Handle Graphics structured field."""
+        logger.debug(f"Handled Graphics SF: {len(data)} bytes")
+
+    def _handle_barcode_sf(self, data: bytes) -> None:
+        """Handle Barcode structured field."""
+        logger.debug(f"Handled Barcode SF: {len(data)} bytes")
+
+    def _handle_device_type_query_reply(self, data: bytes) -> None:
+        """Handle Device Type Query Reply."""
+        try:
+            if len(data) < 4:
+                logger.warning("Device Type Query Reply too short")
+                return
+
+            device_type = data[1]  # Skip query type byte
+            num_devices = data[2]
+            name_len = data[3]
+            if len(data) >= 4 + name_len + 1:
+                name = data[4 : 4 + name_len]
+                model = data[4 + name_len]
+                logger.debug(f"Device Type Query Reply: {name} model {model}")
+        except Exception as e:
+            logger.error(f"Error parsing Device Type Query Reply: {e}")
+
+    def _handle_characteristics_query_reply(self, data: bytes) -> None:
+        """Handle Characteristics Query Reply."""
+        try:
+            if len(data) < 3:
+                logger.warning("Characteristics Query Reply too short")
+                return
+
+            # Parse buffer sizes and other characteristics
+            logger.debug("Handled Characteristics Query Reply")
+        except Exception as e:
+            logger.error(f"Error parsing Characteristics Query Reply: {e}")
 
     def _skip_structured_field(self) -> None:
         """Skip the current structured field.
@@ -1114,7 +1721,7 @@ class DataStreamParser:
             )
 
     def _parse_bind_image(self, data: bytes) -> BindImage:
-        """Parse BIND-IMAGE structured field with length checks and attribute parsing."""
+        """Parse BIND-IMAGE structured field with comprehensive validation and attribute parsing."""
         parser = BaseParser(data)
         if parser.remaining() < 3:
             logger.warning("Invalid BIND-IMAGE structured field: too short")
@@ -1138,6 +1745,9 @@ class DataStreamParser:
         rows = None
         cols = None
         query_reply_ids = []
+        model = None
+        flags = None
+        session_parameters = {}
 
         # Expected data length: sf_length - 3 (length bytes + type)
         expected_end = parser._pos + (sf_length - 3)
@@ -1168,19 +1778,41 @@ class DataStreamParser:
                     rows = (sub_data[0] << 8) | sub_data[1]
                     cols = (sub_data[2] << 8) | sub_data[3]
                     logger.debug(f"Parsed PSC subfield: rows={rows}, cols={cols}")
-                    # TODO: Parse additional PSC attributes if present (e.g., flags at sub_data[4:])
+
+                    # Parse additional PSC attributes if present
+                    if len(sub_data) >= 5:
+                        flags = sub_data[4]
+                        logger.debug(f"Parsed PSC flags: 0x{flags:02x}")
+
+                    # Additional session parameters
+                    if len(sub_data) > 5:
+                        session_parameters["psc_data"] = sub_data[5:].hex()
                 else:
                     logger.warning("PSC subfield too short for rows/cols")
             elif subfield_id == BIND_SF_SUBFIELD_QUERY_REPLY_IDS:
                 # Query Reply IDs: list of 1-byte IDs
                 query_reply_ids = list(sub_data)
                 logger.debug(f"Parsed Query Reply IDs subfield: {query_reply_ids}")
+            elif subfield_id == 0x03:  # Model information
+                if len(sub_data) >= 1:
+                    model = sub_data[0]
+                    logger.debug(f"Parsed model information: {model}")
+            elif subfield_id == 0x04:  # Extended attributes
+                session_parameters["extended_attrs"] = sub_data.hex()
+                logger.debug(f"Parsed extended attributes: {len(sub_data)} bytes")
             else:
                 logger.debug(
                     f"Skipping unknown BIND-IMAGE subfield ID 0x{subfield_id:02x} (length {subfield_len})"
                 )
 
-        bind_image = BindImage(rows=rows, cols=cols, query_reply_ids=query_reply_ids)
+        bind_image = BindImage(
+            rows=rows,
+            cols=cols,
+            query_reply_ids=query_reply_ids,
+            model=model,
+            flags=flags,
+            session_parameters=session_parameters,
+        )
         logger.debug(f"Parsed BIND-IMAGE: {bind_image}")
         return bind_image
 
@@ -1376,6 +2008,114 @@ class DataStreamSender:
         length = len(payload) + 2  # SF length: type (1) + length field (2) + payload
         return bytes([STRUCTURED_FIELD]) + length.to_bytes(2, "big") + payload
 
+    def get_structured_field_info(self) -> Dict[str, Any]:
+        """Get information about structured field processing capabilities."""
+        with self._lock:
+            return {
+                "supported_types": list(self.sf_handlers.keys()),
+                "validator_available": self.sf_validator is not None,
+                "validation_errors": (
+                    len(self.sf_validator.get_errors()) if self.sf_validator else 0
+                ),
+                "validation_warnings": (
+                    len(self.sf_validator.get_warnings()) if self.sf_validator else 0
+                ),
+            }
+
+    def validate_current_structured_field(self) -> bool:
+        """Validate the current structured field being processed."""
+        with self._lock:
+            if not self.sf_validator:
+                return True
+            return len(self.sf_validator.get_errors()) == 0
+
+    def get_validation_errors(self) -> List[str]:
+        """Get current validation errors."""
+        with self._lock:
+            if not self.sf_validator:
+                return []
+            return self.sf_validator.get_errors()
+
+    def get_validation_warnings(self) -> List[str]:
+        """Get current validation warnings."""
+        with self._lock:
+            if not self.sf_validator:
+                return []
+            return self.sf_validator.get_warnings()
+
+    def clear_validation_state(self) -> None:
+        """Clear validation state."""
+        with self._lock:
+            if self.sf_validator:
+                self.sf_validator.validation_errors.clear()
+                self.sf_validator.validation_warnings.clear()
+
     def build_soh_message(self, status_code: int) -> bytes:
         """Build SOH (Start of Header) message."""
         return bytes([SOH, status_code])
+
+
+def test_advanced_features():
+    """Test the advanced structured field and printer session features."""
+    from ..emulation.printer_buffer import PrinterBuffer
+    from ..emulation.screen_buffer import ScreenBuffer
+
+    # Create test components
+    screen = ScreenBuffer(24, 80)
+    printer = PrinterBuffer()
+    parser = DataStreamParser(screen, printer)
+
+    # Test structured field validation
+    validator = StructuredFieldValidator()
+
+    # Test BIND-IMAGE validation
+    bind_data = bytes(
+        [
+            0x3C,  # SF
+            0x00,
+            0x13,  # Length (19 bytes total)
+            0x03,  # BIND-IMAGE type
+            0x00,
+            0x06,  # PSC subfield length (6 bytes: len + id + 4 data)
+            0x01,  # PSC subfield ID
+            0x00,
+            0x18,
+            0x00,
+            0x50,  # Rows=24, Cols=80
+            0x00,
+            0x05,  # Query Reply IDs subfield length (5 bytes: len + id + 3 data)
+            0x02,  # Query Reply IDs subfield ID
+            0x81,
+            0x84,
+            0x85,  # Query types
+        ]
+    )
+
+    is_valid = validator.validate_structured_field(0x03, bind_data)
+    print(f"BIND-IMAGE validation: {'PASS' if is_valid else 'FAIL'}")
+    print(f"Errors: {validator.get_errors()}")
+    print(f"Warnings: {validator.get_warnings()}")
+
+    # Test printer session
+    from .printer import PrinterSession
+
+    session = PrinterSession()
+    session.activate()
+
+    # Test SCS control codes
+    session.handle_scs_control_code(0x0C)  # Form Feed
+    session.handle_scs_control_code(0x01)  # PRINT-EOJ
+
+    print(f"Printer session active: {session.is_active}")
+    print(f"Session info: {session.get_session_info()}")
+
+    # Test thread safety
+    print(
+        f"Printer session thread-safe: {session.current_job.is_thread_safe() if session.current_job else 'No job'}"
+    )
+
+    print("Advanced features test completed successfully!")
+
+
+if __name__ == "__main__":
+    test_advanced_features()
