@@ -127,7 +127,7 @@ class AttributionGenerator:
             ported_components=args.components,
             integration_layer=args.integration_layer,
             modifications=args.modifications,
-            compatibility=args.compatibility,
+            compatibility=args.notice_compatibility,
             optional_dependency=args.optional,
         )
 
