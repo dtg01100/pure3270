@@ -160,11 +160,17 @@ class MockTN3270EServer:
                 await writer.drain()
 
             # Keep connection open for session.close()
-            while True:
-                data = await reader.read(1024)
-                if len(data) == 0:
-                    break
-                # Echo or handle further, but for test, no need
+            max_iterations = 100  # Prevent infinite loops
+            iteration_count = 0
+            while iteration_count < max_iterations:
+                iteration_count += 1
+                try:
+                    data = await asyncio.wait_for(reader.read(1024), timeout=5.0)
+                    if len(data) == 0:
+                        break
+                    # Echo or handle further, but for test, no need
+                except asyncio.TimeoutError:
+                    break  # Exit on timeout to prevent hanging
         except asyncio.IncompleteReadError:
             pass  # Client closed
         except Exception as e:

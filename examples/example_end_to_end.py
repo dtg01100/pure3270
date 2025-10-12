@@ -40,7 +40,10 @@ session = P3270Client()
 print("P3270Client created - native implementation.")
 
 try:
-    session.connect(args.host, port=args.port, ssl=args.ssl)
+    session.hostName = args.host
+    session.hostPort = args.port
+    session.ssl = args.ssl
+    session.connect()
     print(f"Connected to {args.host}:{args.port}.")
     session.send("key Clear")
     print("Sent 'key Clear' to trigger login screen.")
@@ -52,10 +55,7 @@ try:
     session.send(args.user)
     session.send("key Tab")  # Move to next field
     session.send(args.password)
-    print(
-        f"Sent login credentials: '{args.user}' + 'key Tab' + "
-        f"'{args.password}'."
-    )
+    print(f"Sent login credentials: '{args.user}' + 'key Tab' + " f"'{args.password}'.")
     session.send("key Enter")  # Submit
     print("Sent 'key Enter' to submit login.")
     time.sleep(1)

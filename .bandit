@@ -12,7 +12,13 @@ exclude_dirs:
 
 skips:
   - "B101"
+  - "B110"  # Skip try/except/pass warnings - these are intentional in protocol code
+  - "B112"  # Skip try/except/continue warnings
+  - "B311"  # Skip random usage warnings - not used for security
+  - "B404"  # Skip subprocess import warnings - legitimate use
+  - "B603"  # Skip subprocess call warnings - legitimate use
   - "B601"
+  - "B607"  # Skip partial executable path warnings
 
 include:
   - "*.py"

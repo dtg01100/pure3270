@@ -3,11 +3,13 @@
 This requires the `s3270` binary to be installed and available on PATH.
 It is intentionally simple; capturing output size is limited.
 """
+
 import subprocess
 import sys
 
 HOST = "pub400.com"
 PORT = 23
+
 
 def main() -> int:
     print(f"Connecting to {HOST}:{PORT} using s3270...")

@@ -115,7 +115,7 @@ Use the provided test script to validate compatibility:
 # Test native P3270Client
 python test_native_p3270.py
 
-# Demo native functionality  
+# Demo native functionality
 python example_native_p3270.py
 ```
 

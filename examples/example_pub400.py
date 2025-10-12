@@ -8,10 +8,12 @@ Demonstrates using the high-level synchronous `Session` API to:
 NOTE: Public hosts may rate-limit or disconnect frequently; this
 example is best-effort and intended for manual experimentation.
 """
+
 from pure3270 import Session
 
 HOST = "pub400.com"
 PORT = 23
+
 
 def main() -> int:
     print(f"Connecting to {HOST}:{PORT} ...")

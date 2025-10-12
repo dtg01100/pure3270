@@ -1,7 +1,7 @@
 # TASK007 - Persist current state documentation
 
-**Status:** Completed  
-**Added:** 2025-09-23  
+**Status:** Completed
+**Added:** 2025-09-23
 **Updated:** 2025-09-23
 
 ## Original Request

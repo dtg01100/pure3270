@@ -606,7 +606,6 @@ class DataStreamParser:
 
         # Enhanced structured field support
         self.sf_validator = StructuredFieldValidator()
-        self.sf_handlers: Dict[int, Callable[[bytes], None]] = {}
         self._initialize_sf_handlers()
 
         # Thread safety
@@ -1435,7 +1434,9 @@ class DataStreamParser:
         # Handle the structured field using the appropriate handler
         if sf_type in self.sf_handlers:
             try:
-                self.sf_handlers[sf_type](sf_data)
+                from typing import Callable, cast
+
+                cast(Callable[[bytes], Any], self.sf_handlers[sf_type])(sf_data)
             except Exception as e:
                 logger.error(
                     f"Error handling structured field type 0x{sf_type:02x}: {e}"
@@ -1585,7 +1586,7 @@ class DataStreamParser:
             num_devices = data[2]
             name_len = data[3]
             if len(data) >= 4 + name_len + 1:
-                name = data[4 : 4 + name_len]
+                name = data[4 : 4 + name_len].decode(errors="replace")
                 model = data[4 + name_len]
                 logger.debug(f"Device Type Query Reply: {name} model {model}")
         except Exception as e:
@@ -1922,6 +1923,17 @@ class DataStreamParser:
 class DataStreamSender:
     """Data stream sender for building 3270 protocol data streams."""
 
+    _lock: "threading.Lock"
+    sf_handlers: Dict[int, Callable[..., Any]]
+    sf_validator: Optional["StructuredFieldValidator"]
+
+    def __init__(self) -> None:
+        import threading
+
+        self._lock = threading.Lock()
+        self.sf_handlers = {}
+        self.sf_validator = None
+
     def build_read_modified_all(self) -> bytes:
         """Build a read modified all command."""
         # AID (0x7D = ENTER) + Read Partition (0xF1)
@@ -2055,7 +2067,7 @@ class DataStreamSender:
         return bytes([SOH, status_code])
 
 
-def test_advanced_features():
+def test_advanced_features() -> None:
     """Test the advanced structured field and printer session features."""
     from ..emulation.printer_buffer import PrinterBuffer
     from ..emulation.screen_buffer import ScreenBuffer

@@ -18,8 +18,8 @@ from typing import (
     List,
     Optional,
     Tuple,
-    Union,
     TypeVar,
+    Union,
 )
 
 T = TypeVar("T")
@@ -56,7 +56,7 @@ def _require_connected_session(func: Callable[..., Any]) -> Callable[..., Any]:
         if not self._async_session:
             raise SessionError("Session not connected.")
         # At this point, mypy knows _async_session is not None
-        assert self._async_session is not None  # Type narrowing for mypy
+        # Type narrowing for mypy
         if not self._async_session.connected:
             self._run_async(self._async_session.connect())
         return func(self, *args, **kwargs)
@@ -94,14 +94,13 @@ class Session:
         force_mode: Optional[str] = None,
         allow_fallback: bool = True,
         enable_trace: bool = False,
-    ):
+    ) -> None:
         """
         Initialize a synchronous session with a dedicated thread and event loop.
         """
-        self._host = host
         self._port = port
         self._ssl_context = ssl_context
-        self._async_session = None
+        self._async_session: Optional["AsyncSession"] = None
         self._force_mode = force_mode
         self._allow_fallback = allow_fallback
         self._enable_trace = enable_trace
@@ -110,28 +109,42 @@ class Session:
         self._thread = None
         self._shutdown_event = None
 
-    def _ensure_loop(self):
-        if self._loop is not None and self._thread.is_alive():
+    _loop: Optional[asyncio.AbstractEventLoop]
+    _thread: Optional[Any]
+    _shutdown_event: Optional[Any]
+
+    def _ensure_loop(self) -> None:
+        if (
+            self._loop is not None
+            and self._thread is not None
+            and self._thread.is_alive()
+        ):
             return
-        import threading
         import queue
+        import threading
+
         self._shutdown_event = threading.Event()
-        ready = queue.Queue()
-        def loop_runner():
+        ready: "queue.Queue[bool]" = queue.Queue()
+
+        def loop_runner() -> None:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             self._loop = loop
             ready.put(True)
             loop.run_forever()
             loop.close()
-        self._thread = threading.Thread(target=loop_runner, name="pure3270-session-loop", daemon=True)
+
+        self._thread = threading.Thread(
+            target=loop_runner, name="pure3270-session-loop", daemon=True
+        )
         self._thread.start()
         ready.get()  # Wait until loop is ready
 
     def _run_async(self, coro: Coroutine[Any, Any, T]) -> T:
         """Run an async coroutine in the dedicated session thread/loop."""
         self._ensure_loop()
-        fut = asyncio.run_coroutine_threadsafe(coro, self._loop)
+        # _ensure_loop guarantees that self._loop is not None
+        fut = asyncio.run_coroutine_threadsafe(coro, self._loop)  # type: ignore[arg-type]
         return fut.result()
 
     # (Removed obsolete _run_async; only dedicated thread/loop version remains)
@@ -213,11 +226,15 @@ class Session:
             self._async_session = None
         # Shut down the event loop and thread
         if self._loop is not None:
-            def stop_loop():
-                self._loop.stop()
-            asyncio.run_coroutine_threadsafe(self._loop.shutdown_asyncgens(), self._loop).result()
-            self._loop.call_soon_threadsafe(stop_loop)
-            self._thread.join(timeout=2)
+            try:
+                asyncio.run_coroutine_threadsafe(
+                    self._loop.shutdown_asyncgens(), self._loop
+                ).result()
+                self._loop.call_soon_threadsafe(self._loop.stop)
+            except Exception:
+                pass  # Best effort cleanup
+            if self._thread is not None:
+                self._thread.join(timeout=2)
             self._loop = None
             self._thread = None
 
@@ -260,7 +277,9 @@ class Session:
             ASCII string representation.
         """
         assert self._async_session is not None  # Ensured by decorator
-        return self._async_session.ascii(data)
+        result = self._async_session.ascii(data)
+        assert isinstance(result, str)
+        return result
 
     @_require_connected_session
     def ebcdic(self, text: str) -> bytes:
@@ -274,7 +293,9 @@ class Session:
             EBCDIC bytes representation.
         """
         assert self._async_session is not None  # Ensured by decorator
-        return self._async_session.ebcdic(text)
+        result = self._async_session.ebcdic(text)
+        assert isinstance(result, bytes)
+        return result
 
     @_require_connected_session
     def ascii1(self, byte_val: int) -> str:
@@ -287,8 +308,11 @@ class Session:
         Returns:
             ASCII character.
         """
-        assert self._async_session is not None  # Ensured by decorator
-        return self._async_session.ascii1(byte_val)
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        result = self._async_session.ascii1(byte_val)
+        assert isinstance(result, str)
+        return result
 
     def ebcdic1(self, char: str) -> int:
         """
@@ -302,7 +326,9 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        return self._async_session.ebcdic1(char)
+        result = self._async_session.ebcdic1(char)
+        assert isinstance(result, int)
+        return result
 
     def ascii_field(self, field_index: int) -> str:
         """
@@ -316,7 +342,9 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        return self._async_session.ascii_field(field_index)
+        result = self._async_session.ascii_field(field_index)
+        assert isinstance(result, str)
+        return result
 
     def cursor_select(self) -> None:
         """
@@ -373,13 +401,17 @@ class Session:
         """Execute external command synchronously (s3270 Execute() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        return self._run_async(self._async_session.execute(command))
+        result = self._run_async(self._async_session.execute(command))
+        assert isinstance(result, str)
+        return result
 
     def capabilities(self) -> str:
         """Get capabilities synchronously (s3270 Capabilities() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        return self._run_async(self._async_session.capabilities())
+        result = self._run_async(self._async_session.capabilities())
+        assert isinstance(result, str)
+        return result
 
     def interrupt(self) -> None:
         """Send interrupt synchronously (s3270 Interrupt() action)."""
@@ -396,8 +428,11 @@ class Session:
     @_require_connected_session
     def query(self, query_type: str = "All") -> str:
         """Query screen synchronously (s3270 Query() action)."""
-        assert self._async_session is not None  # Ensured by decorator
-        return self._run_async(self._async_session.query(query_type))
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        result = self._run_async(self._async_session.query(query_type))
+        assert isinstance(result, str)
+        return result
 
     @_require_connected_session
     def set_option(self, option: str, value: str) -> None:
@@ -578,7 +613,11 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        return self._run_async(self._async_session.expect(pattern, timeout))
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        result = self._run_async(self._async_session.expect(pattern, timeout))
+        assert isinstance(result, bool)
+        return result
 
     def fail(self, message: str) -> None:
         """
@@ -630,7 +669,11 @@ class Session:
         """Get the screen buffer property."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        return self._async_session.screen_buffer
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        result = self._async_session.screen_buffer
+        assert isinstance(result, ScreenBuffer)
+        return result
 
     @property
     def handler(self) -> Optional[TN3270Handler]:
@@ -656,7 +699,11 @@ class Session:
     def sna_session_state(self) -> str:
         """Get the SNA session state."""
         if self._async_session and self._async_session.handler:
-            return self._async_session.handler.sna_session_state
+            if not self._async_session or not hasattr(self._async_session, "handler"):
+                return "UNKNOWN"
+            result = self._async_session.handler.sna_session_state
+            assert isinstance(result, str)
+            return result
         return "UNKNOWN"
 
 

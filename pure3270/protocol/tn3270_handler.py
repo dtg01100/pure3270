@@ -1,33 +1,11 @@
-"""
-TN3270 protocol handler for pure3270.
-Handles negotiation, data sending/receiving, and protocol specifics.
-"""
-
-import asyncio
-import inspect
-import logging
-import re
 import ssl as std_ssl
 import time
-from typing import (
-    Any,
-    Awaitable,
-    Callable,
-    Dict,
-    Iterable,
-    List,
-    Optional,
-    Tuple,
-    TypeVar,
-    Union,
-    cast,
-)
-from unittest.mock import Mock as _Mock
+from typing import cast
 
-from ..emulation.printer_buffer import PrinterBuffer  # Import PrinterBuffer
+from ..emulation.printer_buffer import PrinterBuffer
 from ..emulation.screen_buffer import ScreenBuffer
 from ..session_manager import SessionManager
-from .data_stream import DataStreamParser, SnaResponse  # Import SnaResponse
+from .data_stream import DataStreamParser
 from .errors import handle_drain, raise_protocol_error, safe_socket_operation
 from .exceptions import NegotiationError, ParseError, ProtocolError
 from .negotiator import Negotiator
@@ -35,18 +13,11 @@ from .tn3270e_header import TN3270EHeader
 from .trace_recorder import TraceRecorder
 from .utils import (
     AO,
-    AYT,
-    BRK,
-    DM,
+    BREAK,
     DO,
     DONT,
-    EC,
-    EL,
-    EOR,
-    GA,
     IAC,
     IP,
-    NOP,
     SB,
     SE,
     TELOPT_TN3270E,
@@ -57,21 +28,24 @@ from .utils import (
     TN3270E_SYSREQ_CANCEL,
     TN3270E_SYSREQ_LOGOFF,
     TN3270E_SYSREQ_MESSAGE_TYPE,
-    TN3270E_SYSREQ_PRINT,
-    TN3270E_SYSREQ_RESTART,
     WILL,
     WONT,
     send_iac,
     send_subnegotiation,
 )
+from .vt100_parser import VT100Parser
+
+"""
+TN3270 protocol handler for pure3270.
+Handles negotiation, data sending/receiving, and protocol specifics.
+"""
+
+import asyncio
+import inspect
+import logging
+from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
-
-# Expose VT100Parser symbol at module level so tests can patch it before runtime.
-# Tests expect `pure3270.protocol.tn3270_handler.VT100Parser` to exist.
-VT100Parser = None  # Will be set at runtime when vt100_parser is imported
-
-T = TypeVar("T")
 
 
 # --- Enhanced State Management Constants ---
@@ -215,9 +189,13 @@ class _AwaitableResult:
 class TN3270Handler:
     """
     Handler for TN3270 protocol over Telnet.
-
     Manages stream I/O, negotiation, and data parsing for 3270 emulation.
     """
+
+    _state_change_callbacks: dict[str, list[Callable[[str, str, str], Awaitable[None]]]]
+    _state_entry_callbacks: dict[str, list[Callable[[str], Awaitable[None]]]]
+    _state_exit_callbacks: dict[str, list[Callable[[str], Awaitable[None]]]]
+    _state_change_events: dict[str, asyncio.Event]
 
     # --- Attribute declarations for static type checking ---
     reader: Optional[asyncio.StreamReader]
@@ -247,109 +225,129 @@ class TN3270Handler:
     _max_state_history: int
 
     # --- Enhanced Event Signaling ---
-    _state_change_callbacks: Dict[str, List[Callable[[str, str, str], Awaitable[None]]]]
-    _state_entry_callbacks: Dict[str, List[Callable[[str], Awaitable[None]]]]
-    _state_exit_callbacks: Dict[str, List[Callable[[str], Awaitable[None]]]]
-    _event_signaling_enabled: bool
-    _state_change_events: Dict[str, asyncio.Event]
+    def __init__(
+        self,
+        reader: Optional[asyncio.StreamReader],
+        writer: Optional[asyncio.StreamWriter],
+        screen_buffer: Optional[ScreenBuffer] = None,
+        ssl_context: Optional[std_ssl.SSLContext] = None,
+        host: str = "localhost",
+        port: int = 23,
+        is_printer_session: bool = False,  # New parameter for printer session
+        force_mode: Optional[str] = None,
+        allow_fallback: bool = True,
+        recorder: Optional["TraceRecorder"] = None,
+    ):
+        self.reader = reader
+        self.writer = writer
+        self.ssl_context = ssl_context
+        self.ssl = bool(ssl_context)
+        self.host = host
+        self.port = port
+        self.screen_buffer = (
+            screen_buffer if screen_buffer is not None else ScreenBuffer()
+        )
+        self.printer_buffer = (
+            PrinterBuffer() if is_printer_session else None
+        )  # Initialize PrinterBuffer if it's a printer session
+        self._transport = None
+        self._connected = False
+        self.negotiator = Negotiator(
+            self.writer,
+            None,
+            self.screen_buffer,
+            self,
+            is_printer_session=is_printer_session,
+            force_mode=force_mode,
+            allow_fallback=allow_fallback,
+            recorder=recorder,
+        )  # Pass None for parser initially
+        self.negotiator.is_printer_session = (
+            is_printer_session  # Set printer session after initialization
+        )
+        self.parser = DataStreamParser(
+            self.screen_buffer, self.printer_buffer, self.negotiator
+        )  # Pass printer_buffer
+        # Now update the negotiator with the parser instance
+        self.negotiator.parser = self.parser
+        self._telnet_buffer = b""  # Buffer for incomplete Telnet sequences
+        self._negotiation_trace = b""  # Initialize negotiation trace buffer
+        self.recorder = recorder
+        self._ascii_mode = False
+        # Background tasks created by the handler (reader loops, scheduled
+        # callbacks). We keep references so close() can cancel them and
+        # avoid orphaned tasks that survive beyond the handler lifecycle.
+        self._bg_tasks = []  # type: list[asyncio.Task[Any]]
+        # Buffer to hold any non-negotiation payload that arrives during
+        # the negotiation reader loop so it can be delivered to the first
+        # receive_data() call after connect.
+        self._pending_payload = bytearray()  # type: bytearray
 
-    def _process_telnet_stream(self, data: bytes) -> "_AwaitableResult":
+        # --- Enhanced State Management ---
+        self._state_lock = asyncio.Lock()
+        self._current_state = HandlerState.DISCONNECTED
+        self._state_history = []  # type: List[Tuple[str, float, str]]
+        self._state_transition_count = {}  # type: Dict[str, int]
+        self._last_state_change = time.time()
+        self._state_validation_enabled = True
+        self._max_state_history = 100
+
+        # --- Enhanced Event Signaling ---
+        self._state_change_callbacks = {}
+        self._state_entry_callbacks = {}
+        self._state_exit_callbacks = {}
+        self._event_signaling_enabled = True
+        self._state_change_events = {}
+
+    def _process_telnet_stream(self, data: bytes) -> _AwaitableResult:
         """
-        Process incoming Telnet stream data and detect ASCII mode.
-
-        Parses Telnet IAC sequences, strips negotiation/control bytes,
-        and returns (cleaned_data, ascii_mode_detected) wrapped in _AwaitableResult.
-
-        Args:
-            data: Raw bytes received from the network.
-
-        Returns:
-            _AwaitableResult: (cleaned_data, ascii_mode_detected)
+        Process Telnet stream data, handling IAC commands and subnegotiations.
+        Returns cleaned data and ASCII mode detection flag.
         """
         processed = bytearray()
-        ascii_mode_detected = False
         i = 0
         length = len(data)
         while i < length:
             byte = data[i]
             if byte == IAC:
-                # Telnet command sequence
-                if i + 1 < length:
-                    cmd = data[i + 1]
-                    # IAC SE (end subnegotiation), IAC EOR (end of record), etc.
-                    if cmd in (SE, EOR, NOP, DM, BRK, IP, AO, AYT, EC, EL, GA):
-                        i += 2
-                        continue
-                    elif cmd in (DO, DONT, WILL, WONT):
-                        # Option negotiation: process through negotiator
-                        if i + 2 < length:
-                            option = data[i + 2]
-                            # Process the IAC command through the negotiator
-                            try:
-                                import asyncio
-
-                                # Create a task to handle the IAC command asynchronously
-                                if hasattr(self, "negotiator") and self.negotiator:
-                                    asyncio.create_task(
-                                        self.negotiator.handle_iac_command(cmd, option)
-                                    )
-                            except Exception as e:
-                                logger.warning(
-                                    f"[TELNET] Error processing IAC command {cmd:02x} {option:02x}: {e}"
-                                )
-                        i += 3
-                        continue
-                    elif cmd == SB:
-                        # Subnegotiation: extract and process through negotiator
-                        start_i = i + 2
-                        sub_start = start_i
-                        if start_i < length:
-                            option = data[start_i]
-                            i = start_i + 1
-                            # Find the end of subnegotiation (IAC SE)
-                            while i < length:
-                                if (
-                                    data[i] == IAC
-                                    and i + 1 < length
-                                    and data[i + 1] == SE
-                                ):
-                                    # Extract subnegotiation payload (excluding option byte)
-                                    sub_payload = data[sub_start + 1 : i]
-                                    # Process through negotiator
-                                    try:
-                                        import asyncio
-
-                                        if (
-                                            hasattr(self, "negotiator")
-                                            and self.negotiator
-                                        ):
-                                            asyncio.create_task(
-                                                self.negotiator.handle_subnegotiation(
-                                                    option, sub_payload
-                                                )
-                                            )
-                                    except Exception as e:
-                                        logger.warning(
-                                            f"[TELNET] Error processing subnegotiation {option:02x}: {e}"
-                                        )
-                                    i += 2
-                                    break
-                                i += 1
-                        else:
-                            i += 2
-                        continue
-                    else:
-                        # Unknown IAC command, skip
-                        i += 2
-                        continue
-                else:
+                if i + 1 >= length:
                     # Lone IAC at end, skip
                     i += 1
+                    continue
+                cmd = data[i + 1]
+                if cmd in (DO, DONT, WILL, WONT):
+                    # Telnet negotiation command, skip
+                    i += 3
+                    continue
+                elif cmd == SB:
+                    # Subnegotiation: find SE
+                    se_index = data.find(bytes([IAC, SE]), i + 2)
+                    if se_index == -1:
+                        # Incomplete subnegotiation, skip rest
+                        i = length
+                        continue
+                    option = data[i + 2]
+                    sub_payload = data[i + 3 : se_index]
+                    try:
+                        if hasattr(self, "negotiator") and self.negotiator:
+                            asyncio.create_task(
+                                self.negotiator.handle_subnegotiation(
+                                    option, sub_payload
+                                )
+                            )
+                    except Exception as e:
+                        logger.warning(
+                            f"[TELNET] Error processing subnegotiation {option:02x}: {e}"
+                        )
+                    i = se_index + 2
+                    continue
+                else:
+                    # Unknown IAC command, skip
+                    i += 2
                     continue
             else:
                 processed.append(byte)
                 i += 1
-
         cleaned_data = bytes(processed)
         # Detect ASCII/VT100 mode using helper
         ascii_mode_detected = self._detect_vt100_sequences(cleaned_data)
@@ -360,21 +358,18 @@ class TN3270Handler:
     async def _record_state_transition(self, new_state: str, reason: str) -> None:
         """Record a state transition with timestamp and reason."""
         async with self._state_lock:
-            await self._record_state_transition_sync(new_state, reason)
+            self._record_state_transition_sync(new_state, reason)
 
     def _record_state_transition_sync(self, new_state: str, reason: str) -> None:
         """Synchronous version of state transition recording for initialization."""
         current_time = time.time()
         self._state_history.append((new_state, current_time, reason))
-
         # Update transition count
         if new_state in self._state_transition_count:
             self._state_transition_count[new_state] += 1
-
         # Maintain history size limit
         if len(self._state_history) > self._max_state_history:
             self._state_history.pop(0)
-
         self._last_state_change = current_time
         logger.debug(f"[STATE] {self._current_state} -> {new_state} ({reason})")
 
@@ -531,17 +526,18 @@ class TN3270Handler:
     async def _validate_negotiator_state(self, to_state: str) -> None:
         """Validate negotiator state consistency."""
         if self.negotiator is None:
-            if to_state in [
+            requires_negotiator = to_state in [  # type: ignore[unreachable]
                 HandlerState.NEGOTIATING,
                 HandlerState.CONNECTED,
                 HandlerState.ASCII_MODE,
                 HandlerState.TN3270_MODE,
-            ]:
+            ]
+            if requires_negotiator:
                 raise StateValidationError(
                     f"Cannot enter {to_state} state without negotiator"
                 )
+            # No negotiator, nothing to validate
             return
-
         # Check negotiator state consistency
         if to_state == HandlerState.ASCII_MODE:
             if not getattr(self.negotiator, "_ascii_mode", False):
@@ -616,8 +612,12 @@ class TN3270Handler:
     # --- Thread Safety Methods ---
 
     async def _safe_state_operation(
-        self, operation_name: str, operation_func: Callable, *args, **kwargs
-    ):
+        self,
+        operation_name: str,
+        operation_func: Callable[..., Awaitable[Any]],
+        *args: Any,
+        **kwargs: Any,
+    ) -> Any:
         """Execute a state operation with proper locking and error handling."""
         async with self._state_lock:
             try:
@@ -629,6 +629,7 @@ class TN3270Handler:
                 raise
 
     def _is_state_thread_safe(self, operation: str) -> bool:
+        # Return type annotation added
         """Check if a state operation is thread-safe."""
         # Define which operations require locking
         thread_unsafe_operations = {
@@ -641,13 +642,14 @@ class TN3270Handler:
 
         return operation not in thread_unsafe_operations
 
-    async def _with_state_lock(self, operation: Callable, *args, **kwargs):
+    async def _with_state_lock(
+        self, operation: Callable[..., Awaitable[Any]], *args: Any, **kwargs: Any
+    ) -> Any:
         """Execute an operation with state lock if needed."""
         if self._is_state_thread_safe(operation.__name__):
             return await operation(*args, **kwargs)
-        else:
-            async with self._state_lock:
-                return await operation(*args, **kwargs)
+        async with self._state_lock:
+            return await operation(*args, **kwargs)
 
     def _create_state_snapshot(self) -> Dict[str, Any]:
         """Create a thread-safe snapshot of current state."""
@@ -894,7 +896,7 @@ class TN3270Handler:
 
         # Check if we have basic infrastructure
         if self.negotiator is None:
-            logger.warning("[STATE] Cannot recover without negotiator")
+            logger.warning("[STATE] Cannot recover without negotiator")  # type: ignore[unreachable]
             return False
 
         return True
@@ -1012,16 +1014,22 @@ class TN3270Handler:
     def add_state_change_callback(
         self, state: str, callback: Callable[[str, str, str], Awaitable[None]]
     ) -> None:
-        """Add a callback for state changes."""
+        """Add a callback for state changes (expects 3 arguments)."""
         if state not in self._state_change_callbacks:
             self._state_change_callbacks[state] = []
-        self._state_change_callbacks[state].append(callback)
-        logger.debug(f"[EVENT] Added state change callback for state: {state}")
+        # Only register callbacks with correct signature
+        if callback.__code__.co_argcount == 3:
+            self._state_change_callbacks[state].append(callback)
+            logger.debug(f"[EVENT] Added state change callback for state: {state}")
+        else:
+            logger.error(
+                f"[EVENT] Callback for state change must accept 3 arguments (from_state, to_state, reason)"
+            )
 
     def remove_state_change_callback(
         self, state: str, callback: Callable[[str, str, str], Awaitable[None]]
     ) -> None:
-        """Remove a state change callback."""
+        """Remove a state change callback (expects 3 arguments)."""
         if state in self._state_change_callbacks:
             try:
                 self._state_change_callbacks[state].remove(callback)
@@ -1034,20 +1042,32 @@ class TN3270Handler:
     def add_state_entry_callback(
         self, state: str, callback: Callable[[str], Awaitable[None]]
     ) -> None:
-        """Add a callback for when entering a state."""
+        """Add a callback for when entering a state (expects 1 argument)."""
         if state not in self._state_entry_callbacks:
             self._state_entry_callbacks[state] = []
-        self._state_entry_callbacks[state].append(callback)
-        logger.debug(f"[EVENT] Added state entry callback for state: {state}")
+        # Only register callbacks with correct signature
+        if hasattr(callback, "__code__") and callback.__code__.co_argcount == 1:
+            self._state_entry_callbacks[state].append(callback)
+            logger.debug(f"[EVENT] Added state entry callback for state: {state}")
+        else:
+            logger.error(
+                f"[EVENT] Callback for state entry must accept 1 argument (state)"
+            )
 
     def add_state_exit_callback(
         self, state: str, callback: Callable[[str], Awaitable[None]]
     ) -> None:
-        """Add a callback for when exiting a state."""
+        """Add a callback for when exiting a state (expects 1 argument)."""
         if state not in self._state_exit_callbacks:
             self._state_exit_callbacks[state] = []
-        self._state_exit_callbacks[state].append(callback)
-        logger.debug(f"[EVENT] Added state exit callback for state: {state}")
+        # Only register callbacks with correct signature
+        if hasattr(callback, "__code__") and callback.__code__.co_argcount == 1:
+            self._state_exit_callbacks[state].append(callback)
+            logger.debug(f"[EVENT] Added state exit callback for state: {state}")
+        else:
+            logger.error(
+                f"[EVENT] Callback for state exit must accept 1 argument (state)"
+            )
 
     async def _trigger_state_change_callbacks(
         self, from_state: str, to_state: str, reason: str
@@ -1056,7 +1076,7 @@ class TN3270Handler:
         if not self._event_signaling_enabled:
             return
 
-        # Trigger callbacks for the specific state transition
+        # Trigger callbacks for the specific state transition (3 args)
         if to_state in self._state_change_callbacks:
             for callback in self._state_change_callbacks[to_state]:
                 try:
@@ -1064,19 +1084,23 @@ class TN3270Handler:
                 except Exception as e:
                     logger.error(f"[EVENT] State change callback failed: {e}")
 
-        # Trigger entry callback for the new state
+        # Trigger entry callback for the new state (1 arg)
         if to_state in self._state_entry_callbacks:
-            for callback in self._state_entry_callbacks[to_state]:
+            entry_callbacks = self._state_entry_callbacks[to_state]
+            for callback in entry_callbacks:  # type: ignore[assignment]
                 try:
-                    await callback(to_state)
+                    # callback is Callable[[str], Awaitable[None]]
+                    await callback(to_state)  # type: ignore[call-arg]
                 except Exception as e:
                     logger.error(f"[EVENT] State entry callback failed: {e}")
 
-        # Trigger exit callback for the old state
+        # Trigger exit callback for the old state (1 arg)
         if from_state in self._state_exit_callbacks:
-            for callback in self._state_exit_callbacks[from_state]:
+            exit_callbacks = self._state_exit_callbacks[from_state]
+            for callback in exit_callbacks:  # type: ignore[assignment]
                 try:
-                    await callback(from_state)
+                    # callback is Callable[[str], Awaitable[None]]
+                    await callback(from_state)  # type: ignore[call-arg]
                 except Exception as e:
                     logger.error(f"[EVENT] State exit callback failed: {e}")
 
@@ -1206,153 +1230,6 @@ class TN3270Handler:
             )
             raise
 
-    def __init__(
-        self,
-        reader: Optional[asyncio.StreamReader],
-        writer: Optional[asyncio.StreamWriter],
-        screen_buffer: Optional[ScreenBuffer] = None,
-        ssl_context: Optional[std_ssl.SSLContext] = None,
-        host: str = "localhost",
-        port: int = 23,
-        is_printer_session: bool = False,  # New parameter for printer session
-        force_mode: Optional[str] = None,
-        allow_fallback: bool = True,
-        recorder: Optional["TraceRecorder"] = None,
-    ):
-        """
-        Initialize the TN3270 handler.
-
-        Args:
-            reader: Asyncio stream reader (can be None for testing).
-            writer: Asyncio stream writer (can be None for testing).
-            screen_buffer: ScreenBuffer to use (if None, creates a new one).
-            ssl_context: Optional SSL context for secure connections.
-            host: Target host for connection.
-            port: Target port for connection.
-            is_printer_session: True if this handler is for a printer session.
-
-        Raises:
-            ValueError: If reader or writer is None (when not in test mode).
-        """
-        self.reader = reader
-        self.writer = writer
-        self.ssl_context = ssl_context
-        self.ssl = bool(ssl_context)
-        self.host = host
-        self.port = port
-        self.screen_buffer = (
-            screen_buffer if screen_buffer is not None else ScreenBuffer()
-        )
-        self.printer_buffer = (
-            PrinterBuffer() if is_printer_session else None
-        )  # Initialize PrinterBuffer if it's a printer session
-        self._transport = None
-        self._connected = False
-
-        # Initialize negotiator first, then pass it to the parser
-        self.negotiator = Negotiator(
-            self.writer,
-            None,
-            self.screen_buffer,
-            self,
-            is_printer_session=is_printer_session,
-            force_mode=force_mode,
-            allow_fallback=allow_fallback,
-            recorder=recorder,
-        )  # Pass None for parser initially
-        self.negotiator.is_printer_session = (
-            is_printer_session  # Set printer session after initialization
-        )
-        self.parser = DataStreamParser(
-            self.screen_buffer, self.printer_buffer, self.negotiator
-        )  # Pass printer_buffer
-        # Now update the negotiator with the parser instance
-        self.negotiator.parser = self.parser
-        self._telnet_buffer = b""  # Buffer for incomplete Telnet sequences
-        self._negotiation_trace = b""  # Initialize negotiation trace buffer
-        self.recorder = recorder
-        self._ascii_mode = False
-        # Background tasks created by the handler (reader loops, scheduled
-        # callbacks). We keep references so close() can cancel them and
-        # avoid orphaned tasks that survive beyond the handler lifecycle.
-        self._bg_tasks: list["asyncio.Task[Any]"] = []
-        # Buffer to hold any non-negotiation payload that arrives during
-        # the negotiation reader loop so it can be delivered to the first
-        # receive_data() call after connect.
-        self._pending_payload: bytearray = bytearray()
-
-        # --- Initialize Enhanced State Management ---
-        self._state_lock = asyncio.Lock()
-        self._current_state = HandlerState.DISCONNECTED
-        self._state_history: List[Tuple[str, float, str]] = []
-        self._state_transition_count: Dict[str, int] = {}
-        self._last_state_change = time.time()
-        self._state_validation_enabled = True
-        self._max_state_history = 100
-
-        # Initialize state transition tracking
-        for state in HandlerState.__dict__.values():
-            if isinstance(state, str) and not state.startswith("_"):
-                self._state_transition_count[state] = 0
-
-        # --- Initialize Enhanced Event Signaling ---
-        self._state_change_callbacks: Dict[
-            str, List[Callable[[str, str, str], Awaitable[None]]]
-        ] = {}
-        self._state_entry_callbacks: Dict[
-            str, List[Callable[[str], Awaitable[None]]]
-        ] = {}
-        self._state_exit_callbacks: Dict[
-            str, List[Callable[[str], Awaitable[None]]]
-        ] = {}
-        self._event_signaling_enabled = True
-        self._state_change_events: Dict[str, asyncio.Event] = {}
-
-        # Initialize state change events
-        for state in HandlerState.__dict__.values():
-            if isinstance(state, str) and not state.startswith("_"):
-                self._state_change_events[state] = asyncio.Event()
-                self._state_change_callbacks[state] = []
-                self._state_entry_callbacks[state] = []
-                self._state_exit_callbacks[state] = []
-
-        # Record initial state (synchronous for initialization)
-        self._record_state_transition_sync(HandlerState.DISCONNECTED, "initialization")
-
-    async def _retry_operation(
-        self, operation: Callable[[], Awaitable[T]], max_retries: int = 3
-    ) -> T:
-        """
-        Retry an async operation with exponential backoff on transient errors.
-
-        Args:
-            operation: Awaitable to execute.
-            max_retries: Maximum retry attempts.
-
-        Raises:
-            Original exception after max_retries or on non-transient errors.
-        """
-        retries = 0
-        while retries < max_retries:
-            try:
-                return await operation()
-            except (asyncio.TimeoutError, ConnectionError, OSError) as e:
-                if retries < max_retries - 1:
-                    delay = 2**retries
-                    await asyncio.sleep(delay)
-                    retries += 1
-                    logger.warning(
-                        f"Retry {retries}/{max_retries} after {e}; delay {delay}s"
-                    )
-                else:
-                    raise
-            except (asyncio.CancelledError, NegotiationError):
-                raise  # Don't retry on these
-        # Should not reach here; safeguard for type checker
-        raise RuntimeError(
-            "Operation failed after retries without raising expected exception"
-        )
-
     # --- Negotiation helpers -------------------------------------------------
 
     async def negotiate(self) -> None:
@@ -1375,7 +1252,12 @@ class TN3270Handler:
         try:
             # Keep reading until the negotiator signals full completion
             negotiation_complete = self.negotiator._get_or_create_negotiation_complete()
-            while not negotiation_complete.is_set():
+            max_iterations = 500  # Prevent infinite loops
+            iteration_count = 0
+            while (
+                not negotiation_complete.is_set() and iteration_count < max_iterations
+            ):
+                iteration_count += 1
                 # Check for cancellation before each read operation
                 current_task = asyncio.current_task()
                 if current_task and current_task.cancelled():
@@ -1424,6 +1306,20 @@ class TN3270Handler:
                 # delivery to the first receive() call after negotiation.
                 if cleaned:
                     self._pending_payload.extend(cleaned)
+
+            # If we reach iteration limit, signal completion to prevent hanging
+            if iteration_count >= max_iterations:
+                logger.warning(
+                    f"_reader_loop reached maximum iterations ({max_iterations}), signaling completion"
+                )
+                try:
+                    if self.negotiator is not None:
+                        self.negotiator._get_or_create_device_type_event().set()
+                        self.negotiator._get_or_create_functions_event().set()
+                        self.negotiator._get_or_create_negotiation_complete().set()
+                except Exception:
+                    pass
+
         except asyncio.CancelledError:
             # Normal cancellation when negotiation completes
             pass
@@ -1488,14 +1384,19 @@ class TN3270Handler:
                             self.negotiator.negotiated_tn3270e = (
                                 self.negotiator.infer_tn3270e_from_trace(trace)
                             )
-                        except Exception:
+                        except Exception as e:
+                            import logging
+
+                            logging.error(f"Error inferring TN3270E from trace: {e}")
                             self.negotiator.negotiated_tn3270e = False
                     # Store trace for potential inspection
                     self._negotiation_trace = trace
                     return
-            except Exception:
+            except Exception as e:
+                import logging
+
+                logging.error(f"Error in mock negotiator negotiation: {e}")
                 # Fall through to normal path if any issue
-                pass
 
             # Create a tracked background reader task so we can cancel it
             # cleanly during shutdown. Use the running loop to schedule the
@@ -1526,8 +1427,10 @@ class TN3270Handler:
                             "[HANDLER] Negotiator switched to ASCII mode during TN3270 negotiation; clearing negotiated flag."
                         )
                         self.negotiator.negotiated_tn3270e = False
-                except Exception:
-                    pass
+                except Exception as e:
+                    import logging
+
+                    logging.error(f"Error clearing negotiated_tn3270e: {e}")
             finally:
                 if not reader_task.done():
                     try:
@@ -1543,8 +1446,7 @@ class TN3270Handler:
                     if exc:
                         raise exc
 
-        await self._retry_operation(_perform_negotiate)
-
+        await _perform_negotiate()
         logger.debug(f"TN3270E subnegotiation completed on handler {id(self)}")
         # Ensure handler's negotiated_tn3270e property is set after negotiation
         # This covers the test fixture path where REQUEST is omitted
@@ -1619,7 +1521,7 @@ class TN3270Handler:
             await _call_maybe_await(writer.write, data_to_send)
             await _call_maybe_await(writer.drain)
 
-        await self._retry_operation(_perform_send)
+        await _perform_send()
 
     async def receive_data(self, timeout: float = 5.0) -> bytes:
         """
@@ -1640,7 +1542,10 @@ class TN3270Handler:
 
         async def _read_and_process_until_payload() -> bytes:
             deadline = asyncio.get_event_loop().time() + timeout
-            while True:
+            max_iterations = 1000  # Prevent infinite loops
+            iteration_count = 0
+            while iteration_count < max_iterations:
+                iteration_count += 1
                 part: bytes
                 if self._pending_payload:
                     part = bytes(self._pending_payload)
@@ -1651,7 +1556,7 @@ class TN3270Handler:
                         return b""
                     async with safe_socket_operation():
                         logger.debug(
-                            f"Attempting to read data with remaining timeout {remaining:.2f}s"
+                            f"Attempting to read data with remaining timeout {remaining:.2f}s (iteration {iteration_count})"
                         )
                         try:
                             part = await asyncio.wait_for(
@@ -1710,11 +1615,16 @@ class TN3270Handler:
                         return result
                     continue
 
-        return await self._retry_operation(_read_and_process_until_payload)
+            # If we reach iteration limit, return empty bytes to prevent hanging
+            logger.warning(
+                f"receive_data reached maximum iterations ({max_iterations}), returning empty data"
+            )
+            return b""
+
+        return await _read_and_process_until_payload()
 
     async def _handle_ascii_mode(self, processed_data: bytes) -> Optional[bytes]:
         """Handle ASCII/VT100 mode data parsing and return payload if available."""
-        global VT100Parser
         from .tn3270e_header import TN3270EHeader
         from .utils import PRINTER_STATUS_DATA_TYPE, SCS_DATA, TN3270_DATA
 
@@ -1730,10 +1640,6 @@ class TN3270Handler:
                     self.screen_buffer.set_ascii_mode(True)
                     logger.debug("Screen buffer set to ASCII mode for VT100 parsing")
 
-                if VT100Parser is None:
-                    from .vt100_parser import VT100Parser as _RealVT100Parser
-
-                    VT100Parser = _RealVT100Parser
                 vt100_parser = VT100Parser(self.screen_buffer)
                 vt100_for_parse = processed_data.replace(b"\\x1b", b"\x1b")
                 if vt100_for_parse.endswith(b"\xff\x19"):
@@ -1815,10 +1721,6 @@ class TN3270Handler:
                     return None
 
         try:
-            if VT100Parser is None:
-                from .vt100_parser import VT100Parser as _RealVT100Parser
-
-                VT100Parser = _RealVT100Parser
             vt100_parser = VT100Parser(self.screen_buffer)
             vt100_payload = processed_data
             if vt100_payload.endswith(b"\xff\x19"):

@@ -105,6 +105,7 @@ class SnaSessionState(Enum):
 
 
 class Negotiator:
+    _timing_metrics: Dict[str, Any]
     """
     Handles TN3270 negotiation logic.
     """
@@ -123,7 +124,8 @@ class Negotiator:
         """
         Initialize the Negotiator.
 
-        Args:
+        _timing_metrics: Dict[str, Any]
+        def __init__(
             writer: StreamWriter for sending commands.
             parser: DataStreamParser for parsing responses.
             screen_buffer: ScreenBuffer to update during negotiation.
@@ -393,27 +395,34 @@ class Negotiator:
 
     def _is_retryable_error(self, error: Exception) -> bool:
         """Check if an error is retryable based on configuration."""
-        return isinstance(error, self._retry_config["retryable_errors"])
+        retryable = self._retry_config["retryable_errors"]
+        if isinstance(retryable, tuple) and all(
+            isinstance(cls, type) and issubclass(cls, BaseException)
+            for cls in retryable
+        ):
+            return isinstance(error, retryable)
+        return False
 
     def _calculate_backoff_delay(self, attempt: int) -> float:
         """Calculate delay for exponential backoff with jitter."""
         base_delay = self._retry_config["base_delay"]
         backoff_factor = self._retry_config["backoff_factor"]
         max_delay = self._retry_config["max_delay"]
-
-        # Exponential backoff: base_delay * (backoff_factor ^ attempt)
-        delay = base_delay * (backoff_factor**attempt)
-
+        # Ensure all are float
+        if not isinstance(base_delay, (float, int)):
+            base_delay = 0.1
+        if not isinstance(backoff_factor, (float, int)):
+            backoff_factor = 1.5
+        if not isinstance(max_delay, (float, int)):
+            max_delay = 2.0
+        delay = float(base_delay) * (float(backoff_factor) ** float(attempt))
         # Cap at max_delay
-        delay = min(delay, max_delay)
-
+        delay = min(float(delay), float(max_delay))
         # Add jitter if enabled
         if self._retry_config["jitter"]:
-            # Add random jitter between 0% and 25% of the delay
             jitter_range = delay * 0.25
             delay += random.uniform(-jitter_range, jitter_range)
-
-        return max(0, delay)  # Ensure non-negative
+        return float(max(0, delay))  # Ensure non-negative
 
     async def _retry_with_backoff(
         self,
@@ -506,7 +515,10 @@ class Negotiator:
         }
 
         logger.error(f"{operation_name} permanently failed: {last_exception}")
-        raise last_exception
+        if isinstance(last_exception, BaseException):
+            raise last_exception
+        else:
+            raise NegotiationError(f"Unknown error: {last_exception}")
 
     def _validate_connection_state(self) -> bool:
         """Validate current connection state for operations."""
@@ -703,14 +715,19 @@ class Negotiator:
 
         min_duration = self._timing_config["min_step_duration"]
         max_duration = self._timing_config["max_step_duration"]
+        # Type guards for min_duration and max_duration
+        if not isinstance(min_duration, (float, int)):
+            min_duration = 0.0
+        if not isinstance(max_duration, (float, int)):
+            max_duration = 9999.0
 
-        if duration < min_duration:
+        if duration < float(min_duration):
             logger.warning(
                 f"[TIMING] Operation {operation} completed too quickly ({duration:.3f}s < {min_duration}s)"
             )
             return False
 
-        if duration > max_duration:
+        if duration > float(max_duration):
             logger.error(
                 f"[TIMING] Operation {operation} took too long ({duration:.3f}s > {max_duration}s)"
             )
@@ -725,10 +742,18 @@ class Negotiator:
 
         backoff_factor = self._timing_config["timeout_backoff_factor"]
         max_timeout = self._timeouts.get("negotiation", 30.0)
+        # Type guards for backoff_factor and max_timeout
+        # mypy false positive: these type guards are always reached
+        backoff_factor = (
+            float(backoff_factor) if isinstance(backoff_factor, (float, int)) else 1.0
+        )
+        max_timeout = (
+            float(max_timeout) if isinstance(max_timeout, (float, int)) else 30.0
+        )
 
         # Exponential backoff with cap
-        adaptive_timeout = base_timeout * (backoff_factor**attempt)
-        return min(adaptive_timeout, max_timeout)
+        adaptive_timeout = float(base_timeout) * (float(backoff_factor) ** attempt)
+        return float(min(adaptive_timeout, float(max_timeout)))
 
     def _get_step_timeout(self, step_name: str) -> float:
         """Get timeout for a specific negotiation step."""
@@ -742,7 +767,12 @@ class Negotiator:
         }
 
         timeout_key = step_timeout_map.get(step_name, "step_timeout")
-        return self._timeouts.get(timeout_key, self._timeouts["step_timeout"])
+        timeout_val = self._timeouts.get(timeout_key, self._timeouts["step_timeout"])
+        # mypy false positive: this type guard is always reached
+        timeout_val = (
+            float(timeout_val) if isinstance(timeout_val, (float, int)) else 1.0
+        )
+        return timeout_val
 
     # ------------------------------------------------------------------
     # Recorder helpers
@@ -761,18 +791,20 @@ class Negotiator:
     def _record_decision(
         self, requested: str, chosen: str, fallback_used: bool
     ) -> None:
-        if self.recorder:
-            try:
-                self.recorder.decision(requested, chosen, fallback_used)
-            except Exception:
-                pass
+        if not self.recorder:
+            return
+        try:
+            self.recorder.decision(requested, chosen, fallback_used)
+        except Exception:
+            pass
 
     def _record_error(self, message: str) -> None:
-        if self.recorder:
-            try:
-                self.recorder.error(message)
-            except Exception:
-                pass
+        if not self.recorder:
+            return
+        try:
+            self.recorder.error(message)
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Inference / compatibility helpers

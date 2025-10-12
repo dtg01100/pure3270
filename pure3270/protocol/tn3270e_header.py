@@ -296,11 +296,12 @@ class TN3270EHeader:
 
 
 class MalformedDataHandler:
+    malformed_data_log: list[dict[str, object]]
     """
     Handles malformed TN3270E data and provides recovery mechanisms.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.recovery_attempts = 0
         self.max_recovery_attempts = 3
         self.malformed_data_log = []
@@ -399,7 +400,11 @@ class MalformedDataHandler:
                 header = TN3270EHeader.from_bytes(data[offset : offset + 5])
                 if header:
                     return header
-            except:
+            except Exception as e:
+                # Log and continue on header parse error
+                import logging
+
+                logging.error(f"TN3270E header parse error: {e}")
                 continue
 
         return None
@@ -428,7 +433,7 @@ class MalformedDataHandler:
                 [
                     log
                     for log in self.malformed_data_log
-                    if "recovered" in log.get("context", "")
+                    if "recovered" in str(log.get("context", ""))
                 ]
             ),
         }
@@ -442,7 +447,7 @@ class MalformedDataHandler:
 malformed_handler = MalformedDataHandler()
 
 
-def test_malformed_data_handling():
+def test_malformed_data_handling() -> None:
     """Test the malformed data handling functionality."""
     print("Testing malformed TN3270E header handling...")
 

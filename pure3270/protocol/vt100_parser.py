@@ -277,13 +277,10 @@ class VT100Parser:
                 and self.current_col < self.screen_buffer.cols
             ):
                 # In ASCII mode, store ASCII characters directly without EBCDIC conversion
-                if getattr(self.screen_buffer, '_ascii_mode', False):
+                if getattr(self.screen_buffer, "_ascii_mode", False):
                     # ASCII mode: store ASCII bytes directly
                     ascii_byte = ord(char) if isinstance(char, str) else char
-                    pos = (
-                        self.current_row * self.screen_buffer.cols
-                        + self.current_col
-                    )
+                    pos = self.current_row * self.screen_buffer.cols + self.current_col
                     if pos < len(self.screen_buffer.buffer):
                         self.screen_buffer.buffer[pos] = ascii_byte
                 else:
@@ -310,9 +307,14 @@ class VT100Parser:
                             if pos < len(self.screen_buffer.buffer):
                                 self.screen_buffer.buffer[pos] = 0x40  # Space in EBCDIC
                     except Exception as e:
-                        logger.debug(f"Error converting character '{char}' to EBCDIC: {e}")
+                        logger.debug(
+                            f"Error converting character '{char}' to EBCDIC: {e}"
+                        )
                         # Store as space if conversion fails
-                        pos = self.current_row * self.screen_buffer.cols + self.current_col
+                        pos = (
+                            self.current_row * self.screen_buffer.cols
+                            + self.current_col
+                        )
                         if pos < len(self.screen_buffer.buffer):
                             self.screen_buffer.buffer[pos] = 0x40  # Space in EBCDIC
 
@@ -356,8 +358,8 @@ class VT100Parser:
                 2: Clear entire screen
         """
         # Use appropriate space character based on screen buffer mode
-        space_char = 0x20 if getattr(self.screen_buffer, '_ascii_mode', False) else 0x40
-        
+        space_char = 0x20 if getattr(self.screen_buffer, "_ascii_mode", False) else 0x40
+
         if param == 0:
             # Clear from cursor to end of screen
             start_pos = self.current_row * self.screen_buffer.cols + self.current_col
@@ -383,8 +385,8 @@ class VT100Parser:
                 2: Clear entire line
         """
         # Use appropriate space character based on screen buffer mode
-        space_char = 0x20 if getattr(self.screen_buffer, '_ascii_mode', False) else 0x40
-        
+        space_char = 0x20 if getattr(self.screen_buffer, "_ascii_mode", False) else 0x40
+
         if param == 0:
             # Clear from cursor to end of line
             start_pos = self.current_row * self.screen_buffer.cols + self.current_col

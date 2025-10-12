@@ -3,18 +3,20 @@
 Use this to contrast screens / negotiation with the pure Python
 implementation when both are available locally.
 """
+
 from p3270 import P3270Client
 
 HOST = "pub400.com"
 PORT = 23
+
 
 def main() -> int:
     print(f"Connecting to {HOST}:{PORT} using native p3270...")
     client = P3270Client(
         hostName=HOST,
         hostPort=str(PORT),
-        modelName='3279-4',
-        enableTLS='no',
+        modelName="3279-4",
+        enableTLS="no",
         timeoutInSec=20,
     )
     try:

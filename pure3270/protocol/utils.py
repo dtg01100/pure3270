@@ -276,10 +276,14 @@ def _schedule_if_awaitable(maybe_awaitable: Any) -> None:
             except RuntimeError:
                 try:
                     asyncio.run(maybe_awaitable)  # type: ignore[arg-type]
-                except Exception:
-                    pass
-    except Exception:
-        pass
+                except Exception as e:
+                    import logging
+
+                    logging.error(f"Error in _call_maybe_await: {e}")
+    except Exception as e:
+        import logging
+
+        logging.error(f"Error in _call_maybe_await outer: {e}")
 
 
 def send_iac(writer: Optional[asyncio.StreamWriter], command: bytes) -> None:

@@ -39,7 +39,7 @@ Successfully implemented a complete native `P3270Client` class that serves as a 
 ### ✅ s3270 Command Compatibility
 Handles all s3270 commands that the wrapper was processing:
 - `String(text)` - Text input
-- `Enter`, `Tab`, `Home`, `Clear` - Key commands  
+- `Enter`, `Tab`, `Home`, `Clear` - Key commands
 - `PF(n)`, `PA(n)` - Function/Program keys
 - `MoveCursor(row,col)` - Cursor positioning
 - `Connect(hostname)` - Connection with host parsing
@@ -56,7 +56,7 @@ Handles all s3270 commands that the wrapper was processing:
 
 ### ✅ Documentation
 - **README.md updated** with Native P3270Client section
-- **Migration guide** created with detailed transition instructions  
+- **Migration guide** created with detailed transition instructions
 - **Example scripts** showing replacement usage
 - **API compatibility table** documenting all methods
 
@@ -85,7 +85,7 @@ client = P3270Client()  # Native pure Python implementation
 - **Faster startup** - no s3270 binary spawning
 - **Lower memory usage** - single process instead of multi-process
 
-### 🛠 Maintenance  
+### 🛠 Maintenance
 - **No monkey-patching complexity** - cleaner, more maintainable code
 - **Easier debugging** - single process, native Python stack traces
 - **Simpler testing** - no complex patching setup required

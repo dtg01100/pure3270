@@ -17,75 +17,88 @@ class InvalidConfiguration(Exception):
 
 
 class P3270Client:
-    def connect(self):
+    def disconnect(self) -> None:
+        """Disconnect from TN3270 host and clean up session."""
+        if self._pure_session is not None:
+            try:
+                self._pure_session.close()
+            except Exception as e:
+                logger.error(f"Error closing session: {e}")
+            self._pure_session = None
+        self._connected = False
+
+    def getScreen(self) -> str:
+        """Get the current screen content as text (always ASCII/Unicode)."""
+        if not self._connected or not self._pure_session:
+            return ""
+        try:
+            screen_buffer = getattr(self._pure_session, "screen_buffer", None)
+            if screen_buffer is not None and hasattr(screen_buffer, "ascii_buffer"):
+                screen_text = screen_buffer.ascii_buffer
+            elif screen_buffer is not None and hasattr(screen_buffer, "to_text"):
+                screen_text = screen_buffer.to_text()
+            else:
+                screen_data = self._pure_session.read(timeout=1.0)
+                if isinstance(screen_data, bytes):
+                    screen_text = self._pure_session.ascii(screen_data)
+                elif isinstance(screen_data, str):
+                    screen_text = screen_data
+                else:
+                    screen_text = str(screen_data)
+            self._last_screen = screen_text
+            return str(screen_text)
+        except Exception as e:
+            logger.error(f"Error reading screen: {e}")
+            return self._last_screen or ""
+
+    def connect(self) -> None:
         """
         Establish connection to TN3270 host using pure3270.Session.
         """
         if self._connected:
             return
         from pure3270.session import Session
+
         self._pure_session = Session()
         if self.ssl:
             import ssl
+
             ssl_context = ssl.create_default_context()
         else:
             ssl_context = None
-        self._pure_session.connect(self.hostName, port=self.hostPort, ssl_context=ssl_context)
-        self._connected = True
-        # Optionally update screen size from session if available
-        screen_buffer = getattr(self._pure_session, "screen_buffer", None)
-        if screen_buffer is not None:
-            self._screen_rows = getattr(screen_buffer, "rows", 24)
-            self._screen_cols = getattr(screen_buffer, "cols", 80)
+        self._pure_session.connect(
+            self.hostName, port=self.hostPort, ssl_context=ssl_context
+        )
 
-    def disconnect(self):
-        """
-        Disconnect from TN3270 host and clean up session.
-        """
-        if self._pure_session:
-            self._pure_session.close()
-        self._connected = False
-        self._pure_session = None
-
-    def getScreen(self):
-        """
-        Return current screen content as ASCII text.
-        """
-        if not self._connected or not self._pure_session:
-            return ""
-        
-        # Force a read to update the screen buffer
-        try:
-            self._pure_session.read(timeout=1.0)
-        except Exception as e:
-            logger.debug(f"Read failed in getScreen: {e}")
-        
-        screen_buffer = getattr(self._pure_session, "screen_buffer", None)
-        if screen_buffer is not None and hasattr(screen_buffer, "ascii_buffer"):
-            screen_text = screen_buffer.ascii_buffer
-        elif screen_buffer is not None and hasattr(screen_buffer, "to_text"):
-            screen_text = screen_buffer.to_text()
-        else:
-            # Fallback: try to read and decode
-            screen_data = self._pure_session.read(timeout=1.0)
-            if isinstance(screen_data, bytes):
-                screen_text = self._pure_session.ascii(screen_data)
-            elif isinstance(screen_data, str):
-                screen_text = screen_data
-            else:
-                screen_text = str(screen_data)
-        self._last_screen = screen_text
-        return screen_text
     """
     Native P3270Client implementation that matches p3270.P3270Client API exactly.
     Uses pure3270.Session internally instead of spawning s3270 subprocess.
     """
 
-
     # Class variable to track instances (matches p3270 behavior)
     numOfInstances = 0
 
-    def __init__(self, hostName: str = None, hostPort: int = 23, ssl: bool = False, *args, **kwargs):
+    hostName: Optional[str]
+    hostPort: int
+    ssl: bool
+    _pure_session: Optional[Any]
+    _connected: bool
+    _last_screen: str
+    _cursor_row: int
+    _cursor_col: int
+    _screen_rows: int
+    _screen_cols: int
+    _init_args: Any
+    _init_kwargs: Any
+
+    def __init__(
+        self,
+        hostName: Optional[str] = None,
+        hostPort: int = 23,
+        ssl: bool = False,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         """
         Initialize P3270Client with hostName and hostPort, matching p3270 API.
         """
@@ -107,7 +120,7 @@ class P3270Client:
         if self.hostName:
             self.connect()
 
-    def _sendCommand(self, command: str) -> Any:
+    def _sendCommand(self, command: str) -> Optional[str]:
         """
         Send a command to the session and handle response, matching p3270 behavior.
         After commands that expect a screen update, immediately read and update the buffer.
@@ -127,24 +140,29 @@ class P3270Client:
                 "Left",
                 "Right",
             ]:
-                self._pure_session.send(f"key {command}".encode("ascii"))
+                if self._pure_session is not None:
+                    self._pure_session.send(f"key {command}".encode("ascii"))
                 update_screen = True
             elif command.startswith("PF("):
                 pf_num = command[3:-1]
-                self._pure_session.send(f"key PF{pf_num}".encode("ascii"))
+                if self._pure_session is not None:
+                    self._pure_session.send(f"key PF{pf_num}".encode("ascii"))
                 update_screen = True
             elif command.startswith("PA("):
                 pa_num = command[3:-1]
-                self._pure_session.send(f"key PA{pa_num}".encode("ascii"))
+                if self._pure_session is not None:
+                    self._pure_session.send(f"key PA{pa_num}".encode("ascii"))
                 update_screen = True
             elif command.startswith("String("):
                 text = command[7:-1]
-                self._pure_session.send(f"String({text})".encode("ascii"))
+                if self._pure_session is not None:
+                    self._pure_session.send(f"String({text})".encode("ascii"))
                 update_screen = True
             elif command.startswith("MoveCursor("):
                 coords = command[11:-1]
                 row, col = coords.split(",")
-                self._pure_session.send(f"MoveCursor {row} {col}".encode("ascii"))
+                if self._pure_session is not None:
+                    self._pure_session.send(f"MoveCursor {row} {col}".encode("ascii"))
                 update_screen = True
             elif command.startswith("Connect("):
                 param = command[8:-1]
@@ -168,13 +186,31 @@ class P3270Client:
             elif command.startswith("Ascii("):
                 params = command[6:-1]
                 if params:
-                    param_list = [int(x.strip()) for x in params.split(",")]
+                    from typing import List, cast
+
+                    param_list = cast(
+                        List[int], [int(x.strip()) for x in params.split(",")]
+                    )
                     if len(param_list) == 3:
-                        row, col, length = param_list
-                        return self.readTextAtPosition(row, col, length)
+                        r, c, l = (
+                            int(param_list[0]),
+                            int(param_list[1]),
+                            int(param_list[2]),
+                        )
+                        return self.readTextAtPosition(r, c, l)
                     elif len(param_list) == 4:
-                        row, col, rows, cols = param_list
-                        return self.readTextArea(row, col, row + rows - 1, col + cols - 1)
+                        r, c, rs, cs = (
+                            int(param_list[0]),
+                            int(param_list[1]),
+                            int(param_list[2]),
+                            int(param_list[3]),
+                        )
+                        return self.readTextArea(
+                            r,
+                            c,
+                            r + rs - 1,
+                            c + cs - 1,
+                        )
                 else:
                     return self.getScreen()
             elif command.startswith("Wait("):
@@ -194,12 +230,14 @@ class P3270Client:
             elif command == "NoOpCommand":
                 pass
             else:
-                self._pure_session.send(command.encode("ascii"))
+                if self._pure_session is not None:
+                    self._pure_session.send(command.encode("ascii"))
 
             if update_screen:
                 # Immediately read and update the buffer after screen-changing commands
                 try:
-                    self._pure_session.read(timeout=1.0)
+                    if self._pure_session is not None:
+                        self._pure_session.read(timeout=1.0)
                 except Exception as e:
                     logger.debug(f"Screen update after command '{command}' failed: {e}")
 
@@ -231,7 +269,7 @@ class P3270Client:
                         screen_text = str(screen_data)
 
             self._last_screen = screen_text
-            return screen_text
+            return str(screen_text)
         except Exception as e:
             logger.error(f"Error reading screen: {e}")
             return self._last_screen or ""
@@ -423,7 +461,9 @@ class P3270Client:
         actual_text = self.readTextAtPosition(row, col, len(text))
         return actual_text == text
 
-    def trySendTextToField(self, text: str, row: int = None, col: int = None) -> bool:
+    def trySendTextToField(
+        self, text: str, row: Optional[int] = None, col: Optional[int] = None
+    ) -> bool:
         """
         Try to send text to a specific field.
 
@@ -539,126 +579,6 @@ class P3270Client:
         """Wait for specified timeout period."""
         time.sleep(timeout)
         return True
-
-    # Internal helper methods
-    def _sendCommand(self, command: str) -> None:
-        """Send s3270-style command to pure3270 session."""
-        if not self._connected or not self._pure_session:
-            logger.warning(f"Cannot send command '{command}': not connected")
-            return
-
-        try:
-            # Convert s3270 command to pure3270 format
-            if command.startswith("String("):
-                # Extract text from String(text)
-                text = command[7:-1]  # Remove "String(" and ")"
-                self._pure_session.send(text.encode("ascii"))
-            elif command.startswith("Key("):
-                # Extract key from Key(keyname)
-                key = command[4:-1]  # Remove "Key(" and ")"
-                self._pure_session.send(f"key {key}".encode("ascii"))
-            elif command in [
-                "Enter",
-                "Tab",
-                "BackTab",
-                "BackSpace",
-                "Home",
-                "Clear",
-                "Delete",
-                "DeleteField",
-                "DeleteWord",
-                "Erase",
-                "Up",
-                "Down",
-                "Left",
-                "Right",
-            ]:
-                # Direct key commands
-                self._pure_session.send(f"key {command}".encode("ascii"))
-            elif command.startswith("PF("):
-                # PF key
-                pf_num = command[3:-1]
-                self._pure_session.send(f"key PF{pf_num}".encode("ascii"))
-            elif command.startswith("PA("):
-                # PA key
-                pa_num = command[3:-1]
-                self._pure_session.send(f"key PA{pa_num}".encode("ascii"))
-            elif command.startswith("MoveCursor("):
-                # Move cursor
-                coords = command[11:-1]  # Remove "MoveCursor(" and ")"
-                row, col = coords.split(",")
-                self._pure_session.send(f"MoveCursor {row} {col}".encode("ascii"))
-            elif command.startswith("Connect("):
-                # Handle connect command with host parameter
-                param = command[8:-1]  # Remove "Connect(" and ")"
-                host = param
-                if param.startswith("B:"):
-                    host = param[2:]  # Remove "B:" prefix
-                elif param.startswith("L:") and "@" in param:
-                    host = param.split("@", 1)[
-                        1
-                    ]  # Extract hostname from "L:lu@hostname"
-
-                # Parse host:port if present
-                if ":" in host:
-                    host_parts = host.split(":", 1)
-                    self.hostName = host_parts[0]
-                    self.hostPort = int(host_parts[1])
-                else:
-                    self.hostName = host
-
-                self.connect()
-            elif command == "Disconnect":
-                self.disconnect()
-            elif command == "Quit":
-                self.disconnect()
-            elif command.startswith("Ascii("):
-                # Handle Ascii command for reading screen text
-                params = command[6:-1]  # Remove "Ascii(" and ")"
-                if params:
-                    # Parse parameters
-                    param_list = [int(x.strip()) for x in params.split(",")]
-                    if len(param_list) == 3:
-                        # Ascii(row, col, length) - read text at position
-                        row, col, length = param_list
-                        return self.readTextAtPosition(row, col, length)
-                    elif len(param_list) == 4:
-                        # Ascii(row, col, rows, cols) - read rectangular area
-                        row, col, rows, cols = param_list
-                        return self.readTextArea(
-                            row, col, row + rows - 1, col + cols - 1
-                        )
-                else:
-                    # Ascii() - get entire screen
-                    return self.getScreen()
-            elif command.startswith("Wait("):
-                # Handle Wait command
-                params = command[5:-1]  # Remove "Wait(" and ")"
-                try:
-                    if "," in params:
-                        timeout_str = params.split(",")[0]
-                        timeout = float(timeout_str)
-                    else:
-                        timeout = float(params)
-                    time.sleep(min(timeout, 10.0))  # Cap at 10 seconds
-                except ValueError:
-                    time.sleep(1.0)  # Default 1 second
-            elif command.startswith("PrintText("):
-                # Handle PrintText command
-                params = command[10:-1]  # Remove "PrintText(" and ")"
-                # For now, just return screen content
-                return self.getScreen()
-            elif command == "NoOpCommand":
-                # No operation - just return success
-                pass
-            else:
-                # Pass through unknown commands as raw data
-                self._pure_session.send(command.encode("ascii"))
-
-            logger.debug(f"Sent command: {command}")
-
-        except Exception as e:
-            logger.error(f"Error sending command '{command}': {e}")
 
     # Compatibility aliases
     def close(self) -> None:

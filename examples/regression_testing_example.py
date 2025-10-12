@@ -34,11 +34,9 @@ from pure3270.emulation.regression_harness import (
 )
 from pure3270.emulation.screen_buffer import ScreenBuffer
 from pure3270.emulation.snapshot import (
-    ModeAwareSnapshotComparator,
     ScreenSnapshot,
     SnapshotComparison,
     compare_snapshots,
-    compare_snapshots_cross_mode,
     create_ascii_mode_snapshot,
     create_ebcdic_mode_snapshot,
     take_snapshot,
@@ -84,79 +82,51 @@ def example_basic_snapshot_usage() -> None:
             print(f"  - {diff_type}: {diff_data}")
 
 
-def example_mode_aware_comparison():
-    """Example 2: Mode-aware snapshot comparison."""
-    print("\n=== Example 2: Mode-Aware Comparison ===")
+def example_mode_aware_comparison() -> None:
+    """Example 2: Basic snapshot comparison."""
+    print("\n=== Example 2: Basic Snapshot Comparison ===")
 
-    # Create screen buffer in EBCDIC mode
-    screen = ScreenBuffer(rows=5, cols=20)
-    screen.set_ascii_mode(False)  # EBCDIC mode
-
-    # Write content
-    screen.write_char(0xC1, 0, 0)  # 'A' in EBCDIC
-    screen.write_char(0xC2, 0, 1)  # 'B' in EBCDIC
-
-    # Take EBCDIC snapshot
-    ebcdic_snapshot = create_ebcdic_mode_snapshot(screen)
-    print(f"EBCDIC snapshot mode: {ebcdic_snapshot.metadata['ascii_mode']}")
-
-    # Switch to ASCII mode and write same content
-    screen.set_ascii_mode(True)  # ASCII mode
-    screen.clear()
-    screen.write_char(ord("A"), 0, 0)  # 'A' in ASCII
-    screen.write_char(ord("B"), 0, 1)  # 'B' in ASCII
-
-    # Take ASCII snapshot
-    ascii_snapshot = create_ascii_mode_snapshot(screen)
-    print(f"ASCII snapshot mode: {ascii_snapshot.metadata['ascii_mode']}")
-
-    # Compare using cross-mode comparison
-    comparison = compare_snapshots_cross_mode(ebcdic_snapshot, ascii_snapshot)
-    print(f"Cross-mode comparison identical: {comparison.is_identical}")
-
-    if not comparison.is_identical:
-        print("Cross-mode differences:")
-        if "cross_mode_text" in comparison.differences:
-            diff = comparison.differences["cross_mode_text"]
-            print(f"  Text 1: '{diff['text1']}' (mode: {diff['ascii_mode1']})")
-            print(f"  Text 2: '{diff['text2']}' (mode: {diff['ascii_mode2']})")
-
-
-def example_advanced_comparator():
-    """Example 3: Advanced mode-aware comparator."""
-    print("\n=== Example 3: Advanced Comparator ===")
-
-    # Create comparator with semantic mode handling
-    comparator = ModeAwareSnapshotComparator(mode_handling="semantic")
-
-    # Create two buffers with same content in different modes
-    screen1 = ScreenBuffer(rows=3, cols=10)
-    screen1.set_ascii_mode(False)  # EBCDIC
-    screen1.write_char(0xC8, 0, 0)  # 'H'
-    screen1.write_char(0xC5, 0, 1)  # 'E'
-    screen1.write_char(0xD3, 0, 2)  # 'L'
-    screen1.write_char(0xD3, 0, 3)  # 'L'
-    screen1.write_char(0xD6, 0, 4)  # 'O'
-
-    screen2 = ScreenBuffer(rows=3, cols=10)
-    screen2.set_ascii_mode(True)  # ASCII
-    screen2.write_char(ord("H"), 0, 0)
-    screen2.write_char(ord("E"), 0, 1)
-    screen2.write_char(ord("L"), 0, 2)
-    screen2.write_char(ord("L"), 0, 3)
-    screen2.write_char(ord("O"), 0, 4)
-
+    # Create screen buffer
+    screen1 = ScreenBuffer(rows=24, cols=80)
     snapshot1 = take_snapshot(screen1)
+    print(f"Snapshot 1 created with ascii_mode: {snapshot1.metadata['ascii_mode']}")
+
+    # Create another screen buffer
+    screen2 = ScreenBuffer(rows=24, cols=80)
+    snapshot2 = take_snapshot(screen2)
+    print(f"Snapshot 2 created with ascii_mode: {snapshot2.metadata['ascii_mode']}")
+
+    # Compare snapshots
+    comparison = compare_snapshots(snapshot1, snapshot2)
+    print(f"Snapshots identical: {comparison.is_identical}")
+    if comparison.differences:
+        print(f"Found {len(comparison.differences)} differences")
+
+
+def example_advanced_comparator() -> None:
+    """Example 3: Advanced snapshot comparison."""
+    print("\n=== Example 3: Advanced Snapshot Comparison ===")
+
+    # Create test snapshots
+    screen1 = ScreenBuffer(rows=24, cols=80)
+    snapshot1 = take_snapshot(screen1)
+
+    screen2 = ScreenBuffer(rows=24, cols=80)
+    # Write some data to make them different
+    screen2.write_char(0x48, row=0, col=0)  # 'H' in EBCDIC
     snapshot2 = take_snapshot(screen2)
 
-    comparison = comparator.compare(snapshot1, snapshot2)
-    print(f"Advanced comparison identical: {comparison.is_identical}")
+    # Use basic comparison
+    result = compare_snapshots(snapshot1, snapshot2)
 
-    if comparison.is_identical:
-        print("Content is semantically identical despite different modes!")
+    print(f"Snapshots identical: {result.is_identical}")
+    if result.differences:
+        print(f"Found differences in: {list(result.differences.keys())}")
+    else:
+        print("No differences found")
 
 
-def example_regression_test_harness():
+def example_regression_test_harness() -> None:
     """Example 4: Using the regression test harness."""
     print("\n=== Example 4: Regression Test Harness ===")
 
@@ -211,7 +181,7 @@ def example_regression_test_harness():
     print(f"Generated baselines for: {missing}")
 
 
-def example_file_operations():
+def example_file_operations() -> None:
     """Example 5: File save/load operations."""
     print("\n=== Example 5: File Operations ===")
 
@@ -237,7 +207,7 @@ def example_file_operations():
     print(f"Original and loaded snapshots identical: {comparison.is_identical}")
 
 
-def example_pytest_integration():
+def example_pytest_integration() -> None:
     """Example 6: Integration with pytest framework."""
     print("\n=== Example 6: Pytest Integration ===")
 

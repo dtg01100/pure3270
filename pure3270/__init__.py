@@ -10,8 +10,8 @@ import logging
 import os
 import sys
 
-from .session import AsyncSession, Session
 from .p3270_client import P3270Client
+from .session import AsyncSession, Session
 
 
 class JSONFormatter(logging.Formatter):

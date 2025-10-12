@@ -86,24 +86,30 @@ class SessionManager:
         # else synchronous -> already executed
 
         # Now read and process server responses
-        if hasattr(negotiator, 'handler') and self.reader:
+        if hasattr(negotiator, "handler") and self.reader:
             handler = negotiator.handler
-            if hasattr(handler, '_process_telnet_stream'):
+            if hasattr(handler, "_process_telnet_stream"):
                 try:
                     # Read server responses with timeout
                     data = await asyncio.wait_for(self.reader.read(4096), timeout=3.0)
                     if data:
-                        logger.info(f"[TELNET] Processing server response: {data.hex()}")
+                        logger.info(
+                            f"[TELNET] Processing server response: {data.hex()}"
+                        )
                         # Process through handler's telnet stream processor
                         processed = handler._process_telnet_stream(data)
                         if inspect.isawaitable(processed):
                             await processed
                 except asyncio.TimeoutError:
-                    logger.info("[TELNET] No server response within timeout - continuing")
+                    logger.info(
+                        "[TELNET] No server response within timeout - continuing"
+                    )
                 except Exception as e:
                     logger.warning(f"[TELNET] Error processing server response: {e}")
         else:
-            logger.debug("[TELNET] No handler available for processing server responses")
+            logger.debug(
+                "[TELNET] No handler available for processing server responses"
+            )
 
     async def perform_tn3270_negotiation(
         self, negotiator: Any, timeout: Optional[float] = None
