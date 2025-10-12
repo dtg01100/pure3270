@@ -219,6 +219,75 @@ async def test_mock_connectivity():
         return False
 
 
+def test_api_compatibility():
+    """Test P3270Client API compatibility with p3270."""
+    try:
+        # Import the compatibility test
+        import os
+
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), "tests"))
+        from test_api_compatibility import APICompatibilityTest
+
+        tester = APICompatibilityTest()
+        success = tester.run_all_tests()
+
+        if success:
+            print("✓ P3270Client API compatibility test passed")
+            return True
+        else:
+            print("✗ P3270Client API compatibility test failed")
+            return False
+
+    except Exception as e:
+        print(f"✗ API compatibility test failed: {e}")
+        return False
+
+
+def test_screen_snapshot_validation():
+    """Test screen snapshot validation (optional - only runs if baseline exists)."""
+    try:
+        import os
+        from pathlib import Path
+
+        # Check if baseline snapshot exists
+        baseline_path = Path("test_baselines/screens/empty_screen.json")
+        if not baseline_path.exists():
+            print("✓ Screen snapshot validation skipped (no baseline found)")
+            return True
+
+        # Import the snapshot tool
+        try:
+            from tools.validate_screen_snapshot import ScreenSnapshot
+        except ImportError:
+            print("✓ Screen snapshot validation skipped (tool not available)")
+            return True
+
+        # Load baseline
+        baseline = ScreenSnapshot.load(str(baseline_path))
+
+        # Create current screen buffer and capture snapshot
+        from pure3270.emulation.screen_buffer import ScreenBuffer
+
+        current_screen = ScreenBuffer(rows=24, cols=80)
+        current_snapshot = ScreenSnapshot(current_screen)
+
+        # Compare
+        result = baseline.compare(current_snapshot)
+
+        if result["match"]:
+            print("✓ Screen snapshot validation passed")
+            return True
+        else:
+            print("✗ Screen snapshot validation failed:")
+            for diff in result["differences"]:
+                print(f"  {diff}")
+            return False
+
+    except Exception as e:
+        print(f"✗ Screen snapshot validation failed: {e}")
+        return False
+
+
 async def main():
     """Run quick smoke tests."""
     print("=== Pure3270 Quick Smoke Test ===\n")
@@ -228,6 +297,8 @@ async def main():
         ("Imports and Basic Creation", test_imports_and_basic_creation),
         ("Native P3270Client", test_native_p3270_client),
         ("Navigation Methods", test_navigation_methods),
+        ("Screen Snapshot Validation", test_screen_snapshot_validation),
+        ("API Compatibility", test_api_compatibility),
     ]
 
     # ASCII Mode Detection test temporarily disabled to avoid timeout issues

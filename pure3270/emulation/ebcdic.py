@@ -1,3 +1,35 @@
+# ATTRIBUTION NOTICE
+# =================================================================================
+# This module contains code ported from or inspired by: IBM s3270/x3270
+# Source: https://github.com/rhacker/x3270
+# Licensed under BSD-3-Clause
+#
+# DESCRIPTION
+# --------------------
+# EBCDIC ↔ ASCII translation using IBM Code Page 037 based on s3270
+#
+# COMPATIBILITY
+# --------------------
+# Compatible with s3270 EBCDIC handling and character translation
+#
+# MODIFICATIONS
+# --------------------
+# Enhanced with additional codec support and error handling
+#
+# INTEGRATION POINTS
+# --------------------
+# - EBCDIC to ASCII conversion for screen display
+# - ASCII to EBCDIC conversion for data transmission
+# - IBM Code Page 037 (CP037) encoding/decoding
+# - Screen buffer character processing
+#
+# ATTRIBUTION REQUIREMENTS
+# ------------------------------
+# This attribution must be maintained when this code is modified or
+# redistributed. See THIRD_PARTY_NOTICES.md for complete license text.
+# Last updated: 2025-10-12
+# =================================================================================
+
 """
 EBCDIC to ASCII translation utilities for 3270 emulation.
 Based on IBM Code Page 037.

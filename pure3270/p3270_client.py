@@ -1,3 +1,35 @@
+# ATTRIBUTION NOTICE
+# =================================================================================
+# This module contains code ported from or inspired by: IBM s3270/x3270
+# Source: https://github.com/rhacker/x3270
+# Licensed under BSD-3-Clause
+#
+# DESCRIPTION
+# --------------------
+# Drop-in replacement for p3270.P3270Client with identical API and behavior
+#
+# COMPATIBILITY
+# --------------------
+# 100% API compatible with p3270.P3270Client for seamless migration
+#
+# MODIFICATIONS
+# --------------------
+# Pure Python implementation using pure3270.Session as backend
+#
+# INTEGRATION POINTS
+# --------------------
+# - p3270.P3270Client API compatibility layer
+# - s3270 command interface compatibility
+# - Connection and session management
+# - Screen operations and data retrieval
+#
+# ATTRIBUTION REQUIREMENTS
+# ------------------------------
+# This attribution must be maintained when this code is modified or
+# redistributed. See THIRD_PARTY_NOTICES.md for complete license text.
+# Last updated: 2025-10-12
+# =================================================================================
+
 """
 Drop-in replacement for p3270.P3270Client using pure3270.Session internally.
 Matches the API and behavior of p3270.P3270Client exactly.
@@ -26,6 +58,10 @@ class P3270Client:
                 logger.error(f"Error closing session: {e}")
             self._pure_session = None
         self._connected = False
+
+    def isConnected(self) -> bool:
+        """Check if client is connected to TN3270 host."""
+        return self._connected
 
     def getScreen(self) -> str:
         """Get the current screen content as text (always ASCII/Unicode)."""

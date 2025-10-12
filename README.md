@@ -812,6 +812,49 @@ Run them in your activated venv: `python examples/example_patching.py`. Replace 
 
 For more, enable verbose logging or consult [`architecture.md`](architecture.md).
 
+## Screen Snapshot Validation
+
+Pure3270 includes a screen snapshot validation system to prevent regressions in screen rendering. This system captures normalized screen representations and can compare them against baselines to detect changes.
+
+### Snapshot Format
+
+Snapshots are stored as JSON files with the following structure:
+```json
+{
+  "version": "1.0",
+  "metadata": {
+    "rows": 24,
+    "cols": 80,
+    "ascii_mode": false,
+    "cursor_row": 0,
+    "cursor_col": 0
+  },
+  "content": "normalized screen content with trailing spaces stripped"
+}
+```
+
+Content is normalized by:
+- Stripping trailing whitespace from each line
+- Ensuring consistent LF line endings
+- Preserving empty lines
+
+### Using the Snapshot Tool
+
+```bash
+# Capture a snapshot
+python tools/validate_screen_snapshot.py capture snapshot.json
+
+# Validate a snapshot file
+python tools/validate_screen_snapshot.py validate snapshot.json
+
+# Compare two snapshots
+python tools/validate_screen_snapshot.py compare expected.json actual.json
+```
+
+### Integration with Tests
+
+The quick smoke test (`python quick_test.py`) includes optional screen snapshot validation that compares against a baseline empty screen. This runs automatically if baseline files exist in `test_baselines/screens/`.
+
 ## Credits
 
 Credits: Some tests and examples in this project are inspired by and adapted from the IBM s3270 terminal emulator project, which served as a valuable reference for 3270 protocol handling and emulation techniques.

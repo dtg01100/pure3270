@@ -1,3 +1,40 @@
+# ATTRIBUTION NOTICE
+# =================================================================================
+# This module contains code ported from or inspired by: IBM s3270/x3270
+# Source: https://github.com/rhacker/x3270
+# Licensed under BSD-3-Clause
+#
+# DESCRIPTION
+# --------------------
+# 3270 data stream parsing and SNA response processing based on s3270
+#
+# COMPATIBILITY
+# --------------------
+# Compatible with s3270 data stream formats and SNA response handling
+#
+# MODIFICATIONS
+# --------------------
+# Adapted for Python with enhanced error handling and structured parsing
+#
+# INTEGRATION POINTS
+# --------------------
+# - Write (W), Erase/Write (EW), Erase/Write Alternate (EWA) orders
+# - Structured fields parsing and processing
+# - SNA response data handling
+# - Field attribute processing
+#
+# RFC REFERENCES
+# --------------------
+# - RFC 1576: TN3270 Current Practices
+# - RFC 2355: TN3270 Enhancements
+#
+# ATTRIBUTION REQUIREMENTS
+# ------------------------------
+# This attribution must be maintained when this code is modified or
+# redistributed. See THIRD_PARTY_NOTICES.md for complete license text.
+# Last updated: 2025-10-12
+# =================================================================================
+
 """Data stream parser and sender for 3270 protocol."""
 
 import logging

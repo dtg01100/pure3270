@@ -1,3 +1,45 @@
+# ATTRIBUTION NOTICE
+# =================================================================================
+# This module contains code ported from or inspired by: IBM s3270/x3270
+# Source: https://github.com/rhacker/x3270
+# Licensed under BSD-3-Clause
+#
+# DESCRIPTION
+# --------------------
+# TN3270/TN3270E protocol implementation based on s3270
+#
+# COMPATIBILITY
+# --------------------
+# Compatible with s3270 command interface and protocol handling
+#
+# MODIFICATIONS
+# --------------------
+# Adapted for async Python with additional error handling
+#
+# INTEGRATION POINTS
+# --------------------
+# - TN3270/TN3270E protocol negotiation
+# - Data stream parsing and processing
+# - Session management and lifecycle
+# - Error handling and recovery
+#
+# RFC REFERENCES
+# --------------------
+# - RFC 1576: TN3270 Current Practices
+# - RFC 2355: TN3270 Enhancements
+# - RFC 854: Telnet Protocol Specification
+# - RFC 855: Telnet Option Specifications
+# - RFC 856: Telnet Binary Transmission
+# - RFC 857: Telnet Echo Option
+# - RFC 858: Telnet Suppress Go Ahead Option
+#
+# ATTRIBUTION REQUIREMENTS
+# ------------------------------
+# This attribution must be maintained when this code is modified or
+# redistributed. See THIRD_PARTY_NOTICES.md for complete license text.
+# Last updated: 2025-10-12
+# =================================================================================
+
 import ssl as std_ssl
 import time
 from typing import cast

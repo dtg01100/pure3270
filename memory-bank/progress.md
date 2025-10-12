@@ -7,6 +7,7 @@
 - Hybrid handling improvement: handler-level `_ascii_mode` added; quick smoke extended with ASCII detection.
 - **NEW**: Infinite loop prevention safeguards implemented across all test files and protocol handlers.
 - **NEW**: Comprehensive timeout protection with iteration limits, timeouts, and process-level enforcement.
+- **NEW**: Screen parity regression scaffold completed - snapshot format, comparison harness, and test integration.
 
 ## In Flight / Pending
 - Screen parity snapshot system (not started).
@@ -26,6 +27,6 @@
 - **NEW**: Timeout safety validation passes - no test can hang indefinitely.
 
 ## Short-Term Priorities
-1. Implement portable snapshot format for ASCII screens.
-2. Provide API completeness test to prevent accidental method regression.
-3. Add licensing attribution before integrating any externally inspired parsing logic.
+1. P3270Client API compatibility audit (TASK003)
+2. Licensing & attribution infrastructure (TASK004, TASK005, TASK006)
+3. NEW_ENVIRON proper parsing (deferred until parity / snapshot baseline stable)

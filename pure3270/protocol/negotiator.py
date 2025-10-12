@@ -1,3 +1,42 @@
+# ATTRIBUTION NOTICE
+# =================================================================================
+# This module contains code ported from or inspired by: IBM s3270/x3270
+# Source: https://github.com/rhacker/x3270
+# Licensed under BSD-3-Clause
+#
+# DESCRIPTION
+# --------------------
+# Telnet/TN3270E negotiation logic based on s3270 implementation
+#
+# COMPATIBILITY
+# --------------------
+# Compatible with s3270 negotiation sequences and TN3270E subnegotiation
+#
+# MODIFICATIONS
+# --------------------
+# Adapted for async Python with improved error handling and timeout management
+#
+# INTEGRATION POINTS
+# --------------------
+# - Telnet option negotiation (BINARY, EOR, TTYPE)
+# - TN3270E subnegotiation sequences
+# - Device type and function negotiation
+# - Connection establishment protocol
+#
+# RFC REFERENCES
+# --------------------
+# - RFC 1576: TN3270 Current Practices
+# - RFC 2355: TN3270 Enhancements
+# - RFC 854: Telnet Protocol Specification
+# - RFC 855: Telnet Option Specifications
+#
+# ATTRIBUTION REQUIREMENTS
+# ------------------------------
+# This attribution must be maintained when this code is modified or
+# redistributed. See THIRD_PARTY_NOTICES.md for complete license text.
+# Last updated: 2025-10-12
+# =================================================================================
+
 """
 Negotiator for TN3270 protocol specifics.
 Handles Telnet negotiation and TN3270E subnegotiation.

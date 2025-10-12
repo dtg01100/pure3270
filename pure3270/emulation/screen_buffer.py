@@ -1,3 +1,35 @@
+# ATTRIBUTION NOTICE
+# =================================================================================
+# This module contains code ported from or inspired by: IBM s3270/x3270
+# Source: https://github.com/rhacker/x3270
+# Licensed under BSD-3-Clause
+#
+# DESCRIPTION
+# --------------------
+# Screen buffer management with EBCDIC support based on s3270 implementation
+#
+# COMPATIBILITY
+# --------------------
+# Compatible with s3270 screen buffer handling and field management
+#
+# MODIFICATIONS
+# --------------------
+# Adapted for Python with object-oriented design and enhanced field tracking
+#
+# INTEGRATION POINTS
+# --------------------
+# - 24x80 and 32x80 screen size support
+# - Field attribute processing and protection
+# - EBCDIC character handling
+# - Cursor positioning and movement
+#
+# ATTRIBUTION REQUIREMENTS
+# ------------------------------
+# This attribution must be maintained when this code is modified or
+# redistributed. See THIRD_PARTY_NOTICES.md for complete license text.
+# Last updated: 2025-10-12
+# =================================================================================
+
 """Screen buffer management for 3270 emulation."""
 
 import logging

@@ -1,3 +1,35 @@
+# ATTRIBUTION NOTICE
+# =================================================================================
+# This module contains code ported from or inspired by: IBM s3270/x3270
+# Source: https://github.com/rhacker/x3270
+# Licensed under BSD-3-Clause
+#
+# DESCRIPTION
+# --------------------
+# Session management and command interface compatible with p3270.P3270Client
+#
+# COMPATIBILITY
+# --------------------
+# Drop-in replacement for p3270.P3270Client with identical API
+#
+# MODIFICATIONS
+# --------------------
+# Implemented in pure Python with async support and enhanced error handling
+#
+# INTEGRATION POINTS
+# --------------------
+# - p3270-compatible connect/send/read/close interface
+# - s3270 command compatibility (String(), Enter, PF/PA keys, etc.)
+# - Screen operations and cursor movement
+# - Connection lifecycle management
+#
+# ATTRIBUTION REQUIREMENTS
+# ------------------------------
+# This attribution must be maintained when this code is modified or
+# redistributed. See THIRD_PARTY_NOTICES.md for complete license text.
+# Last updated: 2025-10-12
+# =================================================================================
+
 """
 Session management for pure3270, handling synchronous and asynchronous 3270 connections.
 """
