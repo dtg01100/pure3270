@@ -105,6 +105,8 @@ class P3270Client:
         self._pure_session.connect(
             self.hostName, port=self.hostPort, ssl_context=ssl_context
         )
+        # Mark connected on successful connect
+        self._connected = True
 
     """
     Native P3270Client implementation that matches p3270.P3270Client API exactly.
@@ -428,6 +430,21 @@ class P3270Client:
     def eraseChar(self) -> None:
         """Erase character (same as delete)."""
         self._sendCommand("Erase")
+
+    # --- Compatibility and utility methods ---
+
+    def endSession(self) -> None:
+        """Alias for disconnect (legacy p3270 API)."""
+        self.disconnect()
+
+    def makeArgs(self, *args: Any) -> List[Any]:
+        """Return a list constructed from provided args (legacy helper).
+
+        Mirrors p3270.P3270Client.makeArgs behavior by simply returning a
+        list of the arguments passed, used by some calling code that expects
+        an args list for command assembly.
+        """
+        return list(args)
 
     def readTextAtPosition(self, row: int, col: int, length: int) -> str:
         """
