@@ -1,5 +1,11 @@
 # TODO List - 3270 RFC Compliance and p3270 Compatibility
 
+## High Priority (Pytest Triage Issues)
+- **Fix API Compatibility Gaps**: Implement missing P3270Client methods (`endSession`, `makeArgs`, `numOfInstances`) to achieve full parity with legacy p3270.P3270Client interface
+- **Fix Protocol Negotiation Logic**: Resolve `NotConnectedError: Invalid connection state for negotiation` that prevents core TN3270/TN3270E negotiation from working
+- **Restore Missing Negotiator Attributes**: Add back missing properties and methods (`_device_type_is_event`, `is_bind_image_active`, `update_printer_status`) that tests expect
+- **Fix Data Stream Parser Issues**: Restore missing `_handle_nvt_data` method and fix format string errors with None values in data structure representations
+
 ## Low Priority
 - Add transparent printing support (TCPIP printer sessions)
 - Implement 3270 extended attributes beyond basic field properties
