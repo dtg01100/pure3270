@@ -61,6 +61,8 @@ markers = [
     "integration: marks tests as integration tests requiring external services (deselect with '-m \"not integration\"')",
     "property: property-based tests",
 ]
+norecursedirs = ["archive", "build", "dist", ".git", ".tox", ".pytest_cache"]
+testpaths = ["tests", "examples", "quick_test.py", "test_*.py"]
 
 [tool.black]
 line-length = 88
