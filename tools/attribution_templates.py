@@ -206,7 +206,10 @@ class AttributionTemplates:
         Returns:
             Formatted function-level attribution comment
         """
+        # Include the function name explicitly so validators/tests can find it
         content = f"""Ported from {source_name} ({source_url})
+
+        Function: {function_name}
 
         {description}
 
@@ -349,7 +352,7 @@ class AttributionTemplates:
         Returns:
             Formatted EBCDIC attribution comment
         """
-        content = f"""EBCDIC Codec Implementation
+        content = f"""EBCDIC Codec Implementation ({codec_name})
 
         Implements {codec_name} encoding/decoding for 3270 data streams.
 
@@ -468,4 +471,23 @@ def command_compatibility_attribution(commands: List[str]) -> str:
         s3270_commands=commands,
         description="Implements s3270-compatible command interface for 3270 terminal operations",
         integration_layer="Session",
+    )
+
+
+def python_standard_library_attribution(
+    module_name: str, usage_description: str
+) -> str:
+    """Generate a function-style attribution docstring for Python stdlib usage.
+
+    Tests expect a docstring containing 'Ported from Python Standard Library',
+    the module name, and a PSFL license reference.
+    """
+    templates = AttributionTemplates()
+    return templates.function_attribution(
+        source_name="Python Standard Library",
+        source_url="https://docs.python.org/3/library/",
+        license_name="Python Software Foundation License (PSFL)",
+        description=usage_description,
+        function_name=module_name,
+        compatibility_notes="PSFL",
     )

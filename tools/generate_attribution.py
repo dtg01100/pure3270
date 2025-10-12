@@ -126,7 +126,7 @@ class AttributionGenerator:
             description=args.description,
             ported_components=args.components,
             integration_layer=args.integration_layer,
-            modifications=args.modifications,
+            modifications=args.notice_modifications,
             compatibility=args.notice_compatibility,
             optional_dependency=args.optional,
         )
@@ -439,8 +439,16 @@ Examples:
     # Third-party notice arguments
     parser.add_argument("--license-text", help="Complete license text")
     parser.add_argument("--components", nargs="*", help="Ported components")
-    parser.add_argument("--modifications", help="Modifications made")
-    parser.add_argument("--compatibility", help="Compatibility statement")
+    parser.add_argument(
+        "--notice-modifications",
+        dest="notice_modifications",
+        help="Modifications made to the third-party code",
+    )
+    parser.add_argument(
+        "--notice-compatibility",
+        dest="notice_compatibility",
+        help="Compatibility statement for the third-party notice",
+    )
     parser.add_argument(
         "--optional", action="store_true", help="Mark as optional dependency"
     )
