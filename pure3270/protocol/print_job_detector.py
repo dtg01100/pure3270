@@ -159,12 +159,12 @@ class PrintJobDetector:
         # Check for common SCS control code patterns
         scs_indicators = [
             b"\x01",  # SOH (Start of Header)
-            b"\x0C",  # FF (Form Feed)
-            b"\x0D",  # CR (Carriage Return)
-            b"\x0A",  # LF (Line Feed)
+            b"\x0c",  # FF (Form Feed)
+            b"\x0d",  # CR (Carriage Return)
+            b"\x0a",  # LF (Line Feed)
             b"\x09",  # HT (Horizontal Tab)
-            b"\x2B",  # SC (Set Channel)
-            b"\x2D",  # IC (Insert Cursor)
+            b"\x2b",  # SC (Set Channel)
+            b"\x2d",  # IC (Insert Cursor)
         ]
 
         # Look for SCS control sequences at the start

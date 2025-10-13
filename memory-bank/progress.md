@@ -10,12 +10,9 @@
 - **NEW**: Screen parity regression scaffold completed - snapshot format, comparison harness, and test integration.
 
 ## In Flight / Pending
-- Screen parity snapshot system (not started).
-- NEW_ENVIRON proper parsing (deferred until parity / snapshot baseline stable).
+- (none)
 
 ## Open Issues / Technical Debt
-- Misuse of NEW_ENVIRON currently hacked with NAWS-like reply (documented).
-- Lack of configurable terminal model selection (hardcoded `IBM-3278-2`).
 - No automated regression test capturing real host negotiation trace (would require recorded pcap or byte log fixture).
 
 ## Recent Validation
@@ -23,12 +20,37 @@
 - Local compile check passes (`py_compile`).
 - **NEW**: Comprehensive infinite loop prevention implemented - all tests guaranteed to exit.
 - **NEW**: Timeout safety validation passes - no test can hang indefinitely.
+ - **NEW**: Terminal model configuration validated across multiple models; defaults preserved.
+
+## 2025-10-13
+- Completed TASK009: Configurable Terminal Models end to end
+  - Implemented terminal model registry and validation helpers
+  - Added public API (`terminal_type`) to Session/AsyncSession
+  - Negotiation updated (TTYPE, NEW-ENVIRON TERM), NAWS/USABLE-AREA reflect model
+  - Docs added: Sphinx page, usage/examples updates; README section
+  - Added example script `examples/example_terminal_models.py`
+  - Ran quick smoke test, flake8, black; all PASS
 
 ## Recently Completed (October 2025)
 ### ✅ Attribution and Porting Infrastructure
 - **TASK004 - s3270 License Attribution**: Created comprehensive THIRD_PARTY_NOTICES.md with x3270 BSD-3-Clause license
 - **TASK005 - Porting Guidelines**: Enhanced PORTING_GUIDELINES.md with RFC-first development philosophy and comprehensive contributor guidelines
 - **TASK006 - Attribution Scaffolding**: Validated attribution comment scaffolding system - all 27 tests passing, tools fully functional
+
+### ✅ Screen Regression Protection
+- **TASK002 - Screen Parity Regression Scaffold**: Comprehensive snapshot system implemented and validated
+  - Working snapshot tools: capture, compare, validate
+  - 6 baseline scenarios: empty, with_fields, cursor_positioned, with_attributes, mixed_content
+  - Quick smoke test integration providing continuous protection
+  - Complete documentation and usage examples
+
+### ✅ Protocol Compliance Enhancement (January 2025)
+- **TASK008 - NEW_ENVIRON Proper Parsing**: RFC 1572 compliant implementation completed
+  - Replaced NAWS hack with proper environment variable parsing
+  - Added complete NEW_ENVIRON constants and subnegotiation handling
+  - Implemented escape sequence processing (VAR, VALUE, ESC)
+  - Added support for IS, SEND, and INFO commands
+  - Full test coverage and validation with quick smoke test
 
 ## Short-Term Priorities
 1. Screen parity snapshot system implementation

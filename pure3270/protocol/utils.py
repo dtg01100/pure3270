@@ -21,7 +21,7 @@ import asyncio
 import inspect
 import logging
 import struct
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +86,16 @@ TELOPT_OLD_ENVIRON = 0x24
 TELOPT_AUTHENTICATION = 0x25
 TELOPT_ENCRYPT = 0x26
 TELOPT_NEW_ENVIRON = 0x27
+
+# NEW_ENVIRON option constants (RFC 1572)
+NEW_ENV_IS = 0x00  # IS command - send environment info
+NEW_ENV_SEND = 0x01  # SEND command - request environment info
+NEW_ENV_INFO = 0x02  # INFO command - provide environment info
+NEW_ENV_VAR = 0x00  # VAR - well-known environment variable
+NEW_ENV_VALUE = 0x01  # VALUE - variable value
+NEW_ENV_ESC = 0x02  # ESC - escape next byte
+NEW_ENV_USERVAR = 0x03  # USERVAR - user-defined variable
+
 # TN3270E Telnet option value per RFC 1647 (option 40 decimal = 0x28 hex)
 TELOPT_TN3270E = 0x28  # RFC 1647 standard value
 
@@ -260,6 +270,217 @@ TN3270E_IBM_DYNAMIC = "IBM-DYNAMIC"
 TN3270E_IBM_3270PC_G = "IBM-3270PC-G"
 TN3270E_IBM_3270PC_GA = "IBM-3270PC-GA"
 TN3270E_IBM_3270PC_GX = "IBM-3270PC-GX"
+
+
+# Terminal Model Configuration System
+from dataclasses import dataclass
+from typing import Dict, List, Tuple
+
+
+@dataclass
+class TerminalCapabilities:
+    """Defines the capabilities and characteristics of a 3270 terminal model.
+
+    Based on IBM 3270 Data Stream Programmer's Reference and GA23-0059 documentation.
+    """
+
+    screen_size: Tuple[int, int]  # (rows, cols)
+    color_support: bool
+    extended_attributes: bool
+    programmed_symbols: bool
+    extended_highlighting: bool
+    light_pen_support: bool
+    magnetic_slot_reader: bool
+    operator_information_area: bool
+    max_alternate_screen_size: Optional[Tuple[int, int]] = None
+    character_sets: List[str] = None
+
+    def __post_init__(self):
+        if self.character_sets is None:
+            # Default character set support
+            self.character_sets = ["EBCDIC", "ASCII"]
+
+
+# Comprehensive Terminal Model Registry
+# Based on IBM 3270 Information Display System specifications
+TERMINAL_MODELS: Dict[str, TerminalCapabilities] = {
+    # 3278 Display Terminals (Monochrome)
+    TN3270E_IBM_3278_2: TerminalCapabilities(
+        screen_size=(24, 80),
+        color_support=False,
+        extended_attributes=True,
+        programmed_symbols=False,
+        extended_highlighting=True,
+        light_pen_support=True,
+        magnetic_slot_reader=False,
+        operator_information_area=True,
+        max_alternate_screen_size=(24, 80),
+    ),
+    TN3270E_IBM_3278_3: TerminalCapabilities(
+        screen_size=(32, 80),
+        color_support=False,
+        extended_attributes=True,
+        programmed_symbols=False,
+        extended_highlighting=True,
+        light_pen_support=True,
+        magnetic_slot_reader=False,
+        operator_information_area=True,
+        max_alternate_screen_size=(32, 80),
+    ),
+    TN3270E_IBM_3278_4: TerminalCapabilities(
+        screen_size=(43, 80),
+        color_support=False,
+        extended_attributes=True,
+        programmed_symbols=False,
+        extended_highlighting=True,
+        light_pen_support=True,
+        magnetic_slot_reader=False,
+        operator_information_area=True,
+        max_alternate_screen_size=(43, 80),
+    ),
+    TN3270E_IBM_3278_5: TerminalCapabilities(
+        screen_size=(27, 132),
+        color_support=False,
+        extended_attributes=True,
+        programmed_symbols=False,
+        extended_highlighting=True,
+        light_pen_support=True,
+        magnetic_slot_reader=False,
+        operator_information_area=True,
+        max_alternate_screen_size=(27, 132),
+    ),
+    # 3279 Color Display Terminals
+    TN3270E_IBM_3279_2: TerminalCapabilities(
+        screen_size=(24, 80),
+        color_support=True,
+        extended_attributes=True,
+        programmed_symbols=True,
+        extended_highlighting=True,
+        light_pen_support=True,
+        magnetic_slot_reader=False,
+        operator_information_area=True,
+        max_alternate_screen_size=(24, 80),
+    ),
+    TN3270E_IBM_3279_3: TerminalCapabilities(
+        screen_size=(32, 80),
+        color_support=True,
+        extended_attributes=True,
+        programmed_symbols=True,
+        extended_highlighting=True,
+        light_pen_support=True,
+        magnetic_slot_reader=False,
+        operator_information_area=True,
+        max_alternate_screen_size=(32, 80),
+    ),
+    TN3270E_IBM_3279_4: TerminalCapabilities(
+        screen_size=(43, 80),
+        color_support=True,
+        extended_attributes=True,
+        programmed_symbols=True,
+        extended_highlighting=True,
+        light_pen_support=True,
+        magnetic_slot_reader=False,
+        operator_information_area=True,
+        max_alternate_screen_size=(43, 80),
+    ),
+    TN3270E_IBM_3279_5: TerminalCapabilities(
+        screen_size=(27, 132),
+        color_support=True,
+        extended_attributes=True,
+        programmed_symbols=True,
+        extended_highlighting=True,
+        light_pen_support=True,
+        magnetic_slot_reader=False,
+        operator_information_area=True,
+        max_alternate_screen_size=(27, 132),
+    ),
+    # 3179 Workstation Terminals
+    TN3270E_IBM_3179_2: TerminalCapabilities(
+        screen_size=(24, 80),
+        color_support=True,
+        extended_attributes=True,
+        programmed_symbols=True,
+        extended_highlighting=True,
+        light_pen_support=False,
+        magnetic_slot_reader=False,
+        operator_information_area=True,
+        max_alternate_screen_size=(25, 80),  # Extra status line
+    ),
+    # PC-based Terminals
+    TN3270E_IBM_3270PC_G: TerminalCapabilities(
+        screen_size=(24, 80),
+        color_support=True,
+        extended_attributes=True,
+        programmed_symbols=True,
+        extended_highlighting=True,
+        light_pen_support=False,
+        magnetic_slot_reader=False,
+        operator_information_area=True,
+        max_alternate_screen_size=(43, 80),
+    ),
+    TN3270E_IBM_3270PC_GA: TerminalCapabilities(
+        screen_size=(24, 80),
+        color_support=True,
+        extended_attributes=True,
+        programmed_symbols=True,
+        extended_highlighting=True,
+        light_pen_support=False,
+        magnetic_slot_reader=False,
+        operator_information_area=True,
+        max_alternate_screen_size=(43, 80),
+    ),
+    TN3270E_IBM_3270PC_GX: TerminalCapabilities(
+        screen_size=(24, 80),
+        color_support=True,
+        extended_attributes=True,
+        programmed_symbols=True,
+        extended_highlighting=True,
+        light_pen_support=False,
+        magnetic_slot_reader=False,
+        operator_information_area=True,
+        max_alternate_screen_size=(43, 80),
+    ),
+    # Dynamic Terminal (negotiated capabilities)
+    TN3270E_IBM_DYNAMIC: TerminalCapabilities(
+        screen_size=(24, 80),  # Default, negotiated later
+        color_support=True,
+        extended_attributes=True,
+        programmed_symbols=True,
+        extended_highlighting=True,
+        light_pen_support=False,
+        magnetic_slot_reader=False,
+        operator_information_area=True,
+        max_alternate_screen_size=None,  # Negotiated
+    ),
+}
+
+# Default terminal model for backward compatibility
+DEFAULT_TERMINAL_MODEL = TN3270E_IBM_3278_2
+
+
+# Validation helpers
+def get_supported_terminal_models() -> List[str]:
+    """Get list of all supported terminal model names."""
+    return list(TERMINAL_MODELS.keys())
+
+
+def is_valid_terminal_model(model: str) -> bool:
+    """Check if a terminal model is supported."""
+    return model in TERMINAL_MODELS
+
+
+def get_terminal_capabilities(model: str) -> Optional[TerminalCapabilities]:
+    """Get capabilities for a specific terminal model."""
+    return TERMINAL_MODELS.get(model)
+
+
+def get_screen_size(model: str) -> Tuple[int, int]:
+    """Get screen dimensions for a terminal model."""
+    capabilities = get_terminal_capabilities(model)
+    if capabilities:
+        return capabilities.screen_size
+    # Fallback to default model
+    return TERMINAL_MODELS[DEFAULT_TERMINAL_MODEL].screen_size
 
 
 def _schedule_if_awaitable(maybe_awaitable: Any) -> None:

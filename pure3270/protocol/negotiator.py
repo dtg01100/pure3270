@@ -79,6 +79,13 @@ from .utils import (
     DO,
     DONT,
     IAC,
+    NEW_ENV_ESC,
+    NEW_ENV_INFO,
+    NEW_ENV_IS,
+    NEW_ENV_SEND,
+    NEW_ENV_USERVAR,
+    NEW_ENV_VALUE,
+    NEW_ENV_VAR,
     SB,
     SE,
     SNA_RESPONSE,
@@ -162,6 +169,7 @@ class Negotiator:
         force_mode: Optional[str] = None,
         allow_fallback: bool = True,
         recorder: Optional["TraceRecorder"] = None,
+        terminal_type: str = "IBM-3278-2",
     ):
         """
         Initialize the Negotiator.
@@ -191,25 +199,37 @@ class Negotiator:
                 "force_mode must be one of None, 'ascii', 'tn3270', 'tn3270e'"
             )
         self.allow_fallback = allow_fallback
+
+        # Terminal type configuration with validation
+        from .utils import DEFAULT_TERMINAL_MODEL, is_valid_terminal_model
+
+        if not is_valid_terminal_model(terminal_type):
+            logger.warning(
+                f"Invalid terminal type '{terminal_type}', using default '{DEFAULT_TERMINAL_MODEL}'"
+            )
+            terminal_type = DEFAULT_TERMINAL_MODEL
+        self.terminal_type = terminal_type
+        logger.info(f"Negotiator initialized with terminal type: {self.terminal_type}")
+
         self.negotiated_tn3270e = False
         self._lu_name: Optional[str] = None
-        self.screen_rows = 24
-        self.screen_cols = 80
+
+        # Set screen dimensions based on terminal type
+        from .utils import get_screen_size
+
+        self.screen_rows, self.screen_cols = get_screen_size(self.terminal_type)
+        logger.info(
+            f"Screen dimensions set to {self.screen_rows}x{self.screen_cols} for terminal {self.terminal_type}"
+        )
         self.is_printer_session = is_printer_session
         self.printer_status: Optional[int] = None  # New attribute for printer status
         self._sna_session_state: SnaSessionState = (
             SnaSessionState.NORMAL
         )  # Initial SNA session state
-        self.supported_device_types: List[str] = [
-            "IBM-3278-2",
-            "IBM-3278-3",
-            "IBM-3278-4",
-            "IBM-3278-5",
-            "IBM-3279-2",
-            "IBM-3279-3",
-            "IBM-3279-4",
-            "IBM-3279-5",
-            "IBM-DYNAMIC",
+        # Load supported device types from terminal model registry
+        from .utils import get_supported_terminal_models
+
+        self.supported_device_types = get_supported_terminal_models() + [
             "IBM-3287-P",  # Printer LU type for 3287 printer emulation
         ]
         self.requested_device_type: Optional[str] = None
@@ -1516,19 +1536,15 @@ class Negotiator:
             logger.info("[TELNET] Server DO NAWS - accepting")
             if self.writer:
                 send_iac(self.writer, bytes([WILL, TELOPT_NAWS]))
-                # Send window size subnegotiation (80x24 is standard 3270)
-                await self._send_naws_subnegotiation(80, 24)
+                # Send window size subnegotiation using configured screen dimensions
+                await self._send_naws_subnegotiation(self.screen_cols, self.screen_rows)
         elif option == TELOPT_NEW_ENVIRON:
-            # Some servers (like pub400.com) incorrectly use NEW_ENVIRON for window size
-            logger.info(
-                "[TELNET] Server DO NEW_ENVIRON - treating as NAWS for compatibility"
-            )
+            # NEW_ENVIRON option - RFC 1572 compliant implementation
+            logger.info("[TELNET] Server DO NEW_ENVIRON - accepting (RFC 1572)")
             if self.writer:
                 send_iac(self.writer, bytes([WILL, TELOPT_NEW_ENVIRON]))
-                # Send window size using NEW_ENVIRON option number for compatibility
-                await self._send_naws_subnegotiation_with_option(
-                    TELOPT_NEW_ENVIRON, 80, 24
-                )
+                # Server will send SEND subnegotiation to request our environment
+                # We'll respond with our environment variables when requested
         elif option == TELOPT_TTYPE:
             logger.info("[TELNET] Server DO TTYPE - accepting")
             if self.writer:
@@ -1612,6 +1628,166 @@ class Negotiator:
         """
         return bool(self.negotiated_functions & TN3270E_DATA_STREAM_CTL)
 
+    async def _handle_new_environ_subnegotiation(self, sub_payload: bytes) -> None:
+        """
+        Handle NEW_ENVIRON subnegotiation according to RFC 1572.
+
+        NEW_ENVIRON allows exchange of environment variables between client and server.
+        Commands: IS (0), SEND (1), INFO (2)
+        Types: VAR (0), VALUE (1), ESC (2), USERVAR (3)
+
+        Args:
+            sub_payload: The NEW_ENVIRON subnegotiation payload.
+        """
+        if not sub_payload:
+            logger.warning("[NEW_ENVIRON] Empty subnegotiation payload")
+            return
+
+        command = sub_payload[0]
+        payload = sub_payload[1:] if len(sub_payload) > 1 else b""
+
+        if command == NEW_ENV_SEND:
+            # Server requests environment information
+            logger.info("[NEW_ENVIRON] Server SEND - requesting environment variables")
+            await self._send_new_environ_response(payload)
+
+        elif command == NEW_ENV_IS:
+            # Server provides environment information
+            logger.info("[NEW_ENVIRON] Server IS - providing environment information")
+            env_vars = self._parse_new_environ_variables(payload)
+            logger.debug(f"[NEW_ENVIRON] Server environment: {env_vars}")
+
+        elif command == NEW_ENV_INFO:
+            # Server provides additional environment information
+            logger.info(
+                "[NEW_ENVIRON] Server INFO - additional environment information"
+            )
+            env_vars = self._parse_new_environ_variables(payload)
+            logger.debug(f"[NEW_ENVIRON] Server additional environment: {env_vars}")
+
+        else:
+            logger.warning(f"[NEW_ENVIRON] Unknown command 0x{command:02x}")
+
+    def _parse_new_environ_variables(self, payload: bytes) -> Dict[str, str]:
+        """
+        Parse NEW_ENVIRON variable list according to RFC 1572.
+
+        Format: [VAR|USERVAR] name [VALUE] value [VAR|USERVAR] name2 [VALUE] value2 ...
+
+        Args:
+            payload: Raw variable payload bytes.
+
+        Returns:
+            Dictionary of variable name -> value mappings.
+        """
+        variables = {}
+        i = 0
+
+        while i < len(payload):
+            # Get variable type
+            if payload[i] not in (NEW_ENV_VAR, NEW_ENV_USERVAR):
+                i += 1
+                continue
+
+            var_type = payload[i]
+            i += 1
+
+            # Extract variable name
+            name_bytes = bytearray()
+            while i < len(payload) and payload[i] not in (
+                NEW_ENV_VALUE,
+                NEW_ENV_VAR,
+                NEW_ENV_USERVAR,
+                NEW_ENV_ESC,
+            ):
+                name_bytes.append(payload[i])
+                i += 1
+
+            # Handle escape sequences in name
+            name = self._unescape_new_environ_string(bytes(name_bytes))
+
+            # Extract variable value if present
+            value = ""
+            if i < len(payload) and payload[i] == NEW_ENV_VALUE:
+                i += 1  # Skip VALUE marker
+                value_bytes = bytearray()
+                while i < len(payload) and payload[i] not in (
+                    NEW_ENV_VAR,
+                    NEW_ENV_USERVAR,
+                    NEW_ENV_ESC,
+                ):
+                    value_bytes.append(payload[i])
+                    i += 1
+                value = self._unescape_new_environ_string(bytes(value_bytes))
+
+            variables[name] = value
+
+        return variables
+
+    def _unescape_new_environ_string(self, data: bytes) -> str:
+        """
+        Remove NEW_ENVIRON escape sequences from a byte string.
+
+        RFC 1572: ESC (0x02) is used to escape special bytes.
+
+        Args:
+            data: Escaped byte string.
+
+        Returns:
+            Unescaped string.
+        """
+        result = bytearray()
+        i = 0
+
+        while i < len(data):
+            if data[i] == NEW_ENV_ESC and i + 1 < len(data):
+                # Escaped byte - add the next byte literally
+                result.append(data[i + 1])
+                i += 2
+            else:
+                result.append(data[i])
+                i += 1
+
+        try:
+            return result.decode("ascii", errors="replace")
+        except UnicodeDecodeError:
+            return result.decode("latin1", errors="replace")
+
+    async def _send_new_environ_response(self, requested_vars: bytes) -> None:
+        """
+        Send NEW_ENVIRON IS response with our environment variables.
+
+        Args:
+            requested_vars: Variables requested by server (if any).
+        """
+        if not self.writer:
+            return
+
+        # Build our environment response
+        response = bytearray([NEW_ENV_IS])
+
+        # Default environment variables for TN3270
+        env_vars = {
+            "TERM": self.terminal_type,
+            "USER": "pure3270",
+        }
+
+        # If server requested specific variables, check what was requested
+        if requested_vars:
+            requested = self._parse_new_environ_variables(requested_vars)
+            logger.debug(f"[NEW_ENVIRON] Server requested: {list(requested.keys())}")
+
+        # Add our environment variables
+        for name, value in env_vars.items():
+            response.append(NEW_ENV_VAR)
+            response.extend(name.encode("ascii", errors="replace"))
+            response.append(NEW_ENV_VALUE)
+            response.extend(value.encode("ascii", errors="replace"))
+
+        logger.info(f"[NEW_ENVIRON] Sending IS response with {len(env_vars)} variables")
+        send_subnegotiation(self.writer, bytes([TELOPT_NEW_ENVIRON]), bytes(response))
+        await self.writer.drain()
+
     async def handle_subnegotiation(self, option: int, sub_payload: bytes) -> None:
         """
         Handle Telnet subnegotiation for non-TN3270E options.
@@ -1633,10 +1809,8 @@ class Negotiator:
                 f"[NAWS] Server sent window size subnegotiation: {sub_payload.hex()}"
             )
         elif option == TELOPT_NEW_ENVIRON:
-            # Some servers use NEW_ENVIRON for window size - treat like NAWS
-            logger.info(
-                f"[NEW_ENVIRON] Server sent subnegotiation (treating as NAWS): {sub_payload.hex()}"
-            )
+            # NEW_ENVIRON subnegotiation - proper RFC 1572 implementation
+            await self._handle_new_environ_subnegotiation(sub_payload)
         elif option == TELOPT_TN3270E:
             # This should have been handled by the specialized method, but handle it here as fallback
             await self._parse_tn3270e_subnegotiation(bytes([option]) + sub_payload)
@@ -1959,9 +2133,7 @@ class Negotiator:
                 logger.info(f"[TTYPE] Server terminal type: {term_type}")
             elif command == TN3270E_SEND:
                 # Server requests our terminal type per RFC 1091 (SEND=0x01, IS=0x00)
-                terminal_type = (
-                    b"IBM-3278-2"  # Base model; can be made configurable later
-                )
+                terminal_type = self.terminal_type.encode("ascii")
                 logger.info(
                     f"[TTYPE] Server requested terminal type, replying with {terminal_type.decode()}"
                 )
@@ -2060,13 +2232,13 @@ class Negotiator:
             command = data[0]
 
         if command == TN3270E_USABLE_AREA_SEND:
-            # Server is requesting our usable area, respond with IS full area (24x80)
+            # Server is requesting our usable area, respond with IS full area
             logger.info(
-                "[TN3270E] Received USABLE-AREA SEND, responding with IS full area"
+                f"[TN3270E] Received USABLE-AREA SEND, responding with IS full area ({self.screen_rows}x{self.screen_cols})"
             )
             if self.writer:
-                # Standard 24x80 terminal dimensions
-                rows, cols = 24, 80
+                # Use configured terminal dimensions
+                rows, cols = self.screen_rows, self.screen_cols
                 rows_be = rows.to_bytes(2, "big")
                 cols_be = cols.to_bytes(2, "big")
 

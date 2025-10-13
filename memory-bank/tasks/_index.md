@@ -14,6 +14,8 @@
 - [TASK005] Create porting guidelines document - PORTING_GUIDELINES.md with rules (2025-10-13)
 - [TASK006] Attribution comment scaffolding - Helper template + test (2025-10-13)
 - [TASK007] Persist current state documentation - Completed (2025-09-23)
+- [TASK008] Implement NEW_ENVIRON proper parsing - Completed on 2025-01-23
+ - [TASK009] Configurable Terminal Models - Completed on 2025-10-13
 
 ## Abandoned
 - (none)

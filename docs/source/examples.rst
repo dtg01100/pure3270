@@ -55,3 +55,18 @@ To replace ``p3270``'s ``s3270`` dependency with Pure3270:
 
 This redirects ``p3270.P3270Client`` methods (``__init__``, ``connect``, ``send``,
 ``read``) to pure3270 equivalents. Logs will indicate patching success.
+
+
+Selecting a Terminal Model in Examples
+--------------------------------------
+
+You can pass ``terminal_type`` when creating sessions to emulate different IBM models.
+
+.. code-block:: python
+
+   from pure3270 import Session
+
+   # Emulate a color 32x80 terminal (3279 Model 3)
+   with Session(terminal_type="IBM-3279-3") as session:
+      session.connect('your-host.example.com', port=23)
+      print("Screen size:", session.screen_buffer.rows, "x", session.screen_buffer.cols)

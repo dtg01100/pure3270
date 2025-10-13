@@ -285,6 +285,7 @@ class TN3270Handler:
         force_mode: Optional[str] = None,
         allow_fallback: bool = True,
         recorder: Optional["TraceRecorder"] = None,
+        terminal_type: str = "IBM-3278-2",  # Terminal model selection
     ):
         self.reader = reader
         self.writer = writer
@@ -309,6 +310,7 @@ class TN3270Handler:
             force_mode=force_mode,
             allow_fallback=allow_fallback,
             recorder=recorder,
+            terminal_type=terminal_type,
         )  # Pass None for parser initially
         self.negotiator.is_printer_session = (
             is_printer_session  # Set printer session after initialization

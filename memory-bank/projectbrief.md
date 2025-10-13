@@ -7,6 +7,8 @@ Pure3270 aims to be a pure Python, dependency‑light, RFC‑compliant drop‑in
 - Accurate 3270 data stream parsing & screen field management.
 - Seamless ASCII / VT100 (NVT) fallback when server does not proceed to TN3270 data.
 - Native `P3270Client` class providing API parity with `p3270.P3270Client`.
+- RFC 1572 NEW_ENVIRON parsing implemented; standards‑compliant responses (e.g., TERM).
+- Configurable terminal model selection with dynamic screen sizing and capability reporting.
 - Zero runtime dependencies (stdlib only). Optional dev tooling isolated.
 - Clean licensing & attribution for any borrowed logic (BSD‑3-Clause expected for x3270).
 
@@ -16,4 +18,4 @@ Pure3270 aims to be a pure Python, dependency‑light, RFC‑compliant drop‑in
 
 ## Key Constraints
 - Must behave identically enough for existing automation that expects legacy s3270 semantics.
-- Network variability: some public hosts may exhibit non‑standard negotiation (e.g., misuse of NEW-ENVIRON for sizing). Implementation must degrade gracefully while documenting deviations.
+- Network variability: some public hosts may exhibit non‑standard negotiation. Implementation follows RFCs first (including RFC 1572 NEW_ENVIRON), while degrading gracefully and documenting deviations when encountered.

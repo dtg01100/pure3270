@@ -14,6 +14,7 @@ monkey-patching, allowing you to replace ``p3270``'s dependency on the external
    installation
    usage
    examples
+   terminal_models
    api
 
 Indices and tables

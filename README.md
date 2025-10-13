@@ -421,6 +421,29 @@ json_payload = json.dumps([{'kind': e.kind, **e.details, 'ts': e.ts} for e in se
 Future enhancements may add richer structured field tracing and export helpers.
 
 
+### Selecting a Terminal Model
+
+Pure3270 supports multiple IBM 3270 terminal models. Choose the model via the
+`terminal_type` parameter when creating a `Session` or `AsyncSession`.
+
+Common options include:
+- `IBM-3278-2` (24x80, default)
+- `IBM-3278-5` (27x132 wide)
+- `IBM-3279-3` (32x80, color)
+
+Example:
+
+```python
+from pure3270 import Session
+
+with Session(terminal_type="IBM-3278-5") as s:
+    s.connect('your-host.example.com', port=23)
+    print("Screen:", s.screen_buffer.rows, "x", s.screen_buffer.cols)  # 27 x 132
+```
+
+See the documentation page "Configurable Terminal Models" for the full list and details.
+
+
 **Using Managed Context:**
 The `managed` context manager ensures proper session lifecycle:
 ```python

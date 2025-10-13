@@ -15,7 +15,7 @@
 - Density heuristic: length ≥ 32 and ≥ 70% printable ASCII.
 
 ## Compatibility Adjustments
-- Treat server DO NEW_ENVIRON (0x27) as pseudo-window-size request; respond with NAWS-style payload using option 39 to satisfy non-standard host (pub400.com) until proper NEW-ENVIRON parsing is implemented.
+- NEW_ENVIRON (0x27) now fully implemented per RFC 1572: variable/value parsing and proper IS/SEND/INFO handling. TERM reflects configured terminal type.
 - Accept legacy TN3270E option (0x1B) though RFC defines 0x28.
 
 ## Mode Switching Guarantees
@@ -27,9 +27,7 @@
 
 ## Extensibility Points
 - Additional Telnet options can be inserted in `_handle_do` / `_handle_will`.
-- Terminal type configurable by changing constant in `_handle_terminal_type_subnegotiation` (currently IBM-3278-2).
+- Terminal type is configurable via `Session`/`AsyncSession(terminal_type=...)` and propagated through `TN3270Handler` → `Negotiator`.
 
 ## Pending Enhancements
-- Proper NEW-ENVIRON variable/value parsing (RFC 1572) instead of NAWS surrogate.
-- Configurable terminal model selection + fallback chain (e.g., 3278-2-E extended attributes).
 - Snapshot-based screen parity tests vs reference host.

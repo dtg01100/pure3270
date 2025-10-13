@@ -6,6 +6,8 @@ Pure3270 replaces external 3270 emulator binaries with pure Python so environmen
 - Eliminates platform‑specific binary dependency (s3270).
 - Provides asyncio support for concurrent screen/session workflows.
 - Simplifies CI by enabling in‑process negotiation & parsing.
+- Adds configurable terminal model selection to match host expectations (screen sizes, color).
+- Implements RFC‑compliant NEW_ENVIRON handling for robust environment negotiation.
 
 ## Users / Personas
 - DevOps / automation engineers migrating legacy scripts.
@@ -21,3 +23,4 @@ Pure3270 replaces external 3270 emulator binaries with pure Python so environmen
 - Pure Python (no subprocess management, no binary distribution).
 - Built‑in hybrid (VT100 + 3270) handling.
 - Extensible screen buffer abstraction (fields, attributes, ASCII mode toggle).
+- Standards‑first protocol behavior with documented deviations.

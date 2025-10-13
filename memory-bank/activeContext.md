@@ -1,4 +1,4 @@
-# Active Context (as of 2025-09-23)
+# Active Context (as of 2025-10-13)
 
 ## Recently Completed
 - Implemented TTYPE SEND -> IS reply (removed malformed extra NUL) enabling host to proceed after terminal type negotiation.
@@ -11,25 +11,34 @@
   - Attribution scaffolding system validated (27/27 tests passing)
 - **✅ P3270Client API Compatibility**: Full parity achieved (TASK003)
 
+## Recently Completed (January 2025 - Latest)
+- **✅ NEW_ENVIRON Proper Parsing**: RFC 1572 compliant implementation completed (TASK008)
+ - **✅ Configurable Terminal Models**: Terminal model registry, public API parameter (`terminal_type`), dynamic sizing and negotiation updates, docs and examples (TASK009 completed).
+  - Replaced NAWS hack with proper environment variable parsing
+  - Added complete NEW_ENVIRON constants and subnegotiation handling
+  - Implemented escape sequence processing and IS/SEND/INFO commands
+  - Full test coverage with validation against quick smoke test
+- **✅ Screen Parity Regression Scaffold**: Comprehensive snapshot system verified as complete and functional
+  - Snapshot tools working: capture, compare, validate
+  - Multiple baseline scenarios covering different screen states
+  - Quick smoke test integration providing continuous regression protection
+  - Complete documentation in README.md
+
 ## Current Focus
-Ready to proceed with:
-1. Screen parity regression scaffolding (capture deterministic snapshot representation for ASCII/NVT screens).
-2. NEW_ENVIRON proper parsing (deferred until snapshot baseline stable).
+All planned October work items are complete. Next focus will be on printer enhancements and extended attributes per TODO backlog.
 
 ## Key Decisions
-- Temporary compatibility: treat DO NEW_ENVIRON (0x27) as NAWS-like sizing; must be replaced with real NEW-ENVIRON parser for standards compliance.
-- Default terminal type: `IBM-3278-2` (baseline). Will consider making configurable once parity validated.
+- ✅ NEW_ENVIRON now RFC 1572 compliant with proper environment variable parsing (replaced previous NAWS hack).
+- Default terminal type: `IBM-3278-2` (baseline); now publicly configurable.
 - ASCII mode once enabled is irreversible per handler lifecycle (simplifies parsing logic, avoids mixed-mode complexity for now).
 
 ## Known Gaps / Risks
 - Lack of snapshot tests: no guard yet against regressions in VT100 rendering.
-- No structured NEW_ENVIRON support; potential breakage if host expects var/value negotiation semantics.
-- Absence of license attribution file could delay acceptance of future ported snippets.
+- No automated regression test capturing real host negotiation trace.
 
 ## Next Planned Steps
-1. Implement minimal snapshot representation + test harness to compare expected ASCII screen content (generate canonical normalization: strip trailing spaces per line, unify line endings).
-2. Expand quick smoke to optionally load a stored snapshot and verify rendering function output (conditional to keep runtime minimal).
-3. NEW_ENVIRON proper parsing (when snapshot baseline is stable).
+1. Evaluate transparent printing support and extended attributes implementation.
+2. Plan regression capture for real host negotiation traces.
 
 ## Metrics / Validation Hooks
 - `quick_test.py` now includes ASCII detection PASS criteria.

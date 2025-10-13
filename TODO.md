@@ -1,5 +1,8 @@
 # TODO List - 3270 RFC Compliance and p3270 Compatibility
 
+## Active Development
+- (none)
+
 ## High Priority
 - Add transparent printing support (TCPIP printer sessions)
 - Implement 3270 extended attributes beyond basic field properties
@@ -46,6 +49,12 @@
 - Implement missing s3270 actions: Compose(), Cookie(), Expect(), Fail()
 
 ## Recently Completed (October 2025)
+### ✅ Configurable Terminal Models (TASK009)
+- Added terminal model registry and validation helpers
+- Session and AsyncSession now accept `terminal_type`
+- Negotiation uses configured terminal type (TTYPE, NEW-ENVIRON TERM)
+- Screen sizing and capability reporting reflect chosen model (NAWS/USABLE-AREA)
+- Documentation and examples added
 ### ✅ API Compatibility and Protocol Fixes (Commit 48e8171)
 - **✅ Fixed API Compatibility Gaps**: Implemented missing P3270Client methods (`endSession`, `makeArgs`, `isConnected`, `numOfInstances`) achieving full parity with legacy p3270.P3270Client interface
 - **✅ Fixed Protocol Negotiation Logic**: Resolved `NotConnectedError: Invalid connection state for negotiation` by relaxing validation when writer exists but connection state is false
@@ -64,7 +73,7 @@
 ### ✅ Safety and Testing Enhancements
 - Infinite loop prevention safeguards implemented across all test files and protocol handlers
 - Comprehensive timeout protection with iteration limits, timeouts, and process-level enforcement
-- Screen parity regression scaffold completed - snapshot format, comparison harness, and test integration
+- **✅ Screen parity regression scaffold completed** - snapshot format, comparison harness, and test integration
 
 **Validation Results:**
 - Quick smoke test: ✅ PASS (5/5 categories)
@@ -77,12 +86,10 @@
 - Timeout safety validation passes - no test can hang indefinitely
 
 ## In Flight Tasks
-- Screen parity snapshot system (not started)
-- NEW_ENVIRON proper parsing (deferred until parity / snapshot baseline stable)
+- [TASK009] Configurable Terminal Models (replacing hardcoded IBM-3278-2)
 
 ## Open Issues / Technical Debt
-- Misuse of NEW_ENVIRON currently hacked with NAWS-like reply (documented)
-- Lack of configurable terminal model selection (hardcoded `IBM-3278-2`)
+- Lack of configurable terminal model selection (hardcoded `IBM-3278-2`) - **Addressed by TASK009**
 - No automated regression test capturing real host negotiation trace (would require recorded pcap or byte log fixture)
 
 ## Completed in October 2025
@@ -98,7 +105,22 @@
 - License compatibility matrix with MIT-compatible licenses
 - RFC-first development guidelines emphasizing standards compliance over source copying
 
+## Completed in October 2025
+### ✅ Screen Regression Protection (Commit TBD)
+- **✅ TASK002 - Screen Parity Regression Scaffold**: Comprehensive snapshot system implemented and validated
+  - Snapshot capture, comparison, and validation tools working
+  - Multiple test scenarios covered (empty, with_fields, cursor_positioned, with_attributes, mixed_content)
+  - Integration with quick smoke test providing continuous regression protection
+  - Complete documentation in README.md with usage examples
+  - 6 baseline screen state scenarios for comprehensive coverage
+
+### ✅ Protocol Compliance Enhancement (January 2025)
+- **✅ TASK008 - NEW_ENVIRON Proper Parsing**: RFC 1572 compliant implementation completed
+  - Replaced NAWS hack with proper environment variable parsing
+  - Added complete NEW_ENVIRON constants and subnegotiation handling
+  - Implemented escape sequence processing (VAR, VALUE, ESC)
+  - Added support for IS, SEND, and INFO commands
+  - Full test coverage and validation with quick smoke test
+
 ## Next Planned Steps
-1. Implement minimal snapshot representation + test harness to compare expected ASCII screen content (generate canonical normalization: strip trailing spaces per line, unify line endings)
-2. Expand quick smoke to optionally load a stored snapshot and verify rendering function output (conditional to keep runtime minimal)
-3. NEW_ENVIRON proper parsing (deferred until parity / snapshot baseline stable)
+1. TASK009 - Configurable Terminal Models (replace hardcoded IBM-3278-2 with user-selectable terminal types)

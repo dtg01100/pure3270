@@ -126,16 +126,26 @@ class Session:
         force_mode: Optional[str] = None,
         allow_fallback: bool = True,
         enable_trace: bool = False,
+        terminal_type: str = "IBM-3278-2",
     ) -> None:
         """
         Initialize a synchronous session with a dedicated thread and event loop.
         """
+        # Validate terminal type
+        from .protocol.utils import is_valid_terminal_model
+
+        if not is_valid_terminal_model(terminal_type):
+            raise ValueError(
+                f"Invalid terminal type '{terminal_type}'. Use one of: {', '.join(['IBM-3278-2', 'IBM-3278-3', 'IBM-3278-4', 'IBM-3278-5', 'IBM-3279-2', 'IBM-3279-3', 'IBM-3279-4', 'IBM-3279-5', 'IBM-3179-2', 'IBM-3270PC-G', 'IBM-3270PC-GA', 'IBM-3270PC-GX', 'IBM-DYNAMIC'])}"
+            )
+
         self._port = port
         self._ssl_context = ssl_context
         self._async_session: Optional["AsyncSession"] = None
         self._force_mode = force_mode
         self._allow_fallback = allow_fallback
         self._enable_trace = enable_trace
+        self._terminal_type = terminal_type
         self._recorder = None
         self._loop = None
         self._thread = None
@@ -210,6 +220,7 @@ class Session:
             force_mode=self._force_mode,
             allow_fallback=self._allow_fallback,
             enable_trace=self._enable_trace,
+            terminal_type=self._terminal_type,
         )
         if not self._async_session.connected:
             self._run_async(self._async_session.connect())
@@ -754,15 +765,31 @@ class AsyncSession:
         force_mode: Optional[str] = None,
         allow_fallback: bool = True,
         enable_trace: bool = False,
+        terminal_type: str = "IBM-3278-2",
     ):
         """Initialize the async session."""
+        # Validate terminal type
+        from .protocol.utils import (
+            DEFAULT_TERMINAL_MODEL,
+            get_screen_size,
+            is_valid_terminal_model,
+        )
+
+        if not is_valid_terminal_model(terminal_type):
+            raise ValueError(
+                f"Invalid terminal type '{terminal_type}'. Use one of: {', '.join(['IBM-3278-2', 'IBM-3278-3', 'IBM-3278-4', 'IBM-3278-5', 'IBM-3279-2', 'IBM-3279-3', 'IBM-3279-4', 'IBM-3279-5', 'IBM-3179-2', 'IBM-3270PC-G', 'IBM-3270PC-GA', 'IBM-3270PC-GX', 'IBM-DYNAMIC'])}"
+            )
+
         # handler created during connect
         self.host = host
         self.port = port
         self.ssl_context = ssl_context
         self._transport = SessionManager(host, port, ssl_context)
         self._handler: Optional[TN3270Handler] = None
-        self.screen_buffer = ScreenBuffer()
+
+        # Create screen buffer with dimensions based on terminal type
+        rows, cols = get_screen_size(terminal_type)
+        self.screen_buffer = ScreenBuffer(rows=rows, cols=cols)
         self.tn3270_mode = False
         self.tn3270e_mode = False
         self._lu_name: Optional[str] = None
@@ -817,6 +844,7 @@ class AsyncSession:
         self._force_mode = force_mode
         self._allow_fallback = allow_fallback
         self._enable_trace = enable_trace
+        self._terminal_type = terminal_type
         from .protocol.trace_recorder import (
             TraceRecorder,  # local import to avoid cycle
         )
@@ -884,6 +912,7 @@ class AsyncSession:
                 force_mode=self._force_mode,
                 allow_fallback=self._allow_fallback,
                 recorder=recorder,
+                terminal_type=self._terminal_type,
             )
             logger.debug(f"New handler created with object ID: {id(self._handler)}")
             # Set the LU name on the handler if configured
@@ -1695,8 +1724,9 @@ class AsyncSession:
 
     async def capabilities(self) -> str:
         """Get capabilities (s3270 Capabilities() action)."""
-        # Return basic capabilities string
-        return "Model 2, 80x24"
+        # Return capabilities string with actual screen dimensions
+        cols, rows = self.screen_buffer.cols, self.screen_buffer.rows
+        return f"Model 2, {cols}x{rows}"
 
     async def interrupt(self) -> None:
         """Send interrupt (s3270 Interrupt() action)."""

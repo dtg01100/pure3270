@@ -1,7 +1,7 @@
 # Tech Context
 
 ## Languages & Versions
-- Python 3.11+ targeted (code references 3.10 minimum in README; internal guidance mentions 3.11+).
+- Python 3.11+ targeted; README references 3.10 minimum. Dev container includes Python 3.12.
 
 ## Dependencies
 - Runtime: Standard library only.
@@ -18,10 +18,8 @@
 - Pytest suite (optional) includes fuzz, negotiation, emulation, protocol, VT100 offline tests.
 
 ## Negotiation Edge Cases
-- Host sends repeated TTYPE SEND until client replies with IS (fixed to send `IBM-3278-2`).
-- NEW_ENVIRON misuse treated as NAWS surrogate to unblock host data.
+- Host sends repeated TTYPE SEND until client replies with IS (now uses configured `terminal_type`).
+- NEW_ENVIRON implemented per RFC 1572: TERM and env var parsing handled correctly.
 
 ## Limitations
-- No full NEW-ENVIRON var parsing yet.
-- Terminal type not configurable via public API.
 - No persistent snapshot of actual host login screen yet.
