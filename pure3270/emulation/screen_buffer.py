@@ -38,6 +38,14 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .buffer_writer import BufferWriter
 from .ebcdic import EBCDICCodec, EmulationEncoder
+from .field_attributes import (
+    ColorAttribute,
+    ExtendedAttribute,
+    ExtendedAttributeSet,
+    HighlightAttribute,
+    OutliningAttribute,
+    ValidationAttribute,
+)
 
 
 class Field:
@@ -214,8 +222,8 @@ class ScreenBuffer(BufferWriter):
         self.buffer = bytearray([init_value] * self.size)
         # Attributes buffer: 3 bytes per position (protection, foreground, background/highlight)
         self.attributes = bytearray([0] * (self.rows * self.cols * 3))
-        # Extended attributes: dictionary mapping (row, col) to another dictionary of ext_attr_type: value
-        self._extended_attributes: Dict[Tuple[int, int], Dict[str, Any]] = {}
+        # Extended attributes: dictionary mapping (row, col) to ExtendedAttributeSet
+        self._extended_attributes: Dict[Tuple[int, int], ExtendedAttributeSet] = {}
         # List of fields
         self.fields: List[Field] = []
         # Cursor position
@@ -493,7 +501,13 @@ class ScreenBuffer(BufferWriter):
                 and self.attributes[attr_offset] != 0x00
             )
             has_extended_attribute = (
-                self._extended_attributes.get((row, col)) is not None
+                isinstance(
+                    self._extended_attributes.get((row, col)), ExtendedAttributeSet
+                )
+                and len(
+                    self._extended_attributes.get((row, col), ExtendedAttributeSet())
+                )
+                > 0
             )
 
             is_attribute_position = has_basic_attribute or has_extended_attribute
@@ -666,7 +680,7 @@ class ScreenBuffer(BufferWriter):
         self._detect_fields()
 
     def set_extended_attribute(
-        self, row: int, col: int, attr_type: str, value: int
+        self, row: int, col: int, attr_type: str, value: Any
     ) -> None:
         """
         Set an extended attribute for a specific position.
@@ -679,8 +693,31 @@ class ScreenBuffer(BufferWriter):
         if 0 <= row < self.rows and 0 <= col < self.cols:
             pos_tuple = (row, col)
             if pos_tuple not in self._extended_attributes:
-                self._extended_attributes[pos_tuple] = {}
-            self._extended_attributes[pos_tuple][attr_type] = value
+                self._extended_attributes[pos_tuple] = ExtendedAttributeSet()
+
+            attr_set = self._extended_attributes[pos_tuple]
+
+            # Create appropriate attribute instance based on type
+            if attr_type == "color":
+                attr: ExtendedAttribute = ColorAttribute(value)
+            elif attr_type == "highlight":
+                attr = HighlightAttribute(value)
+            elif attr_type == "validation":
+                attr = ValidationAttribute(value)
+            elif attr_type == "outlining":
+                attr = OutliningAttribute(value)
+            else:
+                logger.warning(
+                    f"Unknown extended attribute type '{attr_type}', storing as raw value"
+                )
+                # For backward compatibility, store raw values for unknown types
+                attr_set.set_attribute(
+                    attr_type,
+                    type("RawAttribute", (), {"value": value, "_value": value})(),
+                )
+                return
+
+            attr_set.set_attribute(attr_type, attr)
             # Removed self.update_fields() here, will be called once after data stream parsing
 
     def move_cursor_to_first_input_field(self) -> None:
@@ -822,3 +859,66 @@ class ScreenBuffer(BufferWriter):
     def get_field_at(self, row: int, col: int) -> Optional[Field]:
         """Alias for get_field_at_position for compatibility."""
         return self.get_field_at_position(row, col)
+
+    def get_extended_attributes_at(
+        self, row: int, col: int
+    ) -> Optional[ExtendedAttributeSet]:
+        """Get extended attributes for a specific position.
+
+        Args:
+            row: Row position
+            col: Column position
+
+        Returns:
+            ExtendedAttributeSet if attributes exist, None otherwise
+        """
+        if 0 <= row < self.rows and 0 <= col < self.cols:
+            return self._extended_attributes.get((row, col))
+        return None
+
+    def set_field_validation(
+        self, field: Field, validation_rules: ValidationAttribute
+    ) -> None:
+        """Set validation rules for a field.
+
+        Args:
+            field: The field to set validation for
+            validation_rules: Validation attribute with rules
+        """
+        # Set validation for the start position of the field
+        start_row, start_col = field.start
+        self.set_extended_attribute(
+            start_row, start_col, "validation", validation_rules.value
+        )
+
+    def get_field_validation(self, field: Field) -> Optional[ValidationAttribute]:
+        """Get validation rules for a field.
+
+        Args:
+            field: The field to get validation for
+
+        Returns:
+            ValidationAttribute if set, None otherwise
+        """
+        start_row, start_col = field.start
+        attr_set = self.get_extended_attributes_at(start_row, start_col)
+        if attr_set:
+            return attr_set.get_attribute("validation")
+        return None
+
+    def validate_field_input(
+        self, field: Field, input_text: str
+    ) -> Tuple[bool, Optional[str]]:
+        """Validate input against field's validation rules.
+
+        Args:
+            field: The field to validate input for
+            input_text: The input text to validate
+
+        Returns:
+            Tuple of (is_valid, error_message)
+        """
+        validation_attr = self.get_field_validation(field)
+        if validation_attr:
+            return validation_attr.validate_input(input_text)
+        return True, None  # No validation rules, input is valid
