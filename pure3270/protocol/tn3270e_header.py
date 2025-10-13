@@ -39,7 +39,15 @@ class TN3270EHeader:
     Byte 1: REQUEST-FLAG
     Byte 2: RESPONSE-FLAG
     Byte 3-4: SEQ-NUMBER (16-bit big-endian)
+
+    Extended for addressing mode negotiation:
+    - REQUEST-FLAG bit 7: Extended addressing capability (14-bit support)
+    - RESPONSE-FLAG bit 7: Extended addressing negotiated
     """
+
+    # Addressing mode negotiation flags
+    REQUEST_EXTENDED_ADDRESSING = 0x80  # Bit 7 in REQUEST-FLAG
+    RESPONSE_EXTENDED_ADDRESSING = 0x80  # Bit 7 in RESPONSE-FLAG
 
     def __init__(
         self,
@@ -205,6 +213,28 @@ class TN3270EHeader:
     def is_always_response(self) -> bool:
         """Check if this is an always response."""
         return self.response_flag == TN3270E_RSF_ALWAYS_RESPONSE
+
+    def has_extended_addressing_request(self) -> bool:
+        """Check if this header requests extended addressing capability."""
+        return bool(self.request_flag & self.REQUEST_EXTENDED_ADDRESSING)
+
+    def has_extended_addressing_response(self) -> bool:
+        """Check if this header indicates extended addressing was negotiated."""
+        return bool(self.response_flag & self.RESPONSE_EXTENDED_ADDRESSING)
+
+    def set_extended_addressing_request(self, enabled: bool = True) -> None:
+        """Set or clear the extended addressing request flag."""
+        if enabled:
+            self.request_flag |= self.REQUEST_EXTENDED_ADDRESSING
+        else:
+            self.request_flag &= ~self.REQUEST_EXTENDED_ADDRESSING
+
+    def set_extended_addressing_response(self, enabled: bool = True) -> None:
+        """Set or clear the extended addressing response flag."""
+        if enabled:
+            self.response_flag |= self.RESPONSE_EXTENDED_ADDRESSING
+        else:
+            self.response_flag &= ~self.RESPONSE_EXTENDED_ADDRESSING
 
     def get_data_type_name(self) -> str:
         """Get human-readable name for data type."""

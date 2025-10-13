@@ -54,6 +54,7 @@ from typing import (
     cast,
 )
 
+from ..emulation.addressing import AddressingMode
 from ..emulation.printer_buffer import PrinterBuffer  # Import PrinterBuffer
 from ..emulation.screen_buffer import ScreenBuffer  # Import ScreenBuffer
 from ..utils.logging_utils import log_debug_operation, log_parsing_warning
@@ -624,6 +625,7 @@ class DataStreamParser:
         screen_buffer: "ScreenBuffer",
         printer_buffer: Optional["PrinterBuffer"] = None,
         negotiator: Optional["Negotiator"] = None,
+        addressing_mode: AddressingMode = AddressingMode.MODE_12_BIT,
     ) -> None:
         """
         Initialize the DataStreamParser with enhanced validation and buffer protection.
@@ -631,10 +633,12 @@ class DataStreamParser:
         :param screen_buffer: ScreenBuffer to update.
         :param printer_buffer: PrinterBuffer to update for printer sessions.
         :param negotiator: Negotiator instance for communicating dimension updates.
+        :param addressing_mode: Addressing mode for parsing operations.
         """
         self.screen: ScreenBuffer = screen_buffer
         self.printer: Optional[PrinterBuffer] = printer_buffer
         self.negotiator: Optional["Negotiator"] = negotiator
+        self.addressing_mode = addressing_mode
         # Core parsing state (BaseParser defined in utils)
         self.parser: Optional[BaseParser] = None
         self.wcc: Optional[int] = None  # Write Control Character
@@ -1167,38 +1171,85 @@ class DataStreamParser:
         # For now, just store
 
     def _handle_sba(self) -> None:
-        """Handle Set Buffer Address."""
-        addr_high = self._read_byte()
-        addr_low = self._read_byte()
-        address = (addr_high << 8) | addr_low
-        # 3270 address format: address = row * cols + col
-        # Use actual screen width instead of hardcoded 80
+        """Handle Set Buffer Address with support for 14-bit addressing."""
+        # Read address bytes based on addressing mode
+        if self.addressing_mode == AddressingMode.MODE_14_BIT:
+            # 14-bit addressing: 2 bytes (big-endian)
+            addr_high = self._read_byte()
+            addr_low = self._read_byte()
+            address = (addr_high << 8) | addr_low
+        else:
+            # 12-bit addressing: 2 bytes (big-endian), but only 12 bits used
+            addr_high = self._read_byte()
+            addr_low = self._read_byte()
+            address = (addr_high << 8) | addr_low
+            # Mask to 12 bits for safety
+            address &= 0xFFF
+
+        # Validate address against addressing mode
+        from ..emulation.addressing import AddressCalculator
+
+        if not AddressCalculator.validate_address(address, self.addressing_mode):
+            logger.warning(
+                f"Invalid SBA address {address:04x} for {self.addressing_mode.value} mode"
+            )
+            # Continue with clamped address for backward compatibility
+            max_addr = AddressCalculator.get_max_positions(self.addressing_mode) - 1
+            address = min(address, max_addr)
+
+        # Convert address to coordinates
         cols = self.screen.cols if self.screen else 80
-        row = address // cols
-        col = address % cols
-        # Clamp to screen bounds
-        row = min(row, self.screen.rows - 1) if self.screen else min(row, 23)
-        col = min(col, self.screen.cols - 1) if self.screen else min(col, 79)
+        coords = AddressCalculator.address_to_coords(
+            address, cols, self.addressing_mode
+        )
+
+        if coords is None:
+            logger.error(f"Failed to convert address {address} to coordinates")
+            return
+
+        row, col = coords
+
+        # Clamp to screen bounds (additional safety check)
         if self.screen:
+            row = min(row, self.screen.rows - 1)
+            col = min(col, self.screen.cols - 1)
             self.screen.set_position(row, col)
+
         # Sync tracked position using ensured parser (avoids Optional access)
         parser = self._ensure_parser()
         self._pos = parser._pos
-        logger.debug(f"Set buffer address to ({row}, {col})")
+        logger.debug(
+            f"Set buffer address to ({row}, {col}) [address={address:04x}, mode={self.addressing_mode.value}]"
+        )
 
     def _handle_sf(self) -> None:
-        """Handle Start Field."""
+        """Handle Start Field with extended addressing validation."""
         self._validate_screen_buffer("SF")
         attr = self._read_byte_safe("SF")
         row, col = self.screen.get_position()
+
+        # Validate field position is within addressing mode limits
+        from ..emulation.addressing import AddressCalculator
+
+        address = row * self.screen.cols + col
+        if not AddressCalculator.validate_address(address, self.addressing_mode):
+            logger.warning(
+                f"SF at position ({row}, {col}) [address={address:04x}] exceeds "
+                f"{self.addressing_mode.value} addressing limits"
+            )
+            # Continue processing but log the issue
+
         self.screen.set_attribute(attr)
         self.screen.set_position(row, col + 1)
         parser = self._ensure_parser()
         self._pos = parser._pos
-        log_debug_operation(logger, f"Start field with attribute 0x{attr:02x}")
+        log_debug_operation(
+            logger,
+            f"Start field with attribute 0x{attr:02x} [mode={self.addressing_mode.value}]",
+        )
 
     def _handle_ra(self) -> None:
-        """Handle Repeat to Address (RMA)."""
+        """Handle Repeat to Address (RMA) with extended addressing support."""
         self._validate_screen_buffer("RA")
         if not self._validate_min_data("RA", 3):
             return
@@ -1208,12 +1259,33 @@ class DataStreamParser:
         attr_type = self._read_byte_safe("RA")
         address = self._read_address_bytes("RA")
 
-        target_row = ((address >> 8) & 0x3F) << 2 | ((address & 0xFF) & 0xC0) >> 6
-        target_col = address & 0x3F
+        # Convert address to coordinates based on addressing mode
+        from ..emulation.addressing import AddressCalculator
+
+        coords = AddressCalculator.address_to_coords(
+            address, self.screen.cols, self.addressing_mode
+        )
+        if coords is None:
+            logger.warning(
+                f"Invalid RA target address {address:04x} for {self.addressing_mode.value} mode"
+            )
+            return
+
+        target_row, target_col = coords
+
+        # Validate target position is within screen bounds
+        if target_row >= self.screen.rows or target_col >= self.screen.cols:
+            logger.warning(
+                f"RA target position ({target_row}, {target_col}) exceeds screen bounds "
+                f"({self.screen.rows}x{self.screen.cols})"
+            )
+            return
+
         log_parsing_warning(
             logger,
             "RA stub",
-            f"Repeat 0x{attr_type:02x} from ({current_row}, {current_col}) to ({target_row}, {target_col})",
+            f"Repeat 0x{attr_type:02x} from ({current_row}, {current_col}) to ({target_row}, {target_col}) "
+            f"[address={address:04x}, mode={self.addressing_mode.value}]",
         )
 
         # Minimal emulation: insert attr_type from current to target (linear distance)
@@ -1266,14 +1338,22 @@ class DataStreamParser:
         # No position advance beyond insert
 
     def _handle_ic(self) -> None:
-        """Handle Insert Cursor."""
+        """Handle Insert Cursor with extended addressing support."""
+        # For extended addressing, we need to handle cursor positioning across larger screens
+        # The IC order moves cursor to the first input field, but we need to ensure
+        # the field positions are valid for the current addressing mode
         self.screen.move_cursor_to_first_input_field()
-        log_debug_operation(logger, "Insert cursor - moved to first input field")
+        log_debug_operation(
+            logger,
+            f"Insert cursor - moved to first input field [mode={self.addressing_mode.value}]",
+        )
 
     def _handle_pt(self) -> None:
-        """Handle Program Tab."""
+        """Handle Program Tab with extended addressing support."""
+        # Program Tab moves cursor to the next unprotected field
+        # For extended addressing, ensure field positions are valid
         self.screen.program_tab()
-        log_debug_operation(logger, "Program tab")
+        log_debug_operation(logger, f"Program tab [mode={self.addressing_mode.value}]")
 
     def _handle_scs(self) -> None:
         """Handle SCS control codes order."""
@@ -1331,10 +1411,22 @@ class DataStreamParser:
         # Would trigger read from keyboard, but for parser, just log
 
     def _handle_sfe(self, sf_data: Optional[bytes] = None) -> Dict[int, int]:
-        """Handle Start Field Extended (order or SF payload)."""
+        """Handle Start Field Extended (order or SF payload) with extended addressing validation."""
         if self.screen is None:
             raise ParseError("Screen buffer not initialized")
         attrs: Dict[int, int] = {}
+
+        # Validate current field position for extended addressing
+        current_row, current_col = self.screen.get_position()
+        from ..emulation.addressing import AddressCalculator
+
+        address = current_row * self.screen.cols + current_col
+        if not AddressCalculator.validate_address(address, self.addressing_mode):
+            logger.warning(
+                f"SFE at position ({current_row}, {current_col}) [address={address:04x}] exceeds "
+                f"{self.addressing_mode.value} addressing limits"
+            )
+
         if sf_data is not None:
             # Handle as SF payload: parse length, then fixed number of type-value pairs
             parser = BaseParser(sf_data)
@@ -1362,7 +1454,8 @@ class DataStreamParser:
                     self.screen.set_extended_attribute_sfe(attr_type, attr_value)
                     attrs[attr_type] = attr_value
                     logger.debug(
-                        f"SFE (SF): type 0x{attr_type:02x}, value 0x{attr_value:02x}"
+                        f"SFE (SF): type 0x{attr_type:02x}, value 0x{attr_value:02x} "
+                        f"[mode={self.addressing_mode.value}]"
                     )
             return attrs
 
@@ -1390,7 +1483,8 @@ class DataStreamParser:
                 self.screen.set_extended_attribute_sfe(attr_type, attr_value)
                 attrs[attr_type] = attr_value
                 logger.debug(
-                    f"SFE (order): type 0x{attr_type:02x}, value 0x{attr_value:02x}"
+                    f"SFE (order): type 0x{attr_type:02x}, value 0x{attr_value:02x} "
+                    f"[mode={self.addressing_mode.value}]"
                 )
         return attrs
 
