@@ -10,11 +10,36 @@ This document provides comprehensive guidelines for porting third-party code int
 
 Pure3270 follows a **selective porting strategy** that prioritizes:
 
-- **Protocol Fidelity**: Maintaining accurate 3270/TN3270 protocol implementation
+- **RFC-First Development**: ALWAYS defer to RFC specifications rather than assuming existing implementations are correct
+- **Protocol Fidelity**: Maintaining accurate 3270/TN3270 protocol implementation per RFC standards
 - **Clean Architecture**: Preserving the layered architecture (Protocol → Emulation → Session → Client)
 - **Zero Dependencies**: Minimizing external dependencies for runtime usage
 - **Quality over Quantity**: Careful evaluation before porting any code
 - **Attribution Integrity**: Proper legal attribution for all ported work
+
+### 1.1.1 RFC-First Development Philosophy
+
+**CRITICAL**: When implementing or modifying TN3270/TN3270E protocol behavior, **ALWAYS defer to RFC specifications** rather than assuming the current implementation or source code has correct behavior. The implementation may contain bugs, incomplete features, or non-standard workarounds that should be corrected to match RFC requirements.
+
+#### Key RFC References
+- **RFC 854**: Telnet Protocol Specification
+- **RFC 855**: Telnet Option Specifications
+- **RFC 856**: Telnet Binary Transmission
+- **RFC 857**: Telnet Echo Option
+- **RFC 858**: Telnet Suppress Go Ahead Option
+- **RFC 859**: Telnet Status Option
+- **RFC 860**: Telnet Timing Mark Option
+- **RFC 1091**: Telnet Terminal-Type Option
+- **RFC 1576**: TN3270 Current Practices
+- **RFC 1646**: TN3270 Enhancements (TN3270E)
+- **RFC 2355**: TN3270 Enhancements (updated)
+
+#### RFC Compliance Guidelines
+1. **RFC First**: When implementing or modifying protocol behavior, consult the relevant RFC first
+2. **Test Against RFC**: Validate implementation against RFC requirements, not just existing tests
+3. **Document Deviations**: If current code deviates from RFC, document why and plan correction
+4. **Standards Compliance**: Prefer standards-compliant behavior over backward compatibility with non-standard implementations
+5. **Protocol Constants**: Use RFC-defined constants and values, not implementation-specific ones
 
 ### 1.2 When to Consider Porting
 

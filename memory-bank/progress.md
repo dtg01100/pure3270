@@ -11,8 +11,6 @@
 
 ## In Flight / Pending
 - Screen parity snapshot system (not started).
-- API parity audit for `P3270Client` (not started).
-- Licensing & attribution docs + scaffolding (not started).
 - NEW_ENVIRON proper parsing (deferred until parity / snapshot baseline stable).
 
 ## Open Issues / Technical Debt
@@ -26,7 +24,12 @@
 - **NEW**: Comprehensive infinite loop prevention implemented - all tests guaranteed to exit.
 - **NEW**: Timeout safety validation passes - no test can hang indefinitely.
 
+## Recently Completed (October 2025)
+### ✅ Attribution and Porting Infrastructure
+- **TASK004 - s3270 License Attribution**: Created comprehensive THIRD_PARTY_NOTICES.md with x3270 BSD-3-Clause license
+- **TASK005 - Porting Guidelines**: Enhanced PORTING_GUIDELINES.md with RFC-first development philosophy and comprehensive contributor guidelines
+- **TASK006 - Attribution Scaffolding**: Validated attribution comment scaffolding system - all 27 tests passing, tools fully functional
+
 ## Short-Term Priorities
-1. P3270Client API compatibility audit (TASK003)
-2. Licensing & attribution infrastructure (TASK004, TASK005, TASK006)
-3. NEW_ENVIRON proper parsing (deferred until parity / snapshot baseline stable)
+1. Screen parity snapshot system implementation
+2. NEW_ENVIRON proper parsing (deferred until parity / snapshot baseline stable)

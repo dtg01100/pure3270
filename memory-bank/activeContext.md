@@ -4,11 +4,17 @@
 - Implemented TTYPE SEND -> IS reply (removed malformed extra NUL) enabling host to proceed after terminal type negotiation.
 - Added hybrid VT100/TN3270 handling improvements: exclusive ASCII activation, handler-level flag, quick smoke ASCII detection.
 
+## Recently Completed (October 2025)
+- **✅ Attribution & Porting Infrastructure**: All tasks completed (TASK004, TASK005, TASK006)
+  - THIRD_PARTY_NOTICES.md created with x3270 BSD-3-Clause license
+  - PORTING_GUIDELINES.md enhanced with RFC-first development philosophy
+  - Attribution scaffolding system validated (27/27 tests passing)
+- **✅ P3270Client API Compatibility**: Full parity achieved (TASK003)
+
 ## Current Focus
-Prepare for:
+Ready to proceed with:
 1. Screen parity regression scaffolding (capture deterministic snapshot representation for ASCII/NVT screens).
-2. API parity audit for `P3270Client` vs legacy p3270.
-3. Licensing & attribution infrastructure for future selective porting from x3270.
+2. NEW_ENVIRON proper parsing (deferred until snapshot baseline stable).
 
 ## Key Decisions
 - Temporary compatibility: treat DO NEW_ENVIRON (0x27) as NAWS-like sizing; must be replaced with real NEW-ENVIRON parser for standards compliance.
@@ -22,10 +28,8 @@ Prepare for:
 
 ## Next Planned Steps
 1. Implement minimal snapshot representation + test harness to compare expected ASCII screen content (generate canonical normalization: strip trailing spaces per line, unify line endings).
-2. Create `THIRD_PARTY_NOTICES.md` with placeholder for x3270 (BSD-3-Clause) once text retrieved.
-3. Draft `PORTING_GUIDELINES.md` emphasizing RFC alignment over literal copy.
-4. Add attribution helper (template string + function) and test existence.
-5. Expand quick smoke to optionally load a stored snapshot and verify rendering function output (conditional to keep runtime minimal).
+2. Expand quick smoke to optionally load a stored snapshot and verify rendering function output (conditional to keep runtime minimal).
+3. NEW_ENVIRON proper parsing (when snapshot baseline is stable).
 
 ## Metrics / Validation Hooks
 - `quick_test.py` now includes ASCII detection PASS criteria.
