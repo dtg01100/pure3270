@@ -1179,12 +1179,10 @@ class DataStreamParser:
             addr_low = self._read_byte()
             address = (addr_high << 8) | addr_low
         else:
-            # 12-bit addressing: 2 bytes (big-endian), but only 12 bits used
+            # 12-bit addressing uses the lower 6 bits of each of the two bytes.
             addr_high = self._read_byte()
             addr_low = self._read_byte()
-            address = (addr_high << 8) | addr_low
-            # Mask to 12 bits for safety
-            address &= 0xFFF
+            address = ((addr_high & 0x3F) << 6) | (addr_low & 0x3F)
 
         # Validate address against addressing mode
         from ..emulation.addressing import AddressCalculator

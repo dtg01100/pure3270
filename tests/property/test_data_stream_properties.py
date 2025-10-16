@@ -59,35 +59,53 @@ class TestDataStreamProperties:
             assert self.parser._pos > 0
 
     @given(
-        st.integers(min_value=0, max_value=1919),  # Valid buffer addresses
-        st.binary(min_size=0, max_size=20),  # Trailing bytes
+        st.integers(
+            min_value=0, max_value=1919
+        ),  # Valid 12-bit buffer addresses for a 24x80 screen
     )
     @settings(max_examples=50, deadline=None)
-    def test_valid_sba_sets_position(self, address, trailing):
-        row = address // 80
-        col = address % 80
-        addr_high = (row & 0x3F) | ((col & 0xC0) >> 2)
-        addr_low = (col & 0x3F) | ((row & 0xC0) << 2)
-        sba_bytes = bytes([SBA, addr_high, addr_low]) + trailing
+    def test_valid_sba_sets_position(self, address):
+        # Correctly encode a 12-bit address into two bytes, where the lower 6 bits of each byte are used.
+        addr_high = (address >> 6) & 0x3F
+        addr_low = address & 0x3F
+        sba_bytes = bytes([SBA, addr_high, addr_low])
         try:
             self.parser.parse(sba_bytes)
         except ParseError as e:
-            # Some minimal sequences interpreted as other orders (e.g. DATA_STREAM_CTL) may be incomplete.
-            if any(
-                phrase in str(e)
-                for phrase in [
-                    "Incomplete DATA_STREAM_CTL",
-                    "Incomplete SBA",
-                    "Incomplete WCC order",
-                    "Incomplete AID order",
-                ]
-            ):
-                return
             pytest.fail(f"Unexpected ParseError in SBA property: {e}")
-        final_pos = self.screen.get_position()
-        assert 0 <= final_pos[0] < self.screen.rows
-        assert 0 <= final_pos[1] < self.screen.cols
-        assert self.parser._pos <= len(sba_bytes)
+
+        final_row, final_col = self.screen.get_position()
+
+        expected_row = address // 80
+        expected_col = address % 80
+
+        assert final_row == expected_row
+        assert final_col == expected_col
+
+    @given(
+        st.integers(
+            min_value=0, max_value=1919
+        ),  # Valid 14-bit buffer addresses for a 24x80 screen
+    )
+    @settings(max_examples=50, deadline=None)
+    def test_valid_sba_14bit_sets_position(self, address):
+        from pure3270.emulation.addressing import AddressingMode
+
+        self.parser.addressing_mode = AddressingMode.MODE_14_BIT
+
+        # 14-bit addressing uses a simple 2-byte big-endian integer.
+        sba_bytes = bytes([SBA]) + address.to_bytes(2, "big")
+        try:
+            self.parser.parse(sba_bytes)
+        except ParseError as e:
+            pytest.fail(f"Unexpected ParseError in 14-bit SBA property: {e}")
+
+        final_row, final_col = self.screen.get_position()
+        expected_row = address // 80
+        expected_col = address % 80
+
+        assert final_row == expected_row
+        assert final_col == expected_col
 
     @given(
         st.integers(min_value=0x00, max_value=0xFF), st.binary(min_size=0, max_size=20)

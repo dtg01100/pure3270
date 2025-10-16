@@ -6,7 +6,6 @@
 ## High Priority
 - Add transparent printing support (TCPIP printer sessions)
 - Implement 3270 extended attributes beyond basic field properties
-- Add support for 14-bit addressing mode
 
 ## Medium Priority
 - Implement light pen support and related orders
@@ -49,6 +48,11 @@
 - Implement missing s3270 actions: Compose(), Cookie(), Expect(), Fail()
 
 ## Recently Completed (October 2025)
+### ✅ Addressing Mode Correction (October 2025)
+- **✅ Verified 14-bit Addressing**: Confirmed that 14-bit addressing mode is fully implemented.
+- **✅ Fixed 12-bit Addressing Bug**: Corrected a bug in the `_handle_sba` method where 12-bit addresses were improperly decoded.
+- **✅ Enhanced Testing**: Fixed incorrect property-based tests for SBA and added a new test to specifically cover 14-bit address decoding.
+
 ### ✅ Configurable Terminal Models (TASK009)
 - Added terminal model registry and validation helpers
 - Session and AsyncSession now accept `terminal_type`
