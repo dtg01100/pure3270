@@ -120,6 +120,22 @@ class TestDataStreamProperties:
         assert self.parser._pos <= len(sf_bytes)
         assert self.parser._pos >= min(2, len(sf_bytes))
 
+    def test_extended_attributes_are_applied_to_fields(self):
+        # This test bypasses the parser to test the screen buffer logic directly.
+
+        # 1. Manually set a basic and an extended attribute at the same position.
+        self.screen.set_attribute(0xC1, row=0, col=5)  # Basic attribute for a field
+        self.screen.set_extended_attribute(row=0, col=5, attr_type="color", value=0xF2) # Red
+
+        # 2. Manually trigger field detection.
+        self.screen._detect_fields()
+
+        # 3. Assert that one field was created and has the correct attributes.
+        assert len(self.screen.fields) == 1
+        field = self.screen.fields[0]
+        assert field.start == (0, 5)
+        assert field.color == 0xF2
+
     @given(st.integers(min_value=0x00, max_value=0xFF), st.booleans())
     @settings(max_examples=50, deadline=None)
     def test_wcc_handling(self, wcc_byte, should_clear):

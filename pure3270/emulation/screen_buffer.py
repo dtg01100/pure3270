@@ -500,41 +500,21 @@ class ScreenBuffer(BufferWriter):
                 attr_offset < len(self.attributes)
                 and self.attributes[attr_offset] != 0x00
             )
-            has_extended_attribute = (
-                isinstance(
-                    self._extended_attributes.get((row, col)), ExtendedAttributeSet
-                )
-                and len(
-                    self._extended_attributes.get((row, col), ExtendedAttributeSet())
-                )
-                > 0
-            )
+            has_extended_attribute = (row, col) in self._extended_attributes
 
-            is_attribute_position = has_basic_attribute or has_extended_attribute
-            # Removed verbose logging to prevent memory exhaustion in tests from excessive output
-
-            if is_attribute_position:
-                if field_start_idx != -1 and self.attributes[attr_offset] == 0x00:
-                    logger.debug(
-                        f"Ending previous field on attrs==0x00 from {field_start_idx} to {i-1}"
-                    )
+            if has_basic_attribute or has_extended_attribute:
+                # This position `i` is an attribute byte, marking the start of a new field.
+                # If a field was already in progress, we end it at the position just before this new attribute.
+                if field_start_idx != -1:
                     self._create_field_from_range(field_start_idx, i - 1)
-                    field_start_idx = -1
-                if field_start_idx == -1:
-                    logger.debug(f"Starting new field at {i}")
-                    field_start_idx = i
-            elif field_start_idx != -1 and i == self.size - 1:
-                logger.debug(
-                    f"Ending current field at end of screen from {field_start_idx} to {i}"
-                )
-                self._create_field_from_range(field_start_idx, i)
+                
+                # Start the new field from this attribute position.
+                field_start_idx = i
 
-        # Handle any remaining open field at the end of the buffer
+        # After the loop, if a field was started, it runs to the end of the screen.
         if field_start_idx != -1:
-            logger.debug(
-                f"Ending final field from {field_start_idx} to {self.size - 1} after loop"
-            )
             self._create_field_from_range(field_start_idx, self.size - 1)
+        
         logger.debug(f"Finished _detect_fields. Total fields: {len(self.fields)}")
 
     def _create_field_from_range(self, start_idx: int, end_idx: int) -> None:
@@ -548,7 +528,7 @@ class ScreenBuffer(BufferWriter):
         # Extract field content
         content = bytes(self.buffer[start_idx : end_idx + 1])
 
-        # Get field attributes from the start position
+        # Get basic field attributes from the start position
         attr_offset = start_idx * 3
         if attr_offset < len(self.attributes):
             protected = bool(self.attributes[attr_offset] & 0x40)
@@ -561,6 +541,30 @@ class ScreenBuffer(BufferWriter):
             protected = False
             intensity = 0
 
+        # Get extended attributes
+        extended_attrs = self._extended_attributes.get((start_row, start_col))
+        color = 0
+        sfe_highlight = 0
+        validation = 0
+        outlining = 0
+        character_set = 0
+        if extended_attrs:
+            color_attr = extended_attrs.get_attribute("color")
+            if color_attr:
+                color = color_attr.value
+            highlight_attr = extended_attrs.get_attribute("highlight")
+            if highlight_attr:
+                sfe_highlight = highlight_attr.value
+            validation_attr = extended_attrs.get_attribute("validation")
+            if validation_attr:
+                validation = validation_attr.value
+            outlining_attr = extended_attrs.get_attribute("outlining")
+            if outlining_attr:
+                outlining = outlining_attr.value
+            charset_attr = extended_attrs.get_attribute("character_set")
+            if charset_attr:
+                character_set = charset_attr.value
+
         # Create field
         field = Field(
             start=(start_row, start_col),
@@ -568,6 +572,11 @@ class ScreenBuffer(BufferWriter):
             protected=protected,
             content=content,
             intensity=intensity,
+            color=color,
+            sfe_highlight=sfe_highlight,
+            validation=validation,
+            outlining=outlining,
+            character_set=character_set,
         )
 
         self.fields.append(field)

@@ -5,7 +5,6 @@
 
 ## High Priority
 - Add transparent printing support (TCPIP printer sessions)
-- Implement 3270 extended attributes beyond basic field properties
 
 ## Medium Priority
 - Implement light pen support and related orders
@@ -48,6 +47,11 @@
 - Implement missing s3270 actions: Compose(), Cookie(), Expect(), Fail()
 
 ## Recently Completed (October 2025)
+### ✅ Extended Attribute Implementation (October 2025)
+- **✅ Corrected Field Detection**: Fixed a bug in the `_detect_fields` method that incorrectly created multiple fields when extended attributes were present.
+- **✅ Enabled Attribute Propagation**: The `_create_field_from_range` method now correctly reads extended attributes from the screen buffer and applies them to newly created `Field` objects.
+- **✅ Added Unit Test**: A new test case verifies that fields are created with the correct extended attributes.
+
 ### ✅ Addressing Mode Correction (October 2025)
 - **✅ Verified 14-bit Addressing**: Confirmed that 14-bit addressing mode is fully implemented.
 - **✅ Fixed 12-bit Addressing Bug**: Corrected a bug in the `_handle_sba` method where 12-bit addresses were improperly decoded.
