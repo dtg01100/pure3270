@@ -4,7 +4,6 @@
 - (none)
 
 ## High Priority
-- Add transparent printing support (TCPIP printer sessions)
 
 ## Medium Priority
 - Implement light pen support and related orders
@@ -47,6 +46,11 @@
 - Implement missing s3270 actions: Compose(), Cookie(), Expect(), Fail()
 
 ## Recently Completed (October 2025)
+### ✅ Transparent Printing Integration (October 2025)
+- **✅ Integrated `DataFlowController`**: The main `AsyncSession` now initializes and manages a `DataFlowController` when a `transparent_print_host` is provided.
+- **✅ Intercepted Data Stream**: The `AsyncSession.read` method now routes all incoming data through the `DataFlowController` to automatically detect and route print jobs.
+- **✅ Added Integration Test**: A new test, `test_session_transparent_print.py`, verifies that the `DataFlowController` is correctly integrated into the session's lifecycle.
+
 ### ✅ Extended Attribute Implementation (October 2025)
 - **✅ Corrected Field Detection**: Fixed a bug in the `_detect_fields` method that incorrectly created multiple fields when extended attributes were present.
 - **✅ Enabled Attribute Propagation**: The `_create_field_from_range` method now correctly reads extended attributes from the screen buffer and applies them to newly created `Field` objects.

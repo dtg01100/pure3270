@@ -70,6 +70,8 @@ from .emulation.screen_buffer import ScreenBuffer
 from .protocol.data_stream import DataStreamParser
 from .protocol.exceptions import NegotiationError, NotConnectedError
 from .protocol.tn3270_handler import TN3270Handler
+from .protocol.data_flow_controller import DataFlowController
+from .protocol.tcpip_printer_session_manager import TCPIPPrinterSessionManager
 from .session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
@@ -766,6 +768,8 @@ class AsyncSession:
         allow_fallback: bool = True,
         enable_trace: bool = False,
         terminal_type: str = "IBM-3278-2",
+        transparent_print_host: Optional[str] = None,
+        transparent_print_port: int = 23,
     ):
         """Initialize the async session."""
         # Validate terminal type
@@ -805,6 +809,18 @@ class AsyncSession:
         self.keyboard_disabled: bool = False
         self.variables: Dict[str, str] = {}
         self._last_aid: Optional[int] = None
+
+        # Transparent printing components
+        self.data_flow_controller: Optional["DataFlowController"] = None
+        if transparent_print_host:
+            printer_session_manager = TCPIPPrinterSessionManager()
+            self.data_flow_controller = DataFlowController(printer_session_manager)
+            self.transparent_print_host = transparent_print_host
+            self.transparent_print_port = transparent_print_port
+        else:
+            self.transparent_print_host = None
+            self.transparent_print_port = 23
+            
         # Case-insensitive AID map
         self.aid_map = {
             "enter": 0x7D,
@@ -865,6 +881,68 @@ class AsyncSession:
     ):  # Return type: Optional[TraceRecorder] but avoiding forward reference issues
         return self._recorder
 
+    async def _perform_connect(self, host: Optional[str], port: Optional[int], ssl_context: Optional[Any]) -> None:
+        print(
+            f"[SESSION DEBUG] About to setup connection to {self.host}:{self.port}"
+        )
+        await self._transport.setup_connection(host, port, ssl_context)
+        print(f"[SESSION DEBUG] Connection opened successfully")
+        logger.debug(f"Creating new TN3270Handler")
+        if self._handler:
+            logger.debug(
+                f"Replacing existing handler with object ID: {id(self._handler)}"
+            )
+        from .protocol.trace_recorder import TraceRecorder
+
+        recorder = TraceRecorder() if self._enable_trace else None
+        self._recorder = recorder
+        self._handler = TN3270Handler(
+            self._transport.reader,
+            self._transport.writer,
+            self.screen_buffer,
+            force_mode=self._force_mode,
+            allow_fallback=self._allow_fallback,
+            recorder=recorder,
+            terminal_type=self._terminal_type,
+        )
+        logger.debug(f"New handler created with object ID: {id(self._handler)}")
+        # Set the LU name on the handler if configured
+        if self._lu_name:
+            self._handler.lu_name = self._lu_name
+        print(f"[SESSION DEBUG] About to perform telnet negotiation")
+        await self._transport.perform_telnet_negotiation(self._handler.negotiator)
+        print(f"[SESSION DEBUG] Telnet negotiation completed")
+        # Fallback to ASCII if negotiation fails
+        try:
+            print(f"[SESSION DEBUG] About to perform TN3270 negotiation")
+            await self._transport.perform_tn3270_negotiation(
+                self._handler.negotiator
+            )
+            print(f"[SESSION DEBUG] TN3270 negotiation completed")
+            await self._handler.connect()
+            self.tn3270_mode = True
+            self.tn3270e_mode = self._handler.negotiated_tn3270e
+            self._lu_name = self._handler.lu_name
+            self.screen_buffer.rows = self._handler.screen_rows
+            self.screen_buffer.cols = self._handler.screen_cols
+            self.connected = True
+        except NegotiationError as e:
+            logger.warning(
+                f"TN3270 negotiation failed, falling back to ASCII mode: {e}"
+            )
+            # Handler is guaranteed to exist after creation above
+            logger.debug(
+                f"Setting ASCII mode on handler {id(self._handler)} with negotiator {id(self._handler.negotiator)}"
+            )
+            self._handler.set_ascii_mode()
+            logger.debug(
+                f"ASCII mode set. Handler {id(self._handler)} negotiator {id(self._handler.negotiator)} _ascii_mode = {self._handler.negotiator._ascii_mode}"
+            )
+            logger.info(
+                "Session switched to ASCII/VT100 mode (s3270 compatibility)"
+            )
+            self.connected = True
+
     async def connect(
         self,
         host: Optional[str] = None,
@@ -890,69 +968,11 @@ class AsyncSession:
         if ssl_context is not None:
             self.ssl_context = ssl_context
 
-        async def _perform_connect() -> None:
-            print(
-                f"[SESSION DEBUG] About to setup connection to {self.host}:{self.port}"
-            )
-            await self._transport.setup_connection(host, port, ssl_context)
-            print(f"[SESSION DEBUG] Connection opened successfully")
-            logger.debug(f"Creating new TN3270Handler")
-            if self._handler:
-                logger.debug(
-                    f"Replacing existing handler with object ID: {id(self._handler)}"
-                )
-            from .protocol.trace_recorder import TraceRecorder
+        if self.data_flow_controller:
+            await self.data_flow_controller.start()
 
-            recorder = TraceRecorder() if self._enable_trace else None
-            self._recorder = recorder
-            self._handler = TN3270Handler(
-                self._transport.reader,
-                self._transport.writer,
-                self.screen_buffer,
-                force_mode=self._force_mode,
-                allow_fallback=self._allow_fallback,
-                recorder=recorder,
-                terminal_type=self._terminal_type,
-            )
-            logger.debug(f"New handler created with object ID: {id(self._handler)}")
-            # Set the LU name on the handler if configured
-            if self._lu_name:
-                self._handler.lu_name = self._lu_name
-            print(f"[SESSION DEBUG] About to perform telnet negotiation")
-            await self._transport.perform_telnet_negotiation(self._handler.negotiator)
-            print(f"[SESSION DEBUG] Telnet negotiation completed")
-            # Fallback to ASCII if negotiation fails
-            try:
-                print(f"[SESSION DEBUG] About to perform TN3270 negotiation")
-                await self._transport.perform_tn3270_negotiation(
-                    self._handler.negotiator
-                )
-                print(f"[SESSION DEBUG] TN3270 negotiation completed")
-                await self._handler.connect()
-                self.tn3270_mode = True
-                self.tn3270e_mode = self._handler.negotiated_tn3270e
-                self._lu_name = self._handler.lu_name
-                self.screen_buffer.rows = self._handler.screen_rows
-                self.screen_buffer.cols = self._handler.screen_cols
-                self.connected = True
-            except NegotiationError as e:
-                logger.warning(
-                    f"TN3270 negotiation failed, falling back to ASCII mode: {e}"
-                )
-                # Handler is guaranteed to exist after creation above
-                logger.debug(
-                    f"Setting ASCII mode on handler {id(self._handler)} with negotiator {id(self._handler.negotiator)}"
-                )
-                self._handler.set_ascii_mode()
-                logger.debug(
-                    f"ASCII mode set. Handler {id(self._handler)} negotiator {id(self._handler.negotiator)} _ascii_mode = {self._handler.negotiator._ascii_mode}"
-                )
-                logger.info(
-                    "Session switched to ASCII/VT100 mode (s3270 compatibility)"
-                )
-                self.connected = True
-
-        await self._retry_operation(_perform_connect)
+        operation = lambda: self._perform_connect(host, port, ssl_context)
+        await self._retry_operation(operation)
 
     async def send(self, data: bytes) -> None:
         """
@@ -998,6 +1018,18 @@ class AsyncSession:
             return result if isinstance(result, bytes) else bytes(result or b"")
 
         data = await self._retry_operation(_perform_read)
+
+        # If transparent printing is enabled, route data through the controller.
+        if self.data_flow_controller:
+            main_session_data, _ = await self.data_flow_controller.process_main_session_data(
+                data,
+                None, # TODO: Pass the real TN3270E header if available
+                str(id(self)),
+                self.transparent_print_host,
+                self.transparent_print_port
+            )
+            data = main_session_data
+
         # Ensure the result is bytes as expected
         assert isinstance(data, bytes) or data is None
         if data is None:
@@ -1080,6 +1112,8 @@ class AsyncSession:
 
     async def close(self) -> None:
         """Close the async session."""
+        if self.data_flow_controller:
+            await self.data_flow_controller.stop()
         if self._handler:
             await self._handler.close()
             self._handler = None
