@@ -990,31 +990,39 @@ class DataStreamParser:
                     )
 
                 if order in self._order_handlers:
-                    if order == WCC:
-                        try:
-                            wcc = self._read_byte()
-                        except ParseError:
-                            raise ParseError("Incomplete WCC order")
-                        self._order_handlers[order](wcc)
-                    elif order == AID:
-                        try:
-                            aid = self._read_byte()
-                        except ParseError:
-                            raise ParseError("Incomplete AID order")
-                        self._order_handlers[order](aid)
-                    elif order == DATA_STREAM_CTL:
-                        try:
-                            ctl_code = self._read_byte()
-                        except ParseError:
-                            raise ParseError("Incomplete DATA_STREAM_CTL order")
-                        self._order_handlers[order](ctl_code)
-                    else:
-                        self._order_handlers[order]()
-                    self._pos = parser._pos
+                    try:
+                        if order == WCC:
+                            try:
+                                wcc = self._read_byte()
+                            except ParseError:
+                                raise ParseError("Incomplete WCC order")
+                            self._order_handlers[order](wcc)
+                        elif order == AID:
+                            try:
+                                aid = self._read_byte()
+                            except ParseError:
+                                raise ParseError("Incomplete AID order")
+                            self._order_handlers[order](aid)
+                        elif order == DATA_STREAM_CTL:
+                            try:
+                                ctl_code = self._read_byte()
+                            except ParseError:
+                                raise ParseError("Incomplete DATA_STREAM_CTL order")
+                            self._order_handlers[order](ctl_code)
+                        else:
+                            self._order_handlers[order]()
+                    finally:
+                        # Always update position even if handler throws an exception
+                        # This prevents infinite loops when handlers fail
+                        self._pos = parser._pos
                 else:
                     # Treat unknown bytes as text data
-                    self._write_text_byte(order)
-                    self._pos = parser._pos
+                    try:
+                        self._write_text_byte(order)
+                    finally:
+                        # Always update position even if handler throws an exception
+                        # This prevents infinite loops when handlers fail
+                        self._pos = parser._pos
 
             logger.debug("Data stream parsing completed successfully")
             # Debug: log buffer state after parse (only if DEBUG level enabled)

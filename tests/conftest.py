@@ -330,3 +330,21 @@ async def mock_tn3270e_server_fallback():
         server.close()
         await server.wait_closed()
         await serve_task
+
+
+@pytest.fixture
+def mock_async_writer():
+    """Fixture providing a mock async writer for tests."""
+    from unittest.mock import AsyncMock
+
+    return AsyncMock()
+
+
+@pytest.fixture
+def mock_negotiator_handler():
+    """Fixture providing a mock handler for negotiator tests."""
+    from unittest.mock import MagicMock
+
+    handler = MagicMock()
+    handler._update_session_state_from_sna_response = MagicMock()
+    return handler

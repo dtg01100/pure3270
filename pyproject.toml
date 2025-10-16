@@ -63,6 +63,8 @@ markers = [
 ]
 norecursedirs = ["archive", "build", "dist", ".git", ".tox", ".pytest_cache"]
 testpaths = ["tests", "examples", "quick_test.py", "test_*.py"]
+timeout = 30
+timeout_method = "thread"
 
 [tool.black]
 line-length = 88
