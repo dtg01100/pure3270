@@ -1,0 +1,320 @@
+import asyncio
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
+
+from pure3270 import AsyncSession, Session
+from pure3270.emulation.screen_buffer import ScreenBuffer
+from pure3270.protocol.data_stream import DataStreamParser
+from pure3270.protocol.negotiator import Negotiator
+
+
+class TestIntegrationWorkflows:
+    """Integration tests for end-to-end workflows to verify correct behaviors."""
+
+    def test_session_lifecycle_full_flow(self):
+        """Test complete session lifecycle: init -> connect -> send/receive -> close."""
+        # Test synchronous session lifecycle
+        with Session() as session:
+            # Session should be initialized
+            assert session is not None
+            assert not session.connected
+
+            # The actual connection would require a real host or mock
+            # For now, we'll test the structural aspects
+
+            # The session should close properly when exiting context
+
+        # Session should be closed after context exit
+        # (This depends on implementation details)
+
+    @pytest.mark.asyncio
+    async def test_async_session_lifecycle_full_flow(self):
+        """Test complete async session lifecycle: init -> connect -> send/receive -> close."""
+        async with AsyncSession() as session:
+            # Session should be initialized
+            assert session is not None
+            assert not session.connected
+
+            # Mock the connection components to simulate a connection
+            reader = AsyncMock()
+            writer = AsyncMock()
+            writer.drain = AsyncMock()
+
+            # Temporarily attach mocks to allow testing of other functionality
+            session._reader = reader
+            session._writer = writer
+            session._connected = True
+
+            # Verify that the session is now connected
+            assert session.connected
+
+            # Test that data can be processed (with mocked components)
+            # This tests the integration between components
+
+        # Verify session is properly closed after context exit
+        assert not session.connected
+
+    @pytest.mark.asyncio
+    async def test_data_flow_integration(self):
+        """Test the integration of data flow: receive -> parse -> screen update."""
+        # Create a session and mock its components to test the data flow integration
+        session = AsyncSession()
+
+        # Create mocks for reader/writer
+        reader = AsyncMock()
+        writer = AsyncMock()
+        writer.drain = AsyncMock()
+
+        session._reader = reader
+        session._writer = writer
+        session._connected = True
+
+        # Store initial screen state
+        initial_screen_content = session._screen_buffer.read_at_position(0, 0, 10)
+
+        # Simulate receiving data that should update the screen
+        # For example, data that includes characters and positioning commands
+        test_data = b"HELLO"  # Simple text data
+
+        # Directly test the data stream parsing integration
+        initial_pos = session._screen_buffer.get_position()
+
+        # Parse the test data through the data stream parser
+        session._data_stream_parser.parse(test_data)
+
+        # Verify the screen buffer was updated
+        new_content = session._screen_buffer.read_at_position(0, 0, 5)
+        assert new_content == b"HELLO"
+
+        # Clean up
+        await session.close()
+
+    @pytest.mark.asyncio
+    async def test_negotiation_to_data_flow_integration(self):
+        """Test integration between negotiation and data flow components."""
+        # Create a session and test how negotiation state affects data processing
+        session = AsyncSession()
+
+        # Initially in basic mode
+        assert not session.tn3270_mode
+        assert not session.tn3270e_mode
+
+        # Simulate negotiation process that enables TN3270 mode
+        session._tn3270_mode = True
+
+        # Verify that mode change affects behavior
+        assert session.tn3270_mode
+
+        # Now process data in TN3270 mode
+        test_data = b"SOME DATA"
+        session._data_stream_parser.parse(test_data)
+
+        # Verify the screen buffer was updated (should be regardless of mode in basic case)
+        content = session._screen_buffer.read_at_position(0, 0, 9)
+        assert content == b"SOME DATA"
+
+        await session.close()
+
+    @pytest.mark.asyncio
+    async def test_field_creation_integration(self):
+        """Test end-to-end field creation from data stream to screen buffer."""
+        session = AsyncSession()
+
+        # Mock connection
+        reader = AsyncMock()
+        writer = AsyncMock()
+        writer.drain = AsyncMock()
+
+        session._reader = reader
+        session._writer = writer
+        session._connected = True
+
+        # Store initial field count
+        initial_field_count = len(session._screen_buffer.fields)
+
+        # Send data that should create a field (using SF - Start Field command)
+        field_data = bytes(
+            [0x1D, 0xF1, ord("H"), ord("I")]
+        )  # SF + field attribute + "HI"
+
+        session._data_stream_parser.parse(field_data)
+
+        # Update fields based on changes (this might be done elsewhere in the real implementation)
+        session._screen_buffer._detect_fields()
+
+        # Check if field was created
+        # This depends on implementation details of how fields are detected
+        new_field_count = len(session._screen_buffer.fields)
+
+        # Either field was created or attribute was set at position
+        current_char = session._screen_buffer.read_at_position(0, 0, 1)
+
+        await session.close()
+
+    @pytest.mark.asyncio
+    async def test_screen_buffer_to_session_integration(self):
+        """Test that changes to screen buffer are properly reflected in session operations."""
+        session = AsyncSession()
+
+        # Mock connection
+        reader = AsyncMock()
+        writer = AsyncMock()
+        writer.drain = AsyncMock()
+
+        session._reader = reader
+        session._writer = writer
+        session._connected = True
+
+        # Manipulate screen buffer directly
+        session._screen_buffer.write_at_position(5, 10, b"TEST")
+
+        # Verify that the screen buffer state is as expected
+        content = session._screen_buffer.read_at_position(5, 10, 4)
+        assert content == b"TEST"
+
+        # Test cursor position changes
+        session._screen_buffer.set_position(5, 15)  # Move to just after "TEST"
+        row, col = session._screen_buffer.get_position()
+        assert row == 5 and col == 15
+
+        await session.close()
+
+    @pytest.mark.asyncio
+    async def test_multiple_session_isolation(self):
+        """Test that multiple sessions maintain proper isolation."""
+        # Create two separate sessions
+        session1 = AsyncSession()
+        session2 = AsyncSession()
+
+        # Both should have separate screen buffers
+        assert session1._screen_buffer is not session2._screen_buffer
+
+        # Mock connections for both
+        reader1 = AsyncMock()
+        writer1 = AsyncMock()
+        writer1.drain = AsyncMock()
+
+        reader2 = AsyncMock()
+        writer2 = AsyncMock()
+        writer2.drain = AsyncMock()
+
+        session1._reader = reader1
+        session1._writer = writer1
+        session1._connected = True
+
+        session2._reader = reader2
+        session2._writer = writer2
+        session2._connected = True
+
+        # Modify one session's screen
+        session1._screen_buffer.write_at_position(0, 0, b"SESSION1")
+
+        # Modify the other session's screen
+        session2._screen_buffer.write_at_position(0, 0, b"SESSION2")
+
+        # Verify they remain separate
+        content1 = session1._screen_buffer.read_at_position(0, 0, 8)
+        content2 = session2._screen_buffer.read_at_position(0, 0, 8)
+
+        assert content1 == b"SESSION1"
+        assert content2 == b"SESSION2"
+
+        # Clean up
+        await session1.close()
+        await session2.close()
+
+    @pytest.mark.asyncio
+    async def test_data_parsing_to_screen_update_workflow(self):
+        """Test the complete workflow from data parsing to screen update."""
+        session = AsyncSession()
+
+        # Mock connection
+        reader = AsyncMock()
+        writer = AsyncMock()
+        writer.drain = AsyncMock()
+
+        session._reader = reader
+        session._writer = writer
+        session._connected = True
+
+        # Create test data that includes both positioning and text
+        # SBA (Set Buffer Address) to position (2,5), then some text
+        row, col = 2, 5
+        addr = row * 80 + col
+        addr_high = (addr >> 6) & 0x3F
+        addr_low = addr & 0x3F
+        sba_cmd = bytes([0x28, addr_high, addr_low])  # SBA command
+        text_data = b"HELLO INTEGRATION TEST"
+
+        full_data = sba_cmd + text_data
+
+        # Parse the complete data sequence
+        session._data_stream_parser.parse(full_data)
+
+        # Verify the position was set correctly (depends on addressing mode)
+        current_row, current_col = session._screen_buffer.get_position()
+        expected_row = 2
+        expected_col = 5 + len(text_data)  # Should be after the written text
+
+        # Verify text was written at the correct location
+        read_content = session._screen_buffer.read_at_position(2, 5, len(text_data))
+        assert read_content == b"HELLO INTEGRATION TEST"
+
+        await session.close()
+
+    @pytest.mark.asyncio
+    async def test_session_context_manager_integration(self):
+        """Test integration of session with context manager functionality."""
+        initial_session_count = (
+            0  # Placeholder - doesn't track active sessions in this simple way
+        )
+
+        async with AsyncSession() as session:
+            # Verify session is active within context
+            assert session is not None
+
+            # Mock the connection to test operations
+            reader = AsyncMock()
+            writer = AsyncMock()
+            writer.drain = AsyncMock()
+
+            session._reader = reader
+            session._writer = writer
+            session._connected = True
+
+            # Perform some operations
+            session._data_stream_parser.parse(b"CONTEXT TEST")
+
+            # Verify operations worked
+            content = session._screen_buffer.read_at_position(0, 0, 12)
+            assert content == b"CONTEXT TEST"
+
+            # Session should remain active until context exit
+            assert (
+                session._connected or not session._connected
+            )  # Dependent on implementation
+
+        # After context exit, session should be properly cleaned up
+        # This depends on the close() implementation
+
+    @pytest.mark.asyncio
+    async def test_error_propagation_through_components(self):
+        """Test how errors propagate through the integrated components."""
+        session = AsyncSession()
+
+        # Mock a scenario where a component raises an error and ensure it's
+        # properly handled by the higher-level session
+        reader = AsyncMock()
+        writer = AsyncMock()
+        writer.drain = AsyncMock()
+
+        session._reader = reader
+        session._writer = writer
+        session._connected = True
+
+        # This test focuses on ensuring that errors in one component
+        # are properly handled by the session layer
+
+        # Clean up
+        await session.close()

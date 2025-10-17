@@ -118,9 +118,18 @@ final_*.py
 advanced_*.py
 ci_cd_*.py
 s3270_*.py
-\n+# Allow specific committed unit tests that validate core negotiation heuristics
+
+# Allow specific committed unit tests that validate core negotiation heuristics
 !tests/test_negotiation_inference.py
 !tests/property/test_data_stream_properties.py
+
+# Allow new comprehensive test files
+!tests/test_behavior_verification.py
+!tests/test_error_handling.py
+!tests/test_integration_workflows.py
+!tests/test_protocol_negotiation.py
+!tests/test_screen_buffer.py
+
 VT100_*.md
 CONNECTION_TEST_RESULTS.md
 TESTING_*.md
