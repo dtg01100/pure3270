@@ -376,6 +376,16 @@ class Negotiator:
             "delays_applied": 0,
         }
 
+        # Initialize addressing mode negotiator
+        self._addressing_negotiator: Optional[AddressingModeNegotiator] = None
+
+    def _get_or_create_addressing_negotiator(self) -> AddressingModeNegotiator:
+        """Get or create the addressing mode negotiator."""
+        if self._addressing_negotiator is None:
+            from .addressing_negotiation import AddressingModeNegotiator
+            self._addressing_negotiator = AddressingModeNegotiator()
+        return self._addressing_negotiator
+
         # Connection state tracking
         self._connection_state: Dict[str, Any] = {
             "is_connected": False,
@@ -401,8 +411,8 @@ class Negotiator:
             except RuntimeError:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-            if sys.version_info < (3, 10):
-                self._device_type_is_event = asyncio.Event(loop=loop)
+            if sys.version_info < (3, 8):
+                self._device_type_is_event = asyncio.Event()
             else:
                 self._device_type_is_event = asyncio.Event()
         return self._device_type_is_event
@@ -414,8 +424,8 @@ class Negotiator:
             except RuntimeError:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-            if sys.version_info < (3, 10):
-                self._functions_is_event = asyncio.Event(loop=loop)
+            if sys.version_info < (3, 8):
+                self._functions_is_event = asyncio.Event()
             else:
                 self._functions_is_event = asyncio.Event()
         return self._functions_is_event
@@ -427,8 +437,8 @@ class Negotiator:
             except RuntimeError:
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
-            if sys.version_info < (3, 10):
-                self._negotiation_complete = asyncio.Event(loop=loop)
+            if sys.version_info < (3, 8):
+                self._negotiation_complete = asyncio.Event()
             else:
                 self._negotiation_complete = asyncio.Event()
         return self._negotiation_complete
@@ -1388,7 +1398,8 @@ class Negotiator:
             asyncio.TimeoutError: If timeout exceeded.
         """
         if self.handler:
-            return await self.handler.receive_data(timeout)
+            data, _ = await self.handler.receive_data(timeout)
+            return data
         raise NotImplementedError("Handler required for receiving data")
 
     async def _read_iac(self) -> bytes:
@@ -2569,7 +2580,7 @@ class Negotiator:
 
         try:
             # Advertise client capabilities
-            client_caps = self._addressing_negotiator.get_client_capabilities_string()
+            client_caps = self._get_or_create_addressing_negotiator().get_client_capabilities_string()
             logger.info(f"[ADDRESSING] Client capabilities: {client_caps}")
 
             # The actual negotiation happens through TN3270E subnegotiation

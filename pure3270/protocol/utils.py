@@ -295,7 +295,7 @@ class TerminalCapabilities:
     max_alternate_screen_size: Optional[Tuple[int, int]] = None
     character_sets: List[str] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.character_sets is None:
             # Default character set support
             self.character_sets = ["EBCDIC", "ASCII"]

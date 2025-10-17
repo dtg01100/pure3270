@@ -73,7 +73,7 @@ class AddressingModeNegotiator:
     including capability advertisement, BIND-IMAGE parsing, and mode transitions.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the addressing mode negotiator."""
         self._state = AddressingNegotiationState.NOT_NEGOTIATED
         self._client_capabilities: List[AddressingCapability] = [

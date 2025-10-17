@@ -67,11 +67,12 @@ from pure3270.protocol.utils import (
 
 from .emulation.buffer_writer import BufferWriter
 from .emulation.screen_buffer import ScreenBuffer
+from .protocol.data_flow_controller import DataFlowController
 from .protocol.data_stream import DataStreamParser
 from .protocol.exceptions import NegotiationError, NotConnectedError
-from .protocol.tn3270_handler import TN3270Handler
-from .protocol.data_flow_controller import DataFlowController
 from .protocol.tcpip_printer_session_manager import TCPIPPrinterSessionManager
+from .protocol.tn3270_handler import TN3270Handler
+from .protocol.tn3270e_header import TN3270EHeader
 from .session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
@@ -812,6 +813,8 @@ class AsyncSession:
 
         # Transparent printing components
         self.data_flow_controller: Optional["DataFlowController"] = None
+        self.transparent_print_host: Optional[str] = None
+        self.transparent_print_port: int = 23
         if transparent_print_host:
             printer_session_manager = TCPIPPrinterSessionManager()
             self.data_flow_controller = DataFlowController(printer_session_manager)
@@ -820,7 +823,7 @@ class AsyncSession:
         else:
             self.transparent_print_host = None
             self.transparent_print_port = 23
-            
+
         # Case-insensitive AID map
         self.aid_map = {
             "enter": 0x7D,
@@ -881,10 +884,10 @@ class AsyncSession:
     ):  # Return type: Optional[TraceRecorder] but avoiding forward reference issues
         return self._recorder
 
-    async def _perform_connect(self, host: Optional[str], port: Optional[int], ssl_context: Optional[Any]) -> None:
-        print(
-            f"[SESSION DEBUG] About to setup connection to {self.host}:{self.port}"
-        )
+    async def _perform_connect(
+        self, host: Optional[str], port: Optional[int], ssl_context: Optional[Any]
+    ) -> None:
+        print(f"[SESSION DEBUG] About to setup connection to {self.host}:{self.port}")
         await self._transport.setup_connection(host, port, ssl_context)
         print(f"[SESSION DEBUG] Connection opened successfully")
         logger.debug(f"Creating new TN3270Handler")
@@ -915,9 +918,7 @@ class AsyncSession:
         # Fallback to ASCII if negotiation fails
         try:
             print(f"[SESSION DEBUG] About to perform TN3270 negotiation")
-            await self._transport.perform_tn3270_negotiation(
-                self._handler.negotiator
-            )
+            await self._transport.perform_tn3270_negotiation(self._handler.negotiator)
             print(f"[SESSION DEBUG] TN3270 negotiation completed")
             await self._handler.connect()
             self.tn3270_mode = True
@@ -938,9 +939,7 @@ class AsyncSession:
             logger.debug(
                 f"ASCII mode set. Handler {id(self._handler)} negotiator {id(self._handler.negotiator)} _ascii_mode = {self._handler.negotiator._ascii_mode}"
             )
-            logger.info(
-                "Session switched to ASCII/VT100 mode (s3270 compatibility)"
-            )
+            logger.info("Session switched to ASCII/VT100 mode (s3270 compatibility)")
             self.connected = True
 
     async def connect(
@@ -1012,21 +1011,24 @@ class AsyncSession:
             raise SessionError("Session not connected.", {"operation": "read"})
         handler = self._handler
 
-        async def _perform_read() -> bytes:
-            result = await handler.receive_data(timeout)
+        async def _perform_read() -> Tuple[bytes, Optional[TN3270EHeader]]:
+            result, header = await handler.receive_data(timeout)
             # Ensure we return bytes as expected by function signature
-            return result if isinstance(result, bytes) else bytes(result or b"")
+            data = result if isinstance(result, bytes) else bytes(result or b"")
+            return data, header
 
-        data = await self._retry_operation(_perform_read)
+        data, header = await self._retry_operation(_perform_read)
 
         # If transparent printing is enabled, route data through the controller.
         if self.data_flow_controller:
-            main_session_data, _ = await self.data_flow_controller.process_main_session_data(
-                data,
-                None, # TODO: Pass the real TN3270E header if available
-                str(id(self)),
-                self.transparent_print_host,
-                self.transparent_print_port
+            main_session_data, _ = (
+                await self.data_flow_controller.process_main_session_data(
+                    data,
+                    header,
+                    str(id(self)),
+                    self.transparent_print_host,
+                    self.transparent_print_port,
+                )
             )
             data = main_session_data
 
