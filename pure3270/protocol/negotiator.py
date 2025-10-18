@@ -394,6 +394,23 @@ class Negotiator:
             "delays_applied": 0,
         }
 
+        # Connection state tracking
+        self._connection_state = {
+            "is_connected": False,
+            "last_activity": time.time(),
+            "consecutive_failures": 0,
+            "total_failures": 0,
+            "last_error": None,
+        }
+
+        # Recovery state tracking
+        self._recovery_state = {
+            "is_recovering": False,
+            "recovery_start_time": None,
+            "recovery_attempts": 0,
+            "pending_operations": set(),
+        }
+
         # Initialize addressing mode negotiator
         from .addressing_negotiation import AddressingModeNegotiator
 

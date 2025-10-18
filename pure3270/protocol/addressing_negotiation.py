@@ -247,8 +247,14 @@ class AddressingModeNegotiator:
         """
         # Define valid transitions
         valid_transitions = {
-            AddressingMode.MODE_12_BIT: [AddressingMode.MODE_14_BIT],
-            AddressingMode.MODE_14_BIT: [AddressingMode.MODE_12_BIT],
+            AddressingMode.MODE_12_BIT: [
+                AddressingMode.MODE_12_BIT,
+                AddressingMode.MODE_14_BIT,
+            ],
+            AddressingMode.MODE_14_BIT: [
+                AddressingMode.MODE_14_BIT,
+                AddressingMode.MODE_12_BIT,
+            ],
         }
 
         allowed_transitions = valid_transitions.get(current_mode, [])
