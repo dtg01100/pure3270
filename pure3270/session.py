@@ -459,6 +459,96 @@ class Session:
         assert isinstance(result, str)
         return result
 
+    def info(self) -> str:
+        """Get session information synchronously."""
+        if not self._async_session:
+            return "pure3270 session: not initialized"
+        return self._run_async(self._async_session.info())
+
+    def query(self, query_type: str = "All") -> str:
+        """Query session information synchronously."""
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        return self._run_async(self._async_session.query(query_type))
+
+    def set(self, option: str, value: str) -> None:
+        """Set option synchronously."""
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        self._run_async(self._async_session.set(option, value))
+
+    def print_text(self, text: str) -> None:
+        """Print text synchronously."""
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        self._run_async(self._async_session.print_text(text))
+
+    def snap(self) -> None:
+        """Take snapshot synchronously."""
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        self._run_async(self._async_session.snap())
+
+    def show(self) -> None:
+        """Show screen synchronously."""
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        self._run_async(self._async_session.show())
+
+    def trace(self, on: bool = True) -> None:
+        """Enable/disable tracing synchronously."""
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        self._run_async(self._async_session.trace(on))
+
+    def wait(self, seconds: float = 1.0) -> None:
+        """Wait synchronously."""
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        self._run_async(self._async_session.pause(seconds))
+
+    def sleep(self, seconds: float = 1.0) -> None:
+        """Sleep synchronously."""
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        self._run_async(self._async_session.pause(seconds))
+
+    def transfer(self, file: str) -> None:
+        """Transfer file synchronously."""
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        self._run_async(self._async_session.transfer(file))
+
+    def source(self, file: str) -> None:
+        """Source file synchronously."""
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        self._run_async(self._async_session.source(file))
+
+    def expect(self, pattern: str, timeout: float = 10.0) -> bool:
+        """Expect pattern synchronously."""
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        return self._run_async(self._async_session.expect(pattern, timeout))
+
+    def fail(self, message: str) -> None:
+        """Fail with message synchronously."""
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        self._run_async(self._async_session.fail(message))
+
+    def compose(self, text: str) -> None:
+        """Compose text synchronously."""
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        self._run_async(self._async_session.compose(text))
+
+    def cookie(self, cookie_string: str) -> None:
+        """Set cookie synchronously."""
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        self._run_async(self._async_session.cookie(cookie_string))
+
     def interrupt(self) -> None:
         """Send interrupt synchronously (s3270 Interrupt() action)."""
         if not self._async_session:
@@ -960,6 +1050,15 @@ class AsyncSession:
         """Reconnect."""
         await self.close()
         await self.connect()
+
+    async def info(self) -> str:
+        """Get session information."""
+        status = "connected" if self.connected else "disconnected"
+        return f"pure3270 session: {status}"
+
+    async def quit(self) -> None:
+        """Quit the session."""
+        await self.close()
 
     async def home(self) -> None:
         """Move cursor to home position."""
