@@ -17,9 +17,30 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-]
+     "License :: OSI Approved :: MIT License",
+     "Operating System :: OS Independent",
+ ]
+
+ [tool.coverage.run]
+ source = ["pure3270"]
+ omit = [
+     "*/tests/*",
+     "*/test_*",
+     "*/conftest.py",
+     "*/__init__.py",
+ ]
+
+ [tool.coverage.report]
+ exclude_lines = [
+     "pragma: no cover",
+     "def __repr__",
+     "if self.debug:",
+     "if settings.DEBUG",
+     "raise AssertionError",
+     "raise NotImplementedError",
+     "if 0:",
+     "if __name__ == .__main__.:",
+ ]
 
 [project.optional-dependencies]
 test = [
@@ -45,10 +66,11 @@ docs = [
     "sphinx >= 4.0",
     "sphinx-rtd-theme >= 1.0",
 ]
-dev = [
-    "pytest>=7.0",
-    "mypy>=1.0",
-    "flake8>=6.0",
+ dev = [
+     "pytest>=7.0",
+     "mypy>=1.0",
+     "flake8>=6.0",
+     "pytest-cov>=5.0",
     "pylint>=3.0",
     "bandit>=1.7",
     "pre-commit>=3.0",
