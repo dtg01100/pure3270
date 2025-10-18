@@ -20,7 +20,7 @@ jobs:
       new_versions: ${{ steps.set-versions.outputs.new_versions }}
       has_new: ${{ steps.set-versions.outputs.has_new }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -59,7 +59,7 @@ jobs:
         python-version: ${{ fromJson(needs.detect-versions.outputs.new_versions) }}
       fail-fast: false  # Continue testing other versions even if one fails
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -107,7 +107,7 @@ jobs:
       pull-requests: write
       issues: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Python 3.13
         uses: actions/setup-python@v5
@@ -201,7 +201,7 @@ jobs:
     runs-on: ubuntu-latest
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install GitHub CLI
         run: |
