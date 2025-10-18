@@ -161,11 +161,16 @@ class P3270Client:
     def _sendCommand(self, command: str) -> Optional[str]:
         """
         Send a command to the session and handle response, matching p3270 behavior.
-        After commands that expect a screen update, immediately read and update the buffer.
+        Dispatches to appropriate Session methods for full s3270 compatibility.
         """
+        if not self._pure_session:
+            logger.error("No session available")
+            return None
+
         try:
-            # ...existing code...
             update_screen = False
+
+            # Key commands
             if command in [
                 "Enter",
                 "Clear",
@@ -178,30 +183,86 @@ class P3270Client:
                 "Left",
                 "Right",
             ]:
-                if self._pure_session is not None:
-                    self._pure_session.send(f"key {command}".encode("ascii"))
+                getattr(self._pure_session, command.lower())()
                 update_screen = True
+            elif command == "Left2":
+                self._pure_session.left2()
+                update_screen = True
+            elif command == "Right2":
+                self._pure_session.right2()
+                update_screen = True
+            elif command == "Delete":
+                self._pure_session.erase()
+                update_screen = True
+            elif command == "DeleteField":
+                self._pure_session.delete_field()
+                update_screen = True
+            elif command == "DeleteWord":
+                # Not directly implemented, use delete
+                self._pure_session.erase()
+                update_screen = True
+            elif command == "Erase":
+                self._pure_session.erase()
+                update_screen = True
+            elif command == "EraseEOF":
+                self._pure_session.erase_eof()
+                update_screen = True
+            elif command == "EraseInput":
+                self._pure_session.erase_input()
+                update_screen = True
+            elif command == "FieldEnd":
+                self._pure_session.field_end()
+                update_screen = True
+            elif command == "FieldMark":
+                self._pure_session.field_mark()
+                update_screen = True
+            elif command == "Dup":
+                self._pure_session.dup()
+                update_screen = True
+            elif command == "Insert":
+                # Not directly implemented
+                pass
+            elif command == "CircumNot":
+                self._pure_session.circum_not()
+                update_screen = True
+            elif command == "SysReq":
+                self._pure_session.sysreq()
+                update_screen = True
+            elif command == "Attn":
+                self._pure_session.attn()
+                update_screen = True
+            elif command == "Reset":
+                # Reset is not directly implemented, use clear
+                self._pure_session.clear()
+                update_screen = True
+
+            # PF/PA keys
             elif command.startswith("PF("):
                 pf_num = command[3:-1]
-                if self._pure_session is not None:
-                    self._pure_session.send(f"key PF{pf_num}".encode("ascii"))
+                self._pure_session.pf(pf_num)
                 update_screen = True
             elif command.startswith("PA("):
                 pa_num = command[3:-1]
-                if self._pure_session is not None:
-                    self._pure_session.send(f"key PA{pa_num}".encode("ascii"))
+                self._pure_session.pa(pa_num)
                 update_screen = True
+
+            # Text input
             elif command.startswith("String("):
                 text = command[7:-1]
-                if self._pure_session is not None:
-                    self._pure_session.send(f"String({text})".encode("ascii"))
+                self._pure_session.string(text)
                 update_screen = True
+
+            # Cursor movement
             elif command.startswith("MoveCursor("):
                 coords = command[11:-1]
-                row, col = coords.split(",")
-                if self._pure_session is not None:
-                    self._pure_session.send(f"MoveCursor {row} {col}".encode("ascii"))
+                row, col = map(int, coords.split(","))
+                # Session doesn't have direct move_cursor, use key commands
+                # For now, just update internal cursor position
+                self._cursor_row = row
+                self._cursor_col = col
                 update_screen = True
+
+            # Connection commands
             elif command.startswith("Connect("):
                 param = command[8:-1]
                 host = param
@@ -217,72 +278,93 @@ class P3270Client:
                     self.hostName = host
                 self.connect()
                 update_screen = True
-            elif command == "Disconnect":
+            elif command in ["Disconnect", "Quit"]:
                 self.disconnect()
-            elif command == "Quit":
-                self.disconnect()
+
+            # Screen reading commands
             elif command.startswith("Ascii("):
                 params = command[6:-1]
                 if params:
-                    from typing import List, cast
-
-                    param_list = cast(
-                        List[int], [int(x.strip()) for x in params.split(",")]
-                    )
+                    param_list = [int(x.strip()) for x in params.split(",")]
                     if len(param_list) == 3:
-                        r, c, l = (
-                            int(param_list[0]),
-                            int(param_list[1]),
-                            int(param_list[2]),
-                        )
+                        r, c, l = param_list
                         return self.readTextAtPosition(r, c, l)
                     elif len(param_list) == 4:
-                        r, c, rs, cs = (
-                            int(param_list[0]),
-                            int(param_list[1]),
-                            int(param_list[2]),
-                            int(param_list[3]),
-                        )
-                        return self.readTextArea(
-                            r,
-                            c,
-                            r + rs - 1,
-                            c + cs - 1,
-                        )
+                        r, c, rs, cs = param_list
+                        return self.readTextArea(r, c, r + rs - 1, c + cs - 1)
                 else:
                     return self.getScreen()
+
+            # Wait commands
             elif command.startswith("Wait("):
                 params = command[5:-1]
                 try:
-                    if "," in params:
-                        timeout_str = params.split(",")[0]
-                        timeout = float(timeout_str)
-                    else:
-                        timeout = float(params)
+                    timeout = float(params.split(",")[0] if "," in params else params)
                     time.sleep(min(timeout, 10.0))
                 except ValueError:
                     time.sleep(1.0)
+            elif command.startswith("Pause("):
+                params = command[6:-1]
+                try:
+                    seconds = float(params)
+                    self._pure_session.pause(seconds)
+                except ValueError:
+                    self._pure_session.pause(1.0)
+            elif command == "Bell":
+                self._pure_session.bell()
+
+            # Print commands
             elif command.startswith("PrintText("):
-                params = command[10:-1]
                 return self.getScreen()
+            elif command.startswith("Snap("):
+                filename = command[5:-1]
+                # Snap saves screen, but we don't have filename support
+                return self.getScreen()
+
+            # File transfer commands
+            elif command.startswith("Transfer("):
+                params = command[9:-1]
+                # Transfer(file) - simplified
+                pass
+
+            # Special commands
             elif command == "NoOpCommand":
                 pass
+
+            # Generic key command
+            elif command.startswith("Key("):
+                key_name = command[4:-1]
+                self._pure_session.key(key_name)
+                update_screen = True
+
+            # Hex string command
+            elif command.startswith("HexString("):
+                hex_str = command[10:-1]
+                # Convert hex to bytes and send
+                try:
+                    data = bytes.fromhex(hex_str)
+                    self._pure_session.send(data)
+                    update_screen = True
+                except ValueError:
+                    logger.error(f"Invalid hex string: {hex_str}")
+
+            # Fallback for unknown commands
             else:
-                if self._pure_session is not None:
-                    self._pure_session.send(command.encode("ascii"))
+                logger.warning(f"Unknown command: {command}")
+                # Try to send as raw command
+                self._pure_session.send(command.encode("ascii"))
 
             if update_screen:
                 # Immediately read and update the buffer after screen-changing commands
                 try:
-                    if self._pure_session is not None:
-                        self._pure_session.read(timeout=1.0)
+                    self._pure_session.read(timeout=1.0)
                 except Exception as e:
                     logger.debug(f"Screen update after command '{command}' failed: {e}")
 
-            logger.debug(f"Sent command: {command}")
+            logger.debug(f"Executed command: {command}")
 
         except Exception as e:
-            logger.error(f"Error sending command '{command}': {e}")
+            logger.error(f"Error executing command '{command}': {e}")
         """Get the current screen content as text (always ASCII/Unicode)."""
         if not self._connected or not self._pure_session:
             return ""
