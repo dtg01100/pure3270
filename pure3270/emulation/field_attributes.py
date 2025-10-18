@@ -50,6 +50,7 @@ class AttributeType(Enum):
     OUTLINING = "outlining"
     LIGHT_PEN = "light_pen"
     BACKGROUND = "background"
+    CHARACTER_SET = "character_set"
 
 
 class ExtendedAttribute(ABC):
@@ -248,6 +249,8 @@ class ExtendedAttributeSet:
                     attr = LightPenAttribute()
                 elif attr_type == AttributeType.BACKGROUND.value:
                     attr = BackgroundAttribute()
+                elif attr_type == AttributeType.CHARACTER_SET.value:
+                    attr = CharacterSetAttribute()
                 else:
                     logger.warning(f"Unknown attribute type '{attr_type}', skipping")
                     continue
@@ -651,8 +654,12 @@ class ValidationAttribute(ExtendedAttribute):
             return False, "Field is mandatory"
 
         # Check numeric
-        if self.has_validation(self.NUMERIC) and not input_text.isdigit():
-            return False, "Field must contain only numeric characters"
+        if self.has_validation(self.NUMERIC):
+            # For numeric validation, allow only digits, signs, and decimals
+            import re
+
+            if not re.match(r"^[+-]?\d+(\.\d+)?$", input_text.strip()):
+                return False, "Field must contain only numeric characters"
 
         # Check alphabetic
         if self.has_validation(self.ALPHABETIC) and not input_text.isalpha():
@@ -1025,5 +1032,82 @@ class BackgroundAttribute(ExtendedAttribute):
         """
         if "value" not in data:
             raise ValueError("Background color attribute data missing 'value' field")
+
+        self._value = self._validate_and_normalize(data["value"])
+
+
+class CharacterSetAttribute(ExtendedAttribute):
+    """Character set attribute for field-specific character set selection.
+
+    Supports various character sets as defined in 3270 and TN3270E specifications
+    including APL, Katakana, and user-defined character sets.
+    """
+
+    # Standard 3270 character sets
+    CHARACTER_SETS = {
+        0x00: "default",  # Default character set
+        0x01: "apl",  # APL character set
+        0x02: "katakana",  # Katakana character set
+        0x03: "user1",  # User-defined character set 1
+        0x04: "user2",  # User-defined character set 2
+        0x05: "user3",  # User-defined character set 3
+        0x06: "user4",  # User-defined character set 4
+    }
+
+    def __init__(self, value: Union[int, str] = 0) -> None:
+        """Initialize character set attribute."""
+        super().__init__(value)
+
+    def _validate_and_normalize(self, value: Union[int, str]) -> int:
+        """Validate and normalize character set value."""
+        if isinstance(value, str):
+            # Convert string names to values
+            for cs_value, cs_name in self.CHARACTER_SETS.items():
+                if cs_name == value.lower():
+                    return cs_value
+            raise ValueError(f"Invalid character set name: {value}")
+
+        if isinstance(value, int):
+            if 0 <= value <= 0xFF:
+                return value
+            else:
+                raise ValueError(f"Character set value must be 0-255, got {value}")
+        else:
+            raise ValueError(
+                f"Character set value must be int or string, got {type(value)}"
+            )
+
+    def get_character_set_name(self) -> Optional[str]:
+        """Get the name of the character set."""
+        return self.CHARACTER_SETS.get(self._value, f"unknown_{self._value}")
+
+    def is_default(self) -> bool:
+        """Check if this is the default character set."""
+        return self._value == 0x00
+
+    def is_apl(self) -> bool:
+        """Check if this is the APL character set."""
+        return self._value == 0x01
+
+    def is_katakana(self) -> bool:
+        """Check if this is the Katakana character set."""
+        return self._value == 0x02
+
+    def is_user_defined(self) -> bool:
+        """Check if this is a user-defined character set."""
+        return 0x03 <= self._value <= 0x06
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert character set attribute to dictionary."""
+        return {
+            "type": AttributeType.CHARACTER_SET.value,
+            "value": self._value,
+            "name": self.get_character_set_name(),
+        }
+
+    def from_dict(self, data: Dict[str, Any]) -> None:
+        """Load character set attribute from dictionary."""
+        if "value" not in data:
+            raise ValueError("Character set attribute data missing 'value' field")
 
         self._value = self._validate_and_normalize(data["value"])

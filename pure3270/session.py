@@ -471,6 +471,126 @@ class Session:
         assert self._async_session is not None  # Ensured by decorator
         self._run_async(self._async_session.key(keyname))
 
+    @_require_connected_session
+    def submit(self, aid: int) -> None:
+        """Submit with AID synchronously."""
+        assert self._async_session is not None  # Ensured by decorator
+        self._run_async(self._async_session.submit(aid))
+
+    @_require_connected_session
+    def home(self) -> None:
+        """Move cursor to home position."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.home())
+
+    @_require_connected_session
+    def up(self) -> None:
+        """Move cursor up."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.up())
+
+    @_require_connected_session
+    def down(self) -> None:
+        """Move cursor down."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.down())
+
+    @_require_connected_session
+    def tab(self) -> None:
+        """Move cursor to next tab stop."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.tab())
+
+    @_require_connected_session
+    def backtab(self) -> None:
+        """Move cursor to previous tab stop."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.backtab())
+
+    @_require_connected_session
+    def backspace(self) -> None:
+        """Send backspace key."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.backspace())
+
+    @_require_connected_session
+    def enter(self) -> None:
+        """Send Enter key."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.enter())
+
+    @_require_connected_session
+    def pf(self, n: str) -> None:
+        """Send PF key."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.pf(n))
+
+    @_require_connected_session
+    def pa(self, n: str) -> None:
+        """Send PA key."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.pa(n))
+
+    @_require_connected_session
+    def erase(self) -> None:
+        """Erase entire screen."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.erase())
+
+    @_require_connected_session
+    def erase_eof(self) -> None:
+        """Erase to end of field."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.erase_eof())
+
+    @_require_connected_session
+    def erase_input(self) -> None:
+        """Erase all input fields."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.erase_input())
+
+    @_require_connected_session
+    def field_end(self) -> None:
+        """Move cursor to end of field."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.field_end())
+
+    @_require_connected_session
+    def field_mark(self) -> None:
+        """Set field mark."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.field_mark())
+
+    @_require_connected_session
+    def dup(self) -> None:
+        """Duplicate character."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.dup())
+
+    @_require_connected_session
+    def field_exit(self) -> None:
+        """Exit field."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.field_exit())
+
+    @_require_connected_session
+    def sysreq(self) -> None:
+        """Send SysReq key."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.sysreq())
+
+    @_require_connected_session
+    def attn(self) -> None:
+        """Send Attention key."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.attn())
+
+    @_require_connected_session
+    def test(self) -> None:
+        """Send Test key."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.test())
+
 
 class AsyncSession:
     """
@@ -518,7 +638,13 @@ class AsyncSession:
         self._enable_trace = enable_trace
         self._terminal_type = terminal_type
         self._handler: Optional[TN3270Handler] = None
-        self._screen_buffer: Optional[ScreenBuffer] = None
+
+        # Initialize screen buffer
+        from .protocol.utils import get_screen_size
+
+        rows, cols = get_screen_size(self._terminal_type)
+        self._screen_buffer = ScreenBuffer(rows, cols)
+
         self._connected = False
         self._trace_events: List[Any] = []
         self._aid = None
@@ -543,9 +669,12 @@ class AsyncSession:
     @property
     def screen_buffer(self) -> ScreenBuffer:
         """Get the screen buffer."""
-        if self._screen_buffer is None:
-            raise SessionError("Session not connected.")
         return self._screen_buffer
+
+    @property
+    def screen(self) -> ScreenBuffer:
+        """Get the screen buffer (alias for screen_buffer)."""
+        return self.screen_buffer
 
     async def connect(
         self,
@@ -697,6 +826,10 @@ class AsyncSession:
         # Implementation needed
         pass
 
+    async def string(self, text: str) -> None:
+        """Send string to the session."""
+        await self.insert_text(text)
+
     async def circum_not(self) -> None:
         """Toggle circumvention."""
         # Implementation needed
@@ -828,6 +961,109 @@ class AsyncSession:
         await self.close()
         await self.connect()
 
+    async def home(self) -> None:
+        """Move cursor to home position."""
+        await self.key("Home")
+
+    async def up(self) -> None:
+        """Move cursor up."""
+        await self.key("Up")
+
+    async def down(self) -> None:
+        """Move cursor down."""
+        await self.key("Down")
+
+    async def tab(self) -> None:
+        """Move cursor to next tab stop."""
+        await self.key("Tab")
+
+    async def backtab(self) -> None:
+        """Move cursor to previous tab stop."""
+        await self.key("BackTab")
+
+    async def backspace(self) -> None:
+        """Send backspace key."""
+        await self.key("BackSpace")
+
+    async def enter(self) -> None:
+        """Send Enter key."""
+        await self.key("Enter")
+
+    async def clear(self) -> None:
+        """Send Clear key."""
+        await self.key("Clear")
+
+    async def pf(self, n: str) -> None:
+        """Send PF key."""
+        await self.key(f"PF({n})")
+
+    async def pa(self, n: str) -> None:
+        """Send PA key."""
+        await self.key(f"PA({n})")
+
+    async def macro(self, commands: List[str]) -> None:
+        """Execute a sequence of commands."""
+        for command in commands:
+            await self._execute_macro_command(command)
+
+    async def _execute_macro_command(self, command: str) -> None:
+        """Execute a single macro command."""
+        command = command.strip()
+        if not command:
+            return
+
+        # Parse command like "String(text)" or "key Enter"
+        if command.startswith("String("):
+            # Extract text from String(text)
+            text = command[7:-1]  # Remove "String(" and ")"
+            await self.string(text)
+        elif command.startswith("key "):
+            # Extract key name from "key Enter"
+            key_name = command[4:]
+            await self.key(key_name)
+        else:
+            raise ValueError(f"Unsupported macro command: {command}")
+
+    async def erase(self) -> None:
+        """Erase entire screen."""
+        await self.key("Erase")
+
+    async def erase_eof(self) -> None:
+        """Erase to end of field."""
+        await self.key("EraseEOF")
+
+    async def erase_input(self) -> None:
+        """Erase all input fields."""
+        await self.key("EraseInput")
+
+    async def field_end(self) -> None:
+        """Move cursor to end of field."""
+        await self.key("FieldEnd")
+
+    async def field_mark(self) -> None:
+        """Set field mark."""
+        await self.key("FieldMark")
+
+    async def dup(self) -> None:
+        """Duplicate character."""
+        await self.key("Dup")
+
+    async def field_exit(self) -> None:
+        """Exit field."""
+        await self.key("FieldExit")
+
+    async def sysreq(self) -> None:
+        """Send SysReq key."""
+        await self.key("SysReq")
+
+    async def attn(self) -> None:
+        """Send Attention key."""
+        await self.key("Attn")
+
+    async def test(self) -> None:
+        """Send Test key."""
+        await self.key("Test")
+
     async def screen_trace(self) -> None:
         """Screen trace."""
         pass
@@ -943,8 +1179,13 @@ class AsyncSession:
         """Start LU-LU session."""
         from .lu_lu_session import LuLuSession
 
-        lu_lu_session = LuLuSession(self)
-        await lu_lu_session.start(lu_name)
+        self._lu_lu_session = LuLuSession(self)
+        await self._lu_lu_session.start(lu_name)
+
+    @property
+    def lu_lu_session(self) -> Any:
+        """Get the current LU-LU session if active."""
+        return getattr(self, "_lu_lu_session", None)
 
     async def load_resource_definitions(self, file_path: str) -> None:
         """Load resources."""
@@ -1092,5 +1333,10 @@ class AsyncSession:
 
     async def submit(self, aid: int) -> None:
         """Submit with AID."""
-        # Implementation needed
-        pass
+        if not self._handler:
+            raise SessionError("Session not connected.")
+
+        # Send the AID byte
+        aid_data = bytes([aid])
+        await self._handler.send_data(aid_data)
+        logger.debug(f"Submitted AID: 0x{aid:02x}")

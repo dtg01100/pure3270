@@ -2071,15 +2071,91 @@ class DataStreamParser:
             logger.warning("Received empty SCS control codes data")
 
     def _handle_soh(self) -> None:
-        """Handle Start of Header (SOH) for printer status."""
+        """Handle Start of Header (SOH) for printer status with comprehensive message format support."""
         # Read the status byte that follows SOH
         status = self._read_byte()
         logger.debug(f"Received SOH with status: 0x{status:02x}")
+
+        # Handle different SOH status message formats
+        if status == 0x25:  # '%' - Status message format indicator
+            self._handle_soh_status_message()
+        elif status & 0x80:  # High bit set - Intervention Required
+            self._handle_soh_intervention_required(status)
+        elif status & 0x40:  # Bit 6 set - Device End
+            self._handle_soh_device_end(status)
+        else:
+            # Standard status code
+            self._handle_soh_standard_status(status)
+
+    def _handle_soh_status_message(self) -> None:
+        """Handle SOH status message with extended format (% R S1 S2 IAC EOR)."""
+        # Read the message format indicators
+        r_code = self._read_byte()  # R - Response code
+        s1_code = self._read_byte()  # S1 - Status code 1
+        s2_code = self._read_byte()  # S2 - Status code 2
+
+        logger.debug(
+            f"SOH status message: R=0x{r_code:02x}, S1=0x{s1_code:02x}, S2=0x{s2_code:02x}"
+        )
+
+        # Check for IAC EOR sequence that may follow
+        if self._pos < len(self._data) and self._data[self._pos] == 0xFF:  # IAC
+            self._read_byte()  # Consume IAC
+            if (
+                self._pos < len(self._data) and self._data[self._pos] == 0xEF
+            ):  # EOR (239 decimal = 0xEF)
+                self._read_byte()  # Consume EOR
+                logger.debug("SOH status message includes IAC EOR sequence")
+            else:
+                logger.warning("IAC not followed by EOR in SOH status message")
+
+        # Handle based on R code
+        if r_code == 0x52:  # 'R' - Response
+            self._handle_soh_response_status(s1_code, s2_code)
+        else:
+            logger.warning(f"Unknown SOH status message R code: 0x{r_code:02x}")
+
+    def _handle_soh_response_status(self, s1_code: int, s2_code: int) -> None:
+        """Handle SOH response status with S1 and S2 codes."""
+        # S1 and S2 contain specific status information
+        combined_status = (s1_code << 8) | s2_code
+        logger.debug(f"SOH response status: combined=0x{combined_status:04x}")
+
+        if self.printer:
+            self.printer.update_status(combined_status)
+        else:
+            logger.warning(
+                f"SOH response status 0x{combined_status:04x} but no printer buffer available"
+            )
+
+    def _handle_soh_intervention_required(self, status: int) -> None:
+        """Handle SOH Intervention Required status."""
+        logger.info(f"SOH Intervention Required: 0x{status:02x}")
         if self.printer:
             self.printer.update_status(status)
         else:
             logger.warning(
-                f"Received SOH status 0x{status:02x} but no printer buffer available"
+                f"SOH Intervention Required 0x{status:02x} but no printer buffer available"
+            )
+
+    def _handle_soh_device_end(self, status: int) -> None:
+        """Handle SOH Device End status."""
+        logger.info(f"SOH Device End: 0x{status:02x}")
+        if self.printer:
+            self.printer.update_status(status)
+        else:
+            logger.warning(
+                f"SOH Device End 0x{status:02x} but no printer buffer available"
+            )
+
+    def _handle_soh_standard_status(self, status: int) -> None:
+        """Handle standard SOH status codes."""
+        logger.debug(f"SOH standard status: 0x{status:02x}")
+        if self.printer:
+            self.printer.update_status(status)
+        else:
+            logger.warning(
+                f"SOH standard status 0x{status:02x} but no printer buffer available"
             )
 
     def _parse_bind_image(self, data: bytes) -> BindImage:

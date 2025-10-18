@@ -24,15 +24,106 @@ def setup_session():
 
 
 async def execute_command(command: str, args: List[str]) -> Any:
-    """Execute a command on the session."""
+    """Execute a command on the session with s3270 compatibility."""
     global session
     setup_session()
 
-    if not hasattr(session, command):
-        return f"error: unknown command '{command}'"
+    # Map s3270 commands to session methods
+    command_map = {
+        "Connect": "connect",
+        "Send": "send",
+        "Read": "read",
+        "Key": "key",
+        "String": "string",
+        "Ascii": "ascii",
+        "Ebcdic": "ebcdic",
+        "Ascii1": "ascii1",
+        "Ebcdic1": "ebcdic1",
+        "AsciiField": "ascii_field",
+        "EbcdicField": "ebcdic_field",
+        "Close": "close",
+        "Quit": "quit",
+        "Exit": "quit",
+        "Info": "info",
+        "Query": "query",
+        "PrintText": "print_text",
+        "Snap": "snap",
+        "Show": "show",
+        "Trace": "trace",
+        "Wait": "wait",
+        "Sleep": "sleep",
+        "Transfer": "transfer",
+        "Source": "source",
+        "Script": "script",
+        "Expect": "expect",
+        "Fail": "fail",
+        "Compose": "compose",
+        "Set": "set",
+        "Clear": "clear",
+        "Reset": "reset",
+        "Home": "home",
+        "Left": "left",
+        "Right": "right",
+        "Up": "up",
+        "Down": "down",
+        "Tab": "tab",
+        "BackTab": "backtab",
+        "BackSpace": "backspace",
+        "Enter": "enter",
+        "PF": "pf",
+        "PA": "pa",
+        "Insert": "insert",
+        "Delete": "delete",
+        "Erase": "erase",
+        "EraseEOF": "erase_eof",
+        "EraseInput": "erase_input",
+        "FieldEnd": "field_end",
+        "FieldMark": "field_mark",
+        "Dup": "dup",
+        "FieldExit": "field_exit",
+        "SysReq": "sysreq",
+        "Attn": "attn",
+        "Test": "test",
+        "CircumNot": "circum_not",
+        "CursorSelect": "cursor_select",
+        "DeleteField": "delete_field",
+        "Flip": "flip",
+        "InsertCursor": "insert_cursor",
+        "MoveCursor": "move_cursor",
+        "MoveCursor1": "move_cursor1",
+        "NextWord": "next_word",
+        "PreviousWord": "previous_word",
+        "RestoreInput": "restore_input",
+        "SaveInput": "save_input",
+        "ToggleInsert": "toggle_insert",
+        "ToggleReverse": "toggle_reverse",
+        "AnsiText": "ansi_text",
+        "Bell": "bell",
+        "HexString": "hex_string",
+        "Left2": "left2",
+        "MonoCase": "mono_case",
+        "NvtText": "nvt_text",
+        "Pause": "pause",
+        "Printer": "printer",
+        "Prompt": "prompt",
+        "ReadBuffer": "read_buffer",
+        "Reconnect": "reconnect",
+        "Right2": "right2",
+        "ScreenTrace": "screen_trace",
+        "Snap": "snap",
+        "SubjectNames": "subject_names",
+        "Toggle": "toggle",
+        "Wait": "wait",
+    }
+
+    # Map command to method name
+    method_name = command_map.get(command, command.lower())
+
+    if not hasattr(session, method_name):
+        return f"error: unknown command '{command}' (method '{method_name}' not found)"
 
     try:
-        method = getattr(session, command)
+        method = getattr(session, method_name)
 
         # Check if it's an async method
         if asyncio.iscoroutinefunction(method):
@@ -72,18 +163,44 @@ async def process_line(line: str) -> None:
                 command = parts[0]
                 args = parts[1:]
 
-        # Execute the command
-        result = await execute_command(command, args)
+        # Process arguments (handle hex strings for byte arguments)
+        processed_args = []
+        for arg in args:
+            # If argument looks like hex (only hex digits), convert to bytes
+            if isinstance(arg, str) and all(c in "0123456789abcdefABCDEF" for c in arg):
+                try:
+                    processed_args.append(bytes.fromhex(arg))
+                except ValueError:
+                    processed_args.append(arg)
+            else:
+                processed_args.append(arg)
 
-        # Output result if any
+        # Execute the command
+        result = await execute_command(command, processed_args)
+
+        # Output result if any (s3270 compatible format)
         if result is not None:
             if isinstance(result, str):
+                # For string results, output as-is (s3270 compatible)
                 print(result)
             elif isinstance(result, bytes):
-                print(result.hex())  # Print bytes as hex
-            else:
-                # Convert to JSON for complex results
+                # For bytes, output as hex (s3270 compatible)
+                print(result.hex())
+            elif isinstance(result, dict):
+                # For dictionaries, output as JSON
                 print(json.dumps(result))
+            elif isinstance(result, (int, float)):
+                # For numbers, output as string
+                print(str(result))
+            elif result is True:
+                print("true")
+            elif result is False:
+                print("false")
+            elif result is None:
+                print("ok")
+            else:
+                # For other types, try to convert to string
+                print(str(result))
 
     except Exception as e:
         print(f"error: {e}", file=sys.stderr)

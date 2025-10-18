@@ -125,7 +125,9 @@ class TestDataStreamProperties:
 
         # 1. Manually set a basic and an extended attribute at the same position.
         self.screen.set_attribute(0xC1, row=0, col=5)  # Basic attribute for a field
-        self.screen.set_extended_attribute(row=0, col=5, attr_type="color", value=0xF2) # Red
+        self.screen.set_extended_attribute(
+            row=0, col=5, attr_type="color", value=0xF2
+        )  # Red
 
         # 2. Manually trigger field detection.
         self.screen._detect_fields()

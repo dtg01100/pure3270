@@ -11,11 +11,14 @@ async def test_transparent_printing_integration():
     """Verify that AsyncSession correctly uses the DataFlowController when enabled."""
     # 1. Arrange
     # Patch the DataFlowController and the connect logic.
-    with patch(
-        "pure3270.session.DataFlowController", autospec=True
-    ) as MockDataFlowController, patch(
-        "pure3270.session.AsyncSession._perform_connect", new_callable=AsyncMock
-    ) as mock_connect:
+    with (
+        patch(
+            "pure3270.session.DataFlowController", autospec=True
+        ) as MockDataFlowController,
+        patch(
+            "pure3270.session.AsyncSession._perform_connect", new_callable=AsyncMock
+        ) as mock_connect,
+    ):
 
         # Instantiate the session with transparent printing enabled.
         session = AsyncSession(

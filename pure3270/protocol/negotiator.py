@@ -106,6 +106,7 @@ from .utils import (
     SNA_SENSE_CODE_NO_RESOURCES,
     SNA_SENSE_CODE_NOT_SUPPORTED,
     SNA_SENSE_CODE_SESSION_FAILURE,
+    SNA_SENSE_CODE_STATE_ERROR,
     SNA_SENSE_CODE_SUCCESS,
     TELOPT_BINARY,
     TELOPT_ECHO,
@@ -138,6 +139,7 @@ from .utils import (
 TN3270E_DEVICE_TYPE = 0x01
 TN3270E_FUNCTIONS = 0x02
 TN3270E_IS = 0x00
+TN3270E_REJECT = 0x01  # For TERMINAL-LOCATION rejection
 TN3270E_QUERY = 0x0F
 TN3270E_QUERY_IS = 0x00
 TN3270E_QUERY_SEND = 0x01
@@ -225,6 +227,9 @@ class Negotiator:
 
         self.negotiated_tn3270e = False
         self._lu_name: Optional[str] = None
+        self._selected_lu_name: Optional[str] = None
+        self._lu_selection_complete: bool = False
+        self._lu_selection_error: bool = False
 
         # Set screen dimensions based on terminal type
         from .utils import get_screen_size
@@ -262,6 +267,7 @@ class Negotiator:
         )  # To store pending requests for response correlation
         self._device_type_is_event: Optional[asyncio.Event] = None
         self._functions_is_event: Optional[asyncio.Event] = None
+        self._lu_selection_event: Optional[asyncio.Event] = None
         self._negotiation_complete: Optional[asyncio.Event] = (
             None  # Event for full negotiation completion
         )
@@ -427,6 +433,16 @@ class Negotiator:
             else:
                 self._functions_is_event = asyncio.Event()
         return self._functions_is_event
+
+    def _get_or_create_lu_selection_event(self) -> asyncio.Event:
+        if not hasattr(self, "_lu_selection_event") or self._lu_selection_event is None:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            self._lu_selection_event = asyncio.Event()
+        return self._lu_selection_event
 
     def _get_or_create_negotiation_complete(self) -> asyncio.Event:
         if self._negotiation_complete is None:
@@ -1801,6 +1817,87 @@ class Negotiator:
         send_subnegotiation(self.writer, bytes([TELOPT_NEW_ENVIRON]), bytes(response))
         await self.writer.drain()
 
+    async def _handle_terminal_location_subnegotiation(
+        self, sub_payload: bytes
+    ) -> None:
+        """
+        Handle TERMINAL-LOCATION subnegotiation per RFC 1646.
+
+        Args:
+            sub_payload: The subnegotiation payload.
+        """
+        logger.info(
+            f"[TERMINAL-LOCATION] Processing subnegotiation: {sub_payload.hex()}"
+        )
+
+        if len(sub_payload) < 1:
+            logger.warning("[TERMINAL-LOCATION] Subnegotiation payload too short")
+            return
+
+        subcommand = sub_payload[0]
+
+        if subcommand == TN3270E_IS:
+            # Server is responding with IS <lu_name>
+            if len(sub_payload) > 1:
+                lu_name_bytes = sub_payload[1:]
+                try:
+                    selected_lu = lu_name_bytes.decode("ascii").rstrip("\x00")
+                    logger.info(
+                        f"[TERMINAL-LOCATION] Server selected LU: '{selected_lu}'"
+                    )
+
+                    # Validate that the selected LU matches what we requested
+                    if self._lu_name and selected_lu != self._lu_name:
+                        logger.warning(
+                            f"[TERMINAL-LOCATION] Server selected LU '{selected_lu}' "
+                            f"but we requested '{self._lu_name}'"
+                        )
+                    elif not self._lu_name:
+                        logger.info(
+                            f"[TERMINAL-LOCATION] Server assigned LU '{selected_lu}' "
+                            f"(no specific LU requested)"
+                        )
+
+                    # Store the selected LU name
+                    self._selected_lu_name = selected_lu
+                    self._lu_selection_complete = True
+
+                    # Set event to signal LU selection completion
+                    self._get_or_create_lu_selection_event().set()
+
+                except UnicodeDecodeError:
+                    logger.error(
+                        f"[TERMINAL-LOCATION] Failed to decode LU name: {lu_name_bytes.hex()}"
+                    )
+            else:
+                logger.info(
+                    "[TERMINAL-LOCATION] Server confirmed LU selection (no specific LU)"
+                )
+                self._lu_selection_complete = True
+                self._get_or_create_lu_selection_event().set()
+
+        elif subcommand == TN3270E_REJECT:
+            # Server rejected our LU selection
+            logger.error("[TERMINAL-LOCATION] Server rejected LU selection")
+            if len(sub_payload) > 1:
+                reason_bytes = sub_payload[1:]
+                try:
+                    reason = reason_bytes.decode("ascii").rstrip("\x00")
+                    logger.error(f"[TERMINAL-LOCATION] Rejection reason: '{reason}'")
+                except UnicodeDecodeError:
+                    logger.error(
+                        f"[TERMINAL-LOCATION] Failed to decode rejection reason: {reason_bytes.hex()}"
+                    )
+
+            # Set error state for LU selection
+            self._lu_selection_error = True
+            self._get_or_create_lu_selection_event().set()
+
+        else:
+            logger.warning(
+                f"[TERMINAL-LOCATION] Unknown subcommand 0x{subcommand:02x} in subnegotiation"
+            )
+
     async def handle_subnegotiation(self, option: int, sub_payload: bytes) -> None:
         """
         Handle Telnet subnegotiation for non-TN3270E options.
@@ -1824,6 +1921,9 @@ class Negotiator:
         elif option == TELOPT_NEW_ENVIRON:
             # NEW_ENVIRON subnegotiation - proper RFC 1572 implementation
             await self._handle_new_environ_subnegotiation(sub_payload)
+        elif option == TELOPT_TERMINAL_LOCATION:
+            # TERMINAL-LOCATION subnegotiation - RFC 1646 LU name selection
+            await self._handle_terminal_location_subnegotiation(sub_payload)
         elif option == TELOPT_TN3270E:
             # This should have been handled by the specialized method, but handle it here as fallback
             await self._parse_tn3270e_subnegotiation(bytes([option]) + sub_payload)
@@ -2441,18 +2541,19 @@ class Negotiator:
 
     async def _handle_sna_response(self, sna_response: SnaResponse) -> None:
         """
-        Handle SNA response from the mainframe.
+        Handle SNA response from the mainframe with comprehensive error recovery.
 
         Args:
             sna_response: The SNA response to handle.
         """
         logger.debug(f"[SNA] Handling SNA response: {sna_response}")
 
-        # Handle different SNA response types
+        # Handle different SNA response types and sense codes
         if sna_response.sense_code == SNA_SENSE_CODE_SUCCESS:
             logger.debug("[SNA] SNA response indicates success")
             # Reset session state on success
             self._sna_session_state = SnaSessionState.NORMAL
+
         elif sna_response.sense_code == SNA_SENSE_CODE_LU_BUSY:
             logger.warning("[SNA] LU busy, will retry after delay")
             self._sna_session_state = SnaSessionState.ERROR
@@ -2460,6 +2561,7 @@ class Negotiator:
             await asyncio.sleep(1)
             if hasattr(self, "is_bind_image_active") and self.is_bind_image_active:
                 await self._resend_request("BIND-IMAGE", self._next_seq_number)
+
         elif sna_response.sense_code == SNA_SENSE_CODE_SESSION_FAILURE:
             logger.error("[SNA] Session failure, attempting re-negotiation")
             self._sna_session_state = SnaSessionState.ERROR
@@ -2469,12 +2571,79 @@ class Negotiator:
             except Exception as e:
                 logger.error(f"[SNA] Re-negotiation failed: {e}")
                 self._sna_session_state = SnaSessionState.SESSION_DOWN
+
+        elif sna_response.sense_code == SNA_SENSE_CODE_INVALID_FORMAT:
+            logger.error("[SNA] Invalid message format in SNA response")
+            self._sna_session_state = SnaSessionState.ERROR
+            # For invalid format, we may need to reset the data stream
+            if hasattr(self, "parser") and self.parser:
+                self.parser.clear_validation_errors()
+
+        elif sna_response.sense_code == SNA_SENSE_CODE_NOT_SUPPORTED:
+            logger.error("[SNA] Requested function not supported")
+            self._sna_session_state = SnaSessionState.ERROR
+            # Log the unsupported function for debugging
+            logger.debug(f"[SNA] Unsupported function details: {sna_response}")
+
+        elif sna_response.sense_code == SNA_SENSE_CODE_INVALID_REQUEST:
+            logger.error("[SNA] Invalid request in SNA response")
+            self._sna_session_state = SnaSessionState.ERROR
+            # May need to clear pending requests or reset state
+
+        elif sna_response.sense_code == SNA_SENSE_CODE_INVALID_SEQUENCE:
+            logger.error("[SNA] Invalid sequence in SNA response")
+            self._sna_session_state = SnaSessionState.ERROR
+            # Sequence errors may require resynchronization
+            await self._handle_sequence_error()
+
+        elif sna_response.sense_code == SNA_SENSE_CODE_NO_RESOURCES:
+            logger.warning("[SNA] No resources available, will retry")
+            self._sna_session_state = SnaSessionState.ERROR
+            # Implement exponential backoff for resource retry
+            await asyncio.sleep(2)
+            # Retry the last operation if possible
+
+        elif sna_response.sense_code == SNA_SENSE_CODE_STATE_ERROR:
+            logger.error("[SNA] State error in SNA response")
+            self._sna_session_state = SnaSessionState.ERROR
+            # State errors may require session reset
+            await self._handle_state_error()
+
         else:
             logger.error(
-                f"[SNA] SNA error response: sense_code={sna_response.sense_code}"
+                f"[SNA] Unhandled SNA error response: sense_code=0x{sna_response.sense_code:04x}"
             )
             self._sna_session_state = SnaSessionState.ERROR
-            # Could raise an exception or handle recovery here
+            # For unknown errors, log details for debugging
+            logger.debug(f"[SNA] Unknown error details: {sna_response}")
+
+    async def _handle_sequence_error(self) -> None:
+        """
+        Handle sequence errors in SNA responses.
+        Sequence errors typically require resynchronization of request/response correlation.
+        """
+        logger.warning("[SNA] Handling sequence error - resynchronizing")
+        # Clear pending requests to prevent further sequence issues
+        self._pending_requests.clear()
+        # Reset sequence number to resynchronize
+        self._next_seq_number = 0
+        # Reset any session state that depends on sequence
+        self._sna_session_state = SnaSessionState.NORMAL
+
+    async def _handle_state_error(self) -> None:
+        """
+        Handle state errors in SNA responses.
+        State errors may require session reset or re-negotiation.
+        """
+        logger.warning("[SNA] Handling state error - resetting session state")
+        # Reset session state
+        self._sna_session_state = SnaSessionState.NORMAL
+        # Clear any cached state
+        if hasattr(self, "is_bind_image_active"):
+            self.is_bind_image_active = False
+        # Reset parser state if available
+        if hasattr(self, "parser") and self.parser:
+            self.parser.clear_validation_errors()
 
     async def _resend_request(self, request_type: str, seq_number: int) -> None:
         """

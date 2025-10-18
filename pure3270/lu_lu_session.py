@@ -6,24 +6,35 @@ logger = logging.getLogger(__name__)
 
 
 class LuLuSession:
-    """LU-LU session support for SNA communications between Logical Units."""
+    """LU-LU session support for SNA communications between Logical Units.
+
+    Provides structured field-based communication for LU-LU sessions as defined
+    in SNA and 3270 protocols, enabling application-to-application communication
+    through the 3270 data stream.
+    """
 
     def __init__(self, session: Any) -> None:
         self.session = session
         self.lu_name: Optional[str] = None
         self.is_active = False
         self.session_id = None
+        self._data_queue: asyncio.Queue[bytes] = asyncio.Queue()
+        self._response_handlers: Dict[int, Any] = {}
 
     async def start(self, lu_name: str) -> None:
         """Start an LU-LU session with the specified LU name."""
         self.lu_name = lu_name
         logger.info(f"Starting LU-LU session with LU: {lu_name}")
 
-        # Create BIND-IMAGE data for LU-LU session
-        # This is a simplified BIND-IMAGE for LU-LU communication
+        # Create comprehensive BIND-IMAGE data for LU-LU session
         bind_image_data = self._create_bind_image_data()
 
+        # Send BIND-IMAGE structured field
         await self._send_bind_command(bind_image_data)
+
+        # Wait for BIND response (simplified - in real implementation would handle SNA response)
+        await asyncio.sleep(0.1)  # Brief pause for response
+
         self.is_active = True
         logger.info(f"LU-LU session started successfully with LU: {lu_name}")
 
@@ -31,77 +42,140 @@ class LuLuSession:
         """End the LU-LU session."""
         if self.is_active:
             logger.info(f"Ending LU-LU session with LU: {self.lu_name}")
-            # Send UNBIND or session termination
-            # For now, just mark as inactive
+
+            # Send UNBIND structured field
+            await self._send_unbind_command()
+
             self.is_active = False
             self.lu_name = None
+
+            # Clear any pending data
+            while not self._data_queue.empty():
+                try:
+                    self._data_queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+
             logger.info("LU-LU session ended")
 
     async def send_data(self, data: bytes) -> None:
-        """Send data through the LU-LU session."""
+        """Send data through the LU-LU session using outbound 3270DS structured field."""
         if not self.is_active:
             raise RuntimeError("LU-LU session not active")
 
         logger.debug(f"Sending {len(data)} bytes through LU-LU session")
-        # Wrap data in appropriate structured field for LU-LU communication
-        await self._send_data(data)
+
+        # Wrap data in outbound 3270DS structured field
+        await self._send_outbound_3270ds(data)
 
     async def receive_data(self) -> bytes:
         """Receive data from the LU-LU session."""
         if not self.is_active:
             raise RuntimeError("LU-LU session not active")
 
-        # This would need to be implemented to handle incoming LU-LU data
-        # For now, return empty bytes
-        logger.debug("Receiving data through LU-LU session (placeholder)")
-        return b""
+        try:
+            # Wait for data with timeout
+            data = await asyncio.wait_for(self._data_queue.get(), timeout=30.0)
+            logger.debug(f"Received {len(data)} bytes through LU-LU session")
+            return data
+        except asyncio.TimeoutError:
+            logger.warning("Timeout waiting for LU-LU data")
+            return b""
 
     def _create_bind_image_data(self) -> bytes:
-        """Create BIND-IMAGE data for LU-LU session establishment."""
-        # BIND-IMAGE format for LU-LU sessions
-        # This is a simplified version - real SNA would be much more complex
-        return bytes(
+        """Create comprehensive BIND-IMAGE data for LU-LU session establishment."""
+        # BIND-IMAGE structured field subfields for LU-LU session
+        # Based on RFC 2355 and SNA specifications
+
+        # Presentation Space Characteristics (PSC)
+        psc_data = bytes(
             [
-                0x01,  # PSC (Presentation Space Characteristics)
-                0x04,
-                0x00,
-                0x18,
-                0x00,
-                0x50,  # rows=24, cols=80
-                0x02,  # Query Reply IDs
-                0x03,
-                0x81,
-                0x84,
-                0x85,  # query types
+                0x01,  # PSC subfield ID
+                0x04,  # Length
+                0x00,  # Flags
+                0x18,  # Rows (24)
+                0x50,  # Columns (80)
             ]
         )
 
+        # Query Reply IDs
+        query_reply_data = bytes(
+            [
+                0x02,  # Query Reply IDs subfield
+                0x03,  # Length
+                0x81,  # Query type: Usable Area
+                0x84,  # Query type: Character Sets
+                0x85,  # Query type: Color
+            ]
+        )
+
+        # Combine subfields
+        return psc_data + query_reply_data
+
     async def _send_bind_command(self, data: bytes) -> None:
-        """Send a BIND command to establish the LU-LU session."""
-        length = len(data) + 4
+        """Send a BIND-IMAGE structured field to establish the LU-LU session."""
+        # BIND-IMAGE structured field format
+        length = len(data) + 4  # SF header + data
         header = bytes(
             [
-                0x3C,  # structured field identifier
-                (length >> 8) & 0xFF,
-                length & 0xFF,
+                0x3C,  # Structured field identifier
+                (length >> 8) & 0xFF,  # Length high byte
+                length & 0xFF,  # Length low byte
                 0x03,  # BIND-IMAGE type
             ]
         )
-        await self.session.send(header + data)
 
-    async def _send_data(self, data: bytes) -> None:
-        """Send data wrapped in appropriate structured field."""
-        # Use outbound 3270DS structured field for LU-LU data
-        length = len(data) + 3  # SF + length(2) + type(1) + data
+        full_message = header + data
+        logger.debug(f"Sending BIND-IMAGE structured field ({len(full_message)} bytes)")
+        await self.session.send(full_message)
+
+    async def _send_unbind_command(self) -> None:
+        """Send an UNBIND structured field to terminate the LU-LU session."""
+        # UNBIND structured field (simplified)
+        unbind_data = bytes([0x01])  # UNBIND type
+        length = len(unbind_data) + 4
         header = bytes(
             [
-                0x88,  # structured field identifier
+                0x3C,  # Structured field identifier
                 (length >> 8) & 0xFF,
                 length & 0xFF,
-                0x40,  # OUTBOUND_3270DS_SF_TYPE
+                0x04,  # UNBIND type (placeholder)
             ]
         )
-        await self.session.send(header + data)
+
+        full_message = header + unbind_data
+        logger.debug(f"Sending UNBIND structured field ({len(full_message)} bytes)")
+        await self.session.send(full_message)
+
+    async def _send_outbound_3270ds(self, data: bytes) -> None:
+        """Send data using outbound 3270DS structured field for LU-LU communication."""
+        # Outbound 3270DS structured field format
+        length = len(data) + 4  # SF header + data
+        header = bytes(
+            [
+                0x88,  # Structured field identifier
+                (length >> 8) & 0xFF,  # Length high byte
+                length & 0xFF,  # Length low byte
+                0x40,  # Outbound 3270DS type
+            ]
+        )
+
+        full_message = header + data
+        logger.debug(
+            f"Sending outbound 3270DS structured field ({len(full_message)} bytes)"
+        )
+        await self.session.send(full_message)
+
+    async def _send_data(self, data: bytes) -> None:
+        """Send data wrapped in appropriate structured field for LU-LU communication."""
+        await self._send_outbound_3270ds(data)
+
+    def handle_inbound_3270ds(self, data: bytes) -> None:
+        """Handle incoming inbound 3270DS structured field data."""
+        if self.is_active:
+            # Queue the data for retrieval by receive_data()
+            self._data_queue.put_nowait(data)
+            logger.debug(f"Queued {len(data)} bytes of inbound 3270DS data")
 
     def get_session_info(self) -> Dict[str, Any]:
         """Get information about the current LU-LU session."""
@@ -109,4 +183,5 @@ class LuLuSession:
             "lu_name": self.lu_name,
             "is_active": self.is_active,
             "session_id": self.session_id,
+            "pending_data": self._data_queue.qsize(),
         }
