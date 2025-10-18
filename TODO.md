@@ -6,11 +6,11 @@
 ## High Priority
 
 ## Medium Priority
-- Implement light pen support and related orders
-- Implement advanced field attributes (highlighting, color, etc.)
-- Add IND$FILE file transfer support
-- Implement structured fields and outbound 3270 DS (LU-LU sessions)
-- Implement standalone s3270 command interface (stdin/stdout processing) for direct s3270 replacement
+- ✅ Implement light pen support and related orders
+- ✅ Implement advanced field attributes (highlighting, color, etc.)
+- ✅ Add IND$FILE file transfer support
+- ✅ Implement structured fields and outbound 3270 DS (LU-LU sessions)
+- ✅ Implement standalone s3270 command interface (stdin/stdout processing) for direct s3270 replacement
 - ✅ Add SEQ-NUMBER correlation support
 - ✅ Implement DATA-STREAM-CTL support
 - ✅ Implement BIND-IMAGE passing
