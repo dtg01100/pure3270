@@ -34,7 +34,7 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Set up Python ${{ github.event.inputs.python_version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ github.event.inputs.python_version }}
         allow-prereleases: true  # Allow testing of prerelease Python versions
