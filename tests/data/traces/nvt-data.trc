@@ -134,7 +134,7 @@
 ... 3270E SSCP-LU mode ^M ^J  snake    TN3270 protocol server playing s ...
 ... nake ^M ^J  sruvm    TN3270 protocol server simulating sruvm (model ...
 ...  4 required) ^M ^J  uvvm     TN3270 protocol server simulating uvvm ...
-...  ^M ^J  quit     Disconnect from test target ^M ^J ^M ^J ==>
+...  ^M ^J  quit     Disconnect from test target ^M ^J ^M ^J ==> 
 20230403.225044.029 RCVD EOR
 20230403.225044.029 lazya_flush: 12 slots, 288 bytes
 20230403.225044.086 KeymapNotify -> PA-KeymapNotify()
@@ -163,7 +163,7 @@
 < 0x0   05000000004e6f207375636820736572766963653a20666f6f0d0a3d3d3e20ff
 < 0x20  ef
 20230403.225052.361 RCVD TN3270E(NVT-DATA NO-RESPONSE 0)
-<.. No such service: foo ^M ^J ==>
+<.. No such service: foo ^M ^J ==> 
 20230403.225052.362 RCVD EOR
 20230403.225105.534 KeymapNotify -> PA-KeymapNotify()
 20230403.225110.740 ClientMessage [WM_DELETE_WINDOW] -> PA-WMProtocols()

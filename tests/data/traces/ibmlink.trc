@@ -272,13 +272,13 @@
 20191212.215717.608 lazya_flush: 1007 slots, 24648 bytes
 20191212.215717.613 Waiting for 5 events
 20191212.215719.385 Got 1 event
-20191212.215719.385 kbd_input: k=256 wch=267
+20191212.215719.385 kbd_input: k=256 wch=267 
 20191212.215719.385 Key '<Key>F3' (curses key 0x10b, char code 0x0)
 20191212.215719.385  base:28 -> PF(3)
 20191212.215719.385 CB(Keymap)[#2] started
 20191212.215719.385 CB(Keymap)[#2.1] IDLE -> RUNNING (child to be pushed next)
 20191212.215719.385 Macro[#2.2] IDLE -> RUNNING (fresh push)
-20191212.215719.385 kbd_input: k=-1 wch=0
+20191212.215719.385 kbd_input: k=-1 wch=0 
 20191212.215719.385 kbd_input: k == ERR, return
 20191212.215719.385 lazya_flush: 12 slots, 288 bytes
 20191212.215719.388 Macro[#2.2] RUNNING -> IDLE (about to resume)

@@ -185,73 +185,73 @@
 20250303.184447.597 sched: Waiting for 5 events
 20250303.184452.655 sched: Got 1 fd, 1 event
 20250303.184452.656 kybd_input: calling wget_wch()
-20250303.184452.656 kbd_input: k=0 wch=22269
+20250303.184452.656 kbd_input: k=0 wch=22269 
 20250303.184452.656 Key '<Key>国' (curses key 0x0, char code 0x56fd)
 20250303.184452.656 CB(default)[#2] started
 20250303.184452.656 CB(default)[#2.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184452.656 Macro[#2.2] IDLE -> RUNNING (fresh push)
 20250303.184452.656 kybd_input: calling wget_wch()
-20250303.184452.656 kbd_input: k=0 wch=20869
+20250303.184452.656 kbd_input: k=0 wch=20869 
 20250303.184452.656 Key '<Key>内' (curses key 0x0, char code 0x5185)
 20250303.184452.656 CB(default)[#3] started
 20250303.184452.656 CB(default)[#3.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184452.656 Macro[#3.2] IDLE -> RUNNING (fresh push)
 20250303.184452.656 kybd_input: calling wget_wch()
-20250303.184452.656 kbd_input: k=0 wch=22806
+20250303.184452.656 kbd_input: k=0 wch=22806 
 20250303.184452.656 Key '<Key>外' (curses key 0x0, char code 0x5916)
 20250303.184452.656 CB(default)[#4] started
 20250303.184452.656 CB(default)[#4.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184452.656 Macro[#4.2] IDLE -> RUNNING (fresh push)
 20250303.184452.656 kybd_input: calling wget_wch()
-20250303.184452.656 kbd_input: k=0 wch=12398
+20250303.184452.656 kbd_input: k=0 wch=12398 
 20250303.184452.656 Key '<Key>の' (curses key 0x0, char code 0x306e)
 20250303.184452.656 CB(default)[#5] started
 20250303.184452.656 CB(default)[#5.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184452.656 Macro[#5.2] IDLE -> RUNNING (fresh push)
 20250303.184452.656 kybd_input: calling wget_wch()
-20250303.184452.656 kbd_input: k=0 wch=21462
+20250303.184452.656 kbd_input: k=0 wch=21462 
 20250303.184452.656 Key '<Key>取' (curses key 0x0, char code 0x53d6)
 20250303.184452.656 CB(default)[#6] started
 20250303.184452.656 CB(default)[#6.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184452.656 Macro[#6.2] IDLE -> RUNNING (fresh push)
 20250303.184452.656 kybd_input: calling wget_wch()
-20250303.184452.656 kbd_input: k=0 wch=26448
+20250303.184452.656 kbd_input: k=0 wch=26448 
 20250303.184452.656 Key '<Key>材' (curses key 0x0, char code 0x6750)
 20250303.184452.656 CB(default)[#7] started
 20250303.184452.656 CB(default)[#7.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184452.656 Macro[#7.2] IDLE -> RUNNING (fresh push)
 20250303.184452.656 kybd_input: calling wget_wch()
-20250303.184452.656 kbd_input: k=0 wch=32178
+20250303.184452.656 kbd_input: k=0 wch=32178 
 20250303.184452.656 Key '<Key>網' (curses key 0x0, char code 0x7db2)
 20250303.184452.656 CB(default)[#8] started
 20250303.184452.656 CB(default)[#8.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184452.656 Macro[#8.2] IDLE -> RUNNING (fresh push)
 20250303.184452.656 kybd_input: calling wget_wch()
-20250303.184452.656 kbd_input: k=0 wch=12434
+20250303.184452.656 kbd_input: k=0 wch=12434 
 20250303.184452.656 Key '<Key>を' (curses key 0x0, char code 0x3092)
 20250303.184452.656 CB(default)[#9] started
 20250303.184452.656 CB(default)[#9.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184452.656 Macro[#9.2] IDLE -> RUNNING (fresh push)
 20250303.184452.656 kybd_input: calling wget_wch()
-20250303.184452.656 kbd_input: k=0 wch=29983
+20250303.184452.656 kbd_input: k=0 wch=29983 
 20250303.184452.656 Key '<Key>生' (curses key 0x0, char code 0x751f)
 20250303.184452.656 CB(default)[#10] started
 20250303.184452.656 CB(default)[#10.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184452.656 Macro[#10.2] IDLE -> RUNNING (fresh push)
 20250303.184452.656 kybd_input: calling wget_wch()
-20250303.184452.656 kbd_input: k=0 wch=12363
+20250303.184452.656 kbd_input: k=0 wch=12363 
 20250303.184452.656 Key '<Key>か' (curses key 0x0, char code 0x304b)
 20250303.184452.656 CB(default)[#11] started
 20250303.184452.656 CB(default)[#11.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184452.656 Macro[#11.2] IDLE -> RUNNING (fresh push)
 20250303.184452.656 kybd_input: calling wget_wch()
-20250303.184452.656 kbd_input: k=0 wch=12375
+20250303.184452.656 kbd_input: k=0 wch=12375 
 20250303.184452.656 Key '<Key>し' (curses key 0x0, char code 0x3057)
 20250303.184452.656 CB(default)[#12] started
 20250303.184452.656 CB(default)[#12.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184452.656 Macro[#12.2] IDLE -> RUNNING (fresh push)
 20250303.184452.656 kybd_input: calling wget_wch()
-20250303.184452.656 kbd_input: k=-1 wch=0
+20250303.184452.656 kbd_input: k=-1 wch=0 
 20250303.184452.656 kbd_input: k == ERR, return
 20250303.184452.656 txflush: 94 slots, 2256 bytes
 20250303.184452.657 Macro[#2.2] RUNNING -> IDLE (about to resume)
@@ -378,73 +378,73 @@
 20250303.184452.673 sched: Waiting for 5 events
 20250303.184453.198 sched: Got 1 fd, 1 event
 20250303.184453.198 kybd_input: calling wget_wch()
-20250303.184453.198 kbd_input: k=0 wch=22269
+20250303.184453.198 kbd_input: k=0 wch=22269 
 20250303.184453.198 Key '<Key>国' (curses key 0x0, char code 0x56fd)
 20250303.184453.199 CB(default)[#13] started
 20250303.184453.199 CB(default)[#13.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.199 Macro[#13.2] IDLE -> RUNNING (fresh push)
 20250303.184453.199 kybd_input: calling wget_wch()
-20250303.184453.199 kbd_input: k=0 wch=20869
+20250303.184453.199 kbd_input: k=0 wch=20869 
 20250303.184453.199 Key '<Key>内' (curses key 0x0, char code 0x5185)
 20250303.184453.199 CB(default)[#14] started
 20250303.184453.199 CB(default)[#14.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.199 Macro[#14.2] IDLE -> RUNNING (fresh push)
 20250303.184453.199 kybd_input: calling wget_wch()
-20250303.184453.199 kbd_input: k=0 wch=22806
+20250303.184453.199 kbd_input: k=0 wch=22806 
 20250303.184453.199 Key '<Key>外' (curses key 0x0, char code 0x5916)
 20250303.184453.199 CB(default)[#15] started
 20250303.184453.199 CB(default)[#15.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.199 Macro[#15.2] IDLE -> RUNNING (fresh push)
 20250303.184453.199 kybd_input: calling wget_wch()
-20250303.184453.199 kbd_input: k=0 wch=12398
+20250303.184453.199 kbd_input: k=0 wch=12398 
 20250303.184453.199 Key '<Key>の' (curses key 0x0, char code 0x306e)
 20250303.184453.199 CB(default)[#16] started
 20250303.184453.199 CB(default)[#16.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.199 Macro[#16.2] IDLE -> RUNNING (fresh push)
 20250303.184453.199 kybd_input: calling wget_wch()
-20250303.184453.199 kbd_input: k=0 wch=21462
+20250303.184453.199 kbd_input: k=0 wch=21462 
 20250303.184453.199 Key '<Key>取' (curses key 0x0, char code 0x53d6)
 20250303.184453.199 CB(default)[#17] started
 20250303.184453.199 CB(default)[#17.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.199 Macro[#17.2] IDLE -> RUNNING (fresh push)
 20250303.184453.199 kybd_input: calling wget_wch()
-20250303.184453.199 kbd_input: k=0 wch=26448
+20250303.184453.199 kbd_input: k=0 wch=26448 
 20250303.184453.199 Key '<Key>材' (curses key 0x0, char code 0x6750)
 20250303.184453.199 CB(default)[#18] started
 20250303.184453.199 CB(default)[#18.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.199 Macro[#18.2] IDLE -> RUNNING (fresh push)
 20250303.184453.199 kybd_input: calling wget_wch()
-20250303.184453.199 kbd_input: k=0 wch=32178
+20250303.184453.199 kbd_input: k=0 wch=32178 
 20250303.184453.199 Key '<Key>網' (curses key 0x0, char code 0x7db2)
 20250303.184453.199 CB(default)[#19] started
 20250303.184453.199 CB(default)[#19.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.199 Macro[#19.2] IDLE -> RUNNING (fresh push)
 20250303.184453.199 kybd_input: calling wget_wch()
-20250303.184453.199 kbd_input: k=0 wch=12434
+20250303.184453.199 kbd_input: k=0 wch=12434 
 20250303.184453.199 Key '<Key>を' (curses key 0x0, char code 0x3092)
 20250303.184453.199 CB(default)[#20] started
 20250303.184453.199 CB(default)[#20.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.199 Macro[#20.2] IDLE -> RUNNING (fresh push)
 20250303.184453.199 kybd_input: calling wget_wch()
-20250303.184453.199 kbd_input: k=0 wch=29983
+20250303.184453.199 kbd_input: k=0 wch=29983 
 20250303.184453.199 Key '<Key>生' (curses key 0x0, char code 0x751f)
 20250303.184453.199 CB(default)[#21] started
 20250303.184453.199 CB(default)[#21.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.199 Macro[#21.2] IDLE -> RUNNING (fresh push)
 20250303.184453.199 kybd_input: calling wget_wch()
-20250303.184453.199 kbd_input: k=0 wch=12363
+20250303.184453.199 kbd_input: k=0 wch=12363 
 20250303.184453.199 Key '<Key>か' (curses key 0x0, char code 0x304b)
 20250303.184453.199 CB(default)[#22] started
 20250303.184453.199 CB(default)[#22.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.199 Macro[#22.2] IDLE -> RUNNING (fresh push)
 20250303.184453.199 kybd_input: calling wget_wch()
-20250303.184453.199 kbd_input: k=0 wch=12375
+20250303.184453.199 kbd_input: k=0 wch=12375 
 20250303.184453.199 Key '<Key>し' (curses key 0x0, char code 0x3057)
 20250303.184453.199 CB(default)[#23] started
 20250303.184453.199 CB(default)[#23.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.199 Macro[#23.2] IDLE -> RUNNING (fresh push)
 20250303.184453.199 kybd_input: calling wget_wch()
-20250303.184453.199 kbd_input: k=-1 wch=0
+20250303.184453.199 kbd_input: k=-1 wch=0 
 20250303.184453.199 kbd_input: k == ERR, return
 20250303.184453.199 txflush: 281 slots, 8376 bytes
 20250303.184453.200 Macro[#13.2] RUNNING -> IDLE (about to resume)
@@ -571,73 +571,73 @@
 20250303.184453.217 sched: Waiting for 5 events
 20250303.184453.702 sched: Got 1 fd, 1 event
 20250303.184453.702 kybd_input: calling wget_wch()
-20250303.184453.702 kbd_input: k=0 wch=22269
+20250303.184453.702 kbd_input: k=0 wch=22269 
 20250303.184453.702 Key '<Key>国' (curses key 0x0, char code 0x56fd)
 20250303.184453.702 CB(default)[#24] started
 20250303.184453.702 CB(default)[#24.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.702 Macro[#24.2] IDLE -> RUNNING (fresh push)
 20250303.184453.702 kybd_input: calling wget_wch()
-20250303.184453.702 kbd_input: k=0 wch=20869
+20250303.184453.702 kbd_input: k=0 wch=20869 
 20250303.184453.702 Key '<Key>内' (curses key 0x0, char code 0x5185)
 20250303.184453.702 CB(default)[#25] started
 20250303.184453.702 CB(default)[#25.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.702 Macro[#25.2] IDLE -> RUNNING (fresh push)
 20250303.184453.702 kybd_input: calling wget_wch()
-20250303.184453.702 kbd_input: k=0 wch=22806
+20250303.184453.702 kbd_input: k=0 wch=22806 
 20250303.184453.702 Key '<Key>外' (curses key 0x0, char code 0x5916)
 20250303.184453.702 CB(default)[#26] started
 20250303.184453.702 CB(default)[#26.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.702 Macro[#26.2] IDLE -> RUNNING (fresh push)
 20250303.184453.702 kybd_input: calling wget_wch()
-20250303.184453.702 kbd_input: k=0 wch=12398
+20250303.184453.702 kbd_input: k=0 wch=12398 
 20250303.184453.702 Key '<Key>の' (curses key 0x0, char code 0x306e)
 20250303.184453.702 CB(default)[#27] started
 20250303.184453.702 CB(default)[#27.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.702 Macro[#27.2] IDLE -> RUNNING (fresh push)
 20250303.184453.702 kybd_input: calling wget_wch()
-20250303.184453.702 kbd_input: k=0 wch=21462
+20250303.184453.702 kbd_input: k=0 wch=21462 
 20250303.184453.702 Key '<Key>取' (curses key 0x0, char code 0x53d6)
 20250303.184453.702 CB(default)[#28] started
 20250303.184453.702 CB(default)[#28.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.702 Macro[#28.2] IDLE -> RUNNING (fresh push)
 20250303.184453.702 kybd_input: calling wget_wch()
-20250303.184453.702 kbd_input: k=0 wch=26448
+20250303.184453.702 kbd_input: k=0 wch=26448 
 20250303.184453.702 Key '<Key>材' (curses key 0x0, char code 0x6750)
 20250303.184453.702 CB(default)[#29] started
 20250303.184453.702 CB(default)[#29.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.702 Macro[#29.2] IDLE -> RUNNING (fresh push)
 20250303.184453.702 kybd_input: calling wget_wch()
-20250303.184453.702 kbd_input: k=0 wch=32178
+20250303.184453.702 kbd_input: k=0 wch=32178 
 20250303.184453.702 Key '<Key>網' (curses key 0x0, char code 0x7db2)
 20250303.184453.702 CB(default)[#30] started
 20250303.184453.702 CB(default)[#30.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.702 Macro[#30.2] IDLE -> RUNNING (fresh push)
 20250303.184453.702 kybd_input: calling wget_wch()
-20250303.184453.702 kbd_input: k=0 wch=12434
+20250303.184453.702 kbd_input: k=0 wch=12434 
 20250303.184453.702 Key '<Key>を' (curses key 0x0, char code 0x3092)
 20250303.184453.702 CB(default)[#31] started
 20250303.184453.702 CB(default)[#31.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.702 Macro[#31.2] IDLE -> RUNNING (fresh push)
 20250303.184453.702 kybd_input: calling wget_wch()
-20250303.184453.702 kbd_input: k=0 wch=29983
+20250303.184453.702 kbd_input: k=0 wch=29983 
 20250303.184453.702 Key '<Key>生' (curses key 0x0, char code 0x751f)
 20250303.184453.702 CB(default)[#32] started
 20250303.184453.702 CB(default)[#32.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.702 Macro[#32.2] IDLE -> RUNNING (fresh push)
 20250303.184453.702 kybd_input: calling wget_wch()
-20250303.184453.702 kbd_input: k=0 wch=12363
+20250303.184453.702 kbd_input: k=0 wch=12363 
 20250303.184453.702 Key '<Key>か' (curses key 0x0, char code 0x304b)
 20250303.184453.702 CB(default)[#33] started
 20250303.184453.702 CB(default)[#33.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.702 Macro[#33.2] IDLE -> RUNNING (fresh push)
 20250303.184453.702 kybd_input: calling wget_wch()
-20250303.184453.702 kbd_input: k=0 wch=12375
+20250303.184453.702 kbd_input: k=0 wch=12375 
 20250303.184453.702 Key '<Key>し' (curses key 0x0, char code 0x3057)
 20250303.184453.702 CB(default)[#34] started
 20250303.184453.702 CB(default)[#34.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184453.702 Macro[#34.2] IDLE -> RUNNING (fresh push)
 20250303.184453.702 kybd_input: calling wget_wch()
-20250303.184453.702 kbd_input: k=-1 wch=0
+20250303.184453.702 kbd_input: k=-1 wch=0 
 20250303.184453.702 kbd_input: k == ERR, return
 20250303.184453.702 txflush: 281 slots, 8120 bytes
 20250303.184453.704 Macro[#24.2] RUNNING -> IDLE (about to resume)
@@ -764,73 +764,73 @@
 20250303.184453.720 sched: Waiting for 5 events
 20250303.184454.213 sched: Got 1 fd, 1 event
 20250303.184454.213 kybd_input: calling wget_wch()
-20250303.184454.213 kbd_input: k=0 wch=22269
+20250303.184454.213 kbd_input: k=0 wch=22269 
 20250303.184454.213 Key '<Key>国' (curses key 0x0, char code 0x56fd)
 20250303.184454.213 CB(default)[#35] started
 20250303.184454.213 CB(default)[#35.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184454.213 Macro[#35.2] IDLE -> RUNNING (fresh push)
 20250303.184454.213 kybd_input: calling wget_wch()
-20250303.184454.213 kbd_input: k=0 wch=20869
+20250303.184454.213 kbd_input: k=0 wch=20869 
 20250303.184454.214 Key '<Key>内' (curses key 0x0, char code 0x5185)
 20250303.184454.214 CB(default)[#36] started
 20250303.184454.214 CB(default)[#36.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184454.214 Macro[#36.2] IDLE -> RUNNING (fresh push)
 20250303.184454.214 kybd_input: calling wget_wch()
-20250303.184454.214 kbd_input: k=0 wch=22806
+20250303.184454.214 kbd_input: k=0 wch=22806 
 20250303.184454.214 Key '<Key>外' (curses key 0x0, char code 0x5916)
 20250303.184454.214 CB(default)[#37] started
 20250303.184454.214 CB(default)[#37.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184454.214 Macro[#37.2] IDLE -> RUNNING (fresh push)
 20250303.184454.214 kybd_input: calling wget_wch()
-20250303.184454.214 kbd_input: k=0 wch=12398
+20250303.184454.214 kbd_input: k=0 wch=12398 
 20250303.184454.214 Key '<Key>の' (curses key 0x0, char code 0x306e)
 20250303.184454.214 CB(default)[#38] started
 20250303.184454.214 CB(default)[#38.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184454.214 Macro[#38.2] IDLE -> RUNNING (fresh push)
 20250303.184454.214 kybd_input: calling wget_wch()
-20250303.184454.214 kbd_input: k=0 wch=21462
+20250303.184454.214 kbd_input: k=0 wch=21462 
 20250303.184454.214 Key '<Key>取' (curses key 0x0, char code 0x53d6)
 20250303.184454.214 CB(default)[#39] started
 20250303.184454.214 CB(default)[#39.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184454.214 Macro[#39.2] IDLE -> RUNNING (fresh push)
 20250303.184454.214 kybd_input: calling wget_wch()
-20250303.184454.214 kbd_input: k=0 wch=26448
+20250303.184454.214 kbd_input: k=0 wch=26448 
 20250303.184454.214 Key '<Key>材' (curses key 0x0, char code 0x6750)
 20250303.184454.214 CB(default)[#40] started
 20250303.184454.214 CB(default)[#40.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184454.214 Macro[#40.2] IDLE -> RUNNING (fresh push)
 20250303.184454.214 kybd_input: calling wget_wch()
-20250303.184454.214 kbd_input: k=0 wch=32178
+20250303.184454.214 kbd_input: k=0 wch=32178 
 20250303.184454.214 Key '<Key>網' (curses key 0x0, char code 0x7db2)
 20250303.184454.214 CB(default)[#41] started
 20250303.184454.214 CB(default)[#41.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184454.214 Macro[#41.2] IDLE -> RUNNING (fresh push)
 20250303.184454.214 kybd_input: calling wget_wch()
-20250303.184454.214 kbd_input: k=0 wch=12434
+20250303.184454.214 kbd_input: k=0 wch=12434 
 20250303.184454.214 Key '<Key>を' (curses key 0x0, char code 0x3092)
 20250303.184454.214 CB(default)[#42] started
 20250303.184454.214 CB(default)[#42.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184454.214 Macro[#42.2] IDLE -> RUNNING (fresh push)
 20250303.184454.214 kybd_input: calling wget_wch()
-20250303.184454.214 kbd_input: k=0 wch=29983
+20250303.184454.214 kbd_input: k=0 wch=29983 
 20250303.184454.214 Key '<Key>生' (curses key 0x0, char code 0x751f)
 20250303.184454.214 CB(default)[#43] started
 20250303.184454.214 CB(default)[#43.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184454.214 Macro[#43.2] IDLE -> RUNNING (fresh push)
 20250303.184454.214 kybd_input: calling wget_wch()
-20250303.184454.214 kbd_input: k=0 wch=12363
+20250303.184454.214 kbd_input: k=0 wch=12363 
 20250303.184454.214 Key '<Key>か' (curses key 0x0, char code 0x304b)
 20250303.184454.214 CB(default)[#44] started
 20250303.184454.214 CB(default)[#44.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184454.214 Macro[#44.2] IDLE -> RUNNING (fresh push)
 20250303.184454.214 kybd_input: calling wget_wch()
-20250303.184454.214 kbd_input: k=0 wch=12375
+20250303.184454.214 kbd_input: k=0 wch=12375 
 20250303.184454.214 Key '<Key>し' (curses key 0x0, char code 0x3057)
 20250303.184454.214 CB(default)[#45] started
 20250303.184454.214 CB(default)[#45.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184454.214 Macro[#45.2] IDLE -> RUNNING (fresh push)
 20250303.184454.214 kybd_input: calling wget_wch()
-20250303.184454.214 kbd_input: k=-1 wch=0
+20250303.184454.214 kbd_input: k=-1 wch=0 
 20250303.184454.214 kbd_input: k == ERR, return
 20250303.184454.214 txflush: 281 slots, 8152 bytes
 20250303.184454.215 Macro[#35.2] RUNNING -> IDLE (about to resume)
@@ -957,73 +957,73 @@
 20250303.184454.233 sched: Waiting for 5 events
 20250303.184455.247 sched: Got 1 fd, 1 event
 20250303.184455.247 kybd_input: calling wget_wch()
-20250303.184455.247 kbd_input: k=0 wch=22269
+20250303.184455.247 kbd_input: k=0 wch=22269 
 20250303.184455.247 Key '<Key>国' (curses key 0x0, char code 0x56fd)
 20250303.184455.247 CB(default)[#46] started
 20250303.184455.247 CB(default)[#46.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184455.247 Macro[#46.2] IDLE -> RUNNING (fresh push)
 20250303.184455.247 kybd_input: calling wget_wch()
-20250303.184455.247 kbd_input: k=0 wch=20869
+20250303.184455.247 kbd_input: k=0 wch=20869 
 20250303.184455.247 Key '<Key>内' (curses key 0x0, char code 0x5185)
 20250303.184455.247 CB(default)[#47] started
 20250303.184455.247 CB(default)[#47.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184455.247 Macro[#47.2] IDLE -> RUNNING (fresh push)
 20250303.184455.247 kybd_input: calling wget_wch()
-20250303.184455.248 kbd_input: k=0 wch=22806
+20250303.184455.248 kbd_input: k=0 wch=22806 
 20250303.184455.248 Key '<Key>外' (curses key 0x0, char code 0x5916)
 20250303.184455.248 CB(default)[#48] started
 20250303.184455.248 CB(default)[#48.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184455.248 Macro[#48.2] IDLE -> RUNNING (fresh push)
 20250303.184455.248 kybd_input: calling wget_wch()
-20250303.184455.248 kbd_input: k=0 wch=12398
+20250303.184455.248 kbd_input: k=0 wch=12398 
 20250303.184455.248 Key '<Key>の' (curses key 0x0, char code 0x306e)
 20250303.184455.248 CB(default)[#49] started
 20250303.184455.248 CB(default)[#49.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184455.248 Macro[#49.2] IDLE -> RUNNING (fresh push)
 20250303.184455.248 kybd_input: calling wget_wch()
-20250303.184455.248 kbd_input: k=0 wch=21462
+20250303.184455.248 kbd_input: k=0 wch=21462 
 20250303.184455.248 Key '<Key>取' (curses key 0x0, char code 0x53d6)
 20250303.184455.248 CB(default)[#50] started
 20250303.184455.248 CB(default)[#50.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184455.248 Macro[#50.2] IDLE -> RUNNING (fresh push)
 20250303.184455.248 kybd_input: calling wget_wch()
-20250303.184455.248 kbd_input: k=0 wch=26448
+20250303.184455.248 kbd_input: k=0 wch=26448 
 20250303.184455.248 Key '<Key>材' (curses key 0x0, char code 0x6750)
 20250303.184455.248 CB(default)[#51] started
 20250303.184455.248 CB(default)[#51.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184455.248 Macro[#51.2] IDLE -> RUNNING (fresh push)
 20250303.184455.248 kybd_input: calling wget_wch()
-20250303.184455.248 kbd_input: k=0 wch=32178
+20250303.184455.248 kbd_input: k=0 wch=32178 
 20250303.184455.248 Key '<Key>網' (curses key 0x0, char code 0x7db2)
 20250303.184455.248 CB(default)[#52] started
 20250303.184455.248 CB(default)[#52.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184455.248 Macro[#52.2] IDLE -> RUNNING (fresh push)
 20250303.184455.248 kybd_input: calling wget_wch()
-20250303.184455.248 kbd_input: k=0 wch=12434
+20250303.184455.248 kbd_input: k=0 wch=12434 
 20250303.184455.248 Key '<Key>を' (curses key 0x0, char code 0x3092)
 20250303.184455.248 CB(default)[#53] started
 20250303.184455.248 CB(default)[#53.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184455.248 Macro[#53.2] IDLE -> RUNNING (fresh push)
 20250303.184455.248 kybd_input: calling wget_wch()
-20250303.184455.248 kbd_input: k=0 wch=29983
+20250303.184455.248 kbd_input: k=0 wch=29983 
 20250303.184455.248 Key '<Key>生' (curses key 0x0, char code 0x751f)
 20250303.184455.248 CB(default)[#54] started
 20250303.184455.248 CB(default)[#54.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184455.248 Macro[#54.2] IDLE -> RUNNING (fresh push)
 20250303.184455.248 kybd_input: calling wget_wch()
-20250303.184455.248 kbd_input: k=0 wch=12363
+20250303.184455.248 kbd_input: k=0 wch=12363 
 20250303.184455.248 Key '<Key>か' (curses key 0x0, char code 0x304b)
 20250303.184455.248 CB(default)[#55] started
 20250303.184455.248 CB(default)[#55.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184455.248 Macro[#55.2] IDLE -> RUNNING (fresh push)
 20250303.184455.248 kybd_input: calling wget_wch()
-20250303.184455.248 kbd_input: k=0 wch=12375
+20250303.184455.248 kbd_input: k=0 wch=12375 
 20250303.184455.248 Key '<Key>し' (curses key 0x0, char code 0x3057)
 20250303.184455.248 CB(default)[#56] started
 20250303.184455.248 CB(default)[#56.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184455.248 Macro[#56.2] IDLE -> RUNNING (fresh push)
 20250303.184455.248 kybd_input: calling wget_wch()
-20250303.184455.248 kbd_input: k=-1 wch=0
+20250303.184455.248 kbd_input: k=-1 wch=0 
 20250303.184455.248 kbd_input: k == ERR, return
 20250303.184455.248 txflush: 281 slots, 8088 bytes
 20250303.184455.249 Macro[#46.2] RUNNING -> IDLE (about to resume)
@@ -1150,14 +1150,14 @@
 20250303.184455.269 sched: Waiting for 5 events
 20250303.184457.050 sched: Got 1 fd, 1 event
 20250303.184457.050 kybd_input: calling wget_wch()
-20250303.184457.050 kbd_input: k=0 wch=13
+20250303.184457.050 kbd_input: k=0 wch=13 
 20250303.184457.050 Key 'Return' (curses key 0x0, char code 0xd)
 20250303.184457.050  base.3270:12 -> Enter()
 20250303.184457.050 CB(keymap)[#57] started
 20250303.184457.050 CB(keymap)[#57.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184457.050 Macro[#57.2] IDLE -> RUNNING (fresh push)
 20250303.184457.050 kybd_input: calling wget_wch()
-20250303.184457.050 kbd_input: k=-1 wch=0
+20250303.184457.050 kbd_input: k=-1 wch=0 
 20250303.184457.050 kbd_input: k == ERR, return
 20250303.184457.050 txflush: 201 slots, 5672 bytes
 20250303.184457.051 Macro[#57.2] RUNNING -> IDLE (about to resume)
@@ -1235,14 +1235,14 @@
 20250303.184457.061 sched: Waiting for 5 events
 20250303.184503.646 sched: Got 1 fd, 1 event
 20250303.184503.646 kybd_input: calling wget_wch()
-20250303.184503.646 kbd_input: k=256 wch=267
+20250303.184503.646 kbd_input: k=256 wch=267 
 20250303.184503.646 Key '<Key>F3' (curses key 0x10b, char code 0x0)
 20250303.184503.646  base:29 -> PF(3)
 20250303.184503.646 CB(keymap)[#58] started
 20250303.184503.646 CB(keymap)[#58.1] IDLE -> RUNNING (child task to be pushed next)
 20250303.184503.646 Macro[#58.2] IDLE -> RUNNING (fresh push)
 20250303.184503.646 kybd_input: calling wget_wch()
-20250303.184503.646 kbd_input: k=-1 wch=0
+20250303.184503.646 kbd_input: k=-1 wch=0 
 20250303.184503.646 kbd_input: k == ERR, return
 20250303.184503.646 txflush: 24 slots, 576 bytes
 20250303.184503.648 Macro[#58.2] RUNNING -> IDLE (about to resume)

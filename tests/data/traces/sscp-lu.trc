@@ -211,12 +211,12 @@
 20220328.224518.777 lazya_flush: 1311 slots, 31464 bytes
 20220328.224518.778 Waiting for 5 events
 20220328.224520.114 Got 1 event
-20220328.224520.114 kbd_input: k=0 wch=108
+20220328.224520.114 kbd_input: k=0 wch=108 
 20220328.224520.114 Key '<Key>l' (curses key 0x0, char code 0x6c)
 20220328.224520.114 CB(default)[#2] started
 20220328.224520.114 CB(default)[#2.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224520.114 Macro[#2.2] IDLE -> RUNNING (fresh push)
-20220328.224520.114 kbd_input: k=-1 wch=0
+20220328.224520.114 kbd_input: k=-1 wch=0 
 20220328.224520.114 kbd_input: k == ERR, return
 20220328.224520.114 lazya_flush: 12 slots, 288 bytes
 20220328.224520.114 Macro[#2.2] RUNNING -> IDLE (about to resume)
@@ -232,12 +232,12 @@
 20220328.224520.114 CB(default)[#2] complete
 20220328.224520.115 Waiting for 5 events
 20220328.224520.305 Got 1 event
-20220328.224520.305 kbd_input: k=0 wch=32
+20220328.224520.305 kbd_input: k=0 wch=32 
 20220328.224520.305 Key 'space' (curses key 0x0, char code 0x20)
 20220328.224520.305 CB(default)[#3] started
 20220328.224520.305 CB(default)[#3.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224520.306 Macro[#3.2] IDLE -> RUNNING (fresh push)
-20220328.224520.306 kbd_input: k=-1 wch=0
+20220328.224520.306 kbd_input: k=-1 wch=0 
 20220328.224520.306 kbd_input: k == ERR, return
 20220328.224520.306 lazya_flush: 29 slots, 696 bytes
 20220328.224520.306 Macro[#3.2] RUNNING -> IDLE (about to resume)
@@ -253,12 +253,12 @@
 20220328.224520.306 CB(default)[#3] complete
 20220328.224520.306 Waiting for 5 events
 20220328.224520.561 Got 1 event
-20220328.224520.561 kbd_input: k=0 wch=116
+20220328.224520.561 kbd_input: k=0 wch=116 
 20220328.224520.561 Key '<Key>t' (curses key 0x0, char code 0x74)
 20220328.224520.561 CB(default)[#4] started
 20220328.224520.561 CB(default)[#4.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224520.561 Macro[#4.2] IDLE -> RUNNING (fresh push)
-20220328.224520.561 kbd_input: k=-1 wch=0
+20220328.224520.561 kbd_input: k=-1 wch=0 
 20220328.224520.561 kbd_input: k == ERR, return
 20220328.224520.561 lazya_flush: 29 slots, 696 bytes
 20220328.224520.562 Macro[#4.2] RUNNING -> IDLE (about to resume)
@@ -274,12 +274,12 @@
 20220328.224520.562 CB(default)[#4] complete
 20220328.224520.562 Waiting for 5 events
 20220328.224520.826 Got 1 event
-20220328.224520.826 kbd_input: k=0 wch=115
+20220328.224520.826 kbd_input: k=0 wch=115 
 20220328.224520.826 Key '<Key>s' (curses key 0x0, char code 0x73)
 20220328.224520.826 CB(default)[#5] started
 20220328.224520.826 CB(default)[#5.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224520.826 Macro[#5.2] IDLE -> RUNNING (fresh push)
-20220328.224520.826 kbd_input: k=-1 wch=0
+20220328.224520.826 kbd_input: k=-1 wch=0 
 20220328.224520.826 kbd_input: k == ERR, return
 20220328.224520.826 lazya_flush: 29 slots, 696 bytes
 20220328.224520.827 Macro[#5.2] RUNNING -> IDLE (about to resume)
@@ -295,12 +295,12 @@
 20220328.224520.827 CB(default)[#5] complete
 20220328.224520.827 Waiting for 5 events
 20220328.224521.058 Got 1 event
-20220328.224521.058 kbd_input: k=0 wch=111
+20220328.224521.058 kbd_input: k=0 wch=111 
 20220328.224521.058 Key '<Key>o' (curses key 0x0, char code 0x6f)
 20220328.224521.058 CB(default)[#6] started
 20220328.224521.058 CB(default)[#6.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224521.058 Macro[#6.2] IDLE -> RUNNING (fresh push)
-20220328.224521.058 kbd_input: k=-1 wch=0
+20220328.224521.058 kbd_input: k=-1 wch=0 
 20220328.224521.058 kbd_input: k == ERR, return
 20220328.224521.058 lazya_flush: 29 slots, 696 bytes
 20220328.224521.058 Macro[#6.2] RUNNING -> IDLE (about to resume)
@@ -316,13 +316,13 @@
 20220328.224521.059 CB(default)[#6] complete
 20220328.224521.059 Waiting for 5 events
 20220328.224521.529 Got 1 event
-20220328.224521.529 kbd_input: k=0 wch=13
+20220328.224521.529 kbd_input: k=0 wch=13 
 20220328.224521.529 Key 'Return' (curses key 0x0, char code 0xd)
 20220328.224521.529  base.3270:11 -> Enter()
 20220328.224521.529 CB(keymap)[#7] started
 20220328.224521.529 CB(keymap)[#7.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224521.529 Macro[#7.2] IDLE -> RUNNING (fresh push)
-20220328.224521.529 kbd_input: k=-1 wch=0
+20220328.224521.529 kbd_input: k=-1 wch=0 
 20220328.224521.529 kbd_input: k == ERR, return
 20220328.224521.529 lazya_flush: 29 slots, 696 bytes
 20220328.224521.530 Macro[#7.2] RUNNING -> IDLE (about to resume)
@@ -417,12 +417,12 @@
 20220328.224521.567 CB(keymap)[#7] complete
 20220328.224521.567 Waiting for 5 events
 20220328.224523.338 Got 1 event
-20220328.224523.338 kbd_input: k=0 wch=105
+20220328.224523.338 kbd_input: k=0 wch=105 
 20220328.224523.338 Key '<Key>i' (curses key 0x0, char code 0x69)
 20220328.224523.338 CB(default)[#8] started
 20220328.224523.338 CB(default)[#8.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224523.338 Macro[#8.2] IDLE -> RUNNING (fresh push)
-20220328.224523.338 kbd_input: k=-1 wch=0
+20220328.224523.338 kbd_input: k=-1 wch=0 
 20220328.224523.338 kbd_input: k == ERR, return
 20220328.224523.338 lazya_flush: 22 slots, 528 bytes
 20220328.224523.338 Macro[#8.2] RUNNING -> IDLE (about to resume)
@@ -438,12 +438,12 @@
 20220328.224523.338 CB(default)[#8] complete
 20220328.224523.338 Waiting for 5 events
 20220328.224523.593 Got 1 event
-20220328.224523.593 kbd_input: k=0 wch=98
+20220328.224523.593 kbd_input: k=0 wch=98 
 20220328.224523.593 Key '<Key>b' (curses key 0x0, char code 0x62)
 20220328.224523.593 CB(default)[#9] started
 20220328.224523.593 CB(default)[#9.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224523.593 Macro[#9.2] IDLE -> RUNNING (fresh push)
-20220328.224523.593 kbd_input: k=-1 wch=0
+20220328.224523.593 kbd_input: k=-1 wch=0 
 20220328.224523.593 kbd_input: k == ERR, return
 20220328.224523.593 lazya_flush: 29 slots, 712 bytes
 20220328.224523.594 Macro[#9.2] RUNNING -> IDLE (about to resume)
@@ -459,12 +459,12 @@
 20220328.224523.594 CB(default)[#9] complete
 20220328.224523.594 Waiting for 5 events
 20220328.224523.721 Got 1 event
-20220328.224523.721 kbd_input: k=0 wch=109
+20220328.224523.721 kbd_input: k=0 wch=109 
 20220328.224523.721 Key '<Key>m' (curses key 0x0, char code 0x6d)
 20220328.224523.721 CB(default)[#10] started
 20220328.224523.721 CB(default)[#10.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224523.721 Macro[#10.2] IDLE -> RUNNING (fresh push)
-20220328.224523.721 kbd_input: k=-1 wch=0
+20220328.224523.721 kbd_input: k=-1 wch=0 
 20220328.224523.721 kbd_input: k == ERR, return
 20220328.224523.721 lazya_flush: 29 slots, 728 bytes
 20220328.224523.722 Macro[#10.2] RUNNING -> IDLE (about to resume)
@@ -480,12 +480,12 @@
 20220328.224523.722 CB(default)[#10] complete
 20220328.224523.722 Waiting for 5 events
 20220328.224523.930 Got 1 event
-20220328.224523.930 kbd_input: k=0 wch=117
+20220328.224523.930 kbd_input: k=0 wch=117 
 20220328.224523.930 Key '<Key>u' (curses key 0x0, char code 0x75)
 20220328.224523.930 CB(default)[#11] started
 20220328.224523.930 CB(default)[#11.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224523.930 Macro[#11.2] IDLE -> RUNNING (fresh push)
-20220328.224523.930 kbd_input: k=-1 wch=0
+20220328.224523.930 kbd_input: k=-1 wch=0 
 20220328.224523.930 kbd_input: k == ERR, return
 20220328.224523.930 lazya_flush: 29 slots, 712 bytes
 20220328.224523.930 Macro[#11.2] RUNNING -> IDLE (about to resume)
@@ -501,12 +501,12 @@
 20220328.224523.931 CB(default)[#11] complete
 20220328.224523.931 Waiting for 5 events
 20220328.224524.010 Got 1 event
-20220328.224524.010 kbd_input: k=0 wch=115
+20220328.224524.010 kbd_input: k=0 wch=115 
 20220328.224524.010 Key '<Key>s' (curses key 0x0, char code 0x73)
 20220328.224524.010 CB(default)[#12] started
 20220328.224524.010 CB(default)[#12.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224524.010 Macro[#12.2] IDLE -> RUNNING (fresh push)
-20220328.224524.010 kbd_input: k=-1 wch=0
+20220328.224524.010 kbd_input: k=-1 wch=0 
 20220328.224524.010 kbd_input: k == ERR, return
 20220328.224524.010 lazya_flush: 29 slots, 712 bytes
 20220328.224524.010 Macro[#12.2] RUNNING -> IDLE (about to resume)
@@ -522,12 +522,12 @@
 20220328.224524.010 CB(default)[#12] complete
 20220328.224524.010 Waiting for 5 events
 20220328.224524.618 Got 1 event
-20220328.224524.618 kbd_input: k=0 wch=101
+20220328.224524.618 kbd_input: k=0 wch=101 
 20220328.224524.618 Key '<Key>e' (curses key 0x0, char code 0x65)
 20220328.224524.618 CB(default)[#13] started
 20220328.224524.618 CB(default)[#13.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224524.618 Macro[#13.2] IDLE -> RUNNING (fresh push)
-20220328.224524.618 kbd_input: k=-1 wch=0
+20220328.224524.618 kbd_input: k=-1 wch=0 
 20220328.224524.618 kbd_input: k == ERR, return
 20220328.224524.618 lazya_flush: 29 slots, 712 bytes
 20220328.224524.618 Macro[#13.2] RUNNING -> IDLE (about to resume)
@@ -543,12 +543,12 @@
 20220328.224524.619 CB(default)[#13] complete
 20220328.224524.619 Waiting for 5 events
 20220328.224524.850 Got 1 event
-20220328.224524.850 kbd_input: k=0 wch=114
+20220328.224524.850 kbd_input: k=0 wch=114 
 20220328.224524.850 Key '<Key>r' (curses key 0x0, char code 0x72)
 20220328.224524.850 CB(default)[#14] started
 20220328.224524.850 CB(default)[#14.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224524.850 Macro[#14.2] IDLE -> RUNNING (fresh push)
-20220328.224524.850 kbd_input: k=-1 wch=0
+20220328.224524.850 kbd_input: k=-1 wch=0 
 20220328.224524.850 kbd_input: k == ERR, return
 20220328.224524.850 lazya_flush: 29 slots, 696 bytes
 20220328.224524.850 Macro[#14.2] RUNNING -> IDLE (about to resume)
@@ -564,12 +564,12 @@
 20220328.224524.851 CB(default)[#14] complete
 20220328.224524.851 Waiting for 5 events
 20220328.224525.042 Got 1 event
-20220328.224525.042 kbd_input: k=0 wch=114
+20220328.224525.042 kbd_input: k=0 wch=114 
 20220328.224525.042 Key '<Key>r' (curses key 0x0, char code 0x72)
 20220328.224525.042 CB(default)[#15] started
 20220328.224525.042 CB(default)[#15.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224525.042 Macro[#15.2] IDLE -> RUNNING (fresh push)
-20220328.224525.042 kbd_input: k=-1 wch=0
+20220328.224525.042 kbd_input: k=-1 wch=0 
 20220328.224525.042 kbd_input: k == ERR, return
 20220328.224525.042 lazya_flush: 29 slots, 712 bytes
 20220328.224525.042 Macro[#15.2] RUNNING -> IDLE (about to resume)
@@ -585,13 +585,13 @@
 20220328.224525.042 CB(default)[#15] complete
 20220328.224525.043 Waiting for 5 events
 20220328.224525.529 Got 1 event
-20220328.224525.529 kbd_input: k=256 wch=263
+20220328.224525.529 kbd_input: k=256 wch=263 
 20220328.224525.529 Key '<Key>BACKSPACE' (curses key 0x107, char code 0x0)
 20220328.224525.529  base.3270:16 -> Erase()
 20220328.224525.529 CB(keymap)[#16] started
 20220328.224525.529 CB(keymap)[#16.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224525.529 Macro[#16.2] IDLE -> RUNNING (fresh push)
-20220328.224525.529 kbd_input: k=-1 wch=0
+20220328.224525.529 kbd_input: k=-1 wch=0 
 20220328.224525.529 kbd_input: k == ERR, return
 20220328.224525.529 lazya_flush: 29 slots, 696 bytes
 20220328.224525.530 Macro[#16.2] RUNNING -> IDLE (about to resume)
@@ -606,13 +606,13 @@
 20220328.224525.530 CB(keymap)[#16] complete
 20220328.224525.530 Waiting for 5 events
 20220328.224525.713 Got 1 event
-20220328.224525.713 kbd_input: k=0 wch=13
+20220328.224525.713 kbd_input: k=0 wch=13 
 20220328.224525.713 Key 'Return' (curses key 0x0, char code 0xd)
 20220328.224525.713  base.3270:11 -> Enter()
 20220328.224525.713 CB(keymap)[#17] started
 20220328.224525.713 CB(keymap)[#17.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224525.713 Macro[#17.2] IDLE -> RUNNING (fresh push)
-20220328.224525.713 kbd_input: k=-1 wch=0
+20220328.224525.713 kbd_input: k=-1 wch=0 
 20220328.224525.713 kbd_input: k == ERR, return
 20220328.224525.713 lazya_flush: 26 slots, 640 bytes
 20220328.224525.714 Macro[#17.2] RUNNING -> IDLE (about to resume)
@@ -735,12 +735,12 @@
 20220328.224525.729 CB(keymap)[#17] complete
 20220328.224525.730 Waiting for 5 events
 20220328.224527.393 Got 1 event
-20220328.224527.393 kbd_input: k=0 wch=115
+20220328.224527.393 kbd_input: k=0 wch=115 
 20220328.224527.393 Key '<Key>s' (curses key 0x0, char code 0x73)
 20220328.224527.393 CB(default)[#18] started
 20220328.224527.393 CB(default)[#18.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224527.393 Macro[#18.2] IDLE -> RUNNING (fresh push)
-20220328.224527.393 kbd_input: k=-1 wch=0
+20220328.224527.393 kbd_input: k=-1 wch=0 
 20220328.224527.393 kbd_input: k == ERR, return
 20220328.224527.393 lazya_flush: 22 slots, 528 bytes
 20220328.224527.393 Macro[#18.2] RUNNING -> IDLE (about to resume)
@@ -756,12 +756,12 @@
 20220328.224527.394 CB(default)[#18] complete
 20220328.224527.394 Waiting for 5 events
 20220328.224527.514 Got 1 event
-20220328.224527.514 kbd_input: k=0 wch=121
+20220328.224527.514 kbd_input: k=0 wch=121 
 20220328.224527.514 Key '<Key>y' (curses key 0x0, char code 0x79)
 20220328.224527.514 CB(default)[#19] started
 20220328.224527.514 CB(default)[#19.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224527.514 Macro[#19.2] IDLE -> RUNNING (fresh push)
-20220328.224527.514 kbd_input: k=-1 wch=0
+20220328.224527.514 kbd_input: k=-1 wch=0 
 20220328.224527.514 kbd_input: k == ERR, return
 20220328.224527.514 lazya_flush: 29 slots, 744 bytes
 20220328.224527.514 Macro[#19.2] RUNNING -> IDLE (about to resume)
@@ -777,12 +777,12 @@
 20220328.224527.515 CB(default)[#19] complete
 20220328.224527.515 Waiting for 5 events
 20220328.224527.601 Got 1 event
-20220328.224527.601 kbd_input: k=0 wch=115
+20220328.224527.601 kbd_input: k=0 wch=115 
 20220328.224527.601 Key '<Key>s' (curses key 0x0, char code 0x73)
 20220328.224527.601 CB(default)[#20] started
 20220328.224527.601 CB(default)[#20.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224527.601 Macro[#20.2] IDLE -> RUNNING (fresh push)
-20220328.224527.601 kbd_input: k=-1 wch=0
+20220328.224527.601 kbd_input: k=-1 wch=0 
 20220328.224527.601 kbd_input: k == ERR, return
 20220328.224527.601 lazya_flush: 29 slots, 728 bytes
 20220328.224527.601 Macro[#20.2] RUNNING -> IDLE (about to resume)
@@ -798,12 +798,12 @@
 20220328.224527.602 CB(default)[#20] complete
 20220328.224527.602 Waiting for 5 events
 20220328.224527.794 Got 1 event
-20220328.224527.794 kbd_input: k=0 wch=49
+20220328.224527.794 kbd_input: k=0 wch=49 
 20220328.224527.794 Key '<Key>1' (curses key 0x0, char code 0x31)
 20220328.224527.794 CB(default)[#21] started
 20220328.224527.794 CB(default)[#21.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224527.794 Macro[#21.2] IDLE -> RUNNING (fresh push)
-20220328.224527.794 kbd_input: k=-1 wch=0
+20220328.224527.794 kbd_input: k=-1 wch=0 
 20220328.224527.794 kbd_input: k == ERR, return
 20220328.224527.794 lazya_flush: 29 slots, 696 bytes
 20220328.224527.794 Macro[#21.2] RUNNING -> IDLE (about to resume)
@@ -819,13 +819,13 @@
 20220328.224527.795 CB(default)[#21] complete
 20220328.224527.795 Waiting for 5 events
 20220328.224527.890 Got 1 event
-20220328.224527.890 kbd_input: k=0 wch=13
+20220328.224527.890 kbd_input: k=0 wch=13 
 20220328.224527.890 Key 'Return' (curses key 0x0, char code 0xd)
 20220328.224527.890  base.3270:11 -> Enter()
 20220328.224527.890 CB(keymap)[#22] started
 20220328.224527.890 CB(keymap)[#22.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224527.890 Macro[#22.2] IDLE -> RUNNING (fresh push)
-20220328.224527.890 kbd_input: k=-1 wch=0
+20220328.224527.890 kbd_input: k=-1 wch=0 
 20220328.224527.890 kbd_input: k == ERR, return
 20220328.224527.890 lazya_flush: 29 slots, 696 bytes
 20220328.224527.890 Macro[#22.2] RUNNING -> IDLE (about to resume)
@@ -1035,13 +1035,13 @@
 20220328.224528.823 CB(keymap)[#22] complete
 20220328.224528.823 Waiting for 5 events
 20220328.224529.890 Got 1 event
-20220328.224529.890 kbd_input: k=0 wch=13
+20220328.224529.890 kbd_input: k=0 wch=13 
 20220328.224529.890 Key 'Return' (curses key 0x0, char code 0xd)
 20220328.224529.890  base.3270:11 -> Enter()
 20220328.224529.890 CB(keymap)[#23] started
 20220328.224529.890 CB(keymap)[#23.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224529.890 Macro[#23.2] IDLE -> RUNNING (fresh push)
-20220328.224529.890 kbd_input: k=-1 wch=0
+20220328.224529.890 kbd_input: k=-1 wch=0 
 20220328.224529.890 kbd_input: k == ERR, return
 20220328.224529.890 lazya_flush: 22 slots, 528 bytes
 20220328.224529.890 Macro[#23.2] RUNNING -> IDLE (about to resume)
@@ -1391,13 +1391,13 @@
 20220328.224530.145 CB(keymap)[#23] complete
 20220328.224530.145 Waiting for 5 events
 20220328.224531.497 Got 1 event
-20220328.224531.497 kbd_input: k=256 wch=267
+20220328.224531.497 kbd_input: k=256 wch=267 
 20220328.224531.497 Key '<Key>F3' (curses key 0x10b, char code 0x0)
 20220328.224531.497  base:29 -> PF(3)
 20220328.224531.497 CB(keymap)[#24] started
 20220328.224531.497 CB(keymap)[#24.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224531.497 Macro[#24.2] IDLE -> RUNNING (fresh push)
-20220328.224531.497 kbd_input: k=-1 wch=0
+20220328.224531.497 kbd_input: k=-1 wch=0 
 20220328.224531.497 kbd_input: k == ERR, return
 20220328.224531.497 lazya_flush: 22 slots, 528 bytes
 20220328.224531.497 Macro[#24.2] RUNNING -> IDLE (about to resume)
@@ -1451,15 +1451,15 @@
 20220328.224531.577 CB(keymap)[#24] complete
 20220328.224531.577 Waiting for 5 events
 20220328.224536.466 Got 1 event
-20220328.224536.728 kbd_input: k=256 wch=409
+20220328.224536.728 kbd_input: k=256 wch=409 
 20220328.224536.728 Mouse BUTTON1_RELEASED (x=1,y=0)
 20220328.224536.729 lazya_flush: 15 slots, 360 bytes
 20220328.224536.729 Waiting for 5 events
 20220328.224541.969 Got 1 event
-20220328.224542.223 kbd_input: k=256 wch=409
+20220328.224542.223 kbd_input: k=256 wch=409 
 20220328.224542.224 Waiting for 5 events
 20220328.224544.956 Got 1 event
-20220328.224545.193 kbd_input: k=256 wch=409
+20220328.224545.193 kbd_input: k=256 wch=409 
 20220328.224545.193 CB(keypad)[#25] started
 20220328.224545.193 CB(keypad)[#25.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224545.193 Macro[#25.2] IDLE -> RUNNING (fresh push)
@@ -1491,12 +1491,12 @@ SSCP-LU data
 20220328.224545.196 lazya_flush: 26 slots, 656 bytes
 20220328.224545.196 Waiting for 5 events
 20220328.224548.474 Got 1 event
-20220328.224548.474 kbd_input: k=0 wch=102
+20220328.224548.474 kbd_input: k=0 wch=102 
 20220328.224548.474 Key '<Key>f' (curses key 0x0, char code 0x66)
 20220328.224548.474 CB(default)[#26] started
 20220328.224548.474 CB(default)[#26.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224548.474 Macro[#26.2] IDLE -> RUNNING (fresh push)
-20220328.224548.474 kbd_input: k=-1 wch=0
+20220328.224548.474 kbd_input: k=-1 wch=0 
 20220328.224548.474 kbd_input: k == ERR, return
 20220328.224548.474 lazya_flush: 12 slots, 288 bytes
 20220328.224548.474 Macro[#26.2] RUNNING -> IDLE (about to resume)
@@ -1512,12 +1512,12 @@ SSCP-LU data
 20220328.224548.474 CB(default)[#26] complete
 20220328.224548.474 Waiting for 5 events
 20220328.224548.513 Got 1 event
-20220328.224548.513 kbd_input: k=0 wch=111
+20220328.224548.513 kbd_input: k=0 wch=111 
 20220328.224548.513 Key '<Key>o' (curses key 0x0, char code 0x6f)
 20220328.224548.513 CB(default)[#27] started
 20220328.224548.513 CB(default)[#27.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224548.513 Macro[#27.2] IDLE -> RUNNING (fresh push)
-20220328.224548.513 kbd_input: k=-1 wch=0
+20220328.224548.513 kbd_input: k=-1 wch=0 
 20220328.224548.513 kbd_input: k == ERR, return
 20220328.224548.513 lazya_flush: 29 slots, 776 bytes
 20220328.224548.514 Macro[#27.2] RUNNING -> IDLE (about to resume)
@@ -1533,12 +1533,12 @@ SSCP-LU data
 20220328.224548.514 CB(default)[#27] complete
 20220328.224548.514 Waiting for 5 events
 20220328.224548.643 Got 1 event
-20220328.224548.643 kbd_input: k=0 wch=111
+20220328.224548.643 kbd_input: k=0 wch=111 
 20220328.224548.643 Key '<Key>o' (curses key 0x0, char code 0x6f)
 20220328.224548.643 CB(default)[#28] started
 20220328.224548.643 CB(default)[#28.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224548.643 Macro[#28.2] IDLE -> RUNNING (fresh push)
-20220328.224548.643 kbd_input: k=-1 wch=0
+20220328.224548.643 kbd_input: k=-1 wch=0 
 20220328.224548.643 kbd_input: k == ERR, return
 20220328.224548.643 lazya_flush: 29 slots, 760 bytes
 20220328.224548.643 Macro[#28.2] RUNNING -> IDLE (about to resume)
@@ -1554,13 +1554,13 @@ SSCP-LU data
 20220328.224548.643 CB(default)[#28] complete
 20220328.224548.643 Waiting for 5 events
 20220328.224548.882 Got 1 event
-20220328.224548.882 kbd_input: k=0 wch=13
+20220328.224548.882 kbd_input: k=0 wch=13 
 20220328.224548.882 Key 'Return' (curses key 0x0, char code 0xd)
 20220328.224548.882  base.3270:11 -> Enter()
 20220328.224548.882 CB(keymap)[#29] started
 20220328.224548.882 CB(keymap)[#29.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224548.882 Macro[#29.2] IDLE -> RUNNING (fresh push)
-20220328.224548.882 kbd_input: k=-1 wch=0
+20220328.224548.882 kbd_input: k=-1 wch=0 
 20220328.224548.882 kbd_input: k == ERR, return
 20220328.224548.882 lazya_flush: 29 slots, 744 bytes
 20220328.224548.883 Macro[#29.2] RUNNING -> IDLE (about to resume)
@@ -1589,11 +1589,11 @@ SSCP-LU data
 20220328.224548.884 lazya_flush: 47 slots, 1144 bytes
 20220328.224548.884 Waiting for 5 events
 20220328.224553.979 Got 1 event
-20220328.224554.233 kbd_input: k=256 wch=409
+20220328.224554.233 kbd_input: k=256 wch=409 
 20220328.224554.234 Mouse BUTTON1_RELEASED (x=21,y=0)
 20220328.224554.234 Waiting for 5 events
 20220328.224555.213 Got 1 event
-20220328.224555.467 kbd_input: k=256 wch=409
+20220328.224555.467 kbd_input: k=256 wch=409 
 20220328.224555.467 CB(keypad)[#30] started
 20220328.224555.467 CB(keypad)[#30.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224555.467 Macro[#30.2] IDLE -> RUNNING (fresh push)
@@ -1631,13 +1631,13 @@ SSCP-LU data
 20220328.224555.471 lazya_flush: 96 slots, 2320 bytes
 20220328.224555.471 Waiting for 5 events
 20220328.224557.274 Got 1 event
-20220328.224557.274 kbd_input: k=0 wch=13
+20220328.224557.274 kbd_input: k=0 wch=13 
 20220328.224557.274 Key 'Return' (curses key 0x0, char code 0xd)
 20220328.224557.274  base.3270:11 -> Enter()
 20220328.224557.274 CB(keymap)[#31] started
 20220328.224557.274 CB(keymap)[#31.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224557.274 Macro[#31.2] IDLE -> RUNNING (fresh push)
-20220328.224557.274 kbd_input: k=-1 wch=0
+20220328.224557.274 kbd_input: k=-1 wch=0 
 20220328.224557.274 kbd_input: k == ERR, return
 20220328.224557.274 lazya_flush: 12 slots, 288 bytes
 20220328.224557.274 Macro[#31.2] RUNNING -> IDLE (about to resume)
@@ -1674,13 +1674,13 @@ SSCP-LU data
 20220328.224557.277 CB(keymap)[#31] complete
 20220328.224557.277 Waiting for 5 events
 20220328.224603.682 Got 1 event
-20220328.224603.682 kbd_input: k=0 wch=13
+20220328.224603.682 kbd_input: k=0 wch=13 
 20220328.224603.682 Key 'Return' (curses key 0x0, char code 0xd)
 20220328.224603.682  base.3270:11 -> Enter()
 20220328.224603.682 CB(keymap)[#32] started
 20220328.224603.682 CB(keymap)[#32.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224603.682 Macro[#32.2] IDLE -> RUNNING (fresh push)
-20220328.224603.682 kbd_input: k=-1 wch=0
+20220328.224603.682 kbd_input: k=-1 wch=0 
 20220328.224603.682 kbd_input: k == ERR, return
 20220328.224603.682 lazya_flush: 22 slots, 528 bytes
 20220328.224603.682 Macro[#32.2] RUNNING -> IDLE (about to resume)
@@ -1732,12 +1732,12 @@ SSCP-LU data
 20220328.224603.687 CB(keymap)[#32] complete
 20220328.224603.688 Waiting for 5 events
 20220328.224604.474 Got 1 event
-20220328.224604.474 kbd_input: k=0 wch=108
+20220328.224604.474 kbd_input: k=0 wch=108 
 20220328.224604.474 Key '<Key>l' (curses key 0x0, char code 0x6c)
 20220328.224604.474 CB(default)[#33] started
 20220328.224604.474 CB(default)[#33.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224604.474 Macro[#33.2] IDLE -> RUNNING (fresh push)
-20220328.224604.474 kbd_input: k=-1 wch=0
+20220328.224604.474 kbd_input: k=-1 wch=0 
 20220328.224604.474 kbd_input: k == ERR, return
 20220328.224604.474 lazya_flush: 22 slots, 528 bytes
 20220328.224604.474 Macro[#33.2] RUNNING -> IDLE (about to resume)
@@ -1753,12 +1753,12 @@ SSCP-LU data
 20220328.224604.475 CB(default)[#33] complete
 20220328.224604.475 Waiting for 5 events
 20220328.224604.683 Got 1 event
-20220328.224604.683 kbd_input: k=0 wch=111
+20220328.224604.683 kbd_input: k=0 wch=111 
 20220328.224604.683 Key '<Key>o' (curses key 0x0, char code 0x6f)
 20220328.224604.683 CB(default)[#34] started
 20220328.224604.683 CB(default)[#34.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224604.683 Macro[#34.2] IDLE -> RUNNING (fresh push)
-20220328.224604.683 kbd_input: k=-1 wch=0
+20220328.224604.683 kbd_input: k=-1 wch=0 
 20220328.224604.683 kbd_input: k == ERR, return
 20220328.224604.683 lazya_flush: 29 slots, 776 bytes
 20220328.224604.683 Macro[#34.2] RUNNING -> IDLE (about to resume)
@@ -1774,12 +1774,12 @@ SSCP-LU data
 20220328.224604.683 CB(default)[#34] complete
 20220328.224604.684 Waiting for 5 events
 20220328.224604.819 Got 1 event
-20220328.224604.819 kbd_input: k=0 wch=103
+20220328.224604.819 kbd_input: k=0 wch=103 
 20220328.224604.819 Key '<Key>g' (curses key 0x0, char code 0x67)
 20220328.224604.819 CB(default)[#35] started
 20220328.224604.819 CB(default)[#35.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224604.819 Macro[#35.2] IDLE -> RUNNING (fresh push)
-20220328.224604.819 kbd_input: k=-1 wch=0
+20220328.224604.819 kbd_input: k=-1 wch=0 
 20220328.224604.819 kbd_input: k == ERR, return
 20220328.224604.819 lazya_flush: 29 slots, 760 bytes
 20220328.224604.819 Macro[#35.2] RUNNING -> IDLE (about to resume)
@@ -1795,12 +1795,12 @@ SSCP-LU data
 20220328.224604.820 CB(default)[#35] complete
 20220328.224604.820 Waiting for 5 events
 20220328.224604.891 Got 1 event
-20220328.224604.891 kbd_input: k=0 wch=111
+20220328.224604.891 kbd_input: k=0 wch=111 
 20220328.224604.891 Key '<Key>o' (curses key 0x0, char code 0x6f)
 20220328.224604.891 CB(default)[#36] started
 20220328.224604.891 CB(default)[#36.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224604.891 Macro[#36.2] IDLE -> RUNNING (fresh push)
-20220328.224604.891 kbd_input: k=-1 wch=0
+20220328.224604.891 kbd_input: k=-1 wch=0 
 20220328.224604.891 kbd_input: k == ERR, return
 20220328.224604.891 lazya_flush: 29 slots, 744 bytes
 20220328.224604.891 Macro[#36.2] RUNNING -> IDLE (about to resume)
@@ -1816,12 +1816,12 @@ SSCP-LU data
 20220328.224604.892 CB(default)[#36] complete
 20220328.224604.892 Waiting for 5 events
 20220328.224605.058 Got 1 event
-20220328.224605.058 kbd_input: k=0 wch=102
+20220328.224605.058 kbd_input: k=0 wch=102 
 20220328.224605.058 Key '<Key>f' (curses key 0x0, char code 0x66)
 20220328.224605.058 CB(default)[#37] started
 20220328.224605.058 CB(default)[#37.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224605.058 Macro[#37.2] IDLE -> RUNNING (fresh push)
-20220328.224605.058 kbd_input: k=-1 wch=0
+20220328.224605.058 kbd_input: k=-1 wch=0 
 20220328.224605.058 kbd_input: k == ERR, return
 20220328.224605.058 lazya_flush: 29 slots, 744 bytes
 20220328.224605.059 Macro[#37.2] RUNNING -> IDLE (about to resume)
@@ -1837,12 +1837,12 @@ SSCP-LU data
 20220328.224605.059 CB(default)[#37] complete
 20220328.224605.059 Waiting for 5 events
 20220328.224605.178 Got 1 event
-20220328.224605.178 kbd_input: k=0 wch=102
+20220328.224605.178 kbd_input: k=0 wch=102 
 20220328.224605.178 Key '<Key>f' (curses key 0x0, char code 0x66)
 20220328.224605.178 CB(default)[#38] started
 20220328.224605.178 CB(default)[#38.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224605.178 Macro[#38.2] IDLE -> RUNNING (fresh push)
-20220328.224605.178 kbd_input: k=-1 wch=0
+20220328.224605.178 kbd_input: k=-1 wch=0 
 20220328.224605.178 kbd_input: k == ERR, return
 20220328.224605.178 lazya_flush: 29 slots, 744 bytes
 20220328.224605.178 Macro[#38.2] RUNNING -> IDLE (about to resume)
@@ -1858,13 +1858,13 @@ SSCP-LU data
 20220328.224605.179 CB(default)[#38] complete
 20220328.224605.179 Waiting for 5 events
 20220328.224605.322 Got 1 event
-20220328.224605.323 kbd_input: k=0 wch=13
+20220328.224605.323 kbd_input: k=0 wch=13 
 20220328.224605.323 Key 'Return' (curses key 0x0, char code 0xd)
 20220328.224605.323  base.3270:11 -> Enter()
 20220328.224605.323 CB(keymap)[#39] started
 20220328.224605.323 CB(keymap)[#39.1] IDLE -> RUNNING (child task to be pushed next)
 20220328.224605.323 Macro[#39.2] IDLE -> RUNNING (fresh push)
-20220328.224605.323 kbd_input: k=-1 wch=0
+20220328.224605.323 kbd_input: k=-1 wch=0 
 20220328.224605.323 kbd_input: k == ERR, return
 20220328.224605.323 lazya_flush: 29 slots, 744 bytes
 20220328.224605.323 Macro[#39.2] RUNNING -> IDLE (about to resume)
