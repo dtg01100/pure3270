@@ -1,0 +1,882 @@
+{
+  "timestamp": 1760825500.808461,
+  "suite_name": "comprehensive_api_parity",
+  "overall_passed": false,
+  "components": {
+    "signature_tests": {
+      "total_methods": 49,
+      "signature_compatible": 49,
+      "signature_incompatible": 0,
+      "missing_methods": [],
+      "extra_methods": [],
+      "details": []
+    },
+    "behavioral_tests": {
+      "total_tests": 11,
+      "passed_tests": 5,
+      "failed_tests": 6,
+      "results": [
+        "ParityTestResult(method_name='connect', test_name='basic_connection', category=<TestCategory.CONNECTION: 'connection'>, compatibility_level=<CompatibilityLevel.SIGNATURE: 'signature'>, pure3270_result=True, legacy_result=<Mock name='mock.connect()' id='140376840482944'>, differences=[\"Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>\"], execution_time=0.0013380050659179688, error_message=None, passed=False)",
+        "ParityTestResult(method_name='disconnect', test_name='connection_cleanup', category=<TestCategory.CONNECTION: 'connection'>, compatibility_level=<CompatibilityLevel.SIGNATURE: 'signature'>, pure3270_result=True, legacy_result=<Mock name='mock.disconnect()' id='140376840482848'>, differences=[\"Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>\"], execution_time=0.0012660026550292969, error_message=None, passed=False)",
+        "ParityTestResult(method_name='isConnected', test_name='connection_status', category=<TestCategory.CONNECTION: 'connection'>, compatibility_level=<CompatibilityLevel.FULL: 'full'>, pure3270_result=True, legacy_result=True, differences=[], execution_time=0.0006999969482421875, error_message=None, passed=True)",
+        "ParityTestResult(method_name='sendText', test_name='text_input', category=<TestCategory.TEXT_IO: 'text_io'>, compatibility_level=<CompatibilityLevel.SIGNATURE: 'signature'>, pure3270_result=True, legacy_result=<Mock name='mock.sendText()' id='140376840481648'>, differences=[\"Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>\"], execution_time=0.0018944740295410156, error_message=None, passed=False)",
+        "ParityTestResult(method_name='getScreen', test_name='screen_reading', category=<TestCategory.TEXT_IO: 'text_io'>, compatibility_level=<CompatibilityLevel.FULL: 'full'>, pure3270_result='', legacy_result='Mock Screen Content', differences=[], execution_time=0.0013728141784667969, error_message=None, passed=True)",
+        "ParityTestResult(method_name='readTextAtPosition', test_name='positioned_read', category=<TestCategory.TEXT_IO: 'text_io'>, compatibility_level=<CompatibilityLevel.FULL: 'full'>, pure3270_result='', legacy_result='test', differences=[], execution_time=0.0020537376403808594, error_message=None, passed=True)",
+        "ParityTestResult(method_name='sendEnter', test_name='enter_key', category=<TestCategory.KEYBOARD: 'keyboard'>, compatibility_level=<CompatibilityLevel.SIGNATURE: 'signature'>, pure3270_result=True, legacy_result=<Mock name='mock.sendEnter()' id='140376840481744'>, differences=[\"Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>\"], execution_time=0.001657724380493164, error_message=None, passed=False)",
+        "ParityTestResult(method_name='sendTab', test_name='tab_key', category=<TestCategory.KEYBOARD: 'keyboard'>, compatibility_level=<CompatibilityLevel.SIGNATURE: 'signature'>, pure3270_result=True, legacy_result=<Mock name='mock.sendTab()' id='140376840483424'>, differences=[\"Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>\"], execution_time=0.0016379356384277344, error_message=None, passed=False)",
+        "ParityTestResult(method_name='sendPF', test_name='pf_key', category=<TestCategory.KEYBOARD: 'keyboard'>, compatibility_level=<CompatibilityLevel.SIGNATURE: 'signature'>, pure3270_result=True, legacy_result=<Mock name='mock.sendPF()' id='140376840478384'>, differences=[\"Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>\"], execution_time=0.001905679702758789, error_message=None, passed=False)",
+        "ParityTestResult(method_name='waitForCursorAt', test_name='cursor_wait', category=<TestCategory.WAIT: 'wait'>, compatibility_level=<CompatibilityLevel.FULL: 'full'>, pure3270_result=True, legacy_result=True, differences=[], execution_time=0.10172843933105469, error_message=None, passed=True)",
+        "ParityTestResult(method_name='waitForStringAt', test_name='string_wait', category=<TestCategory.WAIT: 'wait'>, compatibility_level=<CompatibilityLevel.FULL: 'full'>, pure3270_result=False, legacy_result=True, differences=[], execution_time=1.0030460357666016, error_message=None, passed=True)"
+      ]
+    },
+    "integration_tests": {
+      "tests_run": 0,
+      "tests_passed": 0,
+      "tests_failed": 0,
+      "connection_successful": false,
+      "communication_successful": false,
+      "error_details": []
+    },
+    "final_report": {
+      "timestamp": 1760825501.9525137,
+      "summary": {
+        "total_methods_analyzed": 49,
+        "signature_compatibility_rate": 1.0,
+        "behavioral_compatibility_rate": 0.45454545454545453,
+        "overall_compatibility_score": 0.7272727272727273,
+        "missing_methods": [],
+        "extra_methods": [],
+        "signature_mismatches": 0,
+        "behavioral_differences": 6,
+        "compatibility_level": "FAIR"
+      },
+      "method_signatures": {
+        "_sendCommand": {
+          "name": "_sendCommand",
+          "parameters": {
+            "command": {
+              "annotation": "<class 'str'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "typing.Optional[str]",
+          "docstring": "Send a command to the session and handle response, matching p3270 behavior.\nDispatches to appropriate Session methods for full s3270 compatibility.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "clearScreen": {
+          "name": "clearScreen",
+          "parameters": {},
+          "return_type": "None",
+          "docstring": "Clear the screen.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "close": {
+          "name": "close",
+          "parameters": {},
+          "return_type": "None",
+          "docstring": "Alias for disconnect.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "connect": {
+          "name": "connect",
+          "parameters": {},
+          "return_type": "None",
+          "docstring": "Establish connection to TN3270 host using pure3270.Session.\nIf no hostName is configured, perform a no-op to match legacy client behavior\nin test harnesses that call connect() without specifying a host.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "delChar": {
+          "name": "delChar",
+          "parameters": {},
+          "return_type": "None",
+          "docstring": "Delete character at cursor position.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "delField": {
+          "name": "delField",
+          "parameters": {},
+          "return_type": "None",
+          "docstring": "Delete current field.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "delWord": {
+          "name": "delWord",
+          "parameters": {},
+          "return_type": "None",
+          "docstring": "Delete current word.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "disconnect": {
+          "name": "disconnect",
+          "parameters": {},
+          "return_type": "None",
+          "docstring": "Disconnect from TN3270 host and clean up session.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "endSession": {
+          "name": "endSession",
+          "parameters": {},
+          "return_type": "None",
+          "docstring": "Alias for disconnect (legacy p3270 API).",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "eraseChar": {
+          "name": "eraseChar",
+          "parameters": {},
+          "return_type": "None",
+          "docstring": "Erase character (same as delete).",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "foundTextAtPosition": {
+          "name": "foundTextAtPosition",
+          "parameters": {
+            "row": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "col": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "text": {
+              "annotation": "<class 'str'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "<class 'bool'>",
+          "docstring": "Check if specific text is found at position.\n\nArgs:\n    row: Row position (0-based)\n    col: Column position (0-based)\n    text: Text to search for\n\nReturns:\n    True if text is found at position",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "getScreen": {
+          "name": "getScreen",
+          "parameters": {},
+          "return_type": "<class 'str'>",
+          "docstring": "Get the current screen content as text (always ASCII/Unicode).",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "isConnected": {
+          "name": "isConnected",
+          "parameters": {},
+          "return_type": "<class 'bool'>",
+          "docstring": "Check if client is connected to TN3270 host.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "makeArgs": {
+          "name": "makeArgs",
+          "parameters": {
+            "args": {
+              "annotation": "typing.Any",
+              "default": null,
+              "kind": "VAR_POSITIONAL"
+            }
+          },
+          "return_type": "typing.List[typing.Any]",
+          "docstring": "Return a list constructed from provided args (legacy helper).\n\nMirrors p3270.P3270Client.makeArgs behavior by simply returning a\nlist of the arguments passed, used by some calling code that expects\nan args list for command assembly.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "moveCursorDown": {
+          "name": "moveCursorDown",
+          "parameters": {},
+          "return_type": "None",
+          "docstring": "Move cursor down one row.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "moveCursorLeft": {
+          "name": "moveCursorLeft",
+          "parameters": {},
+          "return_type": "None",
+          "docstring": "Move cursor left one column.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "moveCursorRight": {
+          "name": "moveCursorRight",
+          "parameters": {},
+          "return_type": "None",
+          "docstring": "Move cursor right one column.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "moveCursorUp": {
+          "name": "moveCursorUp",
+          "parameters": {},
+          "return_type": "None",
+          "docstring": "Move cursor up one row.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "moveTo": {
+          "name": "moveTo",
+          "parameters": {
+            "row": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "col": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "None",
+          "docstring": "Move cursor to specified position.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "moveToFirstInputField": {
+          "name": "moveToFirstInputField",
+          "parameters": {},
+          "return_type": "None",
+          "docstring": "Move cursor to first input field.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "printScreen": {
+          "name": "printScreen",
+          "parameters": {},
+          "return_type": "<class 'str'>",
+          "docstring": "Print current screen content (returns screen text).",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "read": {
+          "name": "read",
+          "parameters": {},
+          "return_type": "<class 'str'>",
+          "docstring": "Read screen (for backwards compatibility).",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "readTextArea": {
+          "name": "readTextArea",
+          "parameters": {
+            "startRow": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "startCol": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "endRow": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "endCol": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "<class 'str'>",
+          "docstring": "Read text from a rectangular area.\n\nArgs:\n    startRow: Starting row (0-based)\n    startCol: Starting column (0-based)\n    endRow: Ending row (0-based)\n    endCol: Ending column (0-based)\n\nReturns:\n    Text from the specified area",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "readTextAtPosition": {
+          "name": "readTextAtPosition",
+          "parameters": {
+            "row": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "col": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "length": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "<class 'str'>",
+          "docstring": "Read text at specified position.\n\nArgs:\n    row: Row position (0-based)\n    col: Column position (0-based)\n    length: Number of characters to read\n\nReturns:\n    Text at the specified position",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "saveScreen": {
+          "name": "saveScreen",
+          "parameters": {
+            "filename": {
+              "annotation": "<class 'str'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "<class 'bool'>",
+          "docstring": "Save current screen to file.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "send": {
+          "name": "send",
+          "parameters": {
+            "command": {
+              "annotation": "<class 'str'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "None",
+          "docstring": "Send command (for backwards compatibility).",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "sendBackSpace": {
+          "name": "sendBackSpace",
+          "parameters": {},
+          "return_type": "None",
+          "docstring": "Send BackSpace key.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "sendBackTab": {
+          "name": "sendBackTab",
+          "parameters": {},
+          "return_type": "None",
+          "docstring": "Send BackTab key.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "sendEnter": {
+          "name": "sendEnter",
+          "parameters": {},
+          "return_type": "None",
+          "docstring": "Send Enter key.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "sendHome": {
+          "name": "sendHome",
+          "parameters": {},
+          "return_type": "None",
+          "docstring": "Send Home key.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "sendKeys": {
+          "name": "sendKeys",
+          "parameters": {
+            "keys": {
+              "annotation": "<class 'str'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "None",
+          "docstring": "Send arbitrary key sequence.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "sendPA": {
+          "name": "sendPA",
+          "parameters": {
+            "paNum": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "None",
+          "docstring": "Send PA key (PA1-PA3).",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "sendPF": {
+          "name": "sendPF",
+          "parameters": {
+            "pfNum": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "None",
+          "docstring": "Send PF key (PF1-PF24).",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "sendTab": {
+          "name": "sendTab",
+          "parameters": {},
+          "return_type": "None",
+          "docstring": "Send Tab key.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "sendText": {
+          "name": "sendText",
+          "parameters": {
+            "text": {
+              "annotation": "<class 'str'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "asterisks": {
+              "annotation": "<class 'bool'>",
+              "default": false,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "None",
+          "docstring": "Send text to the current cursor position.\n\nArgs:\n    text: Text to send\n    asterisks: If True, mask input (for passwords)",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "trySendTextToField": {
+          "name": "trySendTextToField",
+          "parameters": {
+            "text": {
+              "annotation": "<class 'str'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "row": {
+              "annotation": "typing.Optional[int]",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "col": {
+              "annotation": "typing.Optional[int]",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "<class 'bool'>",
+          "docstring": "Try to send text to a specific field.\n\nArgs:\n    text: Text to send\n    row: Row position (optional)\n    col: Column position (optional)\n\nReturns:\n    True if successful",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "waitFor3270Mode": {
+          "name": "waitFor3270Mode",
+          "parameters": {
+            "timeout": {
+              "annotation": "<class 'float'>",
+              "default": 5.0,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "<class 'bool'>",
+          "docstring": "Wait for 3270 mode to be active.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "waitForCursorAt": {
+          "name": "waitForCursorAt",
+          "parameters": {
+            "row": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "col": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "timeout": {
+              "annotation": "<class 'float'>",
+              "default": 5.0,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "<class 'bool'>",
+          "docstring": "Wait for cursor to be at specific position.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "waitForCursorAtOffset": {
+          "name": "waitForCursorAtOffset",
+          "parameters": {
+            "offset": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "timeout": {
+              "annotation": "<class 'float'>",
+              "default": 5.0,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "<class 'bool'>",
+          "docstring": "Wait for cursor at specific offset from start of screen.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "waitForDisconnect": {
+          "name": "waitForDisconnect",
+          "parameters": {
+            "timeout": {
+              "annotation": "<class 'float'>",
+              "default": 5.0,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "<class 'bool'>",
+          "docstring": "Wait for disconnection.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "waitForField": {
+          "name": "waitForField",
+          "parameters": {
+            "timeout": {
+              "annotation": "<class 'float'>",
+              "default": 5.0,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "<class 'bool'>",
+          "docstring": "Wait for an input field to be available.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "waitForFieldAt": {
+          "name": "waitForFieldAt",
+          "parameters": {
+            "row": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "col": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "timeout": {
+              "annotation": "<class 'float'>",
+              "default": 5.0,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "<class 'bool'>",
+          "docstring": "Wait for input field at specific position.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "waitForFieldAtOffset": {
+          "name": "waitForFieldAtOffset",
+          "parameters": {
+            "offset": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "timeout": {
+              "annotation": "<class 'float'>",
+              "default": 5.0,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "<class 'bool'>",
+          "docstring": "Wait for input field at specific offset.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "waitForNVTMode": {
+          "name": "waitForNVTMode",
+          "parameters": {
+            "timeout": {
+              "annotation": "<class 'float'>",
+              "default": 5.0,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "<class 'bool'>",
+          "docstring": "Wait for NVT mode to be active.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "waitForOutput": {
+          "name": "waitForOutput",
+          "parameters": {
+            "timeout": {
+              "annotation": "<class 'float'>",
+              "default": 5.0,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "<class 'bool'>",
+          "docstring": "Wait for output to be ready.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "waitForStringAt": {
+          "name": "waitForStringAt",
+          "parameters": {
+            "row": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "col": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "text": {
+              "annotation": "<class 'str'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "timeout": {
+              "annotation": "<class 'float'>",
+              "default": 5.0,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "<class 'bool'>",
+          "docstring": "Wait for specific text to appear at position.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "waitForStringAtOffset": {
+          "name": "waitForStringAtOffset",
+          "parameters": {
+            "offset": {
+              "annotation": "<class 'int'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "text": {
+              "annotation": "<class 'str'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            },
+            "timeout": {
+              "annotation": "<class 'float'>",
+              "default": 5.0,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "<class 'bool'>",
+          "docstring": "Wait for specific text to appear at offset.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "waitForTimeout": {
+          "name": "waitForTimeout",
+          "parameters": {
+            "timeout": {
+              "annotation": "<class 'float'>",
+              "default": null,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "<class 'bool'>",
+          "docstring": "Wait for specified timeout period.",
+          "is_class_method": false,
+          "is_static_method": false
+        },
+        "waitForUnlock": {
+          "name": "waitForUnlock",
+          "parameters": {
+            "timeout": {
+              "annotation": "<class 'float'>",
+              "default": 5.0,
+              "kind": "POSITIONAL_OR_KEYWORD"
+            }
+          },
+          "return_type": "<class 'bool'>",
+          "docstring": "Wait for keyboard unlock.",
+          "is_class_method": false,
+          "is_static_method": false
+        }
+      },
+      "behavioral_tests": [
+        {
+          "method_name": "connect",
+          "test_name": "basic_connection",
+          "category": "connection",
+          "compatibility_level": "signature",
+          "pure3270_result": true,
+          "legacy_result": "<Mock name='mock.connect()' id='140376840482944'>",
+          "differences": [
+            "Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>"
+          ],
+          "execution_time": 0.0013380050659179688,
+          "error_message": null,
+          "passed": false
+        },
+        {
+          "method_name": "disconnect",
+          "test_name": "connection_cleanup",
+          "category": "connection",
+          "compatibility_level": "signature",
+          "pure3270_result": true,
+          "legacy_result": "<Mock name='mock.disconnect()' id='140376840482848'>",
+          "differences": [
+            "Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>"
+          ],
+          "execution_time": 0.0012660026550292969,
+          "error_message": null,
+          "passed": false
+        },
+        {
+          "method_name": "isConnected",
+          "test_name": "connection_status",
+          "category": "connection",
+          "compatibility_level": "full",
+          "pure3270_result": true,
+          "legacy_result": true,
+          "differences": [],
+          "execution_time": 0.0006999969482421875,
+          "error_message": null,
+          "passed": true
+        },
+        {
+          "method_name": "sendText",
+          "test_name": "text_input",
+          "category": "text_io",
+          "compatibility_level": "signature",
+          "pure3270_result": true,
+          "legacy_result": "<Mock name='mock.sendText()' id='140376840481648'>",
+          "differences": [
+            "Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>"
+          ],
+          "execution_time": 0.0018944740295410156,
+          "error_message": null,
+          "passed": false
+        },
+        {
+          "method_name": "getScreen",
+          "test_name": "screen_reading",
+          "category": "text_io",
+          "compatibility_level": "full",
+          "pure3270_result": "",
+          "legacy_result": "Mock Screen Content",
+          "differences": [],
+          "execution_time": 0.0013728141784667969,
+          "error_message": null,
+          "passed": true
+        },
+        {
+          "method_name": "readTextAtPosition",
+          "test_name": "positioned_read",
+          "category": "text_io",
+          "compatibility_level": "full",
+          "pure3270_result": "",
+          "legacy_result": "test",
+          "differences": [],
+          "execution_time": 0.0020537376403808594,
+          "error_message": null,
+          "passed": true
+        },
+        {
+          "method_name": "sendEnter",
+          "test_name": "enter_key",
+          "category": "keyboard",
+          "compatibility_level": "signature",
+          "pure3270_result": true,
+          "legacy_result": "<Mock name='mock.sendEnter()' id='140376840481744'>",
+          "differences": [
+            "Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>"
+          ],
+          "execution_time": 0.001657724380493164,
+          "error_message": null,
+          "passed": false
+        },
+        {
+          "method_name": "sendTab",
+          "test_name": "tab_key",
+          "category": "keyboard",
+          "compatibility_level": "signature",
+          "pure3270_result": true,
+          "legacy_result": "<Mock name='mock.sendTab()' id='140376840483424'>",
+          "differences": [
+            "Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>"
+          ],
+          "execution_time": 0.0016379356384277344,
+          "error_message": null,
+          "passed": false
+        },
+        {
+          "method_name": "sendPF",
+          "test_name": "pf_key",
+          "category": "keyboard",
+          "compatibility_level": "signature",
+          "pure3270_result": true,
+          "legacy_result": "<Mock name='mock.sendPF()' id='140376840478384'>",
+          "differences": [
+            "Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>"
+          ],
+          "execution_time": 0.001905679702758789,
+          "error_message": null,
+          "passed": false
+        },
+        {
+          "method_name": "waitForCursorAt",
+          "test_name": "cursor_wait",
+          "category": "wait",
+          "compatibility_level": "full",
+          "pure3270_result": true,
+          "legacy_result": true,
+          "differences": [],
+          "execution_time": 0.10172843933105469,
+          "error_message": null,
+          "passed": true
+        },
+        {
+          "method_name": "waitForStringAt",
+          "test_name": "string_wait",
+          "category": "wait",
+          "compatibility_level": "full",
+          "pure3270_result": false,
+          "legacy_result": true,
+          "differences": [],
+          "execution_time": 1.0030460357666016,
+          "error_message": null,
+          "passed": true
+        }
+      ],
+      "missing_methods": [],
+      "extra_methods": [],
+      "signature_mismatches": [],
+      "behavioral_differences": [
+        "Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>",
+        "Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>",
+        "Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>",
+        "Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>",
+        "Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>",
+        "Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>"
+      ]
+    }
+  },
+  "summary": {
+    "total_components": 4,
+    "passed_components": 2,
+    "failed_components": 1,
+    "total_tests": 60,
+    "passed_tests": 54,
+    "failed_tests": 6,
+    "overall_passed": false,
+    "compatibility_score": 0.9
+  }
+}

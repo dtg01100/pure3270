@@ -28,7 +28,7 @@ async def main() -> None:
         s = pure3270.AsyncSession(terminal_type=model)
         rows, cols = s.screen_buffer.rows, s.screen_buffer.cols
         expected_rows, expected_cols = get_screen_size(model)
-        caps = await s.capabilities()
+        caps = s.capabilities()
         print(
             f"- {model:12} -> screen {rows}x{cols}"
             f" (expected {expected_rows}x{expected_cols})"

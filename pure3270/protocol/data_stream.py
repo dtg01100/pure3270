@@ -1004,6 +1004,14 @@ class DataStreamParser:
 
         try:
             parser = self._ensure_parser()
+            # Enable bulk update for large data streams to avoid per-byte field detection
+            bulk_mode = False
+            if len(data) > 4096 and hasattr(self.screen, "begin_bulk_update"):
+                try:
+                    self.screen.begin_bulk_update()
+                    bulk_mode = True
+                except Exception:
+                    bulk_mode = False
             while parser.has_more():
                 pos_before = self._pos
                 try:
@@ -1086,6 +1094,16 @@ class DataStreamParser:
         except Exception as e:
             logger.error(f"Unexpected error during parsing: {e}", exc_info=True)
             raise ParseError(f"Parsing failed: {e}")
+        finally:
+            if (
+                "bulk_mode" in locals()
+                and bulk_mode
+                and hasattr(self.screen, "end_bulk_update")
+            ):
+                try:
+                    self.screen.end_bulk_update()
+                except Exception:
+                    pass
 
     # ------------------------------------------------------------------
     # NVT (ASCII/VT100) data handling
@@ -1110,6 +1128,12 @@ class DataStreamParser:
             pass
 
         row, col = self.screen.get_position()
+        # Suspend field detection for bulk ASCII writes
+        if hasattr(self.screen, "begin_bulk_update"):
+            try:
+                self.screen.begin_bulk_update()
+            except Exception:
+                pass
         for b in data:
             if b in (0x0A,):  # LF -> move to next line, same column
                 row = min(row + 1, self.screen.rows - 1)
@@ -1137,6 +1161,11 @@ class DataStreamParser:
                     row = min(row + 1, self.screen.rows - 1)
         # Update cursor position at end
         self.screen.set_position(row, col)
+        if hasattr(self.screen, "end_bulk_update"):
+            try:
+                self.screen.end_bulk_update()
+            except Exception:
+                pass
 
     def _ensure_parser(self) -> BaseParser:
         """Ensure `self.parser` exists; create from `self._data`/_pos if needed."""

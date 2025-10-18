@@ -33,6 +33,8 @@ class RecoveryPolicy(Enum):
     LINEAR_BACKOFF = "linear_backoff"
     EXPONENTIAL_BACKOFF = "exponential_backoff"
     CUSTOM = "custom"
+    # Alias for immediate retry semantics, kept for compatibility with tests
+    RETRY = "retry"
 
 
 class CircuitBreakerConfig:
@@ -177,7 +179,9 @@ class CircuitBreaker:
         if self._last_failure_time is None:
             return False
 
-        elapsed = time.time() - self._last_failure_time
+        # Use asyncio loop time to ensure consistent monotonic timing semantics
+        loop_time = asyncio.get_event_loop().time()
+        elapsed = loop_time - self._last_failure_time
         return elapsed >= self.config.recovery_timeout
 
     async def _record_success(self) -> None:
@@ -198,7 +202,8 @@ class CircuitBreaker:
         async with self._state_lock:
             self._total_failures += 1
             self._failure_count += 1
-            self._last_failure_time = time.time()
+            # Record time using asyncio loop monotonic clock
+            self._last_failure_time = asyncio.get_event_loop().time()
 
             if self._state == CircuitBreakerState.HALF_OPEN:
                 await self._open_circuit()
@@ -265,6 +270,21 @@ class CircuitBreaker:
         self._total_failures = 0
         self._total_successes = 0
         logger.info(f"CircuitBreaker '{self.name}' reset")
+
+    async def force_open(
+        self, reason: str = "Forced open due to final failure"
+    ) -> None:
+        """Force the circuit into OPEN state regardless of failure threshold.
+
+        This is used by higher-level recovery managers to prevent immediate
+        re-attempts when a terminal failure condition is reached.
+        """
+        async with self._state_lock:
+            self._state = CircuitBreakerState.OPEN
+            self._success_count = 0
+            # Use current loop time as last failure time reference
+            self._last_failure_time = asyncio.get_event_loop().time()
+            await self._notify_state_change(reason)
 
 
 class CircuitBreakerOpenError(Exception):
@@ -395,6 +415,7 @@ class RecoveryManager:
         for attempt in range(max_attempts):
             try:
                 if cb:
+                    # Execute via circuit breaker; only return on success
                     return await cb.call(func)
                 else:
                     return await func()
@@ -407,6 +428,15 @@ class RecoveryManager:
                     await self._apply_recovery_policy(policy, operation, attempt)
                 else:
                     # Final attempt failed
+                    # If a circuit breaker is present, force it OPEN to prevent thrashing
+                    if cb:
+                        try:
+                            await cb.force_open(
+                                f"Entering open state after final failed attempt for '{operation}'"
+                            )
+                        except Exception:
+                            # Do not mask original error if force-open fails
+                            pass
                     if self.status_reporter:
                         await self.status_reporter.report_error(
                             "recovery_failed",
@@ -430,7 +460,7 @@ class RecoveryManager:
             operation: Operation name
             attempt: Current attempt number (0-based)
         """
-        if policy == RecoveryPolicy.IMMEDIATE:
+        if policy in (RecoveryPolicy.IMMEDIATE, RecoveryPolicy.RETRY):
             return  # No delay
         elif policy == RecoveryPolicy.LINEAR_BACKOFF:
             delay = (attempt + 1) * 2.0  # 2s, 4s, 6s...
@@ -442,7 +472,7 @@ class RecoveryManager:
                 await custom_func()
             return
         else:
-            delay = 1.0  # type: ignore[unreachable]  # Default delay for unknown policies
+            delay = 1.0  # Default delay for unknown policies
 
         logger.debug(
             f"Applying {policy.value} delay of {delay}s for operation '{operation}'"

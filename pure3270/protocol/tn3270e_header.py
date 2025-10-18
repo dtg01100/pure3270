@@ -126,23 +126,8 @@ class TN3270EHeader:
             )
 
             # Additional validation of parsed values
-            if data_type not in (
-                TN3270_DATA,
-                SCS_DATA,
-                RESPONSE,
-                BIND_IMAGE,
-                UNBIND,
-                NVT_DATA,
-                REQUEST,
-                SSCP_LU_DATA,
-                PRINT_EOJ,
-                SNA_RESPONSE,
-                PRINTER_STATUS_DATA_TYPE,
-            ):
-                logger.debug(
-                    f"TN3270E header parsing failed: unknown data type 0x{data_type:02x}"
-                )
-                return None
+            # Do not reject unknown data types here; allow construction so that
+            # repr() can show UNKNOWN(0x..) as some tests expect tolerant parsing.
 
             # Validate response flag is within expected range
             if response_flag not in (

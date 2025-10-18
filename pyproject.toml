@@ -37,6 +37,7 @@ test = [
     "pylint >= 2.15.0",
     "bandit >= 1.7.0",
     "pre-commit >= 3.0.0",
+    "psutil>=5.9",
 ]
 testing = [
     "python-dotenv >= 1.0.0",

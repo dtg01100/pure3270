@@ -108,7 +108,7 @@ jobs:
 
     - name: Run integration tests
       run: |
-        pytest tests/test_integration.py tests/test_patching_integration.py -v --tb=short
+        pytest tests/test_integration.py -v --tb=short
 
     - name: Run mypy
       run: mypy pure3270/
@@ -133,7 +133,7 @@ jobs:
 
     - name: Generate coverage report
       run: |
-        pytest --cov=pure3270/ --cov-report=xml tests/
+        pytest --cov=pure3270 --cov-report=xml tests/
 
 
     - name: Upload test results

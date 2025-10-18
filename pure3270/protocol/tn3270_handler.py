@@ -360,6 +360,207 @@ class TN3270Handler:
         self._last_sent_seq_number = 0
         self._last_received_seq_number = 0
 
+    # --- Addressing Mode Negotiation Methods ---
+
+    async def negotiate_addressing_mode(self) -> None:
+        """
+        Perform addressing mode negotiation during TN3270E session establishment.
+
+        This method coordinates with the addressing negotiator to determine
+        the appropriate addressing mode based on client capabilities and
+        server responses.
+        """
+        logger.info("[ADDRESSING] Starting addressing mode negotiation")
+
+        try:
+            # Advertise client capabilities
+            client_caps = self._addressing_negotiator.get_client_capabilities_string()
+            logger.info(f"[ADDRESSING] Client capabilities: {client_caps}")
+
+            # The actual negotiation happens through TN3270E subnegotiation
+            # This method sets up the negotiation state
+            self._addressing_negotiator.parse_server_capabilities(client_caps)
+
+            # Negotiate the mode (will be called after server response)
+            negotiated_mode = self._addressing_negotiator.negotiate_mode()
+            logger.info(
+                f"[ADDRESSING] Negotiated addressing mode: {negotiated_mode.value}"
+            )
+
+        except Exception as e:
+            logger.error(f"[ADDRESSING] Addressing mode negotiation failed: {e}")
+            # Fall back to 12-bit mode
+            self._addressing_negotiator._negotiated_mode = AddressingMode.MODE_12_BIT
+            self._addressing_negotiator._state = (
+                AddressingNegotiationState.NEGOTIATED_12_BIT
+            )
+
+    def get_negotiated_addressing_mode(self) -> Optional[AddressingMode]:
+        """
+        Get the currently negotiated addressing mode.
+
+        Returns:
+            The negotiated addressing mode, or None if not yet negotiated
+        """
+        return self._addressing_negotiator.negotiated_mode
+
+    async def handle_bind_image(self, bind_image_data: bytes) -> None:
+        """
+        Handle BIND-IMAGE structured field and update addressing mode negotiation.
+
+        Args:
+            bind_image_data: Raw BIND-IMAGE structured field data
+        """
+        logger.info(f"[BIND-IMAGE] Processing BIND-IMAGE: {bind_image_data.hex()}")
+
+        try:
+            # Parse addressing mode from BIND-IMAGE
+            detected_mode = BindImageParser.parse_addressing_mode(bind_image_data)
+
+            if detected_mode:
+                logger.info(
+                    f"[BIND-IMAGE] Detected addressing mode: {detected_mode.value}"
+                )
+                # Update addressing negotiator with BIND-IMAGE information
+                self._addressing_negotiator.update_from_bind_image(bind_image_data)
+
+                # If this changes our negotiated mode, we may need to transition
+                current_mode = self.get_negotiated_addressing_mode()
+                if current_mode != detected_mode:
+                    logger.warning(
+                        f"[BIND-IMAGE] BIND-IMAGE mode {detected_mode.value} differs from "
+                        f"negotiated mode {current_mode.value if current_mode else 'None'}"
+                    )
+                    # For now, trust the BIND-IMAGE as it's more authoritative
+                    self._addressing_negotiator._negotiated_mode = detected_mode
+            else:
+                logger.debug("[BIND-IMAGE] No addressing mode detected in BIND-IMAGE")
+
+        except Exception as e:
+            logger.error(f"[BIND-IMAGE] Failed to process BIND-IMAGE: {e}")
+
+    async def validate_addressing_mode_transition(
+        self, from_mode: Optional[AddressingMode], to_mode: AddressingMode
+    ) -> bool:
+        """
+        Validate if an addressing mode transition is allowed.
+
+        Args:
+            from_mode: Current addressing mode
+            to_mode: Proposed new addressing mode
+
+        Returns:
+            True if transition is valid, False otherwise
+        """
+        # Treat None as an initial state where any explicit mode is acceptable
+        # (first-time selection). This aligns with permissive negotiation flow
+        # where the mode might not be set until after a BIND-IMAGE or explicit
+        # negotiation step.
+        if from_mode is None:
+            return True
+        return self._addressing_negotiator.validate_mode_transition(from_mode, to_mode)
+
+    async def transition_addressing_mode(
+        self, new_mode: AddressingMode, reason: str = "mode transition"
+    ) -> None:
+        """
+        Perform a thread-safe addressing mode transition.
+
+        Args:
+            new_mode: The new addressing mode to transition to
+            reason: Reason for the transition
+
+        Raises:
+            ValueError: If transition is not allowed or fails
+        """
+        async with self._state_lock:
+            current_mode = self.get_negotiated_addressing_mode()
+
+            if current_mode == new_mode:
+                # Ensure negotiator state reflects the current mode even if the
+                # negotiated_mode already matches (e.g., set by BIND-IMAGE without state update).
+                if current_mode == AddressingMode.MODE_14_BIT:
+                    self._addressing_negotiator._state = (
+                        AddressingNegotiationState.NEGOTIATED_14_BIT
+                    )
+                else:
+                    self._addressing_negotiator._state = (
+                        AddressingNegotiationState.NEGOTIATED_12_BIT
+                    )
+                logger.debug(
+                    f"[ADDRESSING] Already in {new_mode.value} mode; state normalized"
+                )
+                return
+
+            # Validate transition
+            if not await self.validate_addressing_mode_transition(
+                current_mode, new_mode
+            ):
+                raise ValueError(
+                    f"Invalid addressing mode transition: {current_mode.value if current_mode else 'None'} -> {new_mode.value}"
+                )
+
+            logger.info(
+                f"[ADDRESSING] Transitioning from {current_mode.value if current_mode else 'None'} to {new_mode.value}: {reason}"
+            )
+
+            try:
+                # Update the negotiated mode
+                self._addressing_negotiator._negotiated_mode = new_mode
+                if new_mode == AddressingMode.MODE_14_BIT:
+                    self._addressing_negotiator._state = (
+                        AddressingNegotiationState.NEGOTIATED_14_BIT
+                    )
+                else:
+                    self._addressing_negotiator._state = (
+                        AddressingNegotiationState.NEGOTIATED_12_BIT
+                    )
+
+                # If we have an ExtendedScreenBuffer, convert it
+                try:
+                    buf = getattr(self, "screen_buffer", None)
+                    if buf is not None and hasattr(buf, "convert_addressing_mode"):
+                        converted = buf.convert_addressing_mode(new_mode)
+                        if converted is not None:
+                            self.screen_buffer = converted
+                            logger.info(
+                                f"[ADDRESSING] Screen buffer converted to {new_mode.value} mode"
+                            )
+                except Exception:
+                    # Conversion is best-effort; keep operating even if it fails
+                    logger.debug(
+                        "[ADDRESSING] Screen buffer conversion skipped due to error",
+                        exc_info=True,
+                    )
+
+                logger.info(
+                    f"[ADDRESSING] Addressing mode changed to {new_mode.value} mode"
+                )
+
+            except Exception as e:
+                logger.error(f"[ADDRESSING] Mode transition failed: {e}")
+                # Reset to previous state on failure
+                if current_mode:
+                    self._addressing_negotiator._negotiated_mode = current_mode
+                    if current_mode == AddressingMode.MODE_14_BIT:
+                        self._addressing_negotiator._state = (
+                            AddressingNegotiationState.NEGOTIATED_14_BIT
+                        )
+                    else:
+                        self._addressing_negotiator._state = (
+                            AddressingNegotiationState.NEGOTIATED_12_BIT
+                        )
+                raise
+
+    def get_addressing_negotiation_summary(self) -> Dict[str, Any]:
+        """
+        Get a summary of the addressing mode negotiation process.
+
+        Returns:
+            Dictionary containing negotiation details
+        """
+        return self._addressing_negotiator.get_negotiation_summary()
+
     def _process_telnet_stream(self, data: bytes) -> _AwaitableResult:
         """
         Process Telnet stream data, handling IAC commands and subnegotiations.
@@ -418,8 +619,10 @@ class TN3270Handler:
 
     async def _record_state_transition(self, new_state: str, reason: str) -> None:
         """Record a state transition with timestamp and reason."""
-        async with self._state_lock:
-            self._record_state_transition_sync(new_state, reason)
+        # Avoid attempting to acquire _state_lock here because callers like
+        # _change_state() already hold the lock. Re-acquiring would deadlock
+        # with asyncio.Lock (non-reentrant). Use the sync variant directly.
+        self._record_state_transition_sync(new_state, reason)
 
     def _record_state_transition_sync(self, new_state: str, reason: str) -> None:
         """Synchronous version of state transition recording for initialization."""
@@ -960,188 +1163,6 @@ class TN3270Handler:
             logger.warning("[STATE] Cannot recover without negotiator")  # type: ignore[unreachable]
             return False
 
-        # --- Addressing Mode Negotiation Methods ---
-
-        async def negotiate_addressing_mode(self: "TN3270Handler") -> None:
-            """
-            Perform addressing mode negotiation during TN3270E session establishment.
-
-            This method coordinates with the addressing negotiator to determine
-            the appropriate addressing mode based on client capabilities and
-            server responses.
-            """
-            logger.info("[ADDRESSING] Starting addressing mode negotiation")
-
-            try:
-                # Advertise client capabilities
-                client_caps = (
-                    self._addressing_negotiator.get_client_capabilities_string()
-                )
-                logger.info(f"[ADDRESSING] Client capabilities: {client_caps}")
-
-                # The actual negotiation happens through TN3270E subnegotiation
-                # This method sets up the negotiation state
-                self._addressing_negotiator.parse_server_capabilities(client_caps)
-
-                # Negotiate the mode (will be called after server response)
-                negotiated_mode = self._addressing_negotiator.negotiate_mode()
-                logger.info(
-                    f"[ADDRESSING] Negotiated addressing mode: {negotiated_mode.value}"
-                )
-
-            except Exception as e:
-                logger.error(f"[ADDRESSING] Addressing mode negotiation failed: {e}")
-                # Fall back to 12-bit mode
-                self._addressing_negotiator._negotiated_mode = (
-                    AddressingMode.MODE_12_BIT
-                )
-                self._addressing_negotiator._state = (
-                    AddressingNegotiationState.NEGOTIATED_12_BIT
-                )
-
-        def get_negotiated_addressing_mode(
-            self: "TN3270Handler",
-        ) -> Optional[AddressingMode]:
-            """
-            Get the currently negotiated addressing mode.
-
-            Returns:
-                The negotiated addressing mode, or None if not yet negotiated
-            """
-            return self._addressing_negotiator.negotiated_mode
-
-        async def handle_bind_image(
-            self: "TN3270Handler", bind_image_data: bytes
-        ) -> None:
-            """
-            Handle BIND-IMAGE structured field and update addressing mode negotiation.
-
-            Args:
-                bind_image_data: Raw BIND-IMAGE structured field data
-            """
-            logger.info(f"[BIND-IMAGE] Processing BIND-IMAGE: {bind_image_data.hex()}")
-
-            try:
-                # Parse addressing mode from BIND-IMAGE
-                detected_mode = BindImageParser.parse_addressing_mode(bind_image_data)
-
-                if detected_mode:
-                    logger.info(
-                        f"[BIND-IMAGE] Detected addressing mode: {detected_mode.value}"
-                    )
-                    # Update addressing negotiator with BIND-IMAGE information
-                    self._addressing_negotiator.update_from_bind_image(bind_image_data)
-
-                    # If this changes our negotiated mode, we may need to transition
-                    current_mode = self.get_negotiated_addressing_mode()  # type: ignore[attr-defined]  # type: ignore[attr-defined]
-                    if current_mode != detected_mode:
-                        logger.warning(
-                            f"[BIND-IMAGE] BIND-IMAGE mode {detected_mode.value} differs from "
-                            f"negotiated mode {current_mode.value if current_mode else 'None'}"
-                        )
-                        # For now, trust the BIND-IMAGE as it's more authoritative
-                        self._addressing_negotiator._negotiated_mode = detected_mode
-                else:
-                    logger.debug(
-                        "[BIND-IMAGE] No addressing mode detected in BIND-IMAGE"
-                    )
-
-            except Exception as e:
-                logger.error(f"[BIND-IMAGE] Failed to process BIND-IMAGE: {e}")
-
-        async def validate_addressing_mode_transition(
-            self: "TN3270Handler", from_mode: AddressingMode, to_mode: AddressingMode
-        ) -> bool:
-            """
-            Validate if an addressing mode transition is allowed.
-
-            Args:
-                from_mode: Current addressing mode
-                to_mode: Proposed new addressing mode
-
-            Returns:
-                True if transition is valid, False otherwise
-            """
-            return self._addressing_negotiator.validate_mode_transition(
-                from_mode, to_mode
-            )
-
-        async def transition_addressing_mode(
-            self: "TN3270Handler",
-            new_mode: AddressingMode,
-            reason: str = "mode transition",
-        ) -> None:
-            """
-            Perform a thread-safe addressing mode transition.
-
-            Args:
-                new_mode: The new addressing mode to transition to
-                reason: Reason for the transition
-
-            Raises:
-                ValueError: If transition is not allowed or fails
-            """
-            async with self._state_lock:
-                current_mode = self.get_negotiated_addressing_mode()  # type: ignore[attr-defined]
-
-                if current_mode == new_mode:
-                    logger.debug(f"[ADDRESSING] Already in {new_mode.value} mode")
-                    return
-
-                # Validate transition
-                if not await self.validate_addressing_mode_transition(  # type: ignore[attr-defined]
-                    current_mode, new_mode
-                ):
-                    raise ValueError(
-                        f"Invalid addressing mode transition: {current_mode.value if current_mode else 'None'} -> {new_mode.value}"
-                    )
-
-                logger.info(
-                    f"[ADDRESSING] Transitioning from {current_mode.value if current_mode else 'None'} to {new_mode.value}: {reason}"
-                )
-
-                try:
-                    # Update the negotiated mode
-                    self._addressing_negotiator._negotiated_mode = new_mode
-                    if new_mode == AddressingMode.MODE_14_BIT:
-                        self._addressing_negotiator._state = (
-                            AddressingNegotiationState.NEGOTIATED_14_BIT
-                        )
-                    else:
-                        self._addressing_negotiator._state = (
-                            AddressingNegotiationState.NEGOTIATED_12_BIT
-                        )
-
-                    # If we have an ExtendedScreenBuffer, convert it
-                    # TODO: Implement addressing mode conversion if needed
-                    logger.info(
-                        f"[ADDRESSING] Addressing mode changed to {new_mode.value} mode"
-                    )
-
-                except Exception as e:
-                    logger.error(f"[ADDRESSING] Mode transition failed: {e}")
-                    # Reset to previous state on failure
-                    if current_mode:
-                        self._addressing_negotiator._negotiated_mode = current_mode
-                        if current_mode == AddressingMode.MODE_14_BIT:
-                            self._addressing_negotiator._state = (
-                                AddressingNegotiationState.NEGOTIATED_14_BIT
-                            )
-                        else:
-                            self._addressing_negotiator._state = (
-                                AddressingNegotiationState.NEGOTIATED_12_BIT
-                            )
-                    raise
-
-        def get_addressing_negotiation_summary(self: "TN3270Handler") -> Dict[str, str]:
-            """
-            Get a summary of the addressing mode negotiation process.
-
-            Returns:
-                Dictionary containing negotiation details
-            """
-            return self._addressing_negotiator.get_negotiation_summary()
-
         return True
 
     async def _cleanup_on_failure(self, error: Exception) -> None:
@@ -1532,6 +1553,19 @@ class TN3270Handler:
                 # Accumulate negotiation bytes (attribute pre-declared)
                 self._negotiation_trace += data
 
+                # Lightweight memory/iteration watchdog for tests: log RSS at key iterations
+                if iteration_count in (1000, 2000):
+                    try:
+                        import resource
+
+                        maxrss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+                        logger.debug(
+                            f"Iteration {iteration_count}: Max RSS {maxrss} KB"
+                        )
+                    except Exception:
+                        # resource may not be available on all platforms
+                        pass
+
                 # Process telnet stream synchronously; this will schedule negotiator tasks
                 processed = self._process_telnet_stream(data)
                 # If the result is awaitable, await it to ensure completion and capture payload
@@ -1553,7 +1587,7 @@ class TN3270Handler:
             # If we reach iteration limit, signal completion to prevent hanging
             if iteration_count >= max_iterations:
                 logger.warning(
-                    f"_reader_loop reached maximum iterations ({max_iterations}), signaling completion"
+                    f"Max iterations reached in _reader_loop ({max_iterations}), signaling completion"
                 )
                 try:
                     if self.negotiator is not None:

@@ -145,7 +145,10 @@ class TestSSLWrapper:
         assert ctx.check_hostname is True
         assert ctx.verify_mode == ssl.CERT_REQUIRED
         assert ctx.minimum_version == ssl.TLSVersion.TLSv1_2
-        ctx.set_ciphers.assert_called_with("HIGH:!aNULL:!MD5")
+        # Verify modern cipher suite is used
+        ctx.set_ciphers.assert_called_with(
+            "ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20"
+        )
 
     @patch("ssl.SSLContext")
     def test_create_context_no_verify(
@@ -922,7 +925,7 @@ class TestNewSubnegotiations:
             await mock_negotiator._handle_query_subnegotiation(data)
             # Expected QUERY_REPLY: CHARACTERISTICS + AID
             expected_reply = (
-                b"\x0F\x81\x0A\x43\x02\xF1\xF0\x0F\x82\x02\x41"  # As in code
+                b"\x0f\x81\x0a\x43\x02\xf1\xf0\x0f\x82\x02\x41"  # As in code
             )
             expected_is = bytes([0x00]) + expected_reply
             expected_sub = bytes([0x0F]) + expected_is
@@ -933,7 +936,7 @@ class TestNewSubnegotiations:
     @pytest.mark.asyncio
     async def test_query_is_parse(self, mock_negotiator):
         """Test QUERY IS parses and updates model/LU."""
-        characteristics = b"\x0F\x81\x0A\x43\x02\xF1\xF0"  # Model 2, LU 3278
+        characteristics = b"\x0f\x81\x0a\x43\x02\xf1\xf0"  # Model 2, LU 3278
         data = bytes([0x00]) + characteristics
         await mock_negotiator._handle_query_subnegotiation(data)
         assert "IBM-3278- 2" in mock_negotiator.negotiated_device_type
@@ -1271,14 +1274,14 @@ class TestNewSubnegotiations:
         data = bytes([0x0F, 0x01])  # QUERY SEND
         await mock_negotiator._handle_query_subnegotiation(data)
         # Expected QUERY_REPLY: CHARACTERISTICS + AID
-        expected_reply = b"\x0F\x81\x0A\x43\x02\xF1\xF0\x0F\x82\x02\x41"  # As in code
+        expected_reply = b"\x0f\x81\x0a\x43\x02\xf1\xf0\x0f\x82\x02\x41"  # As in code
         expected_is = bytes([0x00]) + expected_reply
         expected_sub = bytes([0x0F]) + expected_is
         with patch("pure3270.protocol.negotiator.send_subnegotiation") as mock_send:
             await mock_negotiator._handle_query_subnegotiation(data)
             # Expected QUERY_REPLY: CHARACTERISTICS + AID
             expected_reply = (
-                b"\x0F\x81\x0A\x43\x02\xF1\xF0\x0F\x82\x02\x41"  # As in code
+                b"\x0f\x81\x0a\x43\x02\xf1\xf0\x0f\x82\x02\x41"  # As in code
             )
             expected_is = bytes([0x00]) + expected_reply
             expected_sub = bytes([0x0F]) + expected_is
@@ -1289,7 +1292,7 @@ class TestNewSubnegotiations:
     @pytest.mark.asyncio
     async def test_query_is_parse(self, mock_negotiator):
         """Test QUERY IS parses and updates model/LU."""
-        characteristics = b"\x0F\x81\x0A\x43\x02\xF1\xF0"  # Model 2, LU 3278
+        characteristics = b"\x0f\x81\x0a\x43\x02\xf1\xf0"  # Model 2, LU 3278
         data = bytes([0x00]) + characteristics
         await mock_negotiator._handle_query_subnegotiation(data)
         assert "IBM-3278- 2" in mock_negotiator.negotiated_device_type

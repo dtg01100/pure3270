@@ -127,9 +127,9 @@ class TestErrorHandling:
         # Test various malformed data sequences that should trigger ParseError
         malformed_sequences = [
             b"\x28",  # Incomplete SBA
-            b"\x1D",  # Incomplete SF
+            b"\x1d",  # Incomplete SF
             b"\x29",  # Incomplete SA
-            b"\x3C\x00\x01\x01",  # Malformed structured field (length too short)
+            b"\x3c\x00\x01\x01",  # Malformed structured field (length too short)
         ]
 
         for malformed_seq in malformed_sequences:

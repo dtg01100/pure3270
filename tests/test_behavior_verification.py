@@ -167,7 +167,7 @@ class TestExistingTestsVerification:
         # Test various error conditions that should be handled gracefully
         error_test_cases = [
             (b"\x28", "Incomplete SBA command"),
-            (b"\x1D", "Incomplete SF command"),
+            (b"\x1d", "Incomplete SF command"),
             (b"\x29", "Incomplete SA command"),
             (b"\xff", "Incomplete Telnet IAC command"),
             (b"", "Empty data"),
@@ -275,7 +275,7 @@ class TestExistingTestsVerification:
         # Test with malformed structured field that could cause parsing issues
         try:
             # This might raise ParseError depending on implementation
-            parser.parse(b"\x3C\x00\x01\x99\x00")  # Potentially malformed SF
+            parser.parse(b"\x3c\x00\x01\x99\x00")  # Potentially malformed SF
         except Pure3270ParseError:
             # This is the expected behavior for malformed data
             pass

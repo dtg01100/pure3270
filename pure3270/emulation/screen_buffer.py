@@ -239,6 +239,27 @@ class ScreenBuffer(BufferWriter):
         self._default_numeric = False
         self._current_aid = None
         self.light_pen_selected_position: Optional[Tuple[int, int]] = None
+        # Bulk update control to suspend expensive field detection
+        self._suspend_field_detection: int = 0
+
+    # Bulk update helpers
+    def begin_bulk_update(self) -> None:
+        """Suspend field detection until end_bulk_update is called."""
+        try:
+            self._suspend_field_detection += 1
+        except Exception:
+            self._suspend_field_detection = 1
+
+    def end_bulk_update(self) -> None:
+        """Resume field detection and run a single detection pass."""
+        try:
+            if self._suspend_field_detection > 0:
+                self._suspend_field_detection -= 1
+        except Exception:
+            self._suspend_field_detection = 0
+        # Only run detection when fully resumed
+        if self._suspend_field_detection == 0:
+            self._detect_fields()
 
     def clear(self) -> None:
         """Clear the screen buffer and reset fields."""
@@ -335,9 +356,12 @@ class ScreenBuffer(BufferWriter):
             modified_field_found = self._update_field_content(
                 int(row), int(col), ebcdic_byte
             )
-            # Only detect new fields if we didn't update an existing one
-            if not modified_field_found:
-                self._detect_fields()
+            # Avoid heavy field detection for every byte to improve performance on large writes.
+            # Only trigger field detection when we just wrote at column 0 (start of a row)
+            # or when no fields exist yet and we're populating the screen for the first time.
+            if not modified_field_found and self._suspend_field_detection == 0:
+                if col == 0 or not self.fields:
+                    self._detect_fields()
 
     def _update_field_content(self, row: int, col: int, ebcdic_byte: int) -> bool:
         """

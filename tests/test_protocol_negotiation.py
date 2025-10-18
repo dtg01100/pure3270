@@ -166,7 +166,7 @@ class TestDataStreamParserEdgeCases:
         """Test parser handling of malformed extended attribute sequences."""
         # Extended attributes have specific formats - test malformed versions
         # Example: malformed field attribute sequence
-        malformed_fa = b"\x1D\xF1\x08\xF2"  # Possibly malformed extended attribute
+        malformed_fa = b"\x1d\xf1\x08\xf2"  # Possibly malformed extended attribute
         try:
             self.parser.parse(malformed_fa)
         except Exception as e:
