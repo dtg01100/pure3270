@@ -34,8 +34,8 @@ jobs:
     - name: Determine Python versions to test
       id: versions
       run: |
-        # Default matrix
-        DEFAULT_VERSIONS='["3.10", "3.11", "3.12", "3.13"]'
+        # Default matrix (project supports Python 3.11+)
+        DEFAULT_VERSIONS='["3.11", "3.12", "3.13"]'
 
         if [[ "${{ github.event.inputs.python_versions }}" != "" ]]; then
           # Convert comma-separated input to JSON array
