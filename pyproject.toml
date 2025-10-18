@@ -21,28 +21,7 @@ classifiers = [
      "Operating System :: OS Independent",
  ]
 
- [tool.coverage.run]
- source = ["pure3270"]
- omit = [
-     "*/tests/*",
-     "*/test_*",
-     "*/conftest.py",
-     "*/__init__.py",
- ]
-
- [tool.coverage.report]
- exclude_lines = [
-     "pragma: no cover",
-     "def __repr__",
-     "if self.debug:",
-     "if settings.DEBUG",
-     "raise AssertionError",
-     "raise NotImplementedError",
-     "if 0:",
-     "if __name__ == .__main__.:",
- ]
-
-[project.optional-dependencies]
+ [project.optional-dependencies]
 test = [
     "pytest >= 7.0",
     "pytest-asyncio >= 0.21",
@@ -85,10 +64,31 @@ markers = [
 ]
 norecursedirs = ["archive", "build", "dist", ".git", ".tox", ".pytest_cache"]
 testpaths = ["tests", "examples", "quick_test.py", "test_*.py"]
-timeout = 30
-timeout_method = "thread"
+ timeout = 30
+ timeout_method = "thread"
 
-[tool.black]
+ [tool.coverage.run]
+ source = ["pure3270"]
+ omit = [
+     "*/tests/*",
+     "*/test_*",
+     "*/conftest.py",
+     "*/__init__.py",
+ ]
+
+ [tool.coverage.report]
+ exclude_lines = [
+     "pragma: no cover",
+     "def __repr__",
+     "if self.debug:",
+     "if settings.DEBUG",
+     "raise AssertionError",
+     "raise NotImplementedError",
+     "if 0:",
+     "if __name__ == .__main__.:",
+ ]
+
+ [tool.black]
 line-length = 88
 target-version = ['py310']
 include = '\.pyi?$'
