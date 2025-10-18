@@ -315,7 +315,7 @@ class PrinterErrorHandler:
             return True
 
         # Fallback for any unhandled strategies (should not occur with enum)
-        logger.warning(f"Unknown recovery strategy: {strategy}")
+        logger.warning(f"Unknown recovery strategy: {strategy}")  # type: ignore[unreachable]
         return False
 
     async def _retry_operation(

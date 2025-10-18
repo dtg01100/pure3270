@@ -34,7 +34,7 @@
 
 import logging
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 from ..emulation.addressing import AddressingMode
 from .tn3270e_header import TN3270EHeader
@@ -126,11 +126,11 @@ class AddressingModeNegotiator:
         """
         try:
             capabilities = []
-            for cap_str in capabilities_str.split(","):
+            for cap_str in capabilities_str.replace(" ", ",").split(","):
                 cap_str = cap_str.strip()
-                if cap_str == "12-bit":
+                if cap_str in ("12-bit", "12BITADDRESSING"):
                     capabilities.append(AddressingCapability.MODE_12_BIT)
-                elif cap_str == "14-bit":
+                elif cap_str in ("14-bit", "14BITADDRESSING", "014BITADDRESSING"):
                     capabilities.append(AddressingCapability.MODE_14_BIT)
                 else:
                     logger.warning(f"Unknown addressing capability: {cap_str}")
@@ -264,22 +264,22 @@ class AddressingModeNegotiator:
         detected_mode = self.parse_bind_image_addressing_mode(bind_image_data)
 
         if detected_mode:
+            detected = detected_mode  # Narrow type for mypy
             # If we haven't negotiated yet, use the BIND-IMAGE mode
             if not self.is_negotiated:
-                self._negotiated_mode = detected_mode
-                if detected_mode == AddressingMode.MODE_14_BIT:
+                self._negotiated_mode = detected
+                if detected == AddressingMode.MODE_14_BIT:
                     self._state = AddressingNegotiationState.NEGOTIATED_14_BIT
                 else:
                     self._state = AddressingNegotiationState.NEGOTIATED_12_BIT
-                logger.info(
-                    f"Addressing mode set from BIND-IMAGE: {detected_mode.value}"
-                )
+                logger.info(f"Addressing mode set from BIND-IMAGE: {detected.value}")
             else:
                 # Validate that BIND-IMAGE mode matches negotiated mode
-                if detected_mode != self._negotiated_mode:
+                negotiated = cast(AddressingMode, self._negotiated_mode)
+                if detected != negotiated:
                     logger.warning(
-                        f"BIND-IMAGE addressing mode {detected_mode.value} "
-                        f"differs from negotiated mode {self._negotiated_mode.value}"
+                        f"BIND-IMAGE addressing mode {detected.value} "
+                        f"differs from negotiated mode {negotiated.value}"
                     )
 
     def reset(self) -> None:
@@ -291,7 +291,7 @@ class AddressingModeNegotiator:
         self._bind_image_addressing_mode = None
         logger.debug("AddressingModeNegotiator reset")
 
-    def get_negotiation_summary(self) -> Dict[str, str]:
+    def get_negotiation_summary(self) -> Dict[str, Any]:
         """
         Get a summary of the negotiation process.
 

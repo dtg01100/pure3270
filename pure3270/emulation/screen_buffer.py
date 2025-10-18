@@ -39,10 +39,12 @@ from typing import Any, Dict, List, Optional, Tuple
 from .buffer_writer import BufferWriter
 from .ebcdic import EBCDICCodec, EmulationEncoder
 from .field_attributes import (
+    BackgroundAttribute,
     ColorAttribute,
     ExtendedAttribute,
     ExtendedAttributeSet,
     HighlightAttribute,
+    LightPenAttribute,
     OutliningAttribute,
     ValidationAttribute,
 )
@@ -73,6 +75,7 @@ class Field:
         outlining: int = 0,
         character_set: int = 0,
         sfe_highlight: int = 0,
+        light_pen: int = 0,
         content: bytes = b"",
     ) -> None:
         # Normalize start/end coordinates so that start <= end (lexicographically).
@@ -102,6 +105,7 @@ class Field:
         self.outlining = int(outlining)
         self.character_set = int(character_set)
         self.sfe_highlight = int(sfe_highlight)
+        self.light_pen = int(light_pen)
         # Ensure content is bytes
         self.content = bytes(content) if content is not None else b""
 
@@ -167,6 +171,7 @@ class Field:
             "outlining": self.outlining,
             "character_set": self.character_set,
             "sfe_highlight": self.sfe_highlight,
+            "light_pen": self.light_pen,
             "content": self.content,
         }
         params.update(kwargs)
@@ -233,6 +238,7 @@ class ScreenBuffer(BufferWriter):
         self._default_protected = True
         self._default_numeric = False
         self._current_aid = None
+        self.light_pen_selected_position: Optional[Tuple[int, int]] = None
 
     def clear(self) -> None:
         """Clear the screen buffer and reset fields."""
@@ -507,14 +513,14 @@ class ScreenBuffer(BufferWriter):
                 # If a field was already in progress, we end it at the position just before this new attribute.
                 if field_start_idx != -1:
                     self._create_field_from_range(field_start_idx, i - 1)
-                
+
                 # Start the new field from this attribute position.
                 field_start_idx = i
 
         # After the loop, if a field was started, it runs to the end of the screen.
         if field_start_idx != -1:
             self._create_field_from_range(field_start_idx, self.size - 1)
-        
+
         logger.debug(f"Finished _detect_fields. Total fields: {len(self.fields)}")
 
     def _create_field_from_range(self, start_idx: int, end_idx: int) -> None:
@@ -530,40 +536,60 @@ class ScreenBuffer(BufferWriter):
 
         # Get basic field attributes from the start position
         attr_offset = start_idx * 3
+        basic_attr = 0
         if attr_offset < len(self.attributes):
-            protected = bool(self.attributes[attr_offset] & 0x40)
-            intensity = (
-                self.attributes[attr_offset + 1]
-                if attr_offset + 1 < len(self.attributes)
-                else 0
-            )
+            basic_attr = self.attributes[attr_offset]
+            protected = bool(basic_attr & 0x40)  # FA_PROTECT
+            # Extract intensity from basic attribute (bits 4-3)
+            intensity_bits = (basic_attr & 0x0C) >> 2  # FA_INTENSITY >> 2
+            # Map to intensity value: 0=normal, 1=normal+detectable, 2=intensified+detectable, 3=nondisplay
+            if intensity_bits == 0:
+                intensity = 0  # Normal, non-detectable
+                light_pen = 0
+            elif intensity_bits == 1:
+                intensity = 1  # Normal, detectable
+                light_pen = 1  # Light pen selectable
+            elif intensity_bits == 2:
+                intensity = 2  # Intensified, detectable
+                light_pen = 1  # Light pen selectable
+            else:  # intensity_bits == 3
+                intensity = 3  # Nondisplay, non-detectable
+                light_pen = 0
         else:
             protected = False
             intensity = 0
+            light_pen = 0
 
         # Get extended attributes
         extended_attrs = self._extended_attributes.get((start_row, start_col))
         color = 0
+        background = 0
         sfe_highlight = 0
         validation = 0
         outlining = 0
         character_set = 0
         if extended_attrs:
             color_attr = extended_attrs.get_attribute("color")
-            if color_attr:
+            if color_attr and hasattr(color_attr, "value"):
                 color = color_attr.value
+            background_attr = extended_attrs.get_attribute("background")
+            if background_attr and hasattr(background_attr, "value"):
+                background = background_attr.value
             highlight_attr = extended_attrs.get_attribute("highlight")
-            if highlight_attr:
+            if highlight_attr and hasattr(highlight_attr, "value"):
                 sfe_highlight = highlight_attr.value
             validation_attr = extended_attrs.get_attribute("validation")
-            if validation_attr:
+            if validation_attr and hasattr(validation_attr, "value"):
                 validation = validation_attr.value
             outlining_attr = extended_attrs.get_attribute("outlining")
-            if outlining_attr:
+            if outlining_attr and hasattr(outlining_attr, "value"):
                 outlining = outlining_attr.value
             charset_attr = extended_attrs.get_attribute("character_set")
-            if charset_attr:
+            if charset_attr and hasattr(charset_attr, "value"):
                 character_set = charset_attr.value
+            light_pen_attr = extended_attrs.get_attribute("light_pen")
+            if light_pen_attr and hasattr(light_pen_attr, "value"):
+                light_pen = light_pen_attr.value
 
         # Create field
         field = Field(
@@ -573,10 +599,12 @@ class ScreenBuffer(BufferWriter):
             content=content,
             intensity=intensity,
             color=color,
+            background=background,
             sfe_highlight=sfe_highlight,
             validation=validation,
             outlining=outlining,
             character_set=character_set,
+            light_pen=light_pen,
         )
 
         self.fields.append(field)
@@ -715,6 +743,10 @@ class ScreenBuffer(BufferWriter):
                 attr = ValidationAttribute(value)
             elif attr_type == "outlining":
                 attr = OutliningAttribute(value)
+            elif attr_type == "light_pen":
+                attr = LightPenAttribute(value)
+            elif attr_type == "background":
+                attr = BackgroundAttribute(value)
             else:
                 logger.warning(
                     f"Unknown extended attribute type '{attr_type}', storing as raw value"
@@ -854,7 +886,9 @@ class ScreenBuffer(BufferWriter):
             0x42: "color",
             0x43: "character_set",
             0x44: "validation",
-            0x45: "outlining",
+            0x45: "background",  # XA_BACKGROUND = 0x45
+            0xC1: "validation",  # XA_VALIDATION = 0xc1
+            0xC2: "outlining",  # XA_OUTLINING = 0xc2
         }
         key = attr_map.get(attr_type)
         if key:
@@ -912,7 +946,8 @@ class ScreenBuffer(BufferWriter):
         start_row, start_col = field.start
         attr_set = self.get_extended_attributes_at(start_row, start_col)
         if attr_set:
-            return attr_set.get_attribute("validation")
+            attr = attr_set.get_attribute("validation")
+            return attr if isinstance(attr, ValidationAttribute) else None
         return None
 
     def validate_field_input(
@@ -931,3 +966,31 @@ class ScreenBuffer(BufferWriter):
         if validation_attr:
             return validation_attr.validate_input(input_text)
         return True, None  # No validation rules, input is valid
+
+    def select_light_pen(self, row: int, col: int) -> Optional[int]:
+        """Simulate a light pen selection at the given row and col.
+
+        If the field at the given position is light-pen selectable, this method
+        will mark the field as selected, store the selection position, and
+        return the light pen AID. Otherwise, it returns None.
+        """
+        field = self.get_field_at_position(row, col)
+        if field and field.light_pen:
+            # Mark the field as selected
+            for i, f in enumerate(self.fields):
+                if f is field:
+                    self.fields[i] = field._replace(selected=True)
+                    break
+
+            # Store the selection position
+            self.light_pen_selected_position = (row, col)
+
+            # Change the designator character if it's a '?'
+            pos = row * self.cols + col
+            if self.buffer[pos] == ord("?"):
+                self.buffer[pos] = ord(">")
+
+            # Return the light pen AID
+            return 0x7D
+
+        return None

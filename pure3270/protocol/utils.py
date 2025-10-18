@@ -273,7 +273,7 @@ TN3270E_IBM_3270PC_GX = "IBM-3270PC-GX"
 
 
 # Terminal Model Configuration System
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
 
 
@@ -293,7 +293,7 @@ class TerminalCapabilities:
     magnetic_slot_reader: bool
     operator_information_area: bool
     max_alternate_screen_size: Optional[Tuple[int, int]] = None
-    character_sets: List[str] = None
+    character_sets: Optional[List[str]] = field(default=None)
 
     def __post_init__(self) -> None:
         if self.character_sets is None:

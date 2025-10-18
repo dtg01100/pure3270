@@ -48,6 +48,8 @@ class AttributeType(Enum):
     HIGHLIGHT = "highlight"
     VALIDATION = "validation"
     OUTLINING = "outlining"
+    LIGHT_PEN = "light_pen"
+    BACKGROUND = "background"
 
 
 class ExtendedAttribute(ABC):
@@ -142,7 +144,7 @@ class ExtendedAttributeSet:
         """Initialize empty attribute set."""
         self._attributes: Dict[str, ExtendedAttribute] = {}
 
-    def set_attribute(self, attr_type: str, attribute: ExtendedAttribute) -> None:
+    def set_attribute(self, attr_type: str, attribute: Any) -> None:
         """Set an extended attribute.
 
         Args:
@@ -153,14 +155,15 @@ class ExtendedAttributeSet:
             TypeError: If attribute is not an ExtendedAttribute instance
         """
         if not isinstance(attribute, ExtendedAttribute):
-            raise TypeError(
-                f"Attribute must be ExtendedAttribute instance, got {type(attribute)}"
+            # For backward compatibility, allow raw attributes for unknown types
+            logger.warning(
+                f"Setting raw attribute for type '{attr_type}': {type(attribute)}"
             )
 
         self._attributes[attr_type] = attribute
         logger.debug(f"Set extended attribute '{attr_type}': {attribute}")
 
-    def get_attribute(self, attr_type: str) -> Optional[ExtendedAttribute]:
+    def get_attribute(self, attr_type: str) -> Any:
         """Get an extended attribute by type.
 
         Args:
@@ -241,6 +244,10 @@ class ExtendedAttributeSet:
                     attr = ValidationAttribute()
                 elif attr_type == AttributeType.OUTLINING.value:
                     attr = OutliningAttribute()
+                elif attr_type == AttributeType.LIGHT_PEN.value:
+                    attr = LightPenAttribute()
+                elif attr_type == AttributeType.BACKGROUND.value:
+                    attr = BackgroundAttribute()
                 else:
                     logger.warning(f"Unknown attribute type '{attr_type}', skipping")
                     continue
@@ -854,5 +861,169 @@ class OutliningAttribute(ExtendedAttribute):
         """
         if "value" not in data:
             raise ValueError("Outlining attribute data missing 'value' field")
+
+        self._value = self._validate_and_normalize(data["value"])
+
+
+class LightPenAttribute(ExtendedAttribute):
+    """Light pen attribute for designating a field as light-pen selectable."""
+
+    def __init__(self, value: Union[int, str] = 0) -> None:
+        """Initialize light pen attribute."""
+        super().__init__(value)
+
+    def _validate_and_normalize(self, value: Union[int, str]) -> int:
+        """Validate and normalize light pen value."""
+        if isinstance(value, str):
+            try:
+                value = int(value)
+            except ValueError:
+                raise ValueError(f"Invalid light pen value: {value}")
+
+        if isinstance(value, int):
+            if 0 <= value <= 0xFF:
+                return value
+            else:
+                raise ValueError(f"Light pen value must be 0-255, got {value}")
+        else:
+            raise ValueError(
+                f"Light pen value must be int or string, got {type(value)}"
+            )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert light pen attribute to dictionary."""
+        return {
+            "type": AttributeType.LIGHT_PEN.value,
+            "value": self._value,
+        }
+
+    def from_dict(self, data: Dict[str, Any]) -> None:
+        """Load light pen attribute from dictionary."""
+        if "value" not in data:
+            raise ValueError("Light pen attribute data missing 'value' field")
+
+        self._value = self._validate_and_normalize(data["value"])
+
+
+class BackgroundAttribute(ExtendedAttribute):
+    """Background color attribute supporting base 16 and extended 256 color support.
+
+    Supports both standard 3270 background colors (0-15) and extended colors (16-255)
+    as defined in TN3270E specifications.
+    """
+
+    # Base 16 background colors (3270 standard)
+    BASE_COLORS = {
+        0: "neutral_black",
+        1: "blue",
+        2: "red",
+        3: "pink",
+        4: "green",
+        5: "turquoise",
+        6: "yellow",
+        7: "neutral_white",
+        8: "black",
+        9: "deep_blue",
+        10: "orange",
+        11: "purple",
+        12: "pale_green",
+        13: "pale_turquoise",
+        14: "grey",
+        15: "white",
+    }
+
+    def __init__(self, value: Union[int, str] = 0) -> None:
+        """Initialize background color attribute.
+
+        Args:
+            value: Background color value (0-255) or color name string
+
+        Raises:
+            ValueError: If value is invalid
+        """
+        super().__init__(value)
+
+    def _validate_and_normalize(self, value: Union[int, str]) -> int:
+        """Validate and normalize background color value.
+
+        Args:
+            value: Background color value as int or string
+
+        Returns:
+            Normalized background color value (0-255)
+
+        Raises:
+            ValueError: If value is invalid
+        """
+        if isinstance(value, str):
+            # Try to map color name to value
+            for val, name in self.BASE_COLORS.items():
+                if name == value.lower():
+                    return val
+            # Try to parse as integer string
+            try:
+                value = int(value)
+            except ValueError:
+                raise ValueError(f"Invalid background color name or value: {value}")
+
+        if isinstance(value, int):
+            if 0 <= value <= 255:
+                return value
+            else:
+                raise ValueError(f"Background color value must be 0-255, got {value}")
+        else:
+            raise ValueError(
+                f"Background color value must be int or string, got {type(value)}"
+            )
+
+    def get_color_name(self) -> Optional[str]:
+        """Get the background color name for base colors.
+
+        Returns:
+            Color name if it's a base color (0-15), None otherwise
+        """
+        return self.BASE_COLORS.get(self._value) if self._value <= 15 else None
+
+    def is_base_color(self) -> bool:
+        """Check if this is a base 16 background color.
+
+        Returns:
+            True if color is in base 16 range (0-15)
+        """
+        return 0 <= self._value <= 15
+
+    def is_extended_color(self) -> bool:
+        """Check if this is an extended background color.
+
+        Returns:
+            True if color is in extended range (16-255)
+        """
+        return 16 <= self._value <= 255
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert background color attribute to dictionary.
+
+        Returns:
+            Dictionary with background color data
+        """
+        return {
+            "type": AttributeType.BACKGROUND.value,
+            "value": self._value,
+            "name": self.get_color_name(),
+            "is_base": self.is_base_color(),
+            "is_extended": self.is_extended_color(),
+        }
+
+    def from_dict(self, data: Dict[str, Any]) -> None:
+        """Load background color attribute from dictionary.
+
+        Args:
+            data: Dictionary containing background color data
+
+        Raises:
+            ValueError: If data is invalid
+        """
+        if "value" not in data:
+            raise ValueError("Background color attribute data missing 'value' field")
 
         self._value = self._validate_and_normalize(data["value"])

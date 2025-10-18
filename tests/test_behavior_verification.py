@@ -120,8 +120,6 @@ class TestExistingTestsVerification:
             writer = AsyncMock()
             writer.drain = AsyncMock()
 
-            session._reader = reader
-            session._writer = writer
             session._connected = True
 
             # Verify we can perform operations

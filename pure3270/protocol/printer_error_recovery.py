@@ -442,7 +442,7 @@ class RecoveryManager:
                 await custom_func()
             return
         else:
-            delay = 1.0  # Default delay for unknown policies
+            delay = 1.0  # type: ignore[unreachable]  # Default delay for unknown policies
 
         logger.debug(
             f"Applying {policy.value} delay of {delay}s for operation '{operation}'"

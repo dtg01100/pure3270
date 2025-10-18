@@ -68,7 +68,7 @@ class AddressCalculator:
         elif mode == AddressingMode.MODE_14_BIT:
             return 0 <= address <= 0x3FFF  # 14-bit: 0-16383
         else:
-            logger.warning(f"Unknown addressing mode: {mode}")
+            logger.warning(f"Unknown addressing mode: {mode}")  # type: ignore[unreachable]
             return False
 
     @staticmethod
@@ -136,7 +136,7 @@ class AddressCalculator:
         elif mode == AddressingMode.MODE_14_BIT:
             return 16384  # 0x4000
         else:
-            logger.warning(f"Unknown addressing mode: {mode}")
+            logger.warning(f"Unknown addressing mode: {mode}")  # type: ignore[unreachable]
             return 4096  # Default to 12-bit
 
     @staticmethod

@@ -166,7 +166,7 @@ class BindImageParser:
             BindImageParseError: If parsing fails
         """
         try:
-            parameters = {}
+            parameters: Dict[str, Any] = {}
 
             if len(bind_image_data) < BindImageParser.BIND_IMAGE_HEADER_LEN:
                 raise BindImageParseError("BIND-IMAGE data too short")

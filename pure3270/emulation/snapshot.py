@@ -34,7 +34,7 @@ class ScreenSnapshot:
         # Capture extended attributes
         self.extended_attributes = {}
         for (row, col), attrs in screen_buffer._extended_attributes.items():
-            self.extended_attributes[f"({row},{col})"] = dict(attrs)
+            self.extended_attributes[f"({row},{col})"] = attrs.to_dict()
 
         # Capture fields
         self.fields = []

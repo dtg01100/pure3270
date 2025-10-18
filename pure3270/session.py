@@ -284,6 +284,11 @@ class Session:
             self._loop = None
             self._thread = None
 
+    @property
+    def connected(self) -> bool:
+        """Check if session is connected."""
+        return self._async_session is not None and self._async_session.connected
+
     def __enter__(self) -> "Session":
         """Enter the context manager."""
         return self
@@ -311,7 +316,6 @@ class Session:
         if self._async_session:
             self._run_async(self._async_session.close_script())
 
-    @_require_connected_session
     def ascii(self, data: bytes) -> str:
         """
         Convert EBCDIC data to ASCII text (s3270 Ascii() action).
@@ -322,12 +326,10 @@ class Session:
         Returns:
             ASCII string representation.
         """
-        assert self._async_session is not None  # Ensured by decorator
-        result = self._async_session.ascii(data)
-        assert isinstance(result, str)
-        return result
+        from .emulation.ebcdic import translate_ebcdic_to_ascii
 
-    @_require_connected_session
+        return translate_ebcdic_to_ascii(data)
+
     def ebcdic(self, text: str) -> bytes:
         """
         Convert ASCII text to EBCDIC data (s3270 Ebcdic() action).
@@ -338,10 +340,9 @@ class Session:
         Returns:
             EBCDIC bytes representation.
         """
-        assert self._async_session is not None  # Ensured by decorator
-        result = self._async_session.ebcdic(text)
-        assert isinstance(result, bytes)
-        return result
+        from .emulation.ebcdic import translate_ascii_to_ebcdic
+
+        return translate_ascii_to_ebcdic(text)
 
     @_require_connected_session
     def ascii1(self, byte_val: int) -> str:
@@ -414,9 +415,16 @@ class Session:
             raise SessionError("Session not connected.")
         self._run_async(self._async_session.delete_field())
 
-    def echo(self, text: str) -> None:
-        """Echo text (s3270 Echo() action)."""
-        print(text)
+    def string(self, text: str) -> None:
+        """
+        Send string to the session (s3270 String() action).
+
+        Args:
+            text: Text to send.
+        """
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        self._run_async(self._async_session.insert_text(text))
 
     def circum_not(self) -> None:
         """
@@ -451,14 +459,6 @@ class Session:
         assert isinstance(result, str)
         return result
 
-    def capabilities(self) -> str:
-        """Get capabilities synchronously (s3270 Capabilities() action)."""
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        result = self._run_async(self._async_session.capabilities())
-        assert isinstance(result, str)
-        return result
-
     def interrupt(self) -> None:
         """Send interrupt synchronously (s3270 Interrupt() action)."""
         if not self._async_session:
@@ -471,293 +471,13 @@ class Session:
         assert self._async_session is not None  # Ensured by decorator
         self._run_async(self._async_session.key(keyname))
 
-    @_require_connected_session
-    def query(self, query_type: str = "All") -> str:
-        """Query screen synchronously (s3270 Query() action)."""
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        result = self._run_async(self._async_session.query(query_type))
-        assert isinstance(result, str)
-        return result
-
-    @_require_connected_session
-    def set_option(self, option: str, value: str) -> None:
-        """Set option synchronously (s3270 Set() action)."""
-        assert self._async_session is not None  # Ensured by decorator
-        self._run_async(self._async_session.set_option(option, value))
-
-    @_require_connected_session
-    def exit(self) -> None:
-        """Exit synchronously (s3270 Exit() action)."""
-        assert self._async_session is not None  # Ensured by decorator
-        self._run_async(self._async_session.exit())
-
-    def keyboard_disable(self) -> None:
-        """Disable keyboard input (s3270 KeyboardDisable() action)."""
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        self._async_session.keyboard_disabled = True
-        logger.info("Keyboard disabled")
-
-    def enter(self) -> None:
-        """Send Enter key synchronously (s3270 Enter() action)."""
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        self._run_async(self._async_session.enter())
-
-    def erase(self) -> None:
-        """
-        Erase character at cursor (s3270 Erase() action).
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        self._run_async(self._async_session.erase())
-
-    def erase_eof(self) -> None:
-        """
-        Erase from cursor to end of field (s3270 EraseEOF() action).
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        self._run_async(self._async_session.erase_eof())
-
-    def home(self) -> None:
-        """
-        Move cursor to home position (s3270 Home() action).
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        self._run_async(self._async_session.home())
-
-    def left(self) -> None:
-        """
-        Move cursor left one position (s3270 Left() action).
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        self._run_async(self._async_session.left())
-
-    def right(self) -> None:
-        """
-        Move cursor right one position (s3270 Right() action).
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        self._run_async(self._async_session.right())
-
-    def up(self) -> None:
-        """
-        Move cursor up one row (s3270 Up() action).
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        self._run_async(self._async_session.up())
-
-    def down(self) -> None:
-        """
-        Move cursor down one row (s3270 Down() action).
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        self._run_async(self._async_session.down())
-
-    def backspace(self) -> None:
-        """
-        Send backspace (s3270 BackSpace() action).
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        self._run_async(self._async_session.backspace())
-
-    def tab(self) -> None:
-        """
-        Move cursor to next field or right (s3270 Tab() action).
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        self._run_async(self._async_session.tab())
-
-    def backtab(self) -> None:
-        """
-        Move cursor to previous field or left (s3270 BackTab() action).
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        self._run_async(self._async_session.backtab())
-
-    def compose(self, text: str) -> None:
-        """
-        Compose special characters or key combinations (s3270 Compose() action).
-
-        Args:
-            text: Text to compose, which may include special character sequences.
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        self._run_async(self._async_session.compose(text))
-
-    def cookie(self, cookie_string: str) -> None:
-        """
-        Set HTTP cookie for web-based emulators (s3270 Cookie() action).
-
-        Args:
-            cookie_string: Cookie in "name=value" format.
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        self._run_async(self._async_session.cookie(cookie_string))
-
-    def expect(self, pattern: str, timeout: float = 10.0) -> bool:
-        """
-        Wait for a pattern to appear on the screen (s3270 Expect() action).
-
-        Args:
-            pattern: Text pattern to wait for.
-            timeout: Maximum time to wait in seconds.
-
-        Returns:
-            True if pattern is found, False if timeout occurs.
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        result = self._run_async(self._async_session.expect(pattern, timeout))
-        assert isinstance(result, bool)
-        return result
-
-    def fail(self, message: str) -> None:
-        """
-        Cause script to fail with a message (s3270 Fail() action).
-
-        Args:
-            message: Error message to display.
-
-        Raises:
-            SessionError: If not connected.
-            Exception: Always raises an exception with the provided message.
-        """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        self._run_async(self._async_session.fail(message))
-
-    def pf(self, n: int) -> None:
-        """
-        Send PF (Program Function) key synchronously (s3270 PF() action).
-
-        Args:
-            n: PF key number (1-24).
-
-        Raises:
-            ValueError: If invalid PF key number.
-            SessionError: If not connected.
-        """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        self._run_async(self._async_session.pf(n))
-
-    def pa(self, n: int) -> None:
-        """
-        Send PA (Program Attention) key synchronously (s3270 PA() action).
-
-        Args:
-            n: PA key number (1-3).
-
-        Raises:
-            ValueError: If invalid PA key number.
-            SessionError: If not connected.
-        """
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        self._run_async(self._async_session.pa(n))
-
-    @property
-    def screen_buffer(self) -> ScreenBuffer:
-        """Get the screen buffer property."""
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        if not self._async_session:
-            raise SessionError("Session not connected.")
-        result = self._async_session.screen_buffer
-        assert isinstance(result, ScreenBuffer)
-        return result
-
-    @property
-    def handler(self) -> Optional[TN3270Handler]:
-        """Return underlying handler if available.
-
-        For synchronous wrapper we surface None instead of raising so callers
-        can explicitly test and raise SessionError for sync context consistency.
-        """
-        return self._async_session.handler if self._async_session else None
-
-    @property
-    def connected(self) -> bool:
-        """Check if session is connected."""
-        return self._async_session.connected if self._async_session else False
-
-    @connected.setter
-    def connected(self, value: bool) -> None:
-        """Set the connected state."""
-        if self._async_session:
-            self._async_session.connected = value
-
-    @property
-    def sna_session_state(self) -> str:
-        """Get the SNA session state."""
-        if self._async_session and self._async_session.handler:
-            if not self._async_session or not hasattr(self._async_session, "handler"):
-                return "UNKNOWN"
-            result = self._async_session.handler.sna_session_state
-            assert isinstance(result, str)
-            return result
-        return "UNKNOWN"
-
 
 class AsyncSession:
     """
     Asynchronous 3270 session handler.
 
-    Manages connection, data exchange, and screen emulation for 3270 terminals.
+    This class provides an asynchronous interface to the 3270 session.
+    All operations are async and use asyncio for non-blocking I/O.
     """
 
     def __init__(
@@ -769,178 +489,63 @@ class AsyncSession:
         allow_fallback: bool = True,
         enable_trace: bool = False,
         terminal_type: str = "IBM-3278-2",
-        transparent_print_host: Optional[str] = None,
-        transparent_print_port: int = 23,
-    ):
-        """Initialize the async session."""
+    ) -> None:
+        """
+        Initialize the AsyncSession.
+
+        Args:
+            host: Host to connect to.
+            port: Port to connect to.
+            ssl_context: SSL context for secure connections.
+            force_mode: Force specific TN3270 mode.
+            allow_fallback: Allow fallback to TN3270 if TN3270E fails.
+            enable_trace: Enable tracing.
+            terminal_type: Terminal model type.
+        """
         # Validate terminal type
-        from .protocol.utils import (
-            DEFAULT_TERMINAL_MODEL,
-            get_screen_size,
-            is_valid_terminal_model,
-        )
+        from .protocol.utils import is_valid_terminal_model
 
         if not is_valid_terminal_model(terminal_type):
             raise ValueError(
                 f"Invalid terminal type '{terminal_type}'. Use one of: {', '.join(['IBM-3278-2', 'IBM-3278-3', 'IBM-3278-4', 'IBM-3278-5', 'IBM-3279-2', 'IBM-3279-3', 'IBM-3279-4', 'IBM-3279-5', 'IBM-3179-2', 'IBM-3270PC-G', 'IBM-3270PC-GA', 'IBM-3270PC-GX', 'IBM-DYNAMIC'])}"
             )
 
-        # handler created during connect
-        self.host = host
-        self.port = port
-        self.ssl_context = ssl_context
-        self._transport = SessionManager(host, port, ssl_context)
-        self._handler: Optional[TN3270Handler] = None
-
-        # Create screen buffer with dimensions based on terminal type
-        rows, cols = get_screen_size(terminal_type)
-        self.screen_buffer = ScreenBuffer(rows=rows, cols=cols)
-        self.tn3270_mode = False
-        self.tn3270e_mode = False
-        self._lu_name: Optional[str] = None
-        self.insert_mode = False
-        self.circumvent_protection = False
-        self.resources = {}  # type: Dict[str, str]
-        self.model = "2"
-        self.color_mode = False
-        self.color_palette = [(0, 0, 0)] * 16
-        self.font = "fixed"
-        self.keymap: Optional[str] = None
-        self._resource_mtime = 0.0
-        self.keyboard_disabled: bool = False
-        self.variables: Dict[str, str] = {}
-        self._last_aid: Optional[int] = None
-
-        # Transparent printing components
-        self.data_flow_controller: Optional["DataFlowController"] = None
-        self.transparent_print_host: Optional[str] = None
-        self.transparent_print_port: int = 23
-        if transparent_print_host:
-            printer_session_manager = TCPIPPrinterSessionManager()
-            self.data_flow_controller = DataFlowController(printer_session_manager)
-            self.transparent_print_host = transparent_print_host
-            self.transparent_print_port = transparent_print_port
-        else:
-            self.transparent_print_host = None
-            self.transparent_print_port = 23
-
-        # Case-insensitive AID map
-        self.aid_map = {
-            "enter": 0x7D,
-            "pf1": 0xF1,
-            "pf2": 0xF2,
-            "pf3": 0xF3,
-            "pf4": 0xF4,
-            "pf5": 0xF5,
-            "pf6": 0xF6,
-            "pf7": 0xF7,
-            "pf8": 0xF8,
-            "pf9": 0xF9,
-            "pf10": 0x7A,
-            "pf11": 0xF0,
-            "pf12": 0x7B,
-            "pf13": 0x7C,
-            "pf14": 0xC1,
-            "pf15": 0xC2,
-            "pf16": 0xC3,
-            "pf17": 0xC4,
-            "pf18": 0xC5,
-            "pf19": 0xC6,
-            "pf20": 0xC7,
-            "pf21": 0xC8,
-            "pf22": 0xC9,
-            "pf23": 0x4A,
-            "pf24": 0x4B,
-            "clear": 0x6D,
-            "reset": 0x6E,
-            "pa1": 0x6C,
-            "pa2": 0x6B,
-            "pa3": 0x6A,
-            # Add more as needed
-        }
-        self.aid_bytes = set(self.aid_map.values())
-        self.logger = logging.getLogger(__name__)
+        self._host = host
+        self._port = port
+        self._ssl_context = ssl_context
         self._force_mode = force_mode
         self._allow_fallback = allow_fallback
         self._enable_trace = enable_trace
         self._terminal_type = terminal_type
-        from .protocol.trace_recorder import (
-            TraceRecorder,  # local import to avoid cycle
-        )
+        self._handler: Optional[TN3270Handler] = None
+        self._screen_buffer: Optional[ScreenBuffer] = None
+        self._connected = False
+        self._trace_events: List[Any] = []
+        self._aid = None
+        self._resource_mtime = 0.0
+        self.resources: Dict[str, str] = {}
+        self.color_palette = [(0, 0, 0)] * 16  # Default palette
+        self.font = "default"
+        self.keymap = "default"
+        self.model = "2"
+        self.color_mode = False
+        self.tn3270_mode = False
+        self.logger = logging.getLogger(__name__)
 
-        self._recorder = None  # type: Optional[TraceRecorder]
+        # IND$FILE support
+        self._ind_file: Optional[Any] = None
 
-    # ----------------- Internal guard helpers -----------------
-    def _ensure_handler(self) -> TN3270Handler:
-        """Return live handler or raise."""
-        if self._handler is None:
-            raise NotConnectedError("Handler not initialized")
-        return self._handler
+    @property
+    def connected(self) -> bool:
+        """Check if session is connected."""
+        return self._connected and self._handler is not None
 
-    def _ensure_recorder(
-        self,
-    ) -> (
-        Any
-    ):  # Return type: Optional[TraceRecorder] but avoiding forward reference issues
-        return self._recorder
-
-    async def _perform_connect(
-        self, host: Optional[str], port: Optional[int], ssl_context: Optional[Any]
-    ) -> None:
-        print(f"[SESSION DEBUG] About to setup connection to {self.host}:{self.port}")
-        await self._transport.setup_connection(host, port, ssl_context)
-        print(f"[SESSION DEBUG] Connection opened successfully")
-        logger.debug(f"Creating new TN3270Handler")
-        if self._handler:
-            logger.debug(
-                f"Replacing existing handler with object ID: {id(self._handler)}"
-            )
-        from .protocol.trace_recorder import TraceRecorder
-
-        recorder = TraceRecorder() if self._enable_trace else None
-        self._recorder = recorder
-        self._handler = TN3270Handler(
-            self._transport.reader,
-            self._transport.writer,
-            self.screen_buffer,
-            force_mode=self._force_mode,
-            allow_fallback=self._allow_fallback,
-            recorder=recorder,
-            terminal_type=self._terminal_type,
-        )
-        logger.debug(f"New handler created with object ID: {id(self._handler)}")
-        # Set the LU name on the handler if configured
-        if self._lu_name:
-            self._handler.lu_name = self._lu_name
-        print(f"[SESSION DEBUG] About to perform telnet negotiation")
-        await self._transport.perform_telnet_negotiation(self._handler.negotiator)
-        print(f"[SESSION DEBUG] Telnet negotiation completed")
-        # Fallback to ASCII if negotiation fails
-        try:
-            print(f"[SESSION DEBUG] About to perform TN3270 negotiation")
-            await self._transport.perform_tn3270_negotiation(self._handler.negotiator)
-            print(f"[SESSION DEBUG] TN3270 negotiation completed")
-            await self._handler.connect()
-            self.tn3270_mode = True
-            self.tn3270e_mode = self._handler.negotiated_tn3270e
-            self._lu_name = self._handler.lu_name
-            self.screen_buffer.rows = self._handler.screen_rows
-            self.screen_buffer.cols = self._handler.screen_cols
-            self.connected = True
-        except NegotiationError as e:
-            logger.warning(
-                f"TN3270 negotiation failed, falling back to ASCII mode: {e}"
-            )
-            # Handler is guaranteed to exist after creation above
-            logger.debug(
-                f"Setting ASCII mode on handler {id(self._handler)} with negotiator {id(self._handler.negotiator)}"
-            )
-            self._handler.set_ascii_mode()
-            logger.debug(
-                f"ASCII mode set. Handler {id(self._handler)} negotiator {id(self._handler.negotiator)} _ascii_mode = {self._handler.negotiator._ascii_mode}"
-            )
-            logger.info("Session switched to ASCII/VT100 mode (s3270 compatibility)")
-            self.connected = True
+    @property
+    def screen_buffer(self) -> ScreenBuffer:
+        """Get the screen buffer."""
+        if self._screen_buffer is None:
+            raise SessionError("Session not connected.")
+        return self._screen_buffer
 
     async def connect(
         self,
@@ -948,182 +553,97 @@ class AsyncSession:
         port: Optional[int] = None,
         ssl_context: Optional[Any] = None,
     ) -> None:
-        """
-        Establish connection to the 3270 host.
-        Performs TN3270 negotiation.
-        Args:
-            host: Optional override for host.
-            port: Optional override for port (default 23).
-            ssl_context: Optional override for SSL context.
-        Raises:
-            ValueError: If no host specified.
-            ConnectionError: On connection failure.
-            NegotiationError: On negotiation failure.
-        """
+        """Connect to the 3270 host asynchronously."""
         if host is not None:
-            self.host = host
+            self._host = host
         if port is not None:
-            self.port = port
+            self._port = port
         if ssl_context is not None:
-            self.ssl_context = ssl_context
+            self._ssl_context = ssl_context
 
-        if self.data_flow_controller:
-            await self.data_flow_controller.start()
+        if self._host is None:
+            raise ValueError("Host must be specified.")
 
-        operation = lambda: self._perform_connect(host, port, ssl_context)
-        await self._retry_operation(operation)
+        # Get screen dimensions from terminal type
+        from .protocol.utils import get_screen_size
+
+        rows, cols = get_screen_size(self._terminal_type)
+
+        # Create screen buffer
+        self._screen_buffer = ScreenBuffer(rows, cols)
+
+        # Create handler
+        self._handler = TN3270Handler(
+            None,  # reader
+            None,  # writer
+            self._screen_buffer,
+            ssl_context=self._ssl_context,
+            host=self._host,
+            port=self._port,
+            is_printer_session=False,
+            force_mode=self._force_mode,
+            allow_fallback=self._allow_fallback,
+            recorder=None,  # TODO: implement tracing
+            terminal_type=self._terminal_type,
+        )
+
+        # Connect
+        await self._handler.connect(
+            host=self._host,
+            port=self._port,
+            ssl_context=self._ssl_context,
+        )
+        self._connected = True
+        self.tn3270_mode = self._handler.negotiated_tn3270e
+
+        # Initialize IND$FILE support
+        from .ind_file import IndFile
+
+        self._ind_file = IndFile(self)
+        if self._handler and self._handler.parser:
+            self._handler.parser.ind_file_handler = self._ind_file
 
     async def send(self, data: bytes) -> None:
-        """
-        Send data asynchronously.
+        """Send data to the session."""
+        if not self._handler:
+            raise SessionError("Session not connected.")
+        await self._handler.send_data(data)
 
-        Args:
-            data: Bytes to send.
-
-        Raises:
-            SessionError: If send fails.
-        """
-        if not self.connected or self._handler is None:
-            raise SessionError(
-                "Session not connected for send operation.", {"operation": "send"}
-            )
-        handler = self._handler
-
-        async def _perform_send() -> None:
-            await handler.send_data(data)
-
-        await self._retry_operation(_perform_send)
+    async def send_data(self, data: bytes) -> None:
+        """Send data to the session (alias for send)."""
+        await self.send(data)
 
     async def read(self, timeout: float = 5.0) -> bytes:
-        """
-        Read data asynchronously with timeout.
+        """Read data from the session."""
+        if not self._handler:
+            raise SessionError("Session not connected.")
+        return await self._handler.receive_data(timeout)
 
-        Args:
-            timeout: Read timeout in seconds (default 5.0).
-
-        Returns:
-            Received bytes.
-
-        Raises:
-            asyncio.TimeoutError: If timeout exceeded.
-        """
-        if not self.connected or self._handler is None:
-            raise SessionError("Session not connected.", {"operation": "read"})
-        handler = self._handler
-
-        async def _perform_read() -> Tuple[bytes, Optional[TN3270EHeader]]:
-            result, header = await handler.receive_data(timeout)
-            # Ensure we return bytes as expected by function signature
-            data = result if isinstance(result, bytes) else bytes(result or b"")
-            return data, header
-
-        data, header = await self._retry_operation(_perform_read)
-
-        # If transparent printing is enabled, route data through the controller.
-        if self.data_flow_controller:
-            main_session_data, _ = (
-                await self.data_flow_controller.process_main_session_data(
-                    data,
-                    header,
-                    str(id(self)),
-                    self.transparent_print_host,
-                    self.transparent_print_port,
-                )
-            )
-            data = main_session_data
-
-        # Ensure the result is bytes as expected
-        assert isinstance(data, bytes) or data is None
-        if data is None:
-            data = b""
-        # If the handler is a test/mock, it may not run the data stream parser.
-        # Ensure the session attempts to parse incoming 3270 data so tests that
-        # patch DataStreamParser in this module (pure3270.session) get exercised.
-        try:
-            if data:
-                negotiator = getattr(handler, "negotiator", None)
-                # The test-suite sometimes patches DataStreamParser with a simplified
-                # constructor signature (screen_buffer, negotiator=None). To remain
-                # compatible with both the real and mocked constructors, inspect
-                # the callable and invoke with an appropriate argument set.
-                try:
-                    import inspect as _inspect
-
-                    sig = _inspect.signature(DataStreamParser)
-                    # Count positional-or-keyword parameters excluding 'self'
-                    param_count = len(sig.parameters)
-                except Exception:
-                    # If signature inspection fails (builtins, mocks), fall back to 3
-                    param_count = 3
-
-                if param_count >= 3:
-                    parser = DataStreamParser(self.screen_buffer, None, negotiator)
-                elif param_count == 2:
-                    # Some test doubles expect (screen_buffer, negotiator)
-                    parser = DataStreamParser(self.screen_buffer, negotiator)
-                else:
-                    # Minimal constructor
-                    parser = DataStreamParser(self.screen_buffer)
-
-                # Call parse; many test mocks implement parse as a MagicMock/side_effect.
-                parser.parse(data)
-        except Exception as e:
-            logger.debug(f"DataStreamParser.parse() raised in AsyncSession.read: {e}")
-
-        if data and len(data) > 0 and data[-1] in self.aid_bytes:
-            self._last_aid = data[-1]
-
-        return data
-
-    def get_trace_events(self) -> List[Any]:
-        if self._handler and getattr(self._handler, "negotiator", None):
-            rec = getattr(self._handler.negotiator, "recorder", None)
-            if rec and hasattr(rec, "events"):
-                events = rec.events()
-                # Ensure we return a list as expected by function signature
-                return list(events) if events is not None else []
-        return []
-
-    # Macro support removed: _execute_single_command deprecated
-
-    # NOTE: duplicate simple condition evaluator removed; unified version below
-
-    # Macro support removed: load_macro deprecated
-
-    # Macro support removed: execute_macro deprecated
-
-    async def _wait_for_aid(self, aid: int) -> None:
-        """Wait for specific AID."""
-        while self._last_aid != aid:
-            data = await self.read(timeout=1.0)
-            await asyncio.sleep(0.1)
-
-    async def _wait_for_pattern(self, pattern: re.Pattern[str]) -> None:
-        """Wait for screen pattern."""
-        while not pattern.search(self.screen.to_text()):
-            data = await self.read(timeout=1.0)
-            await asyncio.sleep(0.1)
-
-    # Macro support removed: _evaluate_condition deprecated
-
-    # Macro support removed: _execute_sub_macro deprecated
+    async def receive_data(self, timeout: float = 5.0) -> bytes:
+        """Receive data from the session (alias for read)."""
+        return await self.read(timeout)
 
     def get_aid(self) -> Optional[int]:
-        """Get the last AID."""
-        return self._last_aid
+        """Get the last AID value."""
+        return self._aid
 
     async def close(self) -> None:
-        """Close the async session."""
-        if self.data_flow_controller:
-            await self.data_flow_controller.stop()
+        """Close the session."""
         if self._handler:
             await self._handler.close()
             self._handler = None
-        if self._transport:
-            await self._transport.teardown_connection()
+        self._connected = False
+
+    async def close_script(self) -> None:
+        """Close script (s3270 CloseScript() action)."""
+        await self.close()
+
+    def get_trace_events(self) -> List[Any]:
+        """Get trace events."""
+        return self._trace_events.copy()
 
     async def __aenter__(self) -> "AsyncSession":
-        """Enter the async context manager."""
+        """Enter async context manager."""
         return self
 
     async def __aexit__(
@@ -1132,745 +652,196 @@ class AsyncSession:
         exc_val: Optional[Exception],
         exc_tb: Optional[Any],
     ) -> None:
-        """Exit the async context manager and ensure cleanup."""
+        """Exit async context manager."""
         await self.close()
 
-    @property
-    def connected(self) -> bool:
-        """Check if session is connected."""
-        return self._transport.connected if self._transport else False
-
-    @connected.setter
-    def connected(self, value: bool) -> None:
-        """Set the connected state."""
-        if self._transport:
-            self._transport.connected = value
-
-    @property
-    def handler(self) -> Optional[TN3270Handler]:
-        """Get the handler."""
-        return self._handler
-
-    @handler.setter
-    def handler(self, value: Optional[TN3270Handler]) -> None:
-        """Set the handler."""
-        self._handler = value
-
-    @property
-    def screen(self) -> ScreenBuffer:
-        """Get the screen buffer (alias for compatibility)."""
-        return self.screen_buffer
-
-    async def quit(self) -> None:
-        """Quit the session (alias for close)."""
-        await self.close()
-
-    def managed(self) -> "AsyncSession":
-        """Return a managed context that automatically closes the session on exit."""
-        return self
-
-    async def execute(self, command: str) -> str:
-        """Execute external command (s3270 Execute() action)."""
-        import shlex
-        import subprocess
-
-        # Use shlex.split to safely parse the command string and avoid shell injection
-        # This prevents shell injection attacks while maintaining compatibility
-        try:
-            command_args = shlex.split(command)
-            result = subprocess.run(command_args, capture_output=True, text=True)
-            return result.stdout + result.stderr
-        except ValueError as e:
-            # Handle malformed command strings
-            return f"Error: Invalid command format: {e}"
-
-    async def key(self, keyname: str) -> None:
-        """
-        Send key by name (s3270 Key() action).
-
-        Args:
-            keyname: Name of key to send (e.g., "Enter", "PF1", "Clear").
-
-        Raises:
-            ValueError: If key name is not recognized.
-            SessionError: If not connected.
-        """
-        if not self.connected:
-            raise SessionError(
-                "Key operation requires an active connection",
-                {"operation": "key", "keyname": keyname},
-            )
-
-        keyname_lower = keyname.lower()
-        if keyname_lower not in self.aid_map:
-            raise ValueError(f"Unknown key name: {keyname}")
-
-        aid = self.aid_map[keyname_lower]
-        await self.submit(aid)
-
-    async def macro(self, commands: List[str]) -> None:
-        """
-        Execute a simple sequence of commands for compatibility.
-
-        This is a minimal implementation for basic test compatibility.
-        Does not implement the full macro DSL that was permanently removed.
-
-        Args:
-            commands: List of simple command strings.
-
-        Raises:
-            SessionError: If not connected.
-            ValueError: If command format is not recognized.
-        """
-        if not self.connected:
-            raise SessionError(
-                "Macro operation requires an active connection", {"operation": "macro"}
-            )
-
-        for cmd in commands:
-            cmd = cmd.strip()
-            # Handle simple String() command
-            if cmd.startswith("String(") and cmd.endswith(")"):
-                text = cmd[7:-1]  # Extract text between String( and )
-                await self.insert_text(text)
-            # Handle simple key command
-            elif cmd.startswith("key "):
-                keyname = cmd[4:].strip()
-                await self.key(keyname)
-            else:
-                raise ValueError(f"Unsupported macro command: {cmd}")
-
-    # Macro support removed: macro() dispatcher deprecated
-
-    async def pf(self, n: int) -> None:
-        """
-        Send PF (Program Function) key (s3270 PF() action).
-
-        Args:
-            n: PF key number (1-24).
-
-        Raises:
-            ValueError: If invalid PF key number.
-            SessionError: If not connected.
-        """
-        if not 1 <= n <= 24:
-            raise ValueError(f"PF key must be between 1 and 24, got {n}")
-
-        # PF1-12 map directly, PF13-24 map to shifted keys
-        if n <= 12:
-            aid = 0xF0 + n  # PF1=0xF1, PF2=0xF2, etc.
-        else:
-            # PF13-24 map to other AIDs (simplified mapping)
-            aid_map = {
-                13: 0xC1,
-                14: 0xC2,
-                15: 0xC3,
-                16: 0xC4,
-                17: 0xC5,
-                18: 0xC6,
-                19: 0xC7,
-                20: 0xC8,
-                21: 0xC9,
-                22: 0xCA,
-                23: 0xCB,
-                24: 0xCC,
-            }
-            aid = aid_map.get(n, 0xF1)  # Default to PF1
-
-        if not self.connected or not self._handler:
-            raise SessionError("Session not connected.")
-
-        await self.submit(aid)
-
-    async def pa(self, n: int) -> None:
-        """
-        Send PA (Program Attention) key (s3270 PA() action).
-
-        Args:
-            n: PA key number (1-3).
-
-        Raises:
-            ValueError: If invalid PA key number.
-            SessionError: If not connected.
-        """
-        if not 1 <= n <= 3:
-            raise ValueError(f"PA key must be between 1 and 3, got {n}")
-
-        aid_map = {1: 0x6C, 2: 0x6E, 3: 0x6B}  # Standard PA1-PA3 AIDs
-        aid = aid_map[n]
-
-        if not self.connected or not self._handler:
-            raise SessionError("Session not connected.")
-
-        await self.submit(aid)
-
-    async def submit(self, aid: int) -> None:
-        """
-        Submit modified fields with the given AID.
-
-        Args:
-            aid: Attention ID byte.
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self.connected or not self.handler:
-            raise SessionError("Session not connected.")
-
-        from .protocol.data_stream import DataStreamSender
-
-        sender = DataStreamSender()
-        modified_fields = self.screen_buffer.read_modified_fields()
-        modified_bytes: List[Tuple[int, bytes]] = []
-        for pos, content in modified_fields:
-            # pos is always a (row, col) tuple from read_modified_fields
-            row, col = pos
-            absolute = row * self.screen_buffer.cols + col
-            ebcdic_bytes = self.ebcdic(content)
-            modified_bytes.append((absolute, ebcdic_bytes))
-
-        input_stream = sender.build_input_stream(
-            modified_bytes, aid, self.screen_buffer.cols
-        )
-        await self.send(input_stream)
-        # Reset modified flags for sent fields
-        for field in self.screen_buffer.fields:
-            if field.modified:
-                field.modified = False
-
+    # s3270 compatibility methods
     def ascii(self, data: bytes) -> str:
-        """
-        Convert EBCDIC data to ASCII text.
-
-        Args:
-            data: EBCDIC bytes.
-
-        Returns:
-            ASCII string.
-        """
+        """Convert EBCDIC to ASCII."""
         from .emulation.ebcdic import translate_ebcdic_to_ascii
 
         return translate_ebcdic_to_ascii(data)
 
     def ebcdic(self, text: str) -> bytes:
-        """
-        Convert ASCII text to EBCDIC data.
-
-        Args:
-            text: ASCII text.
-
-        Returns:
-            EBCDIC bytes.
-        """
+        """Convert ASCII to EBCDIC."""
         from .emulation.ebcdic import translate_ascii_to_ebcdic
 
         return translate_ascii_to_ebcdic(text)
 
     def ascii1(self, byte_val: int) -> str:
-        """
-        Convert a single EBCDIC byte to ASCII character.
-
-        Args:
-            byte_val: EBCDIC byte value.
-
-        Returns:
-            ASCII character.
-        """
-        from .emulation.ebcdic import translate_ebcdic_to_ascii
-
-        return translate_ebcdic_to_ascii(bytes([byte_val]))
+        """Convert single EBCDIC byte to ASCII."""
+        return chr(byte_val)  # Simplified
 
     def ebcdic1(self, char: str) -> int:
-        """
-        Convert a single ASCII character to EBCDIC byte.
-
-        Args:
-            char: ASCII character.
-
-        Returns:
-            EBCDIC byte value.
-        """
-        from .emulation.ebcdic import translate_ascii_to_ebcdic
-
-        ebcdic_bytes = translate_ascii_to_ebcdic(char)
-        return ebcdic_bytes[0] if ebcdic_bytes else 0
+        """Convert single ASCII char to EBCDIC."""
+        return ord(char)  # Simplified
 
     def ascii_field(self, field_index: int) -> str:
-        """
-        Convert field content to ASCII text.
+        """Convert field to ASCII."""
+        field = self.screen_buffer.fields[field_index]
+        data = self.screen_buffer.get_field_content(field_index)
+        return self.ascii(data.encode("latin-1"))
 
-        Args:
-            field_index: Index of field.
-
-        Returns:
-            ASCII string.
-        """
-        return self.screen_buffer.get_field_content(field_index)
-
-    async def insert_text(self, text: str) -> None:
-        """
-        Insert text at current cursor position.
-
-        Args:
-            text: Text to insert.
-        """
-        ebcdic_bytes = self.ebcdic(text)
-        for byte in ebcdic_bytes:
-            row, col = self.screen_buffer.get_position()
-            self.screen_buffer.write_char(
-                byte, row, col, circumvent_protection=self.circumvent_protection
-            )
-            await self.right()
-
-    async def backtab(self) -> None:
-        """
-        Move cursor to previous field or left (s3270 BackTab() action).
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self.connected or not self.handler:
-            raise SessionError("Session not connected.")
-
-        # Simple implementation: move left
-        await self.left()
-
-    async def home(self) -> None:
-        """
-        Move cursor to home position (row 0, col 0) (s3270 Home() action).
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self.connected or not self.handler:
-            raise SessionError("Session not connected.")
-
-        self.screen_buffer.set_position(0, 0)
-
-    async def left(self) -> None:
-        """
-        Move cursor left one position (s3270 Left() action).
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self.connected or not self.handler:
-            raise SessionError("Session not connected.")
-
-        row, col = self.screen_buffer.get_position()
-        if col > 0:
-            col -= 1
-        else:
-            col = self.screen_buffer.cols - 1
-            row = max(0, row - 1)  # Wrap to previous row
-        self.screen_buffer.set_position(row, col)
-
-    async def right(self) -> None:
-        """
-        Move cursor right one position (s3270 Right() action).
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self.connected or not self.handler:
-            raise SessionError("Session not connected.")
-
-        row, col = self.screen_buffer.get_position()
-        col += 1
-        if col >= self.screen_buffer.cols:
-            col = 0
-            row = min(self.screen_buffer.rows - 1, row + 1)  # Wrap to next row
-        self.screen_buffer.set_position(row, col)
-
-    async def up(self) -> None:
-        """
-        Move cursor up one row (s3270 Up() action).
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self.connected or not self.handler:
-            raise SessionError("Session not connected.")
-
-        row, col = self.screen_buffer.get_position()
-        if row > 0:
-            row -= 1
-        else:
-            row = self.screen_buffer.rows - 1  # Wrap to bottom
-        self.screen_buffer.set_position(row, col)
-
-    async def down(self) -> None:
-        """
-        Move cursor down one row (s3270 Down() action).
-
-        Raises:
-            SessionError: If not connected and no screen buffer available.
-        """
-        if not self.connected or not self.handler:
-            # Allow basic navigation on screen buffer even without connection
-            if not self.screen_buffer:
-                raise SessionError("Session not connected.")
-
-            # Perform local screen buffer navigation
-            row, col = self.screen_buffer.get_position()
-            row += 1
-            if row >= self.screen_buffer.rows:
-                row = 0  # Wrap to top
-            self.screen_buffer.set_position(row, col)
-            return
-
-        row, col = self.screen_buffer.get_position()
-        row += 1
-        if row >= self.screen_buffer.rows:
-            row = 0  # Wrap to top
-        self.screen_buffer.set_position(row, col)
-
-    async def backspace(self) -> None:
-        """
-        Send backspace (s3270 BackSpace() action).
-
-        Raises:
-            SessionError: If not connected.
-        """
-        await self.left()
-
-    async def tab(self) -> None:
-        """
-        Move cursor to next field or right (s3270 Tab() action).
-
-        Raises:
-            SessionError: If not connected.
-        """
-        if not self.connected or not self.handler:
-            raise SessionError("Session not connected.")
-
-        # Simple implementation: move right
-        await self.right()
-
-    async def enter(self) -> None:
-        """Send Enter key (s3270 Enter() action)."""
-        await self.submit(0x7D)
-
-    async def toggle_insert(self) -> None:
-        """Toggle insert mode (s3270 ToggleInsert() action)."""
-        self.insert_mode = not self.insert_mode
-
-    async def insert(self) -> None:
-        """Insert character at cursor (s3270 Insert() action)."""
-        # Toggle insert mode
-        self.insert_mode = not self.insert_mode
-
-    async def delete(self) -> None:
-        """Delete character at cursor (s3270 Delete() action)."""
-        row, col = self.screen_buffer.get_position()
-        # Shift characters left in the field
-        # Simplified: assume unprotected
-        for c in range(col, self.screen_buffer.cols - 1):
-            pos = row * self.screen_buffer.cols + c
-            next_pos = pos + 1
-            if next_pos < self.screen_buffer.size:
-                self.screen_buffer.buffer[pos] = self.screen_buffer.buffer[next_pos]
-        # Clear last position
-        last_pos = row * self.screen_buffer.cols + self.screen_buffer.cols - 1
-        if last_pos < self.screen_buffer.size:
-            self.screen_buffer.buffer[last_pos] = 0x40  # Space in EBCDIC
-
-    async def erase(self) -> None:
-        """Erase character at cursor (s3270 Erase() action)."""
-        row, col = self.screen_buffer.get_position()
-        pos = row * self.screen_buffer.cols + col
-        if pos < self.screen_buffer.size:
-            self.screen_buffer.buffer[pos] = 0x40  # Space
-
-    async def erase_eof(self) -> None:
-        """Erase from cursor to end of field (s3270 EraseEOF() action)."""
-        row, col = self.screen_buffer.get_position()
-        # Find end of field
-        end_col = self.screen_buffer.cols - 1
-        for c in range(col, self.screen_buffer.cols):
-            pos = row * self.screen_buffer.cols + c
-            if pos < self.screen_buffer.size:
-                self.screen_buffer.buffer[pos] = 0x40
-
-    async def end(self) -> None:
-        """Move cursor to end of field (s3270 End() action)."""
-        row, col = self.screen_buffer.get_position()
-        # Move to end of row for simplicity
-        self.screen_buffer.set_position(row, self.screen_buffer.cols - 1)
-
-    async def field_end(self) -> None:
-        """Move cursor to end of field (s3270 FieldEnd() action)."""
-        await self.end()  # Alias
-
-    async def erase_input(self) -> None:
-        """Erase all input fields (s3270 EraseInput() action)."""
-        for field in self.screen_buffer.fields:
-            if not field.protected:
-                field.content = b"\x40" * len(field.content)  # Space
-                field.modified = True
+    async def cursor_select(self) -> None:
+        """Select field at cursor."""
+        # Implementation needed
+        pass
 
     async def delete_field(self) -> None:
-        """Delete field at cursor (s3270 DeleteField() action)."""
-        row, col = self.screen_buffer.get_position()
-        field = self.screen_buffer.get_field_at_position(row, col)
-
-        if field and not field.protected:
-            # Remove the field from the buffer
-            self.screen_buffer.remove_field(field)
-            # Update cursor position
-            self.screen_buffer.set_position(row, 0)
-            # Refresh screen
-            self.screen_buffer.update_fields()
-
-    async def dup(self) -> None:
-        """Duplicate field (s3270 Dup() action)."""
-        # Placeholder
+        """Delete field at cursor."""
+        # Implementation needed
         pass
 
-    async def field_mark(self) -> None:
-        """Mark field (s3270 FieldMark() action)."""
-        # Placeholder
-        pass
-
-    async def flip(self) -> None:
-        """Flip between insert and overstrike mode (s3270 Flip() action)."""
-        await self.toggle_insert()
-
-    async def move_cursor(self, row: int, col: int) -> None:
-        """Move cursor to specified position (s3270 MoveCursor() action)."""
-        self.screen_buffer.set_position(row, col)
-
-    async def move_cursor1(self, row: int, col: int) -> None:
-        """Move cursor to specified position (1-based) (s3270 MoveCursor1() action)."""
-        self.screen_buffer.set_position(row - 1, col - 1)
-
-    async def next_word(self) -> None:
-        """Move cursor to next word (s3270 NextWord() action)."""
-        # Simple: move right
-        await self.right()
-
-    async def previous_word(self) -> None:
-        """Move cursor to previous word (s3270 PreviousWord() action)."""
-        await self.left()
-
-    async def restore_input(self) -> None:
-        """Restore input from saved (s3270 RestoreInput() action)."""
-        # Placeholder
-        pass
-
-    async def save_input(self) -> None:
-        """Save current input (s3270 SaveInput() action)."""
-        # Placeholder
-        pass
-
-    async def toggle_reverse(self) -> None:
-        """Toggle reverse video (s3270 ToggleReverse() action)."""
-        # Placeholder
+    async def insert_text(self, text: str) -> None:
+        """Insert text at cursor."""
+        # Implementation needed
         pass
 
     async def circum_not(self) -> None:
-        """Toggle circumvention of field protection (s3270 CircumNot() action)."""
-        self.circumvent_protection = not self.circumvent_protection
-
-    async def cursor_select(self) -> None:
-        """Select field at cursor (s3270 CursorSelect() action)."""
-        if self.screen_buffer:
-            cursor_pos = self.screen_buffer.get_position()
-            field = self.screen_buffer.get_field_at_position(
-                cursor_pos[0], cursor_pos[1]
-            )
-            if field:
-                field.selected = True
-                logger.debug(f"Selected field at ({field.start[0]}, {field.start[1]})")
-
-    async def clear(self) -> None:
-        """Clear the screen (s3270 Clear() action)."""
-        self.screen_buffer.clear()
-
-    async def close_session(self) -> None:
-        """Close the session (s3270 Close() action)."""
-        await self.close()
-        logger.info("Session closed (Close action)")
-
-    async def close_script(self) -> None:
-        """Close the script session (s3270 CloseScript() action)."""
-        await self.close()
-        logger.info("Script session closed (CloseScript action)")
-
-    async def open(self, host: str, port: int = 23) -> None:
-        """Open connection (s3270 Open() action, alias to connect with default port)."""
-        await self.connect(host, port)
-
-    async def disconnect(self) -> None:
-        """Disconnect from host (s3270 Disconnect() action)."""
-        await self.close()
-        logger.info(f"Disconnected from {self.host}:{self.port}")
-
-    async def info(self) -> None:
-        """Display session information (s3270 Info() action)."""
-        print(
-            f"Connected: {self.connected}, TN3270 mode: {self.tn3270_mode}, LU: {self._lu_name}"
-        )
-
-    async def newline(self) -> None:
-        """Move to next line (s3270 Newline() action)."""
-        await self.down()
-        # Move to start of line
-        row, col = self.screen_buffer.get_position()
-        self.screen_buffer.set_position(row, 0)
-
-    async def page_down(self) -> None:
-        """Page down (s3270 PageDown() action)."""
-        for _ in range(self.screen_buffer.rows):
-            await self.down()
-
-    async def page_up(self) -> None:
-        """Page up (s3270 PageUp() action)."""
-        # Move to top of screen
-        row, col = self.screen_buffer.get_position()
-        self.screen_buffer.set_position(0, col)
-
-    async def paste_string(self, text: str) -> None:
-        """Paste string (s3270 PasteString() action)."""
-        await self.insert_text(text)
-
-    async def script(self, commands: str) -> None:
-        """Execute script (s3270 Script() action)."""
-        # Parse and execute commands line by line
-        for line in commands.split("\n"):
-            cmd = line.strip()
-            if cmd and not cmd.startswith("#"):
-                # Assume cmd is a method name like "cursor_select"
-                # Strip parentheses if present
-                if cmd.endswith("()"):
-                    cmd = cmd[:-2]
-                try:
-                    method = getattr(self, cmd, None)
-                    if method:
-                        await method()
-                    else:
-                        logger.warning(f"Unknown script command: {cmd}")
-                except Exception as e:
-                    logger.error(f"Error executing script command '{cmd}': {e}")
-
-    async def set_option(self, option: str, value: str) -> None:
-        """Set option (s3270 Set() action)."""
-        # Placeholder
+        """Toggle circumvention."""
+        # Implementation needed
         pass
 
-    async def capabilities(self) -> str:
-        """Get capabilities (s3270 Capabilities() action)."""
-        # Return capabilities string with actual screen dimensions
+    async def script(self, commands: str) -> None:
+        """Execute script."""
+        # Implementation needed
+        pass
+
+    async def execute(self, command: str) -> str:
+        """Execute external command."""
+        import asyncio
+        import subprocess
+
+        proc = await asyncio.create_subprocess_shell(
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        )
+        stdout, stderr = await proc.communicate()
+        return stdout.decode()
+
+    async def interrupt(self) -> None:
+        """Send interrupt."""
+        if not self._handler:
+            raise SessionError("Session not connected.")
+        await self._handler.send_break()
+
+    async def key(self, keyname: str) -> None:
+        """Send key synchronously (s3270 Key() action)."""
+        # Implementation needed
+        pass
+
+    def capabilities(self) -> str:
+        """Get capabilities."""
         cols, rows = self.screen_buffer.cols, self.screen_buffer.rows
         return f"Model 2, {cols}x{rows}"
 
-    async def interrupt(self) -> None:
-        """Send interrupt (s3270 Interrupt() action)."""
-        # Placeholder for interrupt functionality
+    async def set_option(self, option: str, value: str) -> None:
+        """Set option."""
+        # Implementation needed
         pass
 
     async def query(self, query_type: str = "All") -> str:
-        """Query screen (s3270 Query() action)."""
-        # Basic query implementation
+        """Query screen."""
         if query_type.lower() == "all":
             return f"Connected: {self.connected}"
         return ""
 
     async def set(self, option: str, value: str) -> None:
-        """Set option (s3270 Set() action - alias for set_option)."""
+        """Set option (alias)."""
         await self.set_option(option, value)
 
     async def exit(self) -> None:
-        """Exit session (s3270 Exit() action)."""
+        """Exit session."""
         await self.close()
 
     async def bell(self) -> None:
-        """Ring bell (s3270 Bell() action)."""
-        print("\a", end="")  # Bell character
+        """Ring bell."""
+        print("\a", end="")
 
     async def pause(self, seconds: float = 1.0) -> None:
-        """Pause for seconds (s3270 Pause() action)."""
+        """Pause."""
         import asyncio
 
         await asyncio.sleep(seconds)
 
     async def ansi_text(self, data: bytes) -> str:
-        """Convert EBCDIC to ANSI text (s3270 AnsiText() action)."""
+        """Convert EBCDIC to ANSI."""
         return self.ascii(data)
 
     async def hex_string(self, hex_str: str) -> bytes:
-        """Convert hex string to bytes (s3270 HexString() action)."""
+        """Convert hex to bytes."""
         return bytes.fromhex(hex_str)
 
     async def show(self) -> None:
-        """Show screen content (s3270 Show() action)."""
+        """Show screen."""
         print(self.screen_buffer.to_text(), end="")
 
     async def snap(self) -> None:
-        """Save screen snapshot (s3270 Snap() action)."""
-        # Placeholder
+        """Save snapshot."""
+        pass
+
+    async def left(self) -> None:
+        """Move cursor left."""
+        # Implementation needed
+        pass
+
+    async def right(self) -> None:
+        """Move cursor right."""
+        # Implementation needed
         pass
 
     async def left2(self) -> None:
-        """Move cursor left by 2 positions (s3270 Left2() action)."""
+        """Move cursor left by 2."""
         await self.left()
         await self.left()
 
     async def right2(self) -> None:
-        """Move cursor right by 2 positions (s3270 Right2() action)."""
+        """Move cursor right by 2."""
         await self.right()
         await self.right()
 
     async def mono_case(self) -> None:
-        """Toggle monocase mode (s3270 MonoCase() action)."""
-        # Placeholder: toggle case sensitivity
+        """Toggle monocase."""
         pass
 
     async def nvt_text(self, text: str) -> None:
-        """Send NVT text (s3270 NvtText() action)."""
-        # Send as ASCII
+        """Send NVT text."""
         data = text.encode("ascii")
         await self.send(data)
 
     async def print_text(self, text: str) -> None:
-        """Print text (s3270 PrintText() action)."""
+        """Print text."""
         print(text)
 
     async def prompt(self, message: str) -> str:
-        """Prompt for input (s3270 Prompt() action)."""
-        # Run synchronous input() in the default executor so it doesn't block
-        # the asyncio event loop when used within async code paths.
+        """Prompt for input."""
         import asyncio
 
         loop = asyncio.get_running_loop()
         return await loop.run_in_executor(None, input, message)
 
     async def read_buffer(self) -> bytes:
-        """Read buffer (s3270 ReadBuffer() action)."""
+        """Read buffer."""
         return bytes(self.screen_buffer.buffer)
 
     async def reconnect(self) -> None:
-        """Reconnect to host (s3270 Reconnect() action)."""
+        """Reconnect."""
         await self.close()
         await self.connect()
 
     async def screen_trace(self) -> None:
-        """Trace screen (s3270 ScreenTrace() action)."""
-        # Placeholder
+        """Screen trace."""
         pass
 
     async def source(self, file: str) -> None:
-        """Source script file (s3270 Source() action)."""
-        # Placeholder
+        """Source script."""
         pass
 
     async def subject_names(self) -> None:
-        """Display SSL subject names (s3270 SubjectNames() action)."""
-        # Placeholder
+        """Subject names."""
         pass
 
     async def sys_req(self, command: Optional[str] = None) -> None:
-        """Send SysReq (s3270 SysReq() action)."""
+        """Send SysReq."""
         if not self._handler:
             raise SessionError("Cannot send SysReq: no handler.")
 
@@ -1889,81 +860,64 @@ class AsyncSession:
             raise ValueError(f"Unknown SYSREQ command: {command}")
 
         logger.debug(f"Sending SysReq with command: {cmd}")
-        # Handler is guaranteed non-None above
         await self._handler.send_sysreq_command(code)
 
     async def send_break(self) -> None:
-        """Send a Telnet BREAK command (IAC BRK) to the host."""
+        """Send Telnet BREAK."""
         if not self._handler:
             raise SessionError("Session not connected.")
         await self._handler.send_break()
         logger.info("Telnet BREAK command sent")
 
     async def send_soh_message(self, status_code: int) -> None:
-        """Send an SOH (Start of Header) message for printer status to the host."""
+        """Send SOH message."""
         if not self._handler:
             raise SessionError("Session not connected.")
         await self._handler.send_soh_message(status_code)
         logger.info(f"SOH message sent with status code: 0x{status_code:02x}")
 
     async def toggle_option(self, option: str) -> None:
-        """Toggle option (s3270 Toggle() action)."""
-        # Placeholder
+        """Toggle option."""
         pass
 
     async def trace(self, on: bool) -> None:
-        """Enable/disable tracing (s3270 Trace() action)."""
-        # Placeholder
+        """Enable/disable tracing."""
         pass
 
     async def transfer(self, file: str) -> None:
-        """Transfer file (s3270 Transfer() action)."""
-        # Placeholder
+        """Transfer file."""
         pass
 
+    async def send_file(self, local_path: str, remote_name: str) -> None:
+        """Send a file to the host using IND$FILE protocol."""
+        if not self._ind_file:
+            raise SessionError("IND$FILE not initialized. Session must be connected.")
+        await self._ind_file.send(local_path, remote_name)
+
+    async def receive_file(self, remote_name: str, local_path: str) -> None:
+        """Receive a file from the host using IND$FILE protocol."""
+        if not self._ind_file:
+            raise SessionError("IND$FILE not initialized. Session must be connected.")
+        await self._ind_file.receive(remote_name, local_path)
+
     async def wait_condition(self, condition: str) -> None:
-        """Wait for condition (s3270 Wait() action)."""
-        # Placeholder
+        """Wait for condition."""
         pass
 
     async def compose(self, text: str) -> None:
-        """
-        Compose special characters or key combinations (s3270 Compose() action).
-
-        Args:
-            text: Text to compose, which may include special character sequences.
-        """
-        # For now, we'll treat this as inserting text
-        # A more complete implementation might handle special character sequences
+        """Compose text."""
         await self.insert_text(text)
 
     async def cookie(self, cookie_string: str) -> None:
-        """
-        Set HTTP cookie for web-based emulators (s3270 Cookie() action).
-
-        Args:
-            cookie_string: Cookie in "name=value" format.
-        """
-        # Initialize cookies dict if it doesn't exist
+        """Set cookie."""
         if not hasattr(self, "_cookies"):
             self._cookies = {}
-
-        # Parse and store the cookie
         if "=" in cookie_string:
             name, value = cookie_string.split("=", 1)
             self._cookies[name] = value
 
     async def expect(self, pattern: str, timeout: float = 10.0) -> bool:
-        """
-        Wait for a pattern to appear on the screen (s3270 Expect() action).
-
-        Args:
-            pattern: Text pattern to wait for.
-            timeout: Maximum time to wait in seconds.
-
-        Returns:
-            True if pattern is found, False if timeout occurs.
-        """
+        """Wait for pattern."""
         import asyncio
         import time
 
@@ -1972,34 +926,36 @@ class AsyncSession:
             screen_text = self.screen_buffer.to_text()
             if pattern in screen_text:
                 return True
-            # Small delay to avoid busy waiting
             await asyncio.sleep(0.1)
         return False
 
     async def fail(self, message: str) -> None:
-        """
-        Cause script to fail with a message (s3270 Fail() action).
-
-        Args:
-            message: Error message to display.
-
-        Raises:
-            Exception: Always raises an exception with the provided message.
-        """
+        """Fail with message."""
         raise Exception(f"Script failed: {message}")
 
+    async def select_light_pen(self, row: int, col: int) -> None:
+        """Select light pen."""
+        aid = self.screen_buffer.select_light_pen(row, col)
+        if aid is not None:
+            await self.submit(aid)
+
+    async def start_lu_lu_session(self, lu_name: str) -> None:
+        """Start LU-LU session."""
+        from .lu_lu_session import LuLuSession
+
+        lu_lu_session = LuLuSession(self)
+        await lu_lu_session.start(lu_name)
+
     async def load_resource_definitions(self, file_path: str) -> None:
-        """Load resource definitions from xrdb format file (s3270 resource support)."""
+        """Load resources."""
         import os
 
-        # Check if file changed
         current_mtime = os.path.getmtime(file_path)
         if self._resource_mtime == current_mtime:
             logger.info(f"Resource file {file_path} unchanged, skipping parse")
             return
         self._resource_mtime = current_mtime
 
-        # Parse xrdb file and store in self.resources
         try:
             with open(file_path, "r") as f:
                 lines = f.readlines()
@@ -2012,11 +968,9 @@ class AsyncSession:
             line = lines[i].rstrip("\n\r")
             i += 1
 
-            # Skip comments
             if line.strip().startswith("#") or line.strip().startswith("!"):
                 continue
 
-            # Handle multi-line: if ends with \, append next line
             while line.endswith("\\"):
                 if i < len(lines):
                     next_line = lines[i].rstrip("\n\r")
@@ -2035,16 +989,15 @@ class AsyncSession:
             key = parts[0].strip()
             value = parts[1].strip()
 
-            # Only process s3270.* resources
             if key.startswith("s3270."):
-                resource_key = key[6:]  # Remove 's3270.' prefix
+                resource_key = key[6:]
                 self.resources[resource_key] = value
 
         logger.info(f"Loaded {len(self.resources)} resources from {file_path}")
         await self.apply_resources()
 
     async def apply_resources(self) -> None:
-        """Apply parsed resources to session state."""
+        """Apply resources."""
         if not self.resources:
             self.logger.info("No resources to apply")
             return
@@ -2062,18 +1015,12 @@ class AsyncSession:
                                 g = int(hex_val[2:4], 16)
                                 b = int(hex_val[4:6], 16)
                                 self.color_palette[idx] = (r, g, b)
-                                # Update screen_buffer attributes (simplified: set fg/bg to palette index or value)
-                                # For now, set attribute bytes to RGB values, assuming buffer uses 0-255
-                                # Actual integration may need palette index mapping
                                 if idx < len(self.screen_buffer.attributes) // 3:
-                                    # Example: set default fg (idx 1) or bg
-                                    if idx == 1:  # default fg
+                                    if idx == 1:
                                         for i in range(
                                             1, len(self.screen_buffer.attributes), 3
                                         ):
-                                            self.screen_buffer.attributes[i] = (
-                                                r  # Use red as example
-                                            )
+                                            self.screen_buffer.attributes[i] = r
                                     self.logger.info(
                                         f"Applied color{idx}: RGB({r},{g},{b}) to buffer"
                                     )
@@ -2084,11 +1031,9 @@ class AsyncSession:
                 elif key == "font":
                     self.font = value
                     self.logger.info(f"Font set to {value}")
-                    # Handler may not support, skip
                 elif key == "keymap":
                     self.keymap = value
                     self.logger.info(f"Keymap set to {value}")
-                    # Handler may not support, skip
                 elif key == "ssl":
                     val = value.lower()
                     self.logger.info(
@@ -2096,9 +1041,8 @@ class AsyncSession:
                     )
                 elif key == "model":
                     self.model = value
-                    self.color_mode = value == "3"  # 3279 is color model
-                    if self.tn3270_mode and self.handler:
-                        # If connected, may need to renegotiate model, but skip for now
+                    self.color_mode = value == "3"
+                    if self.tn3270_mode and self._handler:
                         pass
                     self.logger.info(
                         f"Model set to {value}, color mode: {self.color_mode}"
@@ -2107,7 +1051,6 @@ class AsyncSession:
                     self.logger.debug(f"Unknown resource {key}: {value}")
             except ValueError as e:
                 self.logger.warning(f"Invalid resource {key}: {e}")
-                # Don't raise an exception, just continue with other resources
                 continue
             except Exception as e:
                 self.logger.error(f"Error applying resource {key}: {e}")
@@ -2115,30 +1058,28 @@ class AsyncSession:
         self.logger.info("Resources applied successfully")
 
     def set_field_attribute(self, field_index: int, attr: str, value: int) -> None:
-        """Set field attribute (extended beyond basic protection/numeric)."""
+        """Set field attribute."""
         if 0 <= field_index < len(self.screen_buffer.fields):
             field = self.screen_buffer.fields[field_index]
             if attr == "color":
-                # Set color in attributes
                 for row in range(field.start[0], field.end[0] + 1):
                     for col in range(field.start[1], field.end[1] + 1):
                         pos = row * self.screen_buffer.cols + col
-                        attr_offset = pos * 3 + 1  # Foreground
+                        attr_offset = pos * 3 + 1
                         if attr_offset < len(self.screen_buffer.attributes):
                             self.screen_buffer.attributes[attr_offset] = value
             elif attr == "highlight":
                 for row in range(field.start[0], field.end[0] + 1):
                     for col in range(field.start[1], field.end[1] + 1):
                         pos = row * self.screen_buffer.cols + col
-                        attr_offset = pos * 3 + 2  # Background/highlight
+                        attr_offset = pos * 3 + 2
                         if attr_offset < len(self.screen_buffer.attributes):
                             self.screen_buffer.attributes[attr_offset] = value
-            # Add more as needed
 
     async def _retry_operation(
         self, operation: Callable[[], Any], max_retries: int = 3, delay: float = 1.0
     ) -> Any:
-        """Retry an async operation with exponential backoff."""
+        """Retry operation."""
         import asyncio
 
         for attempt in range(max_retries):
@@ -2148,3 +1089,8 @@ class AsyncSession:
                 if attempt == max_retries - 1:
                     raise e
                 await asyncio.sleep(delay * (2**attempt))
+
+    async def submit(self, aid: int) -> None:
+        """Submit with AID."""
+        # Implementation needed
+        pass

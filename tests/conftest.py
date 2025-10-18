@@ -2,6 +2,10 @@ import asyncio
 import logging
 import platform
 import resource
+
+# Patching support removed or unavailable; provide lightweight no-op
+# stubs for tests that referenced MonkeyPatchManager/PatchContext.
+from contextlib import contextmanager
 from logging import NullHandler
 from unittest.mock import AsyncMock, MagicMock, Mock
 from unittest.mock import patch as mock_patch  # noqa: F401
@@ -11,44 +15,40 @@ import pytest_asyncio
 
 from pure3270.emulation.ebcdic import EBCDICCodec
 from pure3270.emulation.screen_buffer import ScreenBuffer
+from pure3270.session import AsyncSession
 
-try:
-    from pure3270.patching.patching import MonkeyPatchManager, PatchContext
-except Exception:
-    # Patching support removed or unavailable; provide lightweight no-op
-    # stubs for tests that referenced MonkeyPatchManager/PatchContext.
-    from contextlib import contextmanager
 
-    class MonkeyPatchManager:
-        """No-op monkey patch manager used when patching is disabled.
+class MonkeyPatchManager:
+    """No-op monkey patch manager used when patching is disabled.
 
-        Tests only require a manager object to exist; this minimal
-        implementation avoids importing the full patching module.
-        """
+    Tests only require a manager object to exist; this minimal
+    implementation avoids importing the full patching module.
+    """
 
-        def _apply_module_patch(self, module_name, replacement):
-            return None
+    def _apply_module_patch(self, module_name, replacement):
+        return None
 
-        def _apply_method_patch(self, target, method_name, new_method):
-            return None
+    def _apply_method_patch(self, target, method_name, new_method):
+        return None
 
-        def revert_all(self):
-            return None
+    def revert_all(self):
+        return None
 
-    @contextmanager
-    def PatchContext():
-        mgr = MonkeyPatchManager()
-        try:
-            yield mgr
-        finally:
-            mgr.revert_all()
+
+@contextmanager
+def PatchContext():
+    mgr = MonkeyPatchManager()
+    try:
+        yield mgr
+    finally:
+        mgr.revert_all()
 
 
 from pure3270.protocol.data_stream import DataStreamParser, DataStreamSender
 from pure3270.protocol.negotiator import Negotiator
 from pure3270.protocol.ssl_wrapper import SSLWrapper
 from pure3270.protocol.tn3270_handler import TN3270Handler
-from pure3270.session import AsyncSession, Session
+from pure3270.session import Session
 
 
 @pytest.fixture
@@ -93,7 +93,7 @@ def ssl_wrapper():
 
 
 @pytest_asyncio.fixture
-def real_async_session():
+async def real_async_session():
     """Fixture providing a real AsyncSession with real TN3270Handler for better test coverage."""
     from pure3270.emulation.screen_buffer import ScreenBuffer
     from pure3270.protocol.data_stream import DataStreamParser
@@ -132,13 +132,6 @@ def real_async_session():
 
     # Set up session with real handler
     session._handler = handler
-    session._transport = AsyncMock()
-    session._transport.perform_telnet_negotiation.return_value = None
-    session._transport.perform_tn3270_negotiation.return_value = None
-    session._transport.teardown_connection = AsyncMock(
-        side_effect=lambda: setattr(session._transport, "connected", False)
-    )
-    session._transport.connected = True
 
     return session
 

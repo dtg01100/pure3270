@@ -49,7 +49,17 @@ import random
 import sys
 import time
 from enum import Enum  # Import Enum for state management
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Union,
+    cast,
+)
 
 if TYPE_CHECKING:
     from .tn3270_handler import TN3270Handler
@@ -155,6 +165,8 @@ class SnaSessionState(Enum):
 
 class Negotiator:
     _timing_metrics: Dict[str, Any]
+    _connection_state: Dict[str, Any]
+    _recovery_state: Dict[str, Any]
     """
     Handles TN3270 negotiation logic.
     """
@@ -377,32 +389,18 @@ class Negotiator:
         }
 
         # Initialize addressing mode negotiator
-        self._addressing_negotiator: Optional[AddressingModeNegotiator] = None
+        from .addressing_negotiation import AddressingModeNegotiator
+
+        self._addressing_negotiator: AddressingModeNegotiator = (
+            AddressingModeNegotiator()
+        )
 
     def _get_or_create_addressing_negotiator(self) -> AddressingModeNegotiator:
-        """Get or create the addressing mode negotiator."""
+        from .addressing_negotiation import AddressingModeNegotiator
+
         if self._addressing_negotiator is None:
-            from .addressing_negotiation import AddressingModeNegotiator
-            self._addressing_negotiator = AddressingModeNegotiator()
+            self._addressing_negotiator = AddressingModeNegotiator()  # type: ignore[unreachable]
         return self._addressing_negotiator
-
-        # Connection state tracking
-        self._connection_state: Dict[str, Any] = {
-            "is_connected": False,
-            "last_activity": None,
-            "consecutive_failures": 0,
-            "total_failures": 0,
-            "last_error": None,
-            "recovery_attempts": 0,
-        }
-
-        # Recovery state
-        self._recovery_state: Dict[str, Any] = {
-            "is_recovering": False,
-            "recovery_start_time": None,
-            "pending_operations": [],
-            "recovery_attempts": 0,
-        }
 
     def _get_or_create_device_type_event(self) -> asyncio.Event:
         if self._device_type_is_event is None:
@@ -572,11 +570,12 @@ class Negotiator:
                 # Add context to error for better debugging
                 if context:
                     if hasattr(e, "add_context"):
-                        e.add_context("operation", operation_name)
-                        e.add_context("attempt", attempt + 1)
-                        e.add_context("max_retries", max_retries)
+                        e_typed = cast(Any, e)
+                        e_typed.add_context("operation", operation_name)
+                        e_typed.add_context("attempt", attempt + 1)
+                        e_typed.add_context("max_retries", max_retries)
                         for key, value in context.items():
-                            e.add_context(key, value)
+                            e_typed.add_context(key, value)
 
                 await asyncio.sleep(delay)
 
@@ -965,6 +964,7 @@ class Negotiator:
         data_type: int = TN3270_DATA,
         request_flag: int = 0,
         response_flag: int = TN3270E_RSF_POSITIVE_RESPONSE,
+        seq_number: Optional[int] = None,
     ) -> TN3270EHeader:
         """
         Generates a TN3270E header for an outgoing request and stores it for correlation.
@@ -974,11 +974,13 @@ class Negotiator:
             data_type: The DATA-TYPE field of the TN3270E header.
             request_flag: The REQUEST-FLAG field of the TN3270E header.
             response_flag: The RESPONSE-FLAG field of the TN3270E header.
+            seq_number: Optional sequence number to use instead of generating a new one.
 
         Returns:
             The created TN3270EHeader object.
         """
-        seq_number = self._get_next_seq_number()
+        if seq_number is None:
+            seq_number = self._get_next_seq_number()
         header = TN3270EHeader(
             data_type=data_type,
             request_flag=request_flag,
@@ -1398,7 +1400,7 @@ class Negotiator:
             asyncio.TimeoutError: If timeout exceeded.
         """
         if self.handler:
-            data, _ = await self.handler.receive_data(timeout)
+            data = await self.handler.receive_data(timeout)
             return data
         raise NotImplementedError("Handler required for receiving data")
 
@@ -2580,7 +2582,9 @@ class Negotiator:
 
         try:
             # Advertise client capabilities
-            client_caps = self._get_or_create_addressing_negotiator().get_client_capabilities_string()
+            client_caps = (
+                self._get_or_create_addressing_negotiator().get_client_capabilities_string()
+            )
             logger.info(f"[ADDRESSING] Client capabilities: {client_caps}")
 
             # The actual negotiation happens through TN3270E subnegotiation
@@ -2650,18 +2654,21 @@ class Negotiator:
             )
 
     async def validate_addressing_mode_transition(
-        self, from_mode: AddressingMode, to_mode: AddressingMode
+        self, from_mode: Optional[AddressingMode], to_mode: AddressingMode
     ) -> bool:
         """
         Validate if an addressing mode transition is allowed.
 
         Args:
-            from_mode: Current addressing mode
+            from_mode: Current addressing mode (None if not set)
             to_mode: Proposed new addressing mode
 
         Returns:
             True if transition is valid, False otherwise
         """
+        if from_mode is None:
+            # Allow transition from None to any mode
+            return True
         return self._addressing_negotiator.validate_mode_transition(from_mode, to_mode)
 
     async def transition_addressing_mode(
@@ -2706,9 +2713,12 @@ class Negotiator:
                 )
 
             # If we have an ExtendedScreenBuffer, convert it
-            if hasattr(self.screen_buffer, "convert_addressing_mode"):
+            if self.screen_buffer and hasattr(
+                self.screen_buffer, "convert_addressing_mode"
+            ):
                 try:
-                    new_buffer = self.screen_buffer.convert_addressing_mode(new_mode)
+                    buffer = self.screen_buffer
+                    new_buffer = getattr(buffer, "convert_addressing_mode")(new_mode)
                     if new_buffer:
                         self.screen_buffer = new_buffer
                         logger.info(

@@ -156,6 +156,7 @@ SOH = 0x01  # Start of Header (SCS command for printer status) - often 0x01 in S
 # Other potential status indicators
 DEVICE_END = 0x00  # Placeholder for device end status
 INTERVENTION_REQUIRED = 0x01  # Placeholder for intervention required status
+LIGHT_PEN_AID = 0x7D  # Light pen AID
 
 # Structured Field Types (RFC 2355, RFC 1576, and additional types)
 BIND_SF_TYPE = 0x03  # BIND-IMAGE Structured Field Type
@@ -177,6 +178,7 @@ SYMBOL_SET_SF_TYPE = 0x48  # Symbol Set Structured Field Type
 DEVICE_CHARACTERISTICS_SF_TYPE = 0x49  # Device Characteristics Structured Field Type
 DESCRIPTOR_SF_TYPE = 0x4A  # Descriptor Structured Field Type
 FILE_SF_TYPE = 0x4B  # File Structured Field Type
+IND_FILE_SF_TYPE = 0xD0  # IND$FILE Structured Field Type
 FONT_SF_TYPE = 0x4C  # Font Structured Field Type
 PAGE_SF_TYPE = 0x4D  # Page Structured Field Type
 GRAPHICS_SF_TYPE = 0x4E  # Graphics Structured Field Type
@@ -620,6 +622,27 @@ class SnaResponse:
 class DataStreamParser:
     """Parses incoming 3270 data streams and updates the screen buffer with comprehensive structured field support."""
 
+    # Attribute declarations for type checking
+    screen: "ScreenBuffer"
+    printer: Optional["PrinterBuffer"]
+    negotiator: Optional["Negotiator"]
+    parser: Optional[BaseParser]
+    addressing_mode: AddressingMode
+    wcc: Optional[int]
+    aid: Optional[int]
+    _is_scs_data_stream: bool
+    _data: bytes
+    _pos: int
+    sf_validator: "StructuredFieldValidator"
+    _lock: "threading.Lock"
+    _max_buffer_size: int
+    _max_parse_depth: int
+    _parse_depth: int
+    _validation_errors: List[str]
+    _recovery_attempts: int
+    _max_recovery_attempts: int
+    ind_file_handler: Optional[Any]
+
     def __init__(
         self,
         screen_buffer: "ScreenBuffer",
@@ -663,6 +686,9 @@ class DataStreamParser:
         self._validation_errors: List[str] = []
         self._recovery_attempts = 0
         self._max_recovery_attempts = 5
+
+        # IND$FILE handler
+        self.ind_file_handler: Optional[Any] = None
 
     def _validate_data_integrity(self, data: bytes, data_type: int) -> bool:
         """Validate data integrity before parsing."""
@@ -779,6 +805,7 @@ class DataStreamParser:
             DEVICE_CHARACTERISTICS_SF_TYPE: self._handle_device_characteristics_sf,
             DESCRIPTOR_SF_TYPE: self._handle_descriptor_sf,
             FILE_SF_TYPE: self._handle_file_sf,
+            IND_FILE_SF_TYPE: self._handle_ind_file_sf,
             FONT_SF_TYPE: self._handle_font_sf,
             PAGE_SF_TYPE: self._handle_page_sf,
             GRAPHICS_SF_TYPE: self._handle_graphics_sf,
@@ -1411,6 +1438,17 @@ class DataStreamParser:
         self.aid = aid
         logger.debug(f"Attention ID 0x{aid:02x}")
 
+        if aid == LIGHT_PEN_AID:
+            # Light pen selection, read coordinates
+            if self.screen:
+                addr_high = self._read_byte()
+                addr_low = self._read_byte()
+                address = ((addr_high & 0x3F) << 6) | (addr_low & 0x3F)
+                row = address // self.screen.cols
+                col = address % self.screen.cols
+                self.screen.light_pen_selected_position = (row, col)
+                logger.debug(f"Light pen selection at ({row}, {col})")
+
     def _handle_read_partition(self) -> None:
         """Handle Read Partition."""
         logger.debug("Read Partition - not implemented")
@@ -1713,12 +1751,40 @@ class DataStreamParser:
             logger.error(f"Error handling Printer Status SF: {e}")
 
     def _handle_outbound_3270ds_sf(self, data: bytes) -> None:
-        """Handle Outbound 3270DS structured field."""
-        logger.debug(f"Handled Outbound 3270DS SF: {len(data)} bytes")
+        """Handle Outbound 3270DS structured field (data from host to terminal)."""
+        try:
+            if len(data) < 1:
+                logger.warning("Outbound 3270DS SF data too short")
+                return
+
+            # Parse the outbound data stream
+            # This would contain 3270 orders and data to be processed by the terminal
+            logger.debug(f"Processing outbound 3270DS data ({len(data)} bytes)")
+
+            # For now, this is a placeholder - in a full implementation,
+            # this would parse and execute 3270 orders like SBA, SF, etc.
+            # Since we already have order parsing in the main parse() method,
+            # this might be redundant or used for specific LU-LU session contexts
+
+        except Exception as e:
+            logger.error(f"Error handling outbound 3270DS structured field: {e}")
 
     def _handle_inbound_3270ds_sf(self, data: bytes) -> None:
-        """Handle Inbound 3270DS structured field."""
-        logger.debug(f"Handled Inbound 3270DS SF: {len(data)} bytes")
+        """Handle Inbound 3270DS structured field (data from terminal to host)."""
+        try:
+            if len(data) < 1:
+                logger.warning("Inbound 3270DS SF data too short")
+                return
+
+            # Parse the inbound data stream
+            # This would contain user input data to be sent to the host
+            logger.debug(f"Processing inbound 3270DS data ({len(data)} bytes)")
+
+            # For now, this is a placeholder - in a full implementation,
+            # this would format user input for transmission to the host
+
+        except Exception as e:
+            logger.error(f"Error handling inbound 3270DS structured field: {e}")
 
     def _handle_object_data_sf(self, data: bytes) -> None:
         """Handle Object Data structured field."""
@@ -1759,6 +1825,100 @@ class DataStreamParser:
     def _handle_file_sf(self, data: bytes) -> None:
         """Handle File structured field."""
         logger.debug(f"Handled File SF: {len(data)} bytes")
+
+    def _handle_ind_file_sf(self, data: bytes) -> None:
+        """Handle IND$FILE structured field for file transfer."""
+        try:
+            if len(data) < 1:
+                logger.warning("IND$FILE SF data too short")
+                return
+
+            # Check if we have an IndFile handler
+            if hasattr(self, "ind_file_handler") and self.ind_file_handler:
+                # Let the IndFile handler process the data
+                self.ind_file_handler.handle_incoming_data(data)
+                return
+
+            # Fallback logging for when no handler is set
+            from ..ind_file import (
+                IND_FILE_DATA,
+                IND_FILE_DOWNLOAD,
+                IND_FILE_EOF,
+                IND_FILE_ERROR,
+                IND_FILE_UPLOAD,
+                IndFileMessage,
+            )
+
+            try:
+                message = IndFileMessage.from_bytes(data)
+                sub_command = message.sub_command
+
+                if sub_command == IND_FILE_UPLOAD:
+                    filename = message.get_filename()
+                    logger.debug(f"IND$FILE upload request for file: {filename}")
+
+                elif sub_command == IND_FILE_DOWNLOAD:
+                    filename = message.get_filename()
+                    logger.debug(f"IND$FILE download request for file: {filename}")
+
+                elif sub_command == IND_FILE_DATA:
+                    logger.debug(
+                        f"IND$FILE: Data received ({len(message.payload)} bytes)"
+                    )
+
+                elif sub_command == IND_FILE_EOF:
+                    logger.debug("IND$FILE: EOF received")
+
+                elif sub_command == IND_FILE_ERROR:
+                    error_msg = message.get_error_message() or "Unknown error"
+                    logger.warning(f"IND$FILE: Error received - {error_msg}")
+
+                else:
+                    logger.warning(f"IND$FILE: Unknown sub-command 0x{sub_command:02x}")
+
+            except Exception as parse_error:
+                logger.error(f"Error parsing IND$FILE message: {parse_error}")
+                # Fall back to old byte-based parsing
+                sub_command = data[0]
+                payload = data[1:] if len(data) > 1 else b""
+
+                if sub_command == 0x00:  # Upload request
+                    logger.debug("IND$FILE: Upload request received")
+                    # Parse filename from payload
+                    if payload and b"\x00" in payload:
+                        filename = payload.split(b"\x00", 1)[0].decode(
+                            "ascii", errors="replace"
+                        )
+                        logger.debug(f"IND$FILE upload request for file: {filename}")
+
+                elif sub_command == 0x01:  # Download request
+                    logger.debug("IND$FILE: Download request received")
+                    # Parse filename from payload
+                    if payload and b"\x00" in payload:
+                        filename = payload.split(b"\x00", 1)[0].decode(
+                            "ascii", errors="replace"
+                        )
+                        logger.debug(f"IND$FILE download request for file: {filename}")
+
+                elif sub_command == 0x02:  # Data
+                    logger.debug(f"IND$FILE: Data received ({len(payload)} bytes)")
+
+                elif sub_command == 0x03:  # EOF
+                    logger.debug("IND$FILE: EOF received")
+
+                elif sub_command == 0x04:  # Error
+                    error_msg = (
+                        payload.decode("ascii", errors="replace")
+                        if payload
+                        else "Unknown error"
+                    )
+                    logger.warning(f"IND$FILE: Error received - {error_msg}")
+
+                else:
+                    logger.warning(f"IND$FILE: Unknown sub-command 0x{sub_command:02x}")
+
+        except Exception as e:
+            logger.error(f"Error handling IND$FILE structured field: {e}")
 
     def _handle_font_sf(self, data: bytes) -> None:
         """Handle Font structured field."""

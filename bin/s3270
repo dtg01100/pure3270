@@ -1,0 +1,123 @@
+#!/usr/bin/env python
+
+import asyncio
+import json
+import logging
+import shlex
+import sys
+from typing import Any, Dict, List, Optional
+
+from pure3270.session import Session
+
+# Configure logging
+logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
+
+# Global session instance
+session: Optional[Session] = None
+
+
+def setup_session():
+    """Initialize the global session."""
+    global session
+    if session is None:
+        session = Session()
+
+
+async def execute_command(command: str, args: List[str]) -> Any:
+    """Execute a command on the session."""
+    global session
+    setup_session()
+
+    if not hasattr(session, command):
+        return f"error: unknown command '{command}'"
+
+    try:
+        method = getattr(session, command)
+
+        # Check if it's an async method
+        if asyncio.iscoroutinefunction(method):
+            result = await method(*args)
+        else:
+            result = method(*args)
+
+        return result
+
+    except Exception as e:
+        return f"error: {e}"
+
+
+async def process_line(line: str) -> None:
+    """Process a single input line."""
+    line = line.strip()
+    if not line:
+        return
+
+    try:
+        # Try to parse as JSON first (for complex commands)
+        try:
+            request = json.loads(line)
+            command = request["command"]
+            args = request.get("args", [])
+        except (json.JSONDecodeError, KeyError):
+            # Not JSON, parse as space-separated command with quote handling
+            import shlex
+
+            try:
+                parts = shlex.split(line)
+                command = parts[0]
+                args = parts[1:]
+            except ValueError:
+                # Fallback to simple split if shlex fails
+                parts = line.split()
+                command = parts[0]
+                args = parts[1:]
+
+        # Execute the command
+        result = await execute_command(command, args)
+
+        # Output result if any
+        if result is not None:
+            if isinstance(result, str):
+                print(result)
+            elif isinstance(result, bytes):
+                print(result.hex())  # Print bytes as hex
+            else:
+                # Convert to JSON for complex results
+                print(json.dumps(result))
+
+    except Exception as e:
+        print(f"error: {e}", file=sys.stderr)
+
+
+async def main():
+    """Main async function for the s3270 command interface."""
+    # Read from stdin line by line
+    loop = asyncio.get_event_loop()
+    reader = asyncio.StreamReader()
+    protocol = asyncio.StreamReaderProtocol(reader)
+    await loop.connect_read_pipe(lambda: protocol, sys.stdin)
+
+    try:
+        while True:
+            line = await reader.readline()
+            if not line:  # EOF
+                break
+
+            line_str = line.decode("utf-8", errors="replace").rstrip("\n\r")
+            await process_line(line_str)
+
+    except KeyboardInterrupt:
+        pass
+    finally:
+        # Clean up session
+        global session
+        if session:
+            try:
+                session.close()
+            except:
+                pass
+
+
+if __name__ == "__main__":
+    # Run the async main function
+    asyncio.run(main())

@@ -64,9 +64,61 @@ You can pass ``terminal_type`` when creating sessions to emulate different IBM m
 
 .. code-block:: python
 
-   from pure3270 import Session
+    from pure3270 import Session
 
-   # Emulate a color 32x80 terminal (3279 Model 3)
-   with Session(terminal_type="IBM-3279-3") as session:
-      session.connect('your-host.example.com', port=23)
-      print("Screen size:", session.screen_buffer.rows, "x", session.screen_buffer.cols)
+    # Emulate a color 32x80 terminal (3279 Model 3)
+    with Session(terminal_type="IBM-3279-3") as session:
+       session.connect('your-host.example.com', port=23)
+       print("Screen size:", session.screen_buffer.rows, "x", session.screen_buffer.cols)
+
+File Transfer with IND$FILE
+---------------------------
+
+Pure3270 supports file transfer using the IND$FILE protocol, allowing you to upload files to and download files from the host.
+
+.. code-block:: python
+
+    import asyncio
+    from pure3270 import AsyncSession
+
+    async def file_transfer_example():
+        async with AsyncSession() as session:
+            await session.connect('your-host.example.com', port=23)
+
+            # Upload a local file to the host
+            await session.send_file('/local/path/source.txt', 'destination.txt')
+
+            # Download a file from the host
+            await session.receive_file('remote_file.txt', '/local/path/downloaded.txt')
+
+            print("File transfer completed successfully")
+
+    # Run the example
+    asyncio.run(file_transfer_example())
+
+Error Handling in File Transfers
+--------------------------------
+
+.. code-block:: python
+
+    import asyncio
+    from pure3270 import AsyncSession
+    from pure3270.ind_file import IndFileError
+
+    async def robust_file_transfer():
+        async with AsyncSession() as session:
+            await session.connect('your-host.example.com', port=23)
+
+            try:
+                # Attempt to upload a file
+                await session.send_file('/local/path/missing.txt', 'remote.txt')
+            except IndFileError as e:
+                print(f"Upload failed: {e}")
+
+            try:
+                # Attempt to download a file
+                await session.receive_file('nonexistent.txt', '/local/path/fail.txt')
+            except IndFileError as e:
+                print(f"Download failed: {e}")
+
+    asyncio.run(robust_file_transfer())
