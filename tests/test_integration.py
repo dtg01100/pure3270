@@ -6,6 +6,7 @@ import pytest
 from pure3270.emulation.screen_buffer import Field
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 class TestIntegration:
     async def test_end_to_end_macro_execution(self, real_async_session):
