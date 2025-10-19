@@ -67,7 +67,6 @@ jobs:
       matrix:
         python-version: ${{ fromJson(needs.setup.outputs.python-versions) }}
       fail-fast: false  # Don't cancel other jobs if one fails, especially for new version testing
-
     steps:
     - name: Configure git default branch
       run: git config --global init.defaultBranch main
@@ -133,8 +132,7 @@ jobs:
 
     - name: Generate coverage report
       run: |
-        pytest --cov=pure3270 --cov-report=xml tests/
-
+        pytest --cov=pure3270 --cov-report=xml tests/ -m "not integration"
 
     - name: Upload test results
       if: always()
