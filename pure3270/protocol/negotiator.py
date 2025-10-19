@@ -1414,8 +1414,15 @@ class Negotiator:
                     )
                     self.negotiated_tn3270e = False
                     self._record_decision(self.force_mode or "auto", "ascii", True)
+                # Check if server actually supports TN3270E
+                elif not self._server_supports_tn3270e:
+                    logger.info(
+                        "[NEGOTIATION] Server doesn't support TN3270E; marking negotiation as failed."
+                    )
+                    self.negotiated_tn3270e = False
+                    self._record_decision(self.force_mode or "auto", "tn3270", True)
                 else:
-                    # Mark success after waits completed in tests regardless of server flag
+                    # Mark success after waits completed in tests with server support
                     self.negotiated_tn3270e = True
                     logger.info(
                         "[NEGOTIATION] TN3270E negotiation successful (test path)."

@@ -269,10 +269,10 @@ class TestTN3270Handler:
     @pytest.mark.asyncio
     async def test_is_printer_session_active(self, tn3270_handler):
         tn3270_handler.is_printer_session = False
-        assert tn3270_handler.is_printer_session_active() is False
+        assert tn3270_handler.is_printer_session is False
 
         tn3270_handler.is_printer_session = True
-        assert tn3270_handler.is_printer_session_active() is True
+        assert tn3270_handler.is_printer_session is True
 
     @pytest.mark.asyncio
     async def test_process_telnet_stream_iac_do_dont_will_wont(self, tn3270_handler):

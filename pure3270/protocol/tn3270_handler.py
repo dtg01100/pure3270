@@ -599,21 +599,25 @@ class TN3270Handler:
             byte = data[i]
             if byte == IAC:
                 if i + 1 >= length:
-                    # Lone IAC at end, skip
-                    i += 1
-                    continue
+                    # Lone IAC at end, buffer it for next chunk
+                    self._telnet_buffer = data[i:]
+                    break
                 cmd = data[i + 1]
                 if cmd in (DO, DONT, WILL, WONT):
-                    # Telnet negotiation command, skip
+                    if i + 2 >= length:
+                        # Incomplete negotiation command, buffer for next chunk
+                        self._telnet_buffer = data[i:]
+                        break
+                    # Complete negotiation command, skip
                     i += 3
                     continue
                 elif cmd == SB:
                     # Subnegotiation: find SE
                     se_index = data.find(bytes([IAC, SE]), i + 2)
                     if se_index == -1:
-                        # Incomplete subnegotiation, skip rest
-                        i = length
-                        continue
+                        # Incomplete subnegotiation, buffer rest
+                        self._telnet_buffer = data[i:]
+                        break
                     option = data[i + 2]
                     sub_payload = data[i + 3 : se_index]
                     try:
@@ -1967,6 +1971,11 @@ class TN3270Handler:
                 logger.debug(
                     f"Received {len(part)} bytes of data: {part.hex() if part else ''}"
                 )
+
+                # Prepend any buffered incomplete telnet sequences
+                if self._telnet_buffer:
+                    part = self._telnet_buffer + part
+                    self._telnet_buffer = b""  # Clear the buffer after prepending
 
                 try:
                     processed_data, ascii_mode_detected = (
