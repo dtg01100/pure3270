@@ -294,19 +294,17 @@ class StructuredFieldValidator:
 
     def _validate_sfe(self, data: bytes) -> bool:
         """Validate Start Field Extended structured field."""
-        if len(data) < 5:  # SF header + length + at least one pair
+        if len(data) < 6:  # SF header + SF type + at least one pair (2 bytes)
             self.validation_errors.append("SFE data too short")
             return False
 
         # Parse attribute pairs
-        parser = BaseParser(data[3:])  # Skip SF header
-        if not parser.has_more():
-            return True
+        # data format: [SF_CMD, len_high, len_low, SF_TYPE, ...payload...]
+        # The SF length field indicates payload size, no separate length byte in SFE payload
+        parser = BaseParser(data[4:])  # Skip SF header (3 bytes) + SF type (1 byte)
 
-        length = parser.read_byte()
-        num_pairs = length // 2
-
-        for i in range(num_pairs):
+        i = 0
+        while parser.has_more():
             if parser.remaining() < 2:
                 self.validation_errors.append(f"Incomplete SFE pair at index {i}")
                 return False
@@ -318,6 +316,7 @@ class StructuredFieldValidator:
                 self.validation_warnings.append(
                     f"Unknown SFE attribute type: 0x{attr_type:02x}"
                 )
+            i += 1
 
         return True
 
@@ -1291,7 +1290,14 @@ class DataStreamParser:
             pos = row * self.screen.cols + col
             if pos < buffer_size:
                 self.screen.buffer[pos] = byte
-                self.screen.set_position(row, col + 1)
+                # Handle cursor advancement with wrapping
+                col += 1
+                if col >= self.screen.cols:
+                    col = 0
+                    row += 1
+                    if row >= self.screen.rows:
+                        row = self.screen.rows - 1  # Stay at last row
+                self.screen.set_position(row, col)
             else:
                 raise ParseError("Buffer overflow")
         else:
@@ -1578,17 +1584,11 @@ class DataStreamParser:
             )
 
         if sf_data is not None:
-            # Handle as SF payload: parse length, then fixed number of type-value pairs
+            # Handle as SF payload: no length byte, just attr-type/value pairs
+            # (The SF length field already indicates the payload size)
             parser = BaseParser(sf_data)
-            if not parser.has_more():
-                return attrs
-            try:
-                length = parser.read_byte()
-            except ParseError:
-                raise ParseError("Incomplete SFE SF payload length")
-            num_pairs = length // 2
-            for _ in range(num_pairs):
-                if not parser.has_more():
+            while parser.has_more():
+                if parser.remaining() < 2:
                     break
                 try:
                     attr_type = parser.read_byte()
