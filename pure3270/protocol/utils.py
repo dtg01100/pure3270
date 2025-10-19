@@ -214,15 +214,14 @@ TN3270E_QUERY_IS = 0x00
 TN3270E_QUERY_SEND = 0x01
 
 # 3270 Data Stream Types and Constants
-NVT_DATA = 0x00
-TN3270_DATA = 0x01
-SNA_RESPONSE_DATA_TYPE = 0x02
-PRINTER_STATUS_DATA_TYPE = 0x03
-PRINT_EOJ = 0x04
-BIND_IMAGE = 0xF2  # Bind Image AID
-SCS_DATA = 0x05
-REQUEST = 0x10
-RESPONSE = 0x11
+# NOTE: These are internal data stream type identifiers, NOT TN3270E header types
+# TN3270E header types are defined above (lines 126-139) per RFC 2355
+# Removed duplicate/conflicting definitions to avoid shadowing RFC values:
+# - Use TN3270_DATA (0x00), SCS_DATA (0x01), etc. from RFC section
+# - Only unique internal types remain here:
+SNA_RESPONSE_DATA_TYPE = 0x02  # Internal: SNA response in data stream
+PRINTER_STATUS_DATA_TYPE = 0x03  # Internal: Printer status data
+# Note: BIND_IMAGE (0xF2) is an AID code, not a data type - keeping for compatibility
 
 # Structured Field Query Reply Types (all standard IDs)
 QUERY_REPLY_SUMMARY = 0x80
