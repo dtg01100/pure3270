@@ -403,6 +403,8 @@ class TestTN3270Handler:
             # Simulate receiving TN3270E header + actual data + IAC EOR
             test_data = mock_header_bytes + b"actual data"
             tn3270_handler.reader.read.return_value = test_data + b"\xff\x19"
+            # Set expected sequence number to match the mock header
+            tn3270_handler._last_received_seq_number = 123
 
             received_data = await tn3270_handler.receive_data()
 
@@ -412,8 +414,8 @@ class TestTN3270Handler:
             mock_parse_data_stream.assert_called_once_with(
                 b"actual data", data_type=SCS_DATA
             )
-            # Verify that the returned data is the processed data (without IAC EOR)
-            assert received_data == test_data
+            # Verify that the returned data is the payload only (header and IAC EOR stripped)
+            assert received_data == b"actual data"
 
     @pytest.mark.asyncio
     async def test_receive_data_no_tn3270e_header(self, tn3270_handler):

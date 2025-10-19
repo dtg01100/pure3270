@@ -59,6 +59,7 @@ from .trace_recorder import TraceRecorder
 from .utils import (
     AO,
     BREAK,
+    BRK,
     DO,
     DONT,
     IAC,
@@ -587,11 +588,16 @@ class TN3270Handler:
         """
         return self._addressing_negotiator.get_negotiation_summary()
 
-    def _process_telnet_stream(self, data: bytes) -> _AwaitableResult:
+    async def _process_telnet_stream(self, data: bytes) -> tuple[bytes, bool]:
         """
         Process Telnet stream data, handling IAC commands and subnegotiations.
         Returns cleaned data and ASCII mode detection flag.
         """
+        # Prepend any buffered data from previous incomplete sequences
+        if self._telnet_buffer:
+            data = self._telnet_buffer + data
+            self._telnet_buffer = b""
+
         processed = bytearray()
         i = 0
         length = len(data)
@@ -608,7 +614,15 @@ class TN3270Handler:
                         # Incomplete negotiation command, buffer for next chunk
                         self._telnet_buffer = data[i:]
                         break
-                    # Complete negotiation command, skip
+                    # Complete negotiation command, call negotiator
+                    option = data[i + 2]
+                    try:
+                        if hasattr(self, "negotiator") and self.negotiator:
+                            await self.negotiator.handle_iac_command(cmd, option)
+                    except Exception as e:
+                        logger.warning(
+                            f"[TELNET] Error handling IAC command {cmd:02x} {option:02x}: {e}"
+                        )
                     i += 3
                     continue
                 elif cmd == SB:
@@ -622,10 +636,8 @@ class TN3270Handler:
                     sub_payload = data[i + 3 : se_index]
                     try:
                         if hasattr(self, "negotiator") and self.negotiator:
-                            asyncio.create_task(
-                                self.negotiator.handle_subnegotiation(
-                                    option, sub_payload
-                                )
+                            await self.negotiator.handle_subnegotiation(
+                                option, sub_payload
                             )
                     except Exception as e:
                         logger.warning(
@@ -634,7 +646,9 @@ class TN3270Handler:
                     i = se_index + 2
                     continue
                 else:
-                    # Unknown IAC command, skip
+                    # Handle other IAC commands
+                    if cmd == BRK:
+                        logger.debug("Received IAC BRK")
                     i += 2
                     continue
             else:
@@ -643,7 +657,7 @@ class TN3270Handler:
         cleaned_data = bytes(processed)
         # Detect ASCII/VT100 mode using helper
         ascii_mode_detected = self._detect_vt100_sequences(cleaned_data)
-        return _AwaitableResult((cleaned_data, ascii_mode_detected))
+        return (cleaned_data, ascii_mode_detected)
 
     # --- Enhanced State Management Methods ---
 
@@ -1617,17 +1631,9 @@ class TN3270Handler:
                         # resource may not be available on all platforms
                         pass
 
-                # Process telnet stream synchronously; this will schedule negotiator tasks
-                processed = self._process_telnet_stream(data)
-                # If the result is awaitable, await it to ensure completion and capture payload
-                if inspect.isawaitable(processed):
+                    # Process telnet stream asynchronously
                     try:
-                        cleaned, _ascii = await processed
-                    except Exception:
-                        cleaned = b""
-                else:
-                    try:
-                        cleaned, _ascii = processed  # type: ignore[misc]
+                        cleaned, _ascii = await self._process_telnet_stream(data)
                     except Exception:
                         cleaned = b""
                 # If any non-IAC payload was present in the chunk, stash it for
@@ -1971,11 +1977,6 @@ class TN3270Handler:
                 logger.debug(
                     f"Received {len(part)} bytes of data: {part.hex() if part else ''}"
                 )
-
-                # Prepend any buffered incomplete telnet sequences
-                if self._telnet_buffer:
-                    part = self._telnet_buffer + part
-                    self._telnet_buffer = b""  # Clear the buffer after prepending
 
                 try:
                     processed_data, ascii_mode_detected = (
