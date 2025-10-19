@@ -28,6 +28,11 @@ async def execute_command(command: str, args: List[str]) -> Any:
     global session
     setup_session()
 
+    # Built-in utility commands that don't require a session
+    if command.lower() == "echo":
+        # Join args with spaces and echo back
+        return " ".join(str(a) for a in args)
+
     # Map s3270 commands to session methods
     command_map = {
         "Connect": "connect",

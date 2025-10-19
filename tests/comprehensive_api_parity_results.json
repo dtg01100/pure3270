@@ -1,5 +1,5 @@
 {
-  "timestamp": 1760825500.808461,
+  "timestamp": 1760888108.9469826,
   "suite_name": "comprehensive_api_parity",
   "overall_passed": false,
   "components": {
@@ -16,29 +16,29 @@
       "passed_tests": 5,
       "failed_tests": 6,
       "results": [
-        "ParityTestResult(method_name='connect', test_name='basic_connection', category=<TestCategory.CONNECTION: 'connection'>, compatibility_level=<CompatibilityLevel.SIGNATURE: 'signature'>, pure3270_result=True, legacy_result=<Mock name='mock.connect()' id='140376840482944'>, differences=[\"Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>\"], execution_time=0.0013380050659179688, error_message=None, passed=False)",
-        "ParityTestResult(method_name='disconnect', test_name='connection_cleanup', category=<TestCategory.CONNECTION: 'connection'>, compatibility_level=<CompatibilityLevel.SIGNATURE: 'signature'>, pure3270_result=True, legacy_result=<Mock name='mock.disconnect()' id='140376840482848'>, differences=[\"Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>\"], execution_time=0.0012660026550292969, error_message=None, passed=False)",
-        "ParityTestResult(method_name='isConnected', test_name='connection_status', category=<TestCategory.CONNECTION: 'connection'>, compatibility_level=<CompatibilityLevel.FULL: 'full'>, pure3270_result=True, legacy_result=True, differences=[], execution_time=0.0006999969482421875, error_message=None, passed=True)",
-        "ParityTestResult(method_name='sendText', test_name='text_input', category=<TestCategory.TEXT_IO: 'text_io'>, compatibility_level=<CompatibilityLevel.SIGNATURE: 'signature'>, pure3270_result=True, legacy_result=<Mock name='mock.sendText()' id='140376840481648'>, differences=[\"Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>\"], execution_time=0.0018944740295410156, error_message=None, passed=False)",
-        "ParityTestResult(method_name='getScreen', test_name='screen_reading', category=<TestCategory.TEXT_IO: 'text_io'>, compatibility_level=<CompatibilityLevel.FULL: 'full'>, pure3270_result='', legacy_result='Mock Screen Content', differences=[], execution_time=0.0013728141784667969, error_message=None, passed=True)",
-        "ParityTestResult(method_name='readTextAtPosition', test_name='positioned_read', category=<TestCategory.TEXT_IO: 'text_io'>, compatibility_level=<CompatibilityLevel.FULL: 'full'>, pure3270_result='', legacy_result='test', differences=[], execution_time=0.0020537376403808594, error_message=None, passed=True)",
-        "ParityTestResult(method_name='sendEnter', test_name='enter_key', category=<TestCategory.KEYBOARD: 'keyboard'>, compatibility_level=<CompatibilityLevel.SIGNATURE: 'signature'>, pure3270_result=True, legacy_result=<Mock name='mock.sendEnter()' id='140376840481744'>, differences=[\"Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>\"], execution_time=0.001657724380493164, error_message=None, passed=False)",
-        "ParityTestResult(method_name='sendTab', test_name='tab_key', category=<TestCategory.KEYBOARD: 'keyboard'>, compatibility_level=<CompatibilityLevel.SIGNATURE: 'signature'>, pure3270_result=True, legacy_result=<Mock name='mock.sendTab()' id='140376840483424'>, differences=[\"Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>\"], execution_time=0.0016379356384277344, error_message=None, passed=False)",
-        "ParityTestResult(method_name='sendPF', test_name='pf_key', category=<TestCategory.KEYBOARD: 'keyboard'>, compatibility_level=<CompatibilityLevel.SIGNATURE: 'signature'>, pure3270_result=True, legacy_result=<Mock name='mock.sendPF()' id='140376840478384'>, differences=[\"Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>\"], execution_time=0.001905679702758789, error_message=None, passed=False)",
-        "ParityTestResult(method_name='waitForCursorAt', test_name='cursor_wait', category=<TestCategory.WAIT: 'wait'>, compatibility_level=<CompatibilityLevel.FULL: 'full'>, pure3270_result=True, legacy_result=True, differences=[], execution_time=0.10172843933105469, error_message=None, passed=True)",
-        "ParityTestResult(method_name='waitForStringAt', test_name='string_wait', category=<TestCategory.WAIT: 'wait'>, compatibility_level=<CompatibilityLevel.FULL: 'full'>, pure3270_result=False, legacy_result=True, differences=[], execution_time=1.0030460357666016, error_message=None, passed=True)"
+        "ParityTestResult(method_name='connect', test_name='basic_connection', category=<TestCategory.CONNECTION: 'connection'>, compatibility_level=<CompatibilityLevel.SIGNATURE: 'signature'>, pure3270_result=True, legacy_result=<Mock name='mock.connect()' id='140101929888672'>, differences=[\"Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>\"], execution_time=0.0004837512969970703, error_message=None, passed=False)",
+        "ParityTestResult(method_name='disconnect', test_name='connection_cleanup', category=<TestCategory.CONNECTION: 'connection'>, compatibility_level=<CompatibilityLevel.SIGNATURE: 'signature'>, pure3270_result=True, legacy_result=<Mock name='mock.disconnect()' id='140101929889536'>, differences=[\"Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>\"], execution_time=0.0004878044128417969, error_message=None, passed=False)",
+        "ParityTestResult(method_name='isConnected', test_name='connection_status', category=<TestCategory.CONNECTION: 'connection'>, compatibility_level=<CompatibilityLevel.FULL: 'full'>, pure3270_result=True, legacy_result=True, differences=[], execution_time=0.00024199485778808594, error_message=None, passed=True)",
+        "ParityTestResult(method_name='sendText', test_name='text_input', category=<TestCategory.TEXT_IO: 'text_io'>, compatibility_level=<CompatibilityLevel.SIGNATURE: 'signature'>, pure3270_result=True, legacy_result=<Mock name='mock.sendText()' id='140101929887040'>, differences=[\"Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>\"], execution_time=0.0007910728454589844, error_message=None, passed=False)",
+        "ParityTestResult(method_name='getScreen', test_name='screen_reading', category=<TestCategory.TEXT_IO: 'text_io'>, compatibility_level=<CompatibilityLevel.FULL: 'full'>, pure3270_result='', legacy_result='Mock Screen Content', differences=[], execution_time=0.00042247772216796875, error_message=None, passed=True)",
+        "ParityTestResult(method_name='readTextAtPosition', test_name='positioned_read', category=<TestCategory.TEXT_IO: 'text_io'>, compatibility_level=<CompatibilityLevel.FULL: 'full'>, pure3270_result='', legacy_result='test', differences=[], execution_time=0.00067901611328125, error_message=None, passed=True)",
+        "ParityTestResult(method_name='sendEnter', test_name='enter_key', category=<TestCategory.KEYBOARD: 'keyboard'>, compatibility_level=<CompatibilityLevel.SIGNATURE: 'signature'>, pure3270_result=True, legacy_result=<Mock name='mock.sendEnter()' id='140101929893520'>, differences=[\"Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>\"], execution_time=0.0006623268127441406, error_message=None, passed=False)",
+        "ParityTestResult(method_name='sendTab', test_name='tab_key', category=<TestCategory.KEYBOARD: 'keyboard'>, compatibility_level=<CompatibilityLevel.SIGNATURE: 'signature'>, pure3270_result=True, legacy_result=<Mock name='mock.sendTab()' id='140101929891504'>, differences=[\"Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>\"], execution_time=0.0006163120269775391, error_message=None, passed=False)",
+        "ParityTestResult(method_name='sendPF', test_name='pf_key', category=<TestCategory.KEYBOARD: 'keyboard'>, compatibility_level=<CompatibilityLevel.SIGNATURE: 'signature'>, pure3270_result=True, legacy_result=<Mock name='mock.sendPF()' id='140101929892992'>, differences=[\"Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>\"], execution_time=0.0006649494171142578, error_message=None, passed=False)",
+        "ParityTestResult(method_name='waitForCursorAt', test_name='cursor_wait', category=<TestCategory.WAIT: 'wait'>, compatibility_level=<CompatibilityLevel.FULL: 'full'>, pure3270_result=True, legacy_result=True, differences=[], execution_time=0.10074830055236816, error_message=None, passed=True)",
+        "ParityTestResult(method_name='waitForStringAt', test_name='string_wait', category=<TestCategory.WAIT: 'wait'>, compatibility_level=<CompatibilityLevel.FULL: 'full'>, pure3270_result=False, legacy_result=True, differences=[], execution_time=1.001908779144287, error_message=None, passed=True)"
       ]
     },
     "integration_tests": {
-      "tests_run": 0,
-      "tests_passed": 0,
+      "tests_run": 7,
+      "tests_passed": 7,
       "tests_failed": 0,
       "connection_successful": false,
-      "communication_successful": false,
+      "communication_successful": true,
       "error_details": []
     },
     "final_report": {
-      "timestamp": 1760825501.9525137,
+      "timestamp": 1760888110.1629322,
       "summary": {
         "total_methods_analyzed": 49,
         "signature_compatibility_rate": 1.0,
@@ -717,11 +717,11 @@
           "category": "connection",
           "compatibility_level": "signature",
           "pure3270_result": true,
-          "legacy_result": "<Mock name='mock.connect()' id='140376840482944'>",
+          "legacy_result": "<Mock name='mock.connect()' id='140101929888672'>",
           "differences": [
             "Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>"
           ],
-          "execution_time": 0.0013380050659179688,
+          "execution_time": 0.0004837512969970703,
           "error_message": null,
           "passed": false
         },
@@ -731,11 +731,11 @@
           "category": "connection",
           "compatibility_level": "signature",
           "pure3270_result": true,
-          "legacy_result": "<Mock name='mock.disconnect()' id='140376840482848'>",
+          "legacy_result": "<Mock name='mock.disconnect()' id='140101929889536'>",
           "differences": [
             "Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>"
           ],
-          "execution_time": 0.0012660026550292969,
+          "execution_time": 0.0004878044128417969,
           "error_message": null,
           "passed": false
         },
@@ -747,7 +747,7 @@
           "pure3270_result": true,
           "legacy_result": true,
           "differences": [],
-          "execution_time": 0.0006999969482421875,
+          "execution_time": 0.00024199485778808594,
           "error_message": null,
           "passed": true
         },
@@ -757,11 +757,11 @@
           "category": "text_io",
           "compatibility_level": "signature",
           "pure3270_result": true,
-          "legacy_result": "<Mock name='mock.sendText()' id='140376840481648'>",
+          "legacy_result": "<Mock name='mock.sendText()' id='140101929887040'>",
           "differences": [
             "Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>"
           ],
-          "execution_time": 0.0018944740295410156,
+          "execution_time": 0.0007910728454589844,
           "error_message": null,
           "passed": false
         },
@@ -773,7 +773,7 @@
           "pure3270_result": "",
           "legacy_result": "Mock Screen Content",
           "differences": [],
-          "execution_time": 0.0013728141784667969,
+          "execution_time": 0.00042247772216796875,
           "error_message": null,
           "passed": true
         },
@@ -785,7 +785,7 @@
           "pure3270_result": "",
           "legacy_result": "test",
           "differences": [],
-          "execution_time": 0.0020537376403808594,
+          "execution_time": 0.00067901611328125,
           "error_message": null,
           "passed": true
         },
@@ -795,11 +795,11 @@
           "category": "keyboard",
           "compatibility_level": "signature",
           "pure3270_result": true,
-          "legacy_result": "<Mock name='mock.sendEnter()' id='140376840481744'>",
+          "legacy_result": "<Mock name='mock.sendEnter()' id='140101929893520'>",
           "differences": [
             "Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>"
           ],
-          "execution_time": 0.001657724380493164,
+          "execution_time": 0.0006623268127441406,
           "error_message": null,
           "passed": false
         },
@@ -809,11 +809,11 @@
           "category": "keyboard",
           "compatibility_level": "signature",
           "pure3270_result": true,
-          "legacy_result": "<Mock name='mock.sendTab()' id='140376840483424'>",
+          "legacy_result": "<Mock name='mock.sendTab()' id='140101929891504'>",
           "differences": [
             "Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>"
           ],
-          "execution_time": 0.0016379356384277344,
+          "execution_time": 0.0006163120269775391,
           "error_message": null,
           "passed": false
         },
@@ -823,11 +823,11 @@
           "category": "keyboard",
           "compatibility_level": "signature",
           "pure3270_result": true,
-          "legacy_result": "<Mock name='mock.sendPF()' id='140376840478384'>",
+          "legacy_result": "<Mock name='mock.sendPF()' id='140101929892992'>",
           "differences": [
             "Result type mismatch: pure3270=<class 'bool'>, legacy=<class 'unittest.mock.Mock'>"
           ],
-          "execution_time": 0.001905679702758789,
+          "execution_time": 0.0006649494171142578,
           "error_message": null,
           "passed": false
         },
@@ -839,7 +839,7 @@
           "pure3270_result": true,
           "legacy_result": true,
           "differences": [],
-          "execution_time": 0.10172843933105469,
+          "execution_time": 0.10074830055236816,
           "error_message": null,
           "passed": true
         },
@@ -851,7 +851,7 @@
           "pure3270_result": false,
           "legacy_result": true,
           "differences": [],
-          "execution_time": 1.0030460357666016,
+          "execution_time": 1.001908779144287,
           "error_message": null,
           "passed": true
         }
@@ -873,10 +873,10 @@
     "total_components": 4,
     "passed_components": 2,
     "failed_components": 1,
-    "total_tests": 60,
-    "passed_tests": 54,
+    "total_tests": 67,
+    "passed_tests": 61,
     "failed_tests": 6,
     "overall_passed": false,
-    "compatibility_score": 0.9
+    "compatibility_score": 0.9104477611940298
   }
 }

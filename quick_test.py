@@ -29,9 +29,13 @@ def set_memory_limit(max_memory_mb: int):
 
     try:
         max_memory_bytes = max_memory_mb * 1024 * 1024
-        # RLIMIT_AS limits total virtual memory
-        resource.setrlimit(resource.RLIMIT_AS, (max_memory_bytes, max_memory_bytes))
-        return max_memory_bytes
+        # Preserve current hard limit; only lower the soft limit so test runners can
+        # temporarily lift it during reporting. Setting the hard limit too low can
+        # cause pytest to fail with MemoryError while generating reports.
+        soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+        new_soft = min(max_memory_bytes, hard if hard > 0 else max_memory_bytes)
+        resource.setrlimit(resource.RLIMIT_AS, (new_soft, hard))
+        return new_soft
     except Exception:
         return None
 

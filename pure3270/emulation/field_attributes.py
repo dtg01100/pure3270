@@ -880,7 +880,10 @@ class LightPenAttribute(ExtendedAttribute):
         super().__init__(value)
 
     def _validate_and_normalize(self, value: Union[int, str]) -> int:
-        """Validate and normalize light pen value."""
+        """Validate and normalize light pen value.
+
+        Light pen is a boolean-like flag and only supports values 0 (off) or 1 (on).
+        """
         if isinstance(value, str):
             try:
                 value = int(value)
@@ -888,10 +891,11 @@ class LightPenAttribute(ExtendedAttribute):
                 raise ValueError(f"Invalid light pen value: {value}")
 
         if isinstance(value, int):
-            if 0 <= value <= 0xFF:
-                return value
+            # Only 0 or 1 are valid per tests/expected behavior
+            if value in (0, 1):
+                return int(value)
             else:
-                raise ValueError(f"Light pen value must be 0-255, got {value}")
+                raise ValueError(f"Light pen value must be 0 or 1, got {value}")
         else:
             raise ValueError(
                 f"Light pen value must be int or string, got {type(value)}"

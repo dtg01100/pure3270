@@ -65,12 +65,17 @@ class TestScreenBuffer:
         screen = ScreenBuffer(24, 80)
 
         # Test setting position beyond bounds raises appropriate errors
-        # Since the implementation might not explicitly check bounds,
-        # we'll test what happens when we try to access invalid positions
         with pytest.raises(IndexError):
-            # This may not raise an error in current implementation,
-            # but we can test boundary behaviors
-            pass
+            screen.set_position(25, 10)  # Row out of bounds (max is 23)
+
+        with pytest.raises(IndexError):
+            screen.set_position(10, 80)  # Column out of bounds (max is 79)
+
+        with pytest.raises(IndexError):
+            screen.set_position(-1, 10)  # Negative row
+
+        with pytest.raises(IndexError):
+            screen.set_position(10, -1)  # Negative column
 
     def test_screen_buffer_content_writing(self):
         """Test that writing content to screen buffer works correctly."""

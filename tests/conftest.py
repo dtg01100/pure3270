@@ -64,7 +64,7 @@ def data_stream_sender():
 
 
 @pytest.fixture
-def negotiator(screen_buffer):
+def negotiator(screen_buffer, mock_negotiator_handler):
     """Fixture providing a real Negotiator with mocked writer only."""
     # Use real Negotiator with real parser and screen buffer for better testing
     # Only mock the writer for network I/O operations
@@ -74,7 +74,7 @@ def negotiator(screen_buffer):
         writer=mock_writer,
         parser=parser,
         screen_buffer=screen_buffer,
-        handler=None,  # Will be set by tests that need it
+        handler=mock_negotiator_handler,  # Provide handler so tests can assert calls
         is_printer_session=False,
     )
     return negotiator
@@ -194,49 +194,99 @@ def suppress_logging():
 
 
 @pytest.fixture
-def memory_limit_500mb():
+def memory_limit_500mb(request):
     """Fixture to limit memory to 500MB for the duration of the test."""
     if platform.system() == "Linux":
         try:
-            # Set memory limit to 500MB (in bytes)
-            resource.setrlimit(
-                resource.RLIMIT_AS, (500 * 1024 * 1024, 500 * 1024 * 1024)
-            )
+            # Capture current limits
+            soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+            # Lower only the soft limit to 500MB (keep hard unchanged)
+            resource.setrlimit(resource.RLIMIT_AS, (500 * 1024 * 1024, hard))
+            # Stash originals on the node for this specific test and on the fixture function for fallback
+            setattr(request.node, "_orig_rlimit_as", (soft, hard))
+            memory_limit_500mb._orig_limits = (soft, hard)  # type: ignore[attr-defined]
         except (ValueError, OSError):
             # If we can't set the limit, just continue
             pass
     yield
     if platform.system() == "Linux":
         try:
-            # Reset to unlimited
-            resource.setrlimit(
-                resource.RLIMIT_AS, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
-            )
+            # Restore original limits if we captured them
+            # Prefer per-item stored limits; fall back to fixture-level
+            orig = getattr(request.node, "_orig_rlimit_as", None) or getattr(
+                memory_limit_500mb, "_orig_limits", None
+            )  # type: ignore[attr-defined]
+            if orig:
+                resource.setrlimit(resource.RLIMIT_AS, orig)
+            else:
+                # Fallback: reset soft to current hard
+                _, hard = resource.getrlimit(resource.RLIMIT_AS)
+                resource.setrlimit(resource.RLIMIT_AS, (hard, hard))
         except (ValueError, OSError):
             pass
 
 
 @pytest.fixture
-def memory_limit_100mb():
+def memory_limit_100mb(request):
     """Fixture to limit memory to 100MB for the duration of the test."""
     if platform.system() == "Linux":
         try:
-            # Set memory limit to 100MB (in bytes)
-            resource.setrlimit(
-                resource.RLIMIT_AS, (100 * 1024 * 1024, 100 * 1024 * 1024)
-            )
+            # Capture current limits
+            soft, hard = resource.getrlimit(resource.RLIMIT_AS)
+            # Lower only the soft limit to 100MB (keep hard unchanged)
+            resource.setrlimit(resource.RLIMIT_AS, (100 * 1024 * 1024, hard))
+            # Stash originals on the node for this specific test and on the fixture function for fallback
+            setattr(request.node, "_orig_rlimit_as", (soft, hard))
+            memory_limit_100mb._orig_limits = (soft, hard)  # type: ignore[attr-defined]
         except (ValueError, OSError):
             # If we can't set the limit, just continue
             pass
     yield
     if platform.system() == "Linux":
         try:
-            # Reset to unlimited
-            resource.setrlimit(
-                resource.RLIMIT_AS, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
-            )
+            # Restore original limits if we captured them
+            # Prefer per-item stored limits; fall back to fixture-level
+            orig = getattr(request.node, "_orig_rlimit_as", None) or getattr(
+                memory_limit_100mb, "_orig_limits", None
+            )  # type: ignore[attr-defined]
+            if orig:
+                resource.setrlimit(resource.RLIMIT_AS, orig)
+            else:
+                # Fallback: reset soft to current hard
+                _, hard = resource.getrlimit(resource.RLIMIT_AS)
+                resource.setrlimit(resource.RLIMIT_AS, (hard, hard))
         except (ValueError, OSError):
             pass
+
+
+@pytest.hookimpl(hookwrapper=True, tryfirst=True)
+def pytest_runtest_makereport(item, call):
+    """Ensure PyTest reporting is not constrained by strict memory limits.
+
+    When tests use the memory_limit_100mb fixture, we cap RLIMIT_AS during the
+    test body to catch excessive allocations. However, PyTest (and plugins like
+    Hypothesis) may allocate additional memory while generating test reports
+    and tracebacks immediately after the call phase. Under a 100MB cap this can
+    trigger MemoryError internal failures even for passing tests.
+
+    To avoid this, we reset RLIMIT_AS to unlimited right after the call phase
+    completes for tests that requested memory_limit_100mb. The fixture will also
+    reset limits in teardown, but that happens slightly later in the lifecycle
+    (after report generation). This hook narrows the limit strictly to the test
+    body while keeping reporting stable.
+    """
+    if platform.system() == "Linux" and call.when == "call":
+        # Always ensure reporting phase is not constrained by soft RLIMIT_AS caps.
+        # Lift soft to hard (unlimited or higher cap) to avoid MemoryError in pytest AST/reporting.
+        try:
+            current_soft, current_hard = resource.getrlimit(resource.RLIMIT_AS)
+            if current_soft < current_hard:
+                resource.setrlimit(resource.RLIMIT_AS, (current_hard, current_hard))
+        except (ValueError, OSError):
+            pass
+    # Continue with other hooks/report generation
+    outcome = yield
+    return outcome
 
 
 async def mock_tn3270e_handle_success(reader, writer):

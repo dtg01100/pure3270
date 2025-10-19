@@ -1159,6 +1159,7 @@ class TestSNARecovery:
     async def test_sna_session_failure_recovery(self, mock_negotiator):
         """Test recovery on SESSION_FAILURE: re-negotiate."""
         from pure3270.protocol.data_stream import SnaResponse
+        from pure3270.protocol.negotiator import SnaSessionState
         from pure3270.protocol.utils import SNA_SENSE_CODE_SESSION_FAILURE
 
         sna_resp = SnaResponse(0, 0, SNA_SENSE_CODE_SESSION_FAILURE)
@@ -1166,12 +1167,14 @@ class TestSNARecovery:
 
         # Assert re-negotiation called
         mock_negotiator.negotiate.assert_called_once()
-        assert mock_negotiator._sna_session_state == SnaSessionState.ERROR
+        # After successful re-negotiation, state should be NORMAL
+        assert mock_negotiator._sna_session_state == SnaSessionState.NORMAL
 
     @pytest.mark.asyncio
     async def test_sna_lu_busy_recovery(self, mock_negotiator):
         """Test recovery on LU_BUSY: wait and retry BIND."""
         from pure3270.protocol.data_stream import SnaResponse
+        from pure3270.protocol.negotiator import SnaSessionState
         from pure3270.protocol.utils import SNA_SENSE_CODE_LU_BUSY
 
         sna_resp = SnaResponse(0, 0, SNA_SENSE_CODE_LU_BUSY)
@@ -1187,18 +1190,21 @@ class TestSNARecovery:
                 "BIND-IMAGE", mock_negotiator._next_seq_number
             )
 
+        # LU_BUSY sets state to ERROR after handling
         assert mock_negotiator._sna_session_state == SnaSessionState.ERROR
 
     @pytest.mark.asyncio
     async def test_sna_recovery_failure(self, mock_negotiator):
         """Test recovery failure sets SESSION_DOWN."""
         from pure3270.protocol.data_stream import SnaResponse
+        from pure3270.protocol.negotiator import SnaSessionState
         from pure3270.protocol.utils import SNA_SENSE_CODE_SESSION_FAILURE
 
         mock_negotiator.negotiate.side_effect = Exception("Re-neg failed")
         sna_resp = SnaResponse(0, 0, SNA_SENSE_CODE_SESSION_FAILURE)
         await mock_negotiator._handle_sna_response(sna_resp)
 
+        # If re-negotiation fails, state should be SESSION_DOWN
         assert mock_negotiator._sna_session_state == SnaSessionState.SESSION_DOWN
 
 

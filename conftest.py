@@ -1,5 +1,7 @@
 import asyncio
 import logging
+from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import patch as _patch
 
 import pytest
 import pytest_asyncio
@@ -202,3 +204,57 @@ async def mock_tn3270e_server_fallback():
     server = MockTN3270EServer(success=False)
     async with server:
         yield server
+
+
+# Minimal fallback for pytest-mock's 'mocker' fixture to avoid adding a dependency.
+# Supports the subset used in tests: mocker.patch.object(obj, "attr").
+@pytest.fixture()
+def mocker():
+    class _Mocker:
+        def __init__(self):
+            self._patchers = []
+
+        def patch_object(self, target, attribute, new=None, **kwargs):
+            # For async methods/coroutines, default to AsyncMock; otherwise MagicMock
+            if new is None:
+                # Attempt to detect if the target attribute is async
+                try:
+                    import inspect
+
+                    target_attr = getattr(target, attribute, None)
+                    if target_attr and inspect.iscoroutinefunction(target_attr):
+                        new = AsyncMock()
+                    else:
+                        new = MagicMock()
+                except Exception:
+                    # Fallback to MagicMock if detection fails
+                    new = MagicMock()
+
+            patcher = _patch.object(target, attribute, new, **kwargs)
+            mocked = patcher.start()
+            self._patchers.append(patcher)
+            return mocked
+
+        @property
+        def patch(self):
+            outer = self
+
+            class _PatchNamespace:
+                def object(self, target, attribute, new=None, **kwargs):
+                    return outer.patch_object(target, attribute, new=new, **kwargs)
+
+            return _PatchNamespace()
+
+        def stopall(self):
+            for p in reversed(self._patchers):
+                try:
+                    p.stop()
+                except Exception:
+                    pass
+            self._patchers.clear()
+
+    m = _Mocker()
+    try:
+        yield m
+    finally:
+        m.stopall()

@@ -459,20 +459,25 @@ class PrinterStatusReporter:
         # Simple health evaluation - can be made more sophisticated
         metrics = self._health_metrics
 
-        # Check for critical conditions
+        # Determine desired status from current metrics
+        new_status: Optional[PrinterStatus] = None
+        reason: str = ""
+
+        # Critical conditions first
         if metrics.get("connection_failures", 0) > 5:
-            await self.update_status(
-                PrinterStatus.UNHEALTHY, "High connection failure rate"
-            )
+            new_status = PrinterStatus.UNHEALTHY
+            reason = "High connection failure rate"
         elif metrics.get("error_rate", 0) > 0.1:  # 10% error rate
-            await self.update_status(PrinterStatus.DEGRADED, "High error rate detected")
-        elif self._current_status in [PrinterStatus.UNHEALTHY, PrinterStatus.DOWN]:
-            # Check if conditions have improved
-            if (
-                metrics.get("connection_failures", 0) < 2
-                and metrics.get("error_rate", 0) < 0.05
-            ):
-                await self.update_status(PrinterStatus.HEALTHY, "Conditions improved")
+            new_status = PrinterStatus.DEGRADED
+            reason = "High error rate detected"
+        else:
+            # Healthy if no critical conditions are present
+            new_status = PrinterStatus.HEALTHY
+            reason = "Conditions optimal"
+
+        # Apply status change if different
+        if new_status is not None and new_status != self._current_status:
+            await self.update_status(new_status, reason)
 
     async def __aenter__(self) -> "PrinterStatusReporter":
         """Async context manager entry."""

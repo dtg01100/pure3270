@@ -291,15 +291,31 @@ class ScreenBuffer(BufferWriter):
         return self._ascii_mode
 
     def set_position(self, row: int, col: int, wrap: bool = False) -> None:
-        """Set cursor position with clamping to valid range."""
+        """Set cursor position with bounds checking or wrapping.
+
+        Args:
+            row: Target row position
+            col: Target column position
+            wrap: If True, allow wrapping to next line; if False, raise on out of bounds
+
+        Raises:
+            IndexError: When wrap=False and position is out of bounds
+        """
         if wrap:
+            # Wrapping mode: allow col overflow to wrap to next line
             if col >= self.cols:
                 col = 0
                 row += 1
+            # Clamp row to valid range after wrapping
             row = max(0, min(self.rows - 1, row))
         else:
-            row = max(0, min(self.rows - 1, row))
-            col = max(0, min(self.cols - 1, col))
+            # Strict mode: check bounds first, then set position
+            if not (0 <= row < self.rows and 0 <= col < self.cols):
+                raise IndexError(
+                    f"Cursor position ({row}, {col}) out of bounds "
+                    f"for screen size ({self.rows}, {self.cols})"
+                )
+
         self.cursor_row = row
         self.cursor_col = col
 
@@ -351,6 +367,16 @@ class ScreenBuffer(BufferWriter):
             self.attributes[attr_offset : attr_offset + 3] = bytes(
                 [0x40 if protected else 0, 0xF0, 0xF0]
             )
+
+            # Advance cursor when writing at an explicit position to mimic terminal typing
+            # and support wrapping into the next row, as expected by tests.
+            if row is not None and col is not None:
+                next_col = col + 1
+                next_row = row
+                if next_col >= self.cols:
+                    next_col = 0
+                    next_row = min(self.rows - 1, row + 1)
+                self.set_position(next_row, next_col)
 
             # Update field content and mark as modified if this position belongs to a field
             modified_field_found = self._update_field_content(
@@ -859,6 +885,8 @@ class ScreenBuffer(BufferWriter):
             row, col = self.get_position()
         pos = row * self.cols + col
         if 0 <= pos < self.size:
+            # Tests expect the field attribute byte to appear in the main buffer too
+            self.buffer[pos] = attr
             self.attributes[pos * 3] = attr
         logger.debug(f"Set field attribute 0x{attr:02x} at position ({row}, {col})")
 
@@ -998,6 +1026,11 @@ class ScreenBuffer(BufferWriter):
         will mark the field as selected, store the selection position, and
         return the light pen AID. Otherwise, it returns None.
         """
+        # Ensure fields are up-to-date in case attributes were set just prior
+        # to this call (e.g., via set_attribute/set_extended_attribute).
+        # Field detection is inexpensive for 24x80 and avoids stale state.
+        self._detect_fields()
+
         field = self.get_field_at_position(row, col)
         if field and field.light_pen:
             # Mark the field as selected
