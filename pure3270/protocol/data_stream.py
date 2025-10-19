@@ -1385,6 +1385,10 @@ class DataStreamParser:
             # Continue processing but log the issue
 
         self.screen.set_attribute(attr)
+        # Record field start position for robust field detection
+        pos = row * self.screen.cols + col
+        if hasattr(self.screen, "_field_starts"):
+            self.screen._field_starts.add(pos)
         self.screen.set_position(row, col + 1)
         parser = self._ensure_parser()
         self._pos = parser._pos
@@ -1574,6 +1578,10 @@ class DataStreamParser:
 
         # Validate current field position for extended addressing
         current_row, current_col = self.screen.get_position()
+        # Record field start position for robust field detection
+        pos = current_row * self.screen.cols + current_col
+        if hasattr(self.screen, "_field_starts"):
+            self.screen._field_starts.add(pos)
         from ..emulation.addressing import AddressCalculator
 
         address = current_row * self.screen.cols + current_col
@@ -1587,6 +1595,11 @@ class DataStreamParser:
             # Handle as SF payload: no length byte, just attr-type/value pairs
             # (The SF length field already indicates the payload size)
             parser = BaseParser(sf_data)
+            # Record field start position for robust field detection
+            cur_row, cur_col = self.screen.get_position()
+            pos = cur_row * self.screen.cols + cur_col
+            if hasattr(self.screen, "_field_starts"):
+                self.screen._field_starts.add(pos)
             while parser.has_more():
                 if parser.remaining() < 2:
                     break
@@ -1607,6 +1620,7 @@ class DataStreamParser:
                         f"SFE (SF): type 0x{attr_type:02x}, value 0x{attr_value:02x} "
                         f"[mode={self.addressing_mode.value}]"
                     )
+            # Do NOT advance cursor position after SFE attributes; next data should be written immediately after
             return attrs
 
         # Original order handling: parse length, then fixed pairs

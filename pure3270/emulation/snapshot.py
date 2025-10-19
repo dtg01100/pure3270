@@ -117,7 +117,15 @@ class ScreenSnapshot:
         # Restore extended attributes
         for pos_str, attrs in self.extended_attributes.items():
             row, col = map(int, pos_str.strip("()").split(","))
-            for attr_type, value in attrs.items():
+            for attr_type, attr_value in attrs.items():
+                # Extract int value from attribute: attrs can be dict with 'value' key or direct int
+                # Type narrowing confuses mypy here, so be explicit
+                value: int
+                value_any: Any = attr_value
+                if isinstance(value_any, dict):
+                    value = int(value_any.get("value", 0))
+                else:
+                    value = int(value_any) if value_any is not None else 0
                 screen_buffer.set_extended_attribute(row, col, attr_type, value)
 
         # Restore fields

@@ -141,6 +141,14 @@ class ExtendedAttributeSet:
     extended attributes with proper validation and error handling.
     """
 
+    def get(self, attr_type: str, default: Any = None) -> Any:
+        """Get an extended attribute by type, with optional default (test compatibility).
+        Returns the raw value if the attribute is an object with a .value property."""
+        attr = self._attributes.get(attr_type, default)
+        if hasattr(attr, "value"):
+            return attr.value
+        return attr
+
     def __init__(self) -> None:
         """Initialize empty attribute set."""
         self._attributes: Dict[str, ExtendedAttribute] = {}
@@ -155,11 +163,34 @@ class ExtendedAttributeSet:
         Raises:
             TypeError: If attribute is not an ExtendedAttribute instance
         """
+        # If caller passed a raw value (int/str), attempt to wrap it in the
+        # correct ExtendedAttribute subclass so callers can rely on a uniform
+        # API (object with .value). For unknown attr_types we preserve the
+        # raw value but log a warning for visibility.
         if not isinstance(attribute, ExtendedAttribute):
-            # For backward compatibility, allow raw attributes for unknown types
-            logger.warning(
-                f"Setting raw attribute for type '{attr_type}': {type(attribute)}"
-            )
+            try:
+                # Map known attribute type names to constructors
+                mapper = {
+                    AttributeType.COLOR.value: ColorAttribute,
+                    AttributeType.HIGHLIGHT.value: HighlightAttribute,
+                    AttributeType.VALIDATION.value: ValidationAttribute,
+                    AttributeType.OUTLINING.value: OutliningAttribute,
+                    AttributeType.LIGHT_PEN.value: LightPenAttribute,
+                    AttributeType.BACKGROUND.value: BackgroundAttribute,
+                    AttributeType.CHARACTER_SET.value: CharacterSetAttribute,
+                }
+                ctor = mapper.get(attr_type)
+                if ctor is not None:
+                    attribute = ctor(attribute)
+                else:
+                    logger.warning(
+                        f"Setting raw attribute for type '{attr_type}': {type(attribute)}"
+                    )
+            except Exception:
+                # If wrapping fails, fall back to storing the raw value but warn
+                logger.warning(
+                    f"Failed to wrap raw attribute for '{attr_type}', storing raw value: {attribute}"
+                )
 
         self._attributes[attr_type] = attribute
         logger.debug(f"Set extended attribute '{attr_type}': {attribute}")

@@ -102,7 +102,9 @@ class ExtendedScreenBuffer(ScreenBuffer):
         """Get the extended cursor position."""
         return self._extended_cursor
 
-    def set_position(self, row: int, col: int, wrap: bool = False) -> None:
+    def set_position(
+        self, row: int, col: int, wrap: bool = False, strict: bool = False
+    ) -> None:
         """
         Set cursor position with extended addressing validation.
 
@@ -110,9 +112,11 @@ class ExtendedScreenBuffer(ScreenBuffer):
             row: Row coordinate
             col: Column coordinate
             wrap: Whether to wrap coordinates to valid range
+            strict: If True, raise IndexError on out of bounds; if False, clamp values
 
         Raises:
             ValueError: If position is invalid for the addressing mode
+            IndexError: When strict=True and position is out of bounds
         """
         # Validate position first
         temp_pos = ExtendedPosition(
@@ -123,7 +127,7 @@ class ExtendedScreenBuffer(ScreenBuffer):
         self._extended_cursor = temp_pos
 
         # Call parent method for backward compatibility
-        super().set_position(row, col, wrap)
+        super().set_position(row, col, wrap, strict)
 
     def set_position_from_address(self, address: int) -> None:
         """

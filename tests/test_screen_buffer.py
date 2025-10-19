@@ -64,18 +64,18 @@ class TestScreenBuffer:
         """Test that position bounds checking works correctly."""
         screen = ScreenBuffer(24, 80)
 
-        # Test setting position beyond bounds raises appropriate errors
+        # Test setting position beyond bounds raises appropriate errors when strict=True
         with pytest.raises(IndexError):
-            screen.set_position(25, 10)  # Row out of bounds (max is 23)
+            screen.set_position(25, 10, strict=True)  # Row out of bounds (max is 23)
 
         with pytest.raises(IndexError):
-            screen.set_position(10, 80)  # Column out of bounds (max is 79)
+            screen.set_position(10, 80, strict=True)  # Column out of bounds (max is 79)
 
         with pytest.raises(IndexError):
-            screen.set_position(-1, 10)  # Negative row
+            screen.set_position(-1, 10, strict=True)  # Negative row
 
         with pytest.raises(IndexError):
-            screen.set_position(10, -1)  # Negative column
+            screen.set_position(10, -1, strict=True)  # Negative column
 
     def test_screen_buffer_content_writing(self):
         """Test that writing content to screen buffer works correctly."""

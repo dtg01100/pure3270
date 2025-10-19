@@ -220,7 +220,6 @@ TN3270E_QUERY_SEND = 0x01
 # - Use TN3270_DATA (0x00), SCS_DATA (0x01), etc. from RFC section
 # - Only unique internal types remain here:
 SNA_RESPONSE_DATA_TYPE = 0x02  # Internal: SNA response in data stream
-PRINTER_STATUS_DATA_TYPE = 0x03  # Internal: Printer status data
 # Note: BIND_IMAGE (0xF2) is an AID code, not a data type - keeping for compatibility
 
 # Structured Field Query Reply Types (all standard IDs)

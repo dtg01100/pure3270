@@ -1092,18 +1092,30 @@ class AsyncSession:
     def ascii_field(self, field_index: int) -> str:
         """Convert field to ASCII."""
         field = self.screen_buffer.fields[field_index]
-        data = self.screen_buffer.get_field_content(field_index)
-        return self.ascii(data.encode("latin-1"))
+        # Extract field content from buffer directly
+        start_row, start_col = field.start
+        end_row, end_col = field.end
+        content_bytes = bytearray()
+        for r in range(start_row, end_row + 1):
+            c_start = start_col if r == start_row else 0
+            c_end = end_col if r == end_row else self.screen_buffer.cols - 1
+            for c in range(c_start, c_end + 1):
+                pos = r * self.screen_buffer.cols + c
+                if 0 <= pos < len(self.screen_buffer.buffer):
+                    content_bytes.append(self.screen_buffer.buffer[pos])
+        return self.ascii(bytes(content_bytes))
 
     async def cursor_select(self) -> None:
         """Select field at cursor."""
-        field = self.screen_buffer.get_field_at_cursor()
+        row, col = self.screen_buffer.get_position()
+        field = self.screen_buffer.get_field_at_position(row, col)
         if field is not None:
             field.selected = True
 
     async def delete_field(self) -> None:
         """Delete field at cursor."""
-        field = self.screen_buffer.get_field_at_cursor()
+        row, col = self.screen_buffer.get_position()
+        field = self.screen_buffer.get_field_at_position(row, col)
         if field is None:
             return
         (sr, sc), (er, ec) = field.start, field.end
@@ -1432,6 +1444,10 @@ class AsyncSession:
             # Extract key name from "key Enter"
             key_name = command[4:]
             await self.key(key_name)
+        elif command.startswith("SysReq(") and command.endswith(")"):
+            # Support macros like SysReq(ATTN), SysReq(LOGOFF)
+            arg = command[len("SysReq(") : -1].strip()
+            await self.sys_req(arg)
         else:
             raise ValueError(f"Unsupported macro command: {command}")
 
