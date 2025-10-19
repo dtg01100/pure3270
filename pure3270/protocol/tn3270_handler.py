@@ -1631,11 +1631,11 @@ class TN3270Handler:
                         # resource may not be available on all platforms
                         pass
 
-                    # Process telnet stream asynchronously
-                    try:
-                        cleaned, _ascii = await self._process_telnet_stream(data)
-                    except Exception:
-                        cleaned = b""
+                # Process telnet stream asynchronously
+                try:
+                    cleaned, _ascii = await self._process_telnet_stream(data)
+                except Exception:
+                    cleaned = b""
                 # If any non-IAC payload was present in the chunk, stash it for
                 # delivery to the first receive() call after negotiation.
                 if cleaned:
