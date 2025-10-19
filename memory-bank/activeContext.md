@@ -32,9 +32,8 @@ All planned October work items are complete. Next focus will be on printer enhan
 - Default terminal type: `IBM-3278-2` (baseline); now publicly configurable.
 - ASCII mode once enabled is irreversible per handler lifecycle (simplifies parsing logic, avoids mixed-mode complexity for now).
 
-## Known Gaps / Risks
-- Lack of snapshot tests: no guard yet against regressions in VT100 rendering.
-- No automated regression test capturing real host negotiation trace.
+ ## Known Gaps / Risks
+ - No automated regression test capturing real host negotiation trace.
 
 ## Next Planned Steps
 1. Evaluate transparent printing support and extended attributes implementation.

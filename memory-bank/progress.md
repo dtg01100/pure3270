@@ -15,12 +15,13 @@
 ## Open Issues / Technical Debt
 - No automated regression test capturing real host negotiation trace (would require recorded pcap or byte log fixture).
 
-## Recent Validation
-- `quick_test.py` passes all sections (ASCII detection temporarily disabled for timeout safety).
-- Local compile check passes (`py_compile`).
-- **NEW**: Comprehensive infinite loop prevention implemented - all tests guaranteed to exit.
-- **NEW**: Timeout safety validation passes - no test can hang indefinitely.
+ ## Recent Validation
+ - `quick_test.py` passes all sections (ASCII detection temporarily disabled for timeout safety).
+ - Local compile check passes (`py_compile`).
+ - **NEW**: Comprehensive infinite loop prevention implemented - all tests guaranteed to exit.
+ - **NEW**: Timeout safety validation passes - no test can hang indefinitely.
  - **NEW**: Terminal model configuration validated across multiple models; defaults preserved.
+ - **NEW**: VT100 rendering snapshot tests implemented - 6 baseline scenarios covering cursor positioning, screen clearing, line operations, cursor movement, and save/restore functionality.
 
 ## 2025-10-13
 - Completed TASK009: Configurable Terminal Models end to end

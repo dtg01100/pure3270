@@ -15,6 +15,9 @@ import pytest
 # Add the current directory to the path so we can import pure3270
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
+# Import VT100 snapshot validation test
+from tests.test_vt100_snapshots import test_vt100_snapshot_validation
+
 
 def set_memory_limit(max_memory_mb: int):
     """
@@ -316,6 +319,7 @@ async def main():
         ("Native P3270Client", test_native_p3270_client),
         ("Navigation Methods", test_navigation_methods),
         ("Screen Snapshot Validation", test_screen_snapshot_validation),
+        ("VT100 Snapshot Validation", test_vt100_snapshot_validation),
         ("API Compatibility", test_api_compatibility),
     ]
 

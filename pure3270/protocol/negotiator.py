@@ -2149,6 +2149,29 @@ class Negotiator:
                 if sub == TN3270E_IS:
                     # Device type string follows, NUL-terminated
                     name_bytes = payload[i + 1 :]
+                    try:
+                        device_name = name_bytes.split(b"\x00", 1)[0].decode(
+                            "ascii", errors="ignore"
+                        )
+                    except Exception:
+                        device_name = ""
+                    if device_name:
+                        self.negotiated_device_type = device_name
+                        logger.info(f"[TN3270E] Negotiated device type: {device_name}")
+                        self._get_or_create_device_type_event().set()
+                        # If IBM-DYNAMIC, send a query for characteristics immediately
+                        try:
+                            from .utils import QUERY_REPLY_CHARACTERISTICS
+                            from .utils import TN3270E_IBM_DYNAMIC as IBM_DYNAMIC_NAME
+                        except Exception:
+                            IBM_DYNAMIC_NAME = "IBM-DYNAMIC"  # fallback literal
+                            from .utils import QUERY_REPLY_CHARACTERISTICS
+
+                        if device_name == IBM_DYNAMIC_NAME and self.writer:
+                            await self._send_query_sf(
+                                self.writer, QUERY_REPLY_CHARACTERISTICS
+                            )
+                    break
                 else:
                     # Tolerant path: Some implementations omit the IS byte and place the
                     # device name immediately after DEVICE-TYPE. Treat as implicit IS.

@@ -315,8 +315,10 @@ class TestSession:
     def test_send(self, mock_run, sync_session):
         mock_run.return_value = None
         # Set up session to be connected
-        sync_session._async_session = AsyncSession("localhost", 23)
-        sync_session._async_session.connected = True  # Mark as connected
+        async_session = AsyncSession("localhost", 23)
+        async_session.connected = True  # Mark as connected
+        async_session._handler = AsyncMock()  # Set handler to avoid SessionError
+        sync_session._async_session = async_session
 
         sync_session.send(b"data")
 
@@ -326,8 +328,10 @@ class TestSession:
     def test_read(self, mock_run, sync_session):
         mock_run.return_value = b"data"
         # Set up session to be connected
-        sync_session._async_session = AsyncSession("localhost", 23)
-        sync_session._async_session.connected = True  # Mark as connected
+        async_session = AsyncSession("localhost", 23)
+        async_session.connected = True  # Mark as connected
+        async_session._handler = AsyncMock()  # Set handler to avoid SessionError
+        sync_session._async_session = async_session
 
         data = sync_session.read()
 
