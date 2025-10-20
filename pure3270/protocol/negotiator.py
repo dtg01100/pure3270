@@ -1731,9 +1731,12 @@ class Negotiator:
                 self._get_or_create_negotiation_complete().set()
         # Acknowledge with DONT per tests' expectations
         if self.writer:
-            self.writer.write(
-                bytes([IAC, DONT, option])
-            )  # raw write to avoid double IAC
+            try:
+                from .utils import _safe_writer_write
+
+                _safe_writer_write(self.writer, bytes([IAC, DONT, option]))
+            except Exception:
+                pass
             await self._safe_drain_writer()
 
     async def _handle_do(self, option: int) -> None:

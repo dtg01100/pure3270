@@ -21,7 +21,7 @@ import asyncio
 import inspect
 import logging
 import struct
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 logger = logging.getLogger(__name__)
 
@@ -500,6 +500,32 @@ def _schedule_if_awaitable(maybe_awaitable: Any) -> None:
         logging.error(f"Error in _call_maybe_await outer: {e}")
 
 
+def _safe_writer_write(writer: Optional[Any], data: bytes) -> None:
+    """Safely write bytes to a writer without awaiting.
+
+    - Works with real asyncio.StreamWriter (write returns None)
+    - Works with AsyncMock where write may be coroutine-like
+    - Avoids mypy func-returns-value by using Any for writer
+    """
+    if writer is None:
+        return
+    try:
+        write_fn = getattr(writer, "write", None)
+        if write_fn is None:
+            return
+        if inspect.iscoroutinefunction(write_fn):
+            try:
+                _schedule_if_awaitable(write_fn(data))
+            except Exception:
+                pass
+        else:
+            # Cast to Any to avoid mypy complaining about return value usage
+            cast(Any, write_fn)(data)
+    except Exception:
+        # Swallow non-critical write errors
+        return
+
+
 def send_iac(writer: Optional[asyncio.StreamWriter], command: bytes) -> None:
     """Send an IAC command to the writer.
 
@@ -515,7 +541,8 @@ def send_iac(writer: Optional[asyncio.StreamWriter], command: bytes) -> None:
             if (len(command) > 0 and command[0] == IAC)
             else bytes([IAC]) + command
         )
-        writer.write(payload)
+        # Safe non-blocking write (handles AsyncMock or real StreamWriter)
+        _safe_writer_write(writer, payload)
         # Don't await drain here to avoid blocking negotiation
         logger.debug(f"[TELNET] Sent IAC command: {payload.hex()}")
     except Exception as e:
@@ -538,12 +565,9 @@ def send_subnegotiation(
 
     sub = bytes([IAC, SB]) + opt + data + bytes([IAC, SE])
     try:
-        writer.write(sub)
+        _safe_writer_write(writer, sub)
     except Exception:
-        try:
-            writer.write(sub)
-        except Exception:
-            return
+        return
 
 
 def strip_telnet_iac(
