@@ -1448,6 +1448,10 @@ class Negotiator:
                                 # Directly set the private attribute to avoid Python version differences
                                 # with property setters and mocks
                                 self.handler._negotiated_tn3270e = True
+                                logger.info(
+                                    f"[NEGOTIATION] Set handler._negotiated_tn3270e = True, "
+                                    f"property value is: {self.handler.negotiated_tn3270e}"
+                                )
                             logger.info(
                                 "[NEGOTIATION] TN3270E negotiation successful (forced mode)."
                             )
