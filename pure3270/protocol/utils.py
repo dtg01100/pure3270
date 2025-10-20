@@ -99,11 +99,6 @@ NEW_ENV_USERVAR = 0x03  # USERVAR - user-defined variable
 # TN3270E Telnet option value per RFC 1647 (option 40 decimal = 0x28 hex)
 TELOPT_TN3270E = 0x28  # RFC 1647 standard value
 
-# Legacy TN3270E option value (used by some older implementations, 0x1B)
-TELOPT_TN3270E_LEGACY = 0x1B  # For backward compatibility
-
-# NOTE: RFC 1647 supersedes earlier drafts and defines TN3270E as option 40 (0x28).
-# If compatibility with legacy servers is required, use TELOPT_TN3270E_LEGACY.
 TELOPT_XAUTH = 0x29
 TELOPT_CHARSET = 0x2A
 TELOPT_RSP = 0x2B

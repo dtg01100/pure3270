@@ -1648,6 +1648,11 @@ class TN3270Handler:
                 )
                 try:
                     if self.negotiator is not None:
+                        # Mark that we are forcing completion due to watchdog
+                        try:
+                            setattr(self.negotiator, "_forced_completion", True)
+                        except Exception:
+                            pass
                         self.negotiator._get_or_create_device_type_event().set()
                         self.negotiator._get_or_create_functions_event().set()
                         self.negotiator._get_or_create_negotiation_complete().set()
@@ -1663,6 +1668,11 @@ class TN3270Handler:
             # Signal negotiation completion events so negotiator doesn't hang.
             try:
                 if self.negotiator is not None:
+                    # Mark that events are being forced due to end-of-stream in tests
+                    try:
+                        setattr(self.negotiator, "_forced_completion", True)
+                    except Exception:
+                        pass
                     self.negotiator._get_or_create_device_type_event().set()
                     self.negotiator._get_or_create_functions_event().set()
                     self.negotiator._get_or_create_negotiation_complete().set()
@@ -1966,9 +1976,13 @@ class TN3270Handler:
                                     return await r
                                 return cast(bytes, r)  # type: ignore[unreachable]
 
-                            part = await asyncio.wait_for(
-                                _compat_read3(), timeout=remaining
-                            )
+                            try:
+                                part = await asyncio.wait_for(
+                                    _compat_read3(), timeout=remaining
+                                )
+                            except StopAsyncIteration:
+                                # Reader has no more data in this test scenario; return empty payload
+                                return b""
                         except asyncio.TimeoutError:
                             continue
                         if not part:
@@ -1984,6 +1998,14 @@ class TN3270Handler:
                     )
                 except Exception:
                     processed_data, ascii_mode_detected = part, False
+
+                # If we buffered an incomplete Telnet sequence, return immediately with no data
+                telnet_buf: bytes = getattr(self, "_telnet_buffer", b"")
+                if not processed_data and telnet_buf:
+                    logger.debug(
+                        "Incomplete Telnet sequence buffered; returning to await more data"
+                    )
+                    return b""
 
                 if ascii_mode_detected:
                     try:
@@ -2020,6 +2042,10 @@ class TN3270Handler:
                     result = await self._handle_tn3270_mode(processed_data)
                     if result is not None:
                         return result
+                    # If this chunk contained only Telnet commands (no 3270 payload),
+                    # return empty bytes to allow caller to drive subsequent reads.
+                    if not processed_data:
+                        return b""
                     continue
 
             # If we reach iteration limit, return empty bytes to prevent hanging
