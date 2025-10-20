@@ -1445,13 +1445,9 @@ class Negotiator:
                         if self.force_mode == "tn3270e":
                             self.negotiated_tn3270e = True
                             if self.handler:
-                                try:
-                                    self.handler.set_negotiated_tn3270e(True)
-                                except Exception:
-                                    try:
-                                        self.handler.negotiated_tn3270e = True
-                                    except Exception:
-                                        pass
+                                # Directly set the private attribute to avoid Python version differences
+                                # with property setters and mocks
+                                self.handler._negotiated_tn3270e = True
                             logger.info(
                                 "[NEGOTIATION] TN3270E negotiation successful (forced mode)."
                             )
