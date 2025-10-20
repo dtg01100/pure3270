@@ -1430,12 +1430,14 @@ class Negotiator:
                     # If negotiation waits completed successfully (even via patched waits in tests),
                     # treat negotiation as successful and do not demote the negotiated flag
                     # UNLESS completion was forced (watchdog or end-of-stream) or an explicit
-                    # refusal was observed.
+                    # refusal was observed, OR if no actual TN3270E activity occurred (device type not negotiated).
                     if (
                         "negotiation_events_completed" in locals()
                         and negotiation_events_completed
                         and not getattr(self, "_forced_completion", False)
                         and not getattr(self, "_forced_failure", False)
+                        and self.negotiated_device_type
+                        is not None  # Actual TN3270E activity must have occurred
                     ):
                         logger.info(
                             "[NEGOTIATION] TN3270E negotiation waits completed; accepting success despite unknown server support (test path)."

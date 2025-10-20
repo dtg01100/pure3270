@@ -127,8 +127,12 @@ class TestTN3270Handler:
         # Update negotiator's writer as well
         tn3270_handler.negotiator.writer = tn3270_handler.writer
 
-        # Mock failure response - WONT TN3270E
-        tn3270_handler.reader.read.return_value = b"\xff\xfc\x24"  # WONT TN3270E
+        # Mock failure response - WONT TN3270E, then empty to stop the loop
+        # Return WONT once, then empty bytes to signal end of negotiation data
+        tn3270_handler.reader.read.side_effect = [
+            b"\xff\xfc\x24",  # WONT TN3270E (0x24)
+            b"",  # End of stream
+        ]
 
         await tn3270_handler._negotiate_tn3270()
         assert tn3270_handler.negotiated_tn3270e is False
