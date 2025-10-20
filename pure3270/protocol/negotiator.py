@@ -1462,9 +1462,7 @@ class Negotiator:
                             logger.info(
                                 "[NEGOTIATION] TN3270E negotiation successful via inference (forced mode)."
                             )
-                            self._record_decision(
-                                self.force_mode or "auto", "tn3270e", False
-                            )
+                            self._record_decision("tn3270e", "tn3270e", False)
                         else:
                             logger.info(
                                 "[NEGOTIATION] Server doesn't support TN3270E; marking negotiation as failed."
