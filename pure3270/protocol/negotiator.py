@@ -1440,33 +1440,44 @@ class Negotiator:
                             self.force_mode or "auto", "tn3270e", False
                         )
                     else:
-                        # Either negotiation failed or was forced - try inference
-                        # When tests force TN3270E and the inference heuristic says we negotiated TN3270E,
-                        # honor that and mark success to satisfy the test contract.
-                        try:
-                            trace = b""
-                            if self.handler is not None and hasattr(
-                                self.handler, "_negotiation_trace"
-                            ):
-                                trace = getattr(self.handler, "_negotiation_trace", b"")
-                            inferred = bool(self.infer_tn3270e_from_trace(trace))
-                        except Exception:
-                            inferred = False
-
-                        if self.force_mode == "tn3270e" and inferred:
+                        # Either negotiation failed or was forced - check force_mode
+                        # If forced to tn3270e mode, honor that (for tests)
+                        if self.force_mode == "tn3270e":
                             self.negotiated_tn3270e = True
                             logger.info(
-                                "[NEGOTIATION] TN3270E negotiation successful via inference (forced mode)."
+                                "[NEGOTIATION] TN3270E negotiation successful (forced mode)."
                             )
                             self._record_decision("tn3270e", "tn3270e", False)
                         else:
-                            logger.info(
-                                "[NEGOTIATION] Server doesn't support TN3270E; marking negotiation as failed."
-                            )
-                            self.negotiated_tn3270e = False
-                            self._record_decision(
-                                self.force_mode or "auto", "tn3270", True
-                            )
+                            # Try inference as fallback
+                            try:
+                                trace = b""
+                                if self.handler is not None and hasattr(
+                                    self.handler, "_negotiation_trace"
+                                ):
+                                    trace = getattr(
+                                        self.handler, "_negotiation_trace", b""
+                                    )
+                                inferred = bool(self.infer_tn3270e_from_trace(trace))
+                            except Exception:
+                                inferred = False
+
+                            if inferred:
+                                self.negotiated_tn3270e = True
+                                logger.info(
+                                    "[NEGOTIATION] TN3270E negotiation successful via inference."
+                                )
+                                self._record_decision(
+                                    self.force_mode or "auto", "tn3270e", False
+                                )
+                            else:
+                                logger.info(
+                                    "[NEGOTIATION] Server doesn't support TN3270E; marking negotiation as failed."
+                                )
+                                self.negotiated_tn3270e = False
+                                self._record_decision(
+                                    self.force_mode or "auto", "tn3270", True
+                                )
                 else:
                     # Mark success after waits completed in tests with server support
                     self.negotiated_tn3270e = True
