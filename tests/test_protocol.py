@@ -316,6 +316,8 @@ class TestTN3270Handler:
         ]
         # Set the success flag on negotiator
         tn3270_handler.negotiator.negotiated_tn3270e = True
+        # Also set it on the handler for proper test behavior
+        tn3270_handler.negotiated_tn3270e = True
         # Mock the infer_tn3270e_from_trace method to return True
         tn3270_handler.negotiator.infer_tn3270e_from_trace = MagicMock(
             return_value=True
