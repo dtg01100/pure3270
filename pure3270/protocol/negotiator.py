@@ -1427,34 +1427,20 @@ class Negotiator:
                     self._record_decision(self.force_mode or "auto", "ascii", True)
                 # Check if server actually supports TN3270E
                 elif not self._server_supports_tn3270e:
-                    # Check if we should try inference-based negotiation (for forced modes or successful waits)
-                    try_inference = False
-
-                    # If negotiation waits completed successfully (even via patched waits in tests),
-                    # treat negotiation as successful UNLESS completion was forced or we have actual device type
+                    # Check if we should try inference-based negotiation
+                    # If negotiated_tn3270e was set AND we have actual device type, trust it
                     if (
-                        "negotiation_events_completed" in locals()
-                        and negotiation_events_completed
-                        and not getattr(self, "_forced_completion", False)
-                        and not getattr(self, "_forced_failure", False)
+                        self.negotiated_tn3270e
+                        and self.negotiated_device_type is not None
                     ):
-                        # If we have actual device type, trust the wait completion
-                        if self.negotiated_device_type is not None:
-                            logger.info(
-                                "[NEGOTIATION] TN3270E negotiation waits completed with device type; accepting success (test path)."
-                            )
-                            self.negotiated_tn3270e = True
-                            self._record_decision(
-                                self.force_mode or "auto", "tn3270e", False
-                            )
-                        else:
-                            # No device type - try inference
-                            try_inference = True
+                        logger.info(
+                            "[NEGOTIATION] TN3270E negotiation completed with device type; accepting success."
+                        )
+                        self._record_decision(
+                            self.force_mode or "auto", "tn3270e", False
+                        )
                     else:
-                        # Forced/failed completion or timeout - try inference
-                        try_inference = True
-
-                    if try_inference:
+                        # Either negotiation failed or was forced - try inference
                         # When tests force TN3270E and the inference heuristic says we negotiated TN3270E,
                         # honor that and mark success to satisfy the test contract.
                         try:
