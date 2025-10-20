@@ -1444,6 +1444,14 @@ class Negotiator:
                         # If forced to tn3270e mode, honor that (for tests)
                         if self.force_mode == "tn3270e":
                             self.negotiated_tn3270e = True
+                            if self.handler:
+                                try:
+                                    self.handler.set_negotiated_tn3270e(True)
+                                except Exception:
+                                    try:
+                                        self.handler.negotiated_tn3270e = True
+                                    except Exception:
+                                        pass
                             logger.info(
                                 "[NEGOTIATION] TN3270E negotiation successful (forced mode)."
                             )
