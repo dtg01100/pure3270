@@ -1607,7 +1607,7 @@ class Negotiator:
         )
         option_name = self._get_option_name(option)
 
-        logger.info(
+        logger.debug(
             f"[TELNET] Handling IAC {command_name} {option_name} (0x{option:02x})"
         )
 
@@ -1662,15 +1662,15 @@ class Negotiator:
         )
 
         if option == TELOPT_BINARY:
-            logger.info("[TELNET] Server WILL BINARY - accepting")
+            logger.debug("[TELNET] Server WILL BINARY - accepting")
             if self.writer:
                 send_iac(self.writer, bytes([DO, TELOPT_BINARY]))
         elif option == TELOPT_EOR:
-            logger.info("[TELNET] Server WILL EOR - accepting")
+            logger.debug("[TELNET] Server WILL EOR - accepting")
             if self.writer:
                 send_iac(self.writer, bytes([DO, TELOPT_EOR]))
         elif option == TELOPT_TTYPE:
-            logger.info("[TELNET] Server WILL TTYPE - accepting")
+            logger.debug("[TELNET] Server WILL TTYPE - accepting")
             if self.writer:
                 send_iac(self.writer, bytes([DO, TELOPT_TTYPE]))
         elif option == TELOPT_TN3270E:
@@ -1680,15 +1680,15 @@ class Negotiator:
             # Mark that TN3270E is supported by server
             self._server_supports_tn3270e = True
         elif option == TELOPT_TERMINAL_LOCATION:
-            logger.info("[TELNET] Server WILL TERMINAL-LOCATION - accepting")
+            logger.debug("[TELNET] Server WILL TERMINAL-LOCATION - accepting")
             if self.writer:
                 send_iac(self.writer, bytes([DO, TELOPT_TERMINAL_LOCATION]))
         elif option == TELOPT_BIND_UNIT:
-            logger.info("[TELNET] Server WILL BIND-UNIT - accepting")
+            logger.debug("[TELNET] Server WILL BIND-UNIT - accepting")
             if self.writer:
                 send_iac(self.writer, bytes([DO, TELOPT_BIND_UNIT]))
         else:
-            logger.info(
+            logger.debug(
                 f"[TELNET] Server WILL unknown option 0x{option:02x} - rejecting"
             )
             if self.writer:
@@ -1700,7 +1700,7 @@ class Negotiator:
         """Handle WONT command (server refuses option)."""
         from .utils import DONT, IAC, TELOPT_TN3270E
 
-        logger.info(f"[TELNET] Server WONT 0x{option:02x}")
+        logger.debug(f"[TELNET] Server WONT 0x{option:02x}")
 
         if option == TELOPT_TN3270E:
             logger.warning(
@@ -1755,28 +1755,28 @@ class Negotiator:
         )
 
         if option == TELOPT_BINARY:
-            logger.info("[TELNET] Server DO BINARY - accepting")
+            logger.debug("[TELNET] Server DO BINARY - accepting")
             if self.writer:
                 send_iac(self.writer, bytes([WILL, TELOPT_BINARY]))
         elif option == TELOPT_EOR:
-            logger.info("[TELNET] Server DO EOR - accepting")
+            logger.debug("[TELNET] Server DO EOR - accepting")
             if self.writer:
                 send_iac(self.writer, bytes([WILL, TELOPT_EOR]))
         elif option == TELOPT_NAWS:
-            logger.info("[TELNET] Server DO NAWS - accepting")
+            logger.debug("[TELNET] Server DO NAWS - accepting")
             if self.writer:
                 send_iac(self.writer, bytes([WILL, TELOPT_NAWS]))
                 # Send window size subnegotiation using configured screen dimensions
                 await self._send_naws_subnegotiation(self.screen_cols, self.screen_rows)
         elif option == TELOPT_NEW_ENVIRON:
             # NEW_ENVIRON option - RFC 1572 compliant implementation
-            logger.info("[TELNET] Server DO NEW_ENVIRON - accepting (RFC 1572)")
+            logger.debug("[TELNET] Server DO NEW_ENVIRON - accepting (RFC 1572)")
             if self.writer:
                 send_iac(self.writer, bytes([WILL, TELOPT_NEW_ENVIRON]))
                 # Server will send SEND subnegotiation to request our environment
                 # We'll respond with our environment variables when requested
         elif option == TELOPT_TTYPE:
-            logger.info("[TELNET] Server DO TTYPE - accepting")
+            logger.debug("[TELNET] Server DO TTYPE - accepting")
             if self.writer:
                 send_iac(self.writer, bytes([WILL, TELOPT_TTYPE]))
         elif option == TELOPT_TERMINAL_LOCATION:
@@ -1792,11 +1792,13 @@ class Negotiator:
             # Mark that TN3270E is supported by server
             self._server_supports_tn3270e = True
         elif option == TELOPT_BIND_UNIT:
-            logger.info("[TELNET] Server DO BIND-UNIT - accepting")
+            logger.debug("[TELNET] Server DO BIND-UNIT - accepting")
             if self.writer:
                 send_iac(self.writer, bytes([WILL, TELOPT_BIND_UNIT]))
         else:
-            logger.info(f"[TELNET] Server DO unknown option 0x{option:02x} - rejecting")
+            logger.debug(
+                f"[TELNET] Server DO unknown option 0x{option:02x} - rejecting"
+            )
             if self.writer:
                 send_iac(self.writer, bytes([WONT, option]))
         if self.writer:
@@ -1806,7 +1808,7 @@ class Negotiator:
         """Handle DONT command (server wants us to disable option)."""
         from .utils import TELOPT_TN3270E, WONT
 
-        logger.info(f"[TELNET] Server DONT 0x{option:02x}")
+        logger.debug(f"[TELNET] Server DONT 0x{option:02x}")
         if option == TELOPT_TN3270E:
             self.negotiated_tn3270e = False
             if self.handler:
