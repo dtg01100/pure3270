@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from pure3270.emulation.screen_buffer import ScreenBuffer
+from pure3270.exceptions import NotConnectedError
 from pure3270.protocol.data_stream import DataStreamParser
 from pure3270.protocol.exceptions import NegotiationError, ProtocolError
 from pure3270.protocol.negotiator import Negotiator
@@ -137,7 +138,7 @@ class TestNegotiatorMissingCoverage:
     async def test_negotiate_no_writer(self, negotiator, memory_limit_500mb):
         """Test negotiate when writer is None."""
         negotiator.writer = None
-        with pytest.raises(ProtocolError):
+        with pytest.raises(NotConnectedError):
             await negotiator.negotiate()
 
     @pytest.mark.asyncio

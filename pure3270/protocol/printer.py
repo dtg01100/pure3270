@@ -203,14 +203,14 @@ class PrinterSession:
     def _initialize_scs_handlers(self) -> None:
         """Initialize SCS control code handlers."""
         self.scs_handlers = {
-            PRINT_EOJ: self._handle_print_eoj_scs,
+            PRINT_EOJ: self._handle_print_eoj_scs,  # 0x08 - PRINT-EOJ
             0x01: self._handle_soh_scs,  # Start of Header
             0x03: self._handle_cr_scs,  # Carriage Return
             0x04: self._handle_nl_scs,  # New Line
             0x05: self._handle_ff_scs,  # Form Feed
             0x06: self._handle_ht_scs,  # Horizontal Tab
             0x07: self._handle_vt_scs,  # Vertical Tab
-            0x08: self._handle_bs_scs,  # Backspace
+            # 0x08 is PRINT_EOJ, not Backspace in SCS context
             0x09: self._handle_lf_scs,  # Line Feed
             0x0A: self._handle_ir_scs,  # Index Return
             0x0B: self._handle_vcs_scs,  # Vertical Channel Select
