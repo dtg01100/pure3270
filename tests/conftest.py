@@ -391,3 +391,7 @@ def mock_negotiator_handler():
     handler = MagicMock()
     handler._update_session_state_from_sna_response = MagicMock()
     return handler
+
+
+# Import x3270 trace fixtures so they're available to all test modules
+pytest_plugins = ["tests.test_x3270_trace_fixtures"]

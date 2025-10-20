@@ -125,10 +125,13 @@ s3270_*.py
 
 # Allow new comprehensive test files
 !tests/test_behavior_verification.py
+!tests/test_component_initialization.py
 !tests/test_error_handling.py
+!tests/test_integration_scenarios.py
 !tests/test_integration_workflows.py
 !tests/test_protocol_negotiation.py
 !tests/test_screen_buffer.py
+!tests/property/test_negotiation_properties.py
 
 VT100_*.md
 CONNECTION_TEST_RESULTS.md

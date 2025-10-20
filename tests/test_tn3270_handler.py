@@ -134,7 +134,23 @@ class TestTN3270Handler:
             b"",  # End of stream
         ]
 
-        await tn3270_handler._negotiate_tn3270()
+        # Since we're mocking reader.read, the telnet parser won't process the WONT
+        # So we need to directly set the flag that would have been set by _handle_wont()
+        tn3270_handler.negotiator._server_supports_tn3270e = False
+        # Also set allow_fallback=True to allow the negotiation to proceed without raising
+        tn3270_handler.negotiator.allow_fallback = True
+
+        # Mock asyncio.wait_for to cause timeout (simulating that events never complete)
+        import asyncio
+        from unittest.mock import patch
+
+        async def mock_wait_for(coro, timeout=None):
+            # Simulate timeout for all negotiation events
+            raise asyncio.TimeoutError()
+
+        with patch("asyncio.wait_for", side_effect=mock_wait_for):
+            await tn3270_handler._negotiate_tn3270()
+
         assert tn3270_handler.negotiated_tn3270e is False
 
     @pytest.mark.asyncio

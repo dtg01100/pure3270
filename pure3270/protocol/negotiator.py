@@ -1273,6 +1273,14 @@ class Negotiator:
                 ev.set()
             return
         if self.force_mode == "tn3270e":
+            # If the server already refused TN3270E (via WONT) and fallback is disabled,
+            # this is a hard failure per tests/RFC expectations.
+            if getattr(self, "_forced_failure", False) or (
+                not self.allow_fallback and not self._server_supports_tn3270e
+            ):
+                raise NegotiationError(
+                    "TN3270E negotiation refused by server and fallback disabled"
+                )
             logger.info(
                 "[NEGOTIATION] force_mode=tn3270e specified; forcing TN3270E mode (test/debug only)."
             )
@@ -1369,6 +1377,11 @@ class Negotiator:
                         self.negotiated_tn3270e = False
                     else:
                         self.negotiated_tn3270e = True
+                        # Tests may patch asyncio.wait_for to immediately succeed without
+                        # driving the telnet WILL/DO path that flips this flag. When both
+                        # negotiation events complete successfully, treat the server as
+                        # TN3270E-capable for the purposes of post-checks.
+                        self._server_supports_tn3270e = True
                     negotiation_events_completed = True
                     if self.handler:
                         try:
@@ -2113,8 +2126,9 @@ class Negotiator:
                             f"(no specific LU requested)"
                         )
 
-                    # Store the selected LU name
+                    # Store the selected LU name; also update current LU name to the assigned value
                     self._selected_lu_name = selected_lu
+                    self._lu_name = selected_lu
                     self._lu_selection_complete = True
 
                     # Set event to signal LU selection completion

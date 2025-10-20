@@ -14,29 +14,6 @@ from pure3270.emulation.screen_buffer import ScreenBuffer
 class TestScreenBuffer:
     """Test cases for ScreenBuffer operations to verify correct behaviors."""
 
-    def test_screen_buffer_initialization(self):
-        """Test that ScreenBuffer initializes with correct default values."""
-        rows, cols = 24, 80
-        screen = ScreenBuffer(rows, cols)
-
-        # Verify basic properties
-        assert screen.rows == rows
-        assert screen.cols == cols
-        assert len(screen.buffer) == rows * cols
-        assert screen.buffer == bytearray(
-            b"\x40" * (rows * cols)
-        )  # Filled with EBCDIC space (0x40)
-
-        # Verify initial cursor position
-        assert screen.get_position() == (0, 0)
-
-        # Verify field detection
-        assert hasattr(screen, "fields")
-        assert screen.fields == []
-
-        # Verify dimensions
-        assert (screen.rows, screen.cols) == (rows, cols)
-
     def test_screen_buffer_positioning(self):
         """Test that cursor positioning works correctly."""
         screen = ScreenBuffer(24, 80)

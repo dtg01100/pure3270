@@ -960,11 +960,11 @@ class ScreenBuffer(BufferWriter):
             # If class construction fails, store as raw
             attr_set.set_attribute(attr_type, value)
 
-        # Mark the field start for detection
+        # Mark the field start for detection. Do not modify the protection bit
+        # or other attribute flags here; extended attributes should not imply
+        # protection by default. Field detection relies on _field_starts.
         self._field_starts.add(pos)
-        # Also reflect some marker in attributes to emulate attribute byte presence
-        self.attributes[pos * 3] = self.attributes[pos * 3] or 0xC0
-        # Recompute fields
+        # Recompute fields based on updated field starts
         if self._suspend_field_detection == 0:
             self._detect_fields()
 

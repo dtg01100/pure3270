@@ -90,6 +90,11 @@ def sync_session():
 @pytest_asyncio.fixture
 async def async_session(request):
     session = AsyncSession("localhost", 23)
+    # Preserve original property to prevent cross-test pollution
+    from pure3270.session import AsyncSession as _AsyncSessionClass
+
+    _orig_handler_prop = getattr(_AsyncSessionClass, "handler", None)
+
     # Only patch handler for tests that are not handshake tests
     if not (
         request.node.name.startswith("test_tn3270e_handshake_success")
@@ -98,10 +103,17 @@ async def async_session(request):
         session._handler = AsyncMock(spec=TN3270Handler)
         session._handler.send_data = AsyncMock()
         session._handler.receive_data = AsyncMock(return_value=b"test output")
+        # Set a PropertyMock on the class for this test only
         type(session).handler = PropertyMock(return_value=session._handler)
-    # Don't mock connected here - let tests control it
-    # type(session).connected = PropertyMock(return_value=False)
-    return session
+
+    try:
+        # Don't mock connected here - let tests control it
+        # type(session).connected = PropertyMock(return_value=False)
+        yield session
+    finally:
+        # Restore the original AsyncSession.handler descriptor after the test
+        if _orig_handler_prop is not None:
+            setattr(_AsyncSessionClass, "handler", _orig_handler_prop)
 
 
 @pytest.mark.skipif(
