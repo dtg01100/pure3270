@@ -98,11 +98,12 @@ def main() -> int:
         print("-" * 40)
         if screen.strip():
             # Show first few lines of screen content
-            lines = screen.split("\n")[:10]
-            for i, line in enumerate(lines, 1):
+            lines = screen.split("\n")
+            for i, line in enumerate(lines[:10], 1):
                 print(f"{i:2d}: {line}")
-            if len(screen.split("\n")) > 10:
-                print(f"... ({len(screen.split('\n')) - 10} more lines)")
+            total_lines = len(lines)
+            if total_lines > 10:
+                print(f"... ({total_lines - 10} more lines)")
         else:
             print("(Empty screen)")
         print("-" * 40)
