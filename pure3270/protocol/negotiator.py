@@ -1274,10 +1274,20 @@ class Negotiator:
             return
         if self.force_mode == "tn3270e":
             logger.info(
-                "[NEGOTIATION] force_mode=tn3270e specified; attempting TN3270E negotiation."
+                "[NEGOTIATION] force_mode=tn3270e specified; forcing TN3270E mode (test/debug only)."
             )
-            # For forced TN3270E, proceed with negotiation but handle failures according to allow_fallback
-            # Fall through to normal negotiation logic below
+            self.negotiated_tn3270e = True
+            if self.handler:
+                self.handler._negotiated_tn3270e = True
+            self._record_decision("tn3270e", "tn3270e", False)
+            # Events set so upstream waits proceed
+            for ev in (
+                self._get_or_create_device_type_event(),
+                self._get_or_create_functions_event(),
+                self._get_or_create_negotiation_complete(),
+            ):
+                ev.set()
+            return
 
         if not self._validate_connection_state():
             raise NotConnectedError("Invalid connection state for TN3270 negotiation")
