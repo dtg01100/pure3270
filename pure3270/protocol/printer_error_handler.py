@@ -11,7 +11,7 @@ import time
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Type, Union
 
-from ..exceptions import Pure3270Error
+from ..exceptions import ProtocolError, Pure3270Error
 from ..utils.logging_utils import log_session_error
 
 logger = logging.getLogger(__name__)
@@ -355,7 +355,9 @@ class PrinterErrorHandler:
             return True
         except Exception as e:
             logger.debug(f"Reconnection failed for {operation}: {e}")
-            return False
+            raise ProtocolError(
+                f"Reconnection failed for {operation}", original_exception=e
+            )
 
     async def _reset_operation(
         self, operation: str, recovery_callback: Optional[Callable[[], Any]] = None
@@ -370,7 +372,7 @@ class PrinterErrorHandler:
             return True
         except Exception as e:
             logger.debug(f"Reset failed for {operation}: {e}")
-            return False
+            raise ProtocolError(f"Reset failed for {operation}", original_exception=e)
 
     async def _failover_operation(
         self, operation: str, recovery_callback: Optional[Callable[[], Any]] = None
@@ -385,7 +387,9 @@ class PrinterErrorHandler:
             return True
         except Exception as e:
             logger.debug(f"Failover failed for {operation}: {e}")
-            return False
+            raise ProtocolError(
+                f"Failover failed for {operation}", original_exception=e
+            )
 
     def get_error_stats(self) -> Dict[str, Any]:
         """

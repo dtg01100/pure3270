@@ -8,6 +8,7 @@ regular session data in transparent TCPIP printer sessions.
 import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from .exceptions import ProtocolError
 from .print_job_detector import PrintJobDetector
 from .protocol_translator import ProtocolTranslator
 from .tn3270e_header import TN3270EHeader
@@ -147,6 +148,7 @@ class PrintJobExtractor:
                 callback(print_data, header)
             except Exception as e:
                 logger.error(f"Error in extraction callback: {e}")
+                raise ProtocolError("Extraction callback failed", original_exception=e)
 
     def _notify_job_completion_callbacks(self, job_info: Dict[str, Any]) -> None:
         """Notify all registered job completion callbacks."""
@@ -155,6 +157,9 @@ class PrintJobExtractor:
                 callback(job_info)
             except Exception as e:
                 logger.error(f"Error in job completion callback: {e}")
+                raise ProtocolError(
+                    "Job completion callback failed", original_exception=e
+                )
 
     def configure_printer_session(self, session_type: str = "tn3270e") -> None:
         """

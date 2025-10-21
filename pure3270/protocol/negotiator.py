@@ -43,29 +43,17 @@ Handles Telnet negotiation and TN3270E subnegotiation.
 """
 
 import asyncio
-import inspect
 import logging
 import random
 import sys
 import time
 from enum import Enum  # Import Enum for state management
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Awaitable,
-    Callable,
-    Dict,
-    List,
-    Optional,
-    Union,
-    cast,
-)
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, Optional, cast
 
 if TYPE_CHECKING:
     from .tn3270_handler import TN3270Handler
     from .data_stream import DataStreamParser
     from .trace_recorder import TraceRecorder
-    from asyncio import StreamWriter
 
 from ..emulation.addressing import AddressingMode
 from ..emulation.screen_buffer import ScreenBuffer
@@ -77,18 +65,12 @@ from .data_stream import (  # Import SnaResponse and BindImage
     BindImage,
     SnaResponse,
 )
-from .errors import (
-    handle_drain,
-    raise_negotiation_error,
-    raise_protocol_error,
-    safe_socket_operation,
-)
+from .errors import handle_drain, raise_protocol_error, safe_socket_operation
 from .exceptions import NegotiationError, NotConnectedError, ProtocolError
 from .tn3270e_header import TN3270EHeader
 from .utils import (
     DO,
     DONT,
-    IAC,
     NEW_ENV_ESC,
     NEW_ENV_INFO,
     NEW_ENV_IS,
@@ -96,8 +78,6 @@ from .utils import (
     NEW_ENV_USERVAR,
     NEW_ENV_VALUE,
     NEW_ENV_VAR,
-    SB,
-    SE,
     SNA_RESPONSE,
     SNA_SENSE_CODE_INVALID_FORMAT,
     SNA_SENSE_CODE_INVALID_REQUEST,
@@ -108,12 +88,8 @@ from .utils import (
     SNA_SENSE_CODE_SESSION_FAILURE,
     SNA_SENSE_CODE_STATE_ERROR,
     SNA_SENSE_CODE_SUCCESS,
-    TELOPT_BINARY,
-    TELOPT_ECHO,
-    TELOPT_EOR,
     TELOPT_NAWS,
     TELOPT_NEW_ENVIRON,
-    TELOPT_SGA,
     TELOPT_TERMINAL_LOCATION,
     TELOPT_TN3270E,
     TELOPT_TTYPE,
@@ -699,8 +675,8 @@ class Negotiator:
         try:
             if getattr(self, "_printer_status_event", None):
                 self._printer_status_event.set()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Failed to set printer status event: {e}")
 
     async def _cleanup_on_failure(self, error: Exception) -> None:
         """Perform cleanup operations when a failure occurs."""
@@ -932,7 +908,7 @@ class Negotiator:
         )
         try:
             return float(timeout_val)
-        except Exception:
+        except (ValueError, TypeError):
             return 1.0
 
     # ------------------------------------------------------------------

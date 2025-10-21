@@ -33,7 +33,6 @@
 """Screen buffer management for 3270 emulation."""
 
 import logging
-import re
 from typing import Any, Dict, List, Optional, Tuple
 
 from .buffer_writer import BufferWriter
@@ -42,7 +41,6 @@ from .field_attributes import (
     BackgroundAttribute,
     CharacterSetAttribute,
     ColorAttribute,
-    ExtendedAttribute,
     ExtendedAttributeSet,
     HighlightAttribute,
     LightPenAttribute,
@@ -83,7 +81,7 @@ class Field:
         try:
             s_row, s_col = int(start[0]), int(start[1])
             e_row, e_col = int(end[0]), int(end[1])
-        except Exception:
+        except (ValueError, TypeError, IndexError):
             s_row, s_col = 0, 0
             e_row, e_col = 0, 0
 

@@ -40,13 +40,11 @@
 import logging
 import struct
 import threading
-import traceback
 from typing import (
     TYPE_CHECKING,
     Any,
     Callable,
     Dict,
-    Iterable,
     List,
     Optional,
     Tuple,
@@ -62,7 +60,6 @@ from .utils import (
     BIND_IMAGE,
     NVT_DATA,
     PRINT_EOJ,
-    PRINTER_STATUS_DATA_TYPE,
     QUERY_REPLY_CHARACTERISTICS,
     QUERY_REPLY_COLOR,
     QUERY_REPLY_DBCS_ASIA,
@@ -90,22 +87,8 @@ from .utils import SNA_RESPONSE as SNA_RESPONSE_TYPE
 from .utils import (
     SSCP_LU_DATA,
     TN3270_DATA,
-    TN3270E_BIND_IMAGE,
-    TN3270E_DATA_STREAM_CTL,
     TN3270E_DATA_TYPES,
-    TN3270E_IBM_3278_2,
-    TN3270E_IBM_3278_3,
-    TN3270E_IBM_3278_4,
-    TN3270E_IBM_3278_5,
-    TN3270E_IBM_3279_2,
-    TN3270E_IBM_3279_3,
-    TN3270E_IBM_3279_4,
-    TN3270E_IBM_3279_5,
-    TN3270E_IBM_DYNAMIC,
-    TN3270E_RESPONSES,
     TN3270E_SCS_CTL_CODES,
-    TN3270E_SYSREQ,
-    UNBIND,
     BaseParser,
     ParseError,
 )
@@ -648,11 +631,12 @@ class DataStreamParser:
                 col = addr % cols
                 try:
                     self.screen.select_light_pen(row, col)
-                except Exception:
+                except Exception as e:
+                    logger.debug(f"Failed to select light pen at ({row}, {col}): {e}")
                     try:
                         self.screen.light_pen_selected_position = (row, col)
-                    except Exception:
-                        pass
+                    except Exception as e2:
+                        logger.debug(f"Failed to set light pen position: {e2}")
                 ptr += 3
             else:
                 ptr += 1

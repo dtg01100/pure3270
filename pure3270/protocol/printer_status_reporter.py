@@ -12,6 +12,7 @@ from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Set, Union
 
 from ..utils.logging_utils import log_connection_event, log_session_action
+from .exceptions import ProtocolError
 
 logger = logging.getLogger(__name__)
 
@@ -419,6 +420,9 @@ class PrinterStatusReporter:
                         callback(notification)
                     except Exception as e:
                         logger.error(f"Error in notification callback: {e}")
+                        raise ProtocolError(
+                            "Notification callback failed", original_exception=e
+                        )
 
                 self._notification_queue.task_done()
 
@@ -426,6 +430,9 @@ class PrinterStatusReporter:
                 break
             except Exception as e:
                 logger.error(f"Error processing notification: {e}")
+                raise ProtocolError(
+                    "Error processing notification", original_exception=e
+                )
 
     async def _run_health_checks(self) -> None:
         """Run periodic health checks."""
@@ -448,6 +455,7 @@ class PrinterStatusReporter:
                 break
             except Exception as e:
                 logger.error(f"Error during health check: {e}")
+                raise ProtocolError("Error during health check", original_exception=e)
 
     async def _perform_health_check(self) -> None:
         """Perform a health check (to be overridden by subclasses)."""

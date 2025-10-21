@@ -37,6 +37,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, cast
 
 from ..emulation.addressing import AddressingMode
+from .exceptions import NegotiationError, ParseError
 from .tn3270e_header import TN3270EHeader
 
 logger = logging.getLogger(__name__)
@@ -57,12 +58,6 @@ class AddressingNegotiationState(Enum):
     NEGOTIATED_12_BIT = "negotiated_12_bit"
     NEGOTIATED_14_BIT = "negotiated_14_bit"
     FAILED = "failed"
-
-
-class AddressingNegotiationError(Exception):
-    """Raised when addressing mode negotiation fails."""
-
-    pass
 
 
 class AddressingModeNegotiator:
@@ -143,8 +138,9 @@ class AddressingModeNegotiator:
             )
 
         except Exception as e:
-            raise AddressingNegotiationError(
-                f"Failed to parse server capabilities '{capabilities_str}': {e}"
+            raise ParseError(
+                f"Failed to parse server capabilities '{capabilities_str}'",
+                original_exception=e,
             )
 
     def negotiate_mode(self) -> AddressingMode:
@@ -182,11 +178,11 @@ class AddressingModeNegotiator:
 
         # No mutually supported modes
         self._state = AddressingNegotiationState.FAILED
-        raise AddressingNegotiationError("No mutually supported addressing modes found")
+        raise NegotiationError("No mutually supported addressing modes found")
 
     def parse_bind_image_addressing_mode(
         self, bind_image_data: bytes
-    ) -> Optional[AddressingMode]:
+    ) -> AddressingMode:
         """
         Parse addressing mode from BIND-IMAGE structured field data.
 
@@ -194,45 +190,45 @@ class AddressingModeNegotiator:
             bind_image_data: Raw BIND-IMAGE structured field data
 
         Returns:
-            Detected addressing mode, or None if not determinable
+            Detected addressing mode
+
+        Raises:
+            ParseError: If the BIND-IMAGE data cannot be parsed
         """
-        try:
-            # BIND-IMAGE format includes addressing mode information
-            # The addressing mode is typically indicated in the bind parameters
-            if len(bind_image_data) < 2:
-                logger.warning("BIND-IMAGE data too short to determine addressing mode")
-                return None
+        # BIND-IMAGE format includes addressing mode information
+        # The addressing mode is typically indicated in the bind parameters
+        if len(bind_image_data) < 2:
+            raise ParseError("BIND-IMAGE data too short to determine addressing mode")
 
-            # Check for addressing mode indicators in BIND-IMAGE
-            # This is a simplified implementation - real BIND-IMAGE parsing
-            # would need to handle the full structured field format
+        # Check for addressing mode indicators in BIND-IMAGE
+        # This is a simplified implementation - real BIND-IMAGE parsing
+        # would need to handle the full structured field format
 
-            # Look for common patterns that indicate addressing mode
-            bind_params = bind_image_data[1:]  # Skip SF header
+        # Look for common patterns that indicate addressing mode
+        bind_params = bind_image_data[1:]  # Skip SF header
 
-            # Check if this BIND-IMAGE indicates 14-bit addressing
-            # This would typically be in the bind parameters
-            if len(bind_params) >= 4:
-                # Check for extended addressing indicators
-                # This is a placeholder - actual implementation would parse
-                # the BIND-IMAGE structured field according to TN3270E spec
-                addressing_flags = bind_params[2]  # Hypothetical flags byte
+        # Check if this BIND-IMAGE indicates 14-bit addressing
+        # This would typically be in the bind parameters
+        if len(bind_params) >= 4:
+            # Check for extended addressing indicators
+            # This is a placeholder - actual implementation would parse
+            # the BIND-IMAGE structured field according to TN3270E spec
+            addressing_flags = bind_params[2]  # Hypothetical flags byte
 
-                if addressing_flags & 0x01:  # Hypothetical 14-bit flag
-                    detected_mode = AddressingMode.MODE_14_BIT
-                    logger.debug("Detected 14-bit addressing mode from BIND-IMAGE")
-                else:
-                    detected_mode = AddressingMode.MODE_12_BIT
-                    logger.debug("Detected 12-bit addressing mode from BIND-IMAGE")
+            if addressing_flags & 0x01:  # Hypothetical 14-bit flag
+                detected_mode = AddressingMode.MODE_14_BIT
+                logger.debug("Detected 14-bit addressing mode from BIND-IMAGE")
+            else:
+                detected_mode = AddressingMode.MODE_12_BIT
+                logger.debug("Detected 12-bit addressing mode from BIND-IMAGE")
 
-                self._bind_image_addressing_mode = detected_mode
-                self._bind_image_received = True
-                return detected_mode
-
-        except Exception as e:
-            logger.warning(f"Failed to parse addressing mode from BIND-IMAGE: {e}")
-
-        return None
+            self._bind_image_addressing_mode = detected_mode
+            self._bind_image_received = True
+            return detected_mode
+        else:
+            raise ParseError(
+                "BIND-IMAGE parameters too short to determine addressing mode"
+            )
 
     def validate_mode_transition(
         self, current_mode: AddressingMode, new_mode: AddressingMode
@@ -269,7 +265,11 @@ class AddressingModeNegotiator:
         Args:
             bind_image_data: Raw BIND-IMAGE data
         """
-        detected_mode = self.parse_bind_image_addressing_mode(bind_image_data)
+        try:
+            detected_mode = self.parse_bind_image_addressing_mode(bind_image_data)
+        except ParseError as e:
+            logger.warning(f"Failed to update from BIND-IMAGE: {e}")
+            return
 
         # Ensure 14-bit capability is reflected in server capabilities to match
         # integration expectations that a BIND conveys extended support. Also add
@@ -280,24 +280,22 @@ class AddressingModeNegotiator:
         if AddressingMode.MODE_14_BIT not in self._server_capabilities:
             self._server_capabilities.append(AddressingMode.MODE_14_BIT)
 
-        if detected_mode:
-            detected = detected_mode  # Narrow type for mypy
-            # If we haven't negotiated yet, use the BIND-IMAGE mode
-            if not self.is_negotiated:
-                self._negotiated_mode = detected
-                if detected == AddressingMode.MODE_14_BIT:
-                    self._state = AddressingNegotiationState.NEGOTIATED_14_BIT
-                else:
-                    self._state = AddressingNegotiationState.NEGOTIATED_12_BIT
-                logger.info(f"Addressing mode set from BIND-IMAGE: {detected.value}")
+        # If we haven't negotiated yet, use the BIND-IMAGE mode
+        if not self.is_negotiated:
+            self._negotiated_mode = detected_mode
+            if detected_mode == AddressingMode.MODE_14_BIT:
+                self._state = AddressingNegotiationState.NEGOTIATED_14_BIT
             else:
-                # Validate that BIND-IMAGE mode matches negotiated mode
-                negotiated = cast(AddressingMode, self._negotiated_mode)
-                if detected != negotiated:
-                    logger.warning(
-                        f"BIND-IMAGE addressing mode {detected.value} "
-                        f"differs from negotiated mode {negotiated.value}"
-                    )
+                self._state = AddressingNegotiationState.NEGOTIATED_12_BIT
+            logger.info(f"Addressing mode set from BIND-IMAGE: {detected_mode.value}")
+        else:
+            # Validate that BIND-IMAGE mode matches negotiated mode
+            negotiated = cast(AddressingMode, self._negotiated_mode)
+            if detected_mode != negotiated:
+                logger.warning(
+                    f"BIND-IMAGE addressing mode {detected_mode.value} "
+                    f"differs from negotiated mode {negotiated.value}"
+                )
 
     def reset(self) -> None:
         """Reset the negotiator to initial state."""

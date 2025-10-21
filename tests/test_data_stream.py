@@ -6,7 +6,6 @@ import pytest
 from pure3270.protocol.data_stream import SnaResponse  # Import SnaResponse class
 from pure3270.protocol.data_stream import (
     BIND_SF_TYPE,
-    PRINTER_STATUS_DATA_TYPE,
     PRINTER_STATUS_SF_TYPE,
     SNA_COMMAND_RESPONSE,
     SNA_DATA_RESPONSE,
@@ -28,6 +27,7 @@ from pure3270.protocol.utils import (
     BIND_IMAGE,
     NVT_DATA,
     PRINT_EOJ,
+    PRINTER_STATUS_DATA_TYPE,
     REQUEST,
     RESPONSE,
     SCS_DATA,

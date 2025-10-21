@@ -17,6 +17,7 @@ from ..utils.logging_utils import (
     log_session_action,
     log_session_error,
 )
+from .exceptions import ProtocolError
 from .print_job_detector import PrintJobDetector
 from .protocol_translator import ProtocolTranslator
 from .tcpip_printer_session_manager import TCPIPPrinterSessionManager
@@ -187,8 +188,9 @@ class DataFlowController:
         except Exception as e:
             self.stats.errors_encountered += 1
             log_session_error(logger, "process_main_session_data", e)
-            # On error, return original data to avoid data loss
-            return data, header
+            raise ProtocolError(
+                "Failed to process main session data", original_exception=e
+            )
 
     async def _route_print_data(
         self,
@@ -247,6 +249,7 @@ class DataFlowController:
             log_session_error(logger, "_route_print_data", e)
             # Cleanup flow on error
             await self._close_flow(flow_id)
+            raise ProtocolError("Failed to route print data", original_exception=e)
 
     async def _create_printer_flow(
         self,
@@ -334,6 +337,7 @@ class DataFlowController:
 
             except Exception as e:
                 log_session_error(logger, "_close_flow", e)
+                raise ProtocolError("Failed to close flow", original_exception=e)
 
     async def handle_print_job_completion(self, main_session_id: str) -> None:
         """

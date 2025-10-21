@@ -35,11 +35,8 @@ Session management for pure3270, handling synchronous and asynchronous 3270 conn
 """
 
 import asyncio
-import concurrent.futures
 import functools
 import logging
-import os
-import re
 import unittest.mock as _um
 from builtins import ConnectionError as BuiltinConnectionError  # To avoid name conflict
 from contextlib import asynccontextmanager
@@ -51,9 +48,7 @@ from typing import (
     Dict,
     List,
     Optional,
-    Tuple,
     TypeVar,
-    Union,
 )
 
 T = TypeVar("T")
@@ -67,15 +62,10 @@ from pure3270.protocol.utils import (
     TN3270E_SYSREQ_RESTART,
 )
 
-from .emulation.buffer_writer import BufferWriter
 from .emulation.screen_buffer import ScreenBuffer
-from .protocol.data_flow_controller import DataFlowController
 from .protocol.data_stream import DataStreamParser
-from .protocol.exceptions import NegotiationError, NotConnectedError
-from .protocol.tcpip_printer_session_manager import TCPIPPrinterSessionManager
+from .protocol.exceptions import NegotiationError
 from .protocol.tn3270_handler import TN3270Handler
-from .protocol.tn3270e_header import TN3270EHeader
-from .session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -122,8 +112,6 @@ class SessionError(Exception):
 
 class ConnectionError(SessionError):
     """Raised when connection fails."""
-
-    pass
 
 
 class Session:
@@ -951,7 +939,7 @@ class AsyncSession:
         # the received data to update the local screen buffer.
         try:
             parser = getattr(self._handler, "parser", None)
-        except Exception:
+        except AttributeError:
             parser = None
 
         if self.tn3270_mode or parser is not None:
@@ -1253,7 +1241,6 @@ class AsyncSession:
 
     async def snap(self) -> None:
         """Save snapshot."""
-        pass
 
     async def newline(self) -> None:
         """Move cursor to start of next line."""
@@ -1346,7 +1333,6 @@ class AsyncSession:
 
     async def mono_case(self) -> None:
         """Toggle monocase."""
-        pass
 
     async def nvt_text(self, text: str) -> None:
         """Send NVT text."""
@@ -1501,15 +1487,12 @@ class AsyncSession:
 
     async def screen_trace(self) -> None:
         """Screen trace."""
-        pass
 
     async def source(self, file: str) -> None:
         """Source script."""
-        pass
 
     async def subject_names(self) -> None:
         """Subject names."""
-        pass
 
     async def sys_req(self, command: Optional[str] = None) -> None:
         """Send SysReq."""
@@ -1549,15 +1532,12 @@ class AsyncSession:
 
     async def toggle_option(self, option: str) -> None:
         """Toggle option."""
-        pass
 
     async def trace(self, on: bool) -> None:
         """Enable/disable tracing."""
-        pass
 
     async def transfer(self, file: str) -> None:
         """Transfer file."""
-        pass
 
     async def send_file(self, local_path: str, remote_name: str) -> None:
         """Send a file to the host using IND$FILE protocol."""
@@ -1573,7 +1553,6 @@ class AsyncSession:
 
     async def wait_condition(self, condition: str) -> None:
         """Wait for condition."""
-        pass
 
     async def compose(self, text: str) -> None:
         """Compose text."""

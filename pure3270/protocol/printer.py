@@ -350,10 +350,11 @@ class PrinterSession:
                     logger.error(
                         f"Error handling SCS control code 0x{scs_code:02x}: {e}"
                     )
-                    self.error_count += 1
-                    if self.error_count > self.max_errors:
-                        logger.error("Too many SCS errors, deactivating session")
-                        self.deactivate()
+                    raise ParseError(
+                        f"Failed to handle SCS control code 0x{scs_code:02x}",
+                        context={"scs_code": scs_code},
+                        original_exception=e,
+                    ) from e
             else:
                 logger.warning(f"Unhandled SCS control code: 0x{scs_code:02x}")
 

@@ -1,17 +1,20 @@
 import asyncio
 import logging
+import os
 import platform
 import resource
-
-# Patching support removed or unavailable; provide lightweight no-op
-# stubs for tests that referenced MonkeyPatchManager/PatchContext.
 from contextlib import contextmanager
 from logging import NullHandler
-from unittest.mock import AsyncMock, MagicMock, Mock
-from unittest.mock import patch as mock_patch  # noqa: F401
+from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import patch as _patch
 
 import pytest
 import pytest_asyncio
+
+# Test configuration - allow override via environment variables
+TEST_HOST = os.environ.get("PURE3270_TEST_HOST", "127.0.0.1")
+TEST_PORT = int(os.environ.get("PURE3270_TEST_PORT", "2323"))
+TEST_ALT_PORT = int(os.environ.get("PURE3270_TEST_ALT_PORT", "2324"))
 
 from pure3270.emulation.ebcdic import EBCDICCodec
 from pure3270.emulation.screen_buffer import ScreenBuffer
@@ -350,7 +353,9 @@ async def mock_tn3270e_handle_fallback(reader, writer):
 @pytest_asyncio.fixture
 async def mock_tn3270e_server():
     """Async fixture for successful TN3270E mock server."""
-    server = await asyncio.start_server(mock_tn3270e_handle_success, "127.0.0.1", 2323)
+    server = await asyncio.start_server(
+        mock_tn3270e_handle_success, TEST_HOST, TEST_PORT
+    )
     serve_task = asyncio.create_task(server.serve_forever())
     try:
         yield server
@@ -364,7 +369,9 @@ async def mock_tn3270e_server():
 @pytest_asyncio.fixture
 async def mock_tn3270e_server_fallback():
     """Async fixture for fallback TN3270E mock server (sends DONT)."""
-    server = await asyncio.start_server(mock_tn3270e_handle_fallback, "127.0.0.1", 2324)
+    server = await asyncio.start_server(
+        mock_tn3270e_handle_fallback, TEST_HOST, TEST_ALT_PORT
+    )
     serve_task = asyncio.create_task(server.serve_forever())
     try:
         yield server

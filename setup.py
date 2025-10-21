@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="pure3270",
-    version="0.2.1",
+    version="0.3.1",
     author="Pure3270 Developers",
     description="Pure Python 3270 emulator",
     long_description=long_description,

@@ -35,14 +35,9 @@ import logging
 from typing import Any, Dict, Optional, Tuple
 
 from ..emulation.addressing import AddressingMode
+from .exceptions import ParseError
 
 logger = logging.getLogger(__name__)
-
-
-class BindImageParseError(Exception):
-    """Raised when BIND-IMAGE parsing fails."""
-
-    pass
 
 
 class BindImageParser:
@@ -79,7 +74,7 @@ class BindImageParser:
             Detected addressing mode, or None if not determinable
 
         Raises:
-            BindImageParseError: If BIND-IMAGE format is invalid
+            ParseError: If BIND-IMAGE format is invalid
         """
         try:
             if len(bind_image_data) < BindImageParser.BIND_IMAGE_HEADER_LEN:
@@ -156,8 +151,9 @@ class BindImageParser:
             return addressing_mode
 
         except Exception as e:
-            logger.error(f"Failed to parse BIND-IMAGE addressing mode: {e}")
-            raise BindImageParseError(f"BIND-IMAGE parsing failed: {e}")
+            raise ParseError(
+                "Failed to parse BIND-IMAGE addressing mode", original_exception=e
+            )
 
     @staticmethod
     def _parse_addressing_mode_from_parameters(
@@ -201,23 +197,23 @@ class BindImageParser:
             Dictionary of parsed parameters
 
         Raises:
-            BindImageParseError: If parsing fails
+            ParseError: If parsing fails
         """
         try:
             parameters: Dict[str, Any] = {}
 
             if len(bind_image_data) < BindImageParser.BIND_IMAGE_HEADER_LEN:
-                raise BindImageParseError("BIND-IMAGE data too short")
+                raise ParseError("BIND-IMAGE data too short")
 
             # Validate SF ID
             sf_id = bind_image_data[0]
             if sf_id != BindImageParser.SF_BIND_IMAGE:
-                raise BindImageParseError(f"Invalid SF ID: 0x{sf_id:02x}")
+                raise ParseError(f"Invalid SF ID: 0x{sf_id:02x}")
 
             # Parse length
             sf_length = (bind_image_data[1] << 8) | bind_image_data[2]
             if sf_length > len(bind_image_data):
-                raise BindImageParseError("SF length exceeds data length")
+                raise ParseError("SF length exceeds data length")
 
             # Extract and parse parameters
             param_data = bind_image_data[
@@ -241,7 +237,7 @@ class BindImageParser:
             return parameters
 
         except Exception as e:
-            raise BindImageParseError(f"BIND parameter parsing failed: {e}")
+            raise ParseError("BIND parameter parsing failed", original_exception=e)
 
     @staticmethod
     def create_bind_image_response(
@@ -303,22 +299,16 @@ class BindImageParser:
         Returns:
             True if valid BIND-IMAGE format, False otherwise
         """
-        try:
-            if len(data) < BindImageParser.BIND_IMAGE_HEADER_LEN:
-                return False
-
-            # Check SF ID
-            if data[0] != BindImageParser.SF_BIND_IMAGE:
-                return False
-
-            # Check length
-            sf_length = (data[1] << 8) | data[2]
-            if sf_length < BindImageParser.BIND_IMAGE_HEADER_LEN or sf_length > len(
-                data
-            ):
-                return False
-
-            return True
-
-        except Exception:
+        if len(data) < BindImageParser.BIND_IMAGE_HEADER_LEN:
             return False
+
+        # Check SF ID
+        if data[0] != BindImageParser.SF_BIND_IMAGE:
+            return False
+
+        # Check length
+        sf_length = (data[1] << 8) | data[2]
+        if sf_length < BindImageParser.BIND_IMAGE_HEADER_LEN or sf_length > len(data):
+            return False
+
+        return True

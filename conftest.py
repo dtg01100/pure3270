@@ -1,10 +1,16 @@
 import asyncio
 import logging
+import os
 from unittest.mock import AsyncMock, MagicMock
 from unittest.mock import patch as _patch
 
 import pytest
 import pytest_asyncio
+
+# Test configuration - allow override via environment variables
+TEST_HOST = os.environ.get("PURE3270_TEST_HOST", "127.0.0.1")
+TEST_PORT = int(os.environ.get("PURE3270_TEST_PORT", "2323"))
+TEST_ALT_PORT = int(os.environ.get("PURE3270_TEST_ALT_PORT", "2324"))
 
 from pure3270.protocol.utils import (
     DO,
@@ -38,7 +44,9 @@ class MockTN3270EServer:
         self.task = None
 
     async def __aenter__(self):
-        self.server = await asyncio.start_server(self.handle_client, "127.0.0.1", 2323)
+        self.server = await asyncio.start_server(
+            self.handle_client, TEST_HOST, TEST_PORT
+        )
         self.task = asyncio.create_task(self.server.serve_forever())
         await asyncio.sleep(0.1)  # Give time to start
         return self
