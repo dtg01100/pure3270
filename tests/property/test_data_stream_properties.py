@@ -107,18 +107,13 @@ class TestDataStreamProperties:
         assert final_row == expected_row
         assert final_col == expected_col
 
-    @given(
-        st.integers(min_value=0x00, max_value=0xFF), st.binary(min_size=0, max_size=20)
-    )
+    @given(st.integers(min_value=0x00, max_value=0xFF))
     @settings(max_examples=50, deadline=None)
-    def test_valid_sf_sets_attribute(self, attr_byte, trailing):
-        sf_bytes = bytes([SF, attr_byte]) + trailing
-        try:
-            self.parser.parse(sf_bytes)
-        except ParseError:
-            pytest.skip("Parser raised ParseError on short SF sequence")
-        assert self.parser._pos <= len(sf_bytes)
-        assert self.parser._pos >= min(2, len(sf_bytes))
+    def test_valid_sf_sets_attribute(self, attr_byte):
+        sf_bytes = bytes([SF, attr_byte])
+        self.screen.set_position(0, 0)  # Reset position
+        self.parser.parse(sf_bytes)
+        assert self.parser._pos == 2
 
     def test_extended_attributes_are_applied_to_fields(self):
         # This test bypasses the parser to test the screen buffer logic directly.
