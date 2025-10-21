@@ -183,7 +183,7 @@ class Negotiator:
         self.handler = handler
         self._ascii_mode = False
         # Back-compat private aliases expected by some tests
-        self._writer = writer
+        self._writer = parser
         try:
             self._reader = getattr(handler, "reader", None)
         except Exception:
@@ -954,9 +954,9 @@ class Negotiator:
         canonical implementation and the handler stays slim.
 
         Rules:
-          1. If IAC WONT TN3270E (FF FC 24) appears => failure (False).
-          2. Else if IAC WILL EOR (FF FB 19) appears => success (True).
-          3. Otherwise => False.
+           1. If IAC WONT TN3270E (FF FC 24) or IAC DONT TN3270E (FF FE 24) appears => failure (False).
+           2. Else if IAC WILL EOR (FF FB 19) appears => success (True).
+           3. Otherwise => False.
 
         The heuristic is intentionally conservative; explicit refusal always
         wins over implied success.
@@ -964,7 +964,7 @@ class Negotiator:
         if not trace:
             return False
         try:
-            if b"\xff\xfc\x24" in trace:
+            if b"\xff\xfc\x24" in trace or b"\xff\xfe\x24" in trace:
                 return False
             if b"\xff\xfb\x19" in trace:
                 return True
