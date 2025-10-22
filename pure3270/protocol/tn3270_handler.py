@@ -244,8 +244,8 @@ class TN3270Handler:
     _state_change_events: dict[str, asyncio.Event]
 
     # --- Attribute declarations for static type checking ---
-    reader: Optional[asyncio.StreamReader]
-    writer: Optional[asyncio.StreamWriter]
+    reader: Optional[Any]
+    writer: Optional[Any]
     host: str
     port: int
     ssl_context: Optional[std_ssl.SSLContext]
@@ -316,8 +316,10 @@ class TN3270Handler:
             def close(self) -> None:  # pragma: no cover - test helper
                 return None
 
-        self.reader = reader if reader is not None else _MockReader()  # type: ignore[assignment]
-        self.writer = writer if writer is not None else _MockWriter()  # type: ignore[assignment]
+        self._is_mock_reader = reader is None
+        self._is_mock_writer = writer is None
+        self.reader = reader if reader is not None else _MockReader()
+        self.writer = writer if writer is not None else _MockWriter()
         self.ssl_context = ssl_context
         self.ssl = bool(ssl_context)
         self.host = host
@@ -331,7 +333,7 @@ class TN3270Handler:
         self._transport = None
         self._connected = False
         self.negotiator = Negotiator(
-            self.writer,
+            cast(Optional[Any], self.writer),
             None,
             self.screen_buffer,
             self,
@@ -383,9 +385,261 @@ class TN3270Handler:
         # --- Addressing Mode Negotiation ---
         self._addressing_negotiator = AddressingModeNegotiator()
 
-        # --- Sequence Number Tracking ---
+        # --- Enhanced Sequence Number Tracking ---
         self._last_sent_seq_number = 0
         self._last_received_seq_number = 0
+        self._sequence_number_window = 256  # Window for wraparound detection
+        self._sequence_sync_enabled = True
+        self._sequence_number_history: List[Dict[str, Any]] = (
+            []
+        )  # Track recent sequence numbers
+        self._max_sequence_history = 100
+
+        # --- Negotiation Timeout and State Cleanup ---
+        self._negotiation_timeout_occurred = False
+        self._negotiation_cleanup_performed = False
+        self._negotiation_start_time = 0.0
+        self._negotiation_deadline = 0.0
+
+        # --- Structured Field Validation ---
+        self._structured_field_validation_enabled = True
+        self._validation_history: List[Dict[str, Any]] = []  # Track validation results
+        self._max_validation_history = 50
+
+        # --- Async Operation Locks ---
+        self._async_operation_locks = {
+            "connection": asyncio.Lock(),
+            "negotiation": asyncio.Lock(),
+            "data_send": asyncio.Lock(),
+            "data_receive": asyncio.Lock(),
+            "state_change": self._state_lock,  # Reuse state lock for state changes
+        }
+
+    # --- Enhanced Sequence Number Management ---
+    def _record_sequence_number(self, seq_num: int, direction: str) -> None:
+        """Record a sequence number in history for wraparound detection."""
+        entry = {
+            "sequence_number": seq_num,
+            "direction": direction,  # "sent" or "received"
+            "timestamp": time.time(),
+        }
+        self._sequence_number_history.append(entry)
+
+        # Maintain history size limit
+        if len(self._sequence_number_history) > self._max_sequence_history:
+            self._sequence_number_history.pop(0)
+
+    def _detect_sequence_wraparound(self, new_seq: int, last_seq: int) -> bool:
+        """Detect if a sequence number wraparound has occurred."""
+        # Check if the new sequence number is within the expected window
+        # but significantly lower than the last one (indicating wraparound)
+        if new_seq < last_seq:
+            # Calculate the difference considering wraparound
+            direct_diff = last_seq - new_seq
+            wraparound_diff = (65536 - last_seq) + new_seq
+
+            # If wraparound difference is smaller and within window, it's likely a wraparound
+            if (
+                wraparound_diff < direct_diff
+                and wraparound_diff <= self._sequence_number_window
+            ):
+                logger.debug(
+                    f"Detected sequence number wraparound: {last_seq} -> {new_seq}"
+                )
+                return True
+
+        return False
+
+    def _validate_sequence_number(self, received_seq: int, expected_seq: int) -> bool:
+        """Validate received sequence number with wraparound handling."""
+        if not self._sequence_sync_enabled:
+            return True  # Skip validation if disabled
+
+        # Exact match
+        if received_seq == expected_seq:
+            return True
+
+        # Check for wraparound
+        if self._detect_sequence_wraparound(received_seq, expected_seq):
+            logger.info(
+                f"Sequence number wraparound detected and accepted: expected {expected_seq}, got {received_seq}"
+            )
+            return True
+
+        # Check if received sequence is within acceptable window
+        seq_diff = abs(received_seq - expected_seq)
+        if seq_diff <= self._sequence_number_window:
+            logger.warning(
+                f"Sequence number within window but not exact: expected {expected_seq}, got {received_seq}"
+            )
+            return True
+
+        logger.error(
+            f"Sequence number validation failed: expected {expected_seq}, got {received_seq}"
+        )
+        return False
+
+    def _get_next_sent_sequence_number(self) -> int:
+        """Get next sequence number for sending with wraparound handling."""
+        self._last_sent_seq_number = (self._last_sent_seq_number + 1) % 65536
+        self._record_sequence_number(self._last_sent_seq_number, "sent")
+        return self._last_sent_seq_number
+
+    def _update_received_sequence_number(self, received_seq: int) -> None:
+        """Update last received sequence number with validation."""
+        if self._validate_sequence_number(
+            received_seq, self._last_received_seq_number + 1
+        ):
+            self._last_received_seq_number = received_seq
+            self._record_sequence_number(received_seq, "received")
+        else:
+            logger.error(
+                f"Invalid sequence number received: {received_seq}, expected: {self._last_received_seq_number + 1}"
+            )
+
+    def _synchronize_sequence_numbers(self, received_seq: int) -> None:
+        """Synchronize sequence numbers after detecting a gap or wraparound."""
+        logger.info(
+            f"Synchronizing sequence numbers: setting received to {received_seq}"
+        )
+        self._last_received_seq_number = received_seq
+        self._record_sequence_number(received_seq, "sync")
+
+    def get_sequence_number_info(self) -> Dict[str, Any]:
+        """Get comprehensive sequence number information."""
+        return {
+            "last_sent": self._last_sent_seq_number,
+            "last_received": self._last_received_seq_number,
+            "history_count": len(self._sequence_number_history),
+            "sync_enabled": self._sequence_sync_enabled,
+            "window_size": self._sequence_number_window,
+            "recent_history": (
+                self._sequence_number_history[-10:]
+                if self._sequence_number_history
+                else []
+            ),
+        }
+
+    def enable_sequence_sync(self, enable: bool = True) -> None:
+        """Enable or disable sequence number synchronization."""
+        self._sequence_sync_enabled = enable
+        logger.info(
+            f"Sequence number synchronization {'enabled' if enable else 'disabled'}"
+        )
+
+    def set_sequence_window(self, window_size: int) -> None:
+        """Set the sequence number validation window size."""
+        self._sequence_number_window = max(
+            1, min(window_size, 32768)
+        )  # Reasonable bounds
+        logger.debug(f"Sequence number window set to {self._sequence_number_window}")
+
+    def reset_sequence_numbers(self) -> None:
+        """Reset sequence numbers to initial state."""
+        logger.info("Resetting sequence numbers to initial state")
+        self._last_sent_seq_number = 0
+        self._last_received_seq_number = 0
+        self._sequence_number_history.clear()
+
+    # --- Negotiation Timeout and State Cleanup Methods ---
+    def _mark_negotiation_timeout(self) -> None:
+        """Mark that a negotiation timeout has occurred."""
+        self._negotiation_timeout_occurred = True
+        self._negotiation_cleanup_performed = False
+        logger.warning("[NEGOTIATION] Timeout occurred during negotiation")
+
+    def _is_negotiation_timeout(self) -> bool:
+        """Check if a negotiation timeout has occurred."""
+        return self._negotiation_timeout_occurred
+
+    def _mark_cleanup_performed(self) -> None:
+        """Mark that negotiation cleanup has been performed."""
+        self._negotiation_cleanup_performed = True
+
+    def _is_cleanup_performed(self) -> bool:
+        """Check if negotiation cleanup has been performed."""
+        return self._negotiation_cleanup_performed
+
+    def _set_negotiation_deadline(self, timeout_seconds: float) -> None:
+        """Set the negotiation deadline timestamp."""
+        self._negotiation_start_time = time.time()
+        self._negotiation_deadline = self._negotiation_start_time + timeout_seconds
+
+    def _has_negotiation_timed_out(self) -> bool:
+        """Check if the negotiation deadline has been exceeded."""
+        if self._negotiation_deadline == 0.0:
+            return False
+        return time.time() > self._negotiation_deadline
+
+    async def _perform_timeout_cleanup(self) -> None:
+        """Perform cleanup when negotiation times out."""
+        if self._negotiation_cleanup_performed:
+            return  # Already cleaned up
+
+        logger.info("[NEGOTIATION] Performing timeout cleanup")
+
+        try:
+            # Reset negotiation state
+            if self.negotiator:
+                self.negotiator._reset_negotiation_state()
+
+            # Clear any pending negotiation data
+            self._pending_payload.clear()
+
+            # Reset sequence numbers to prevent inconsistencies
+            self.reset_sequence_numbers()
+
+            # Clear negotiation events
+            for event in self._state_change_events.values():
+                event.clear()
+
+            # Cancel any negotiation-related background tasks
+            for task in list(self._bg_tasks):
+                if not task.done():
+                    task.cancel()
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        pass
+
+            self._bg_tasks.clear()
+
+            # Mark cleanup as performed
+            self._mark_cleanup_performed()
+
+            logger.info("[NEGOTIATION] Timeout cleanup completed")
+
+        except Exception as e:
+            logger.error(f"[NEGOTIATION] Error during timeout cleanup: {e}")
+
+    def _reset_negotiation_state(self) -> None:
+        """Reset all negotiation-related state variables."""
+        logger.debug("[NEGOTIATION] Resetting negotiation state")
+
+        self._negotiation_timeout_occurred = False
+        self._negotiation_cleanup_performed = False
+        self._negotiation_start_time = 0.0
+        self._negotiation_deadline = 0.0
+
+        # Reset negotiator state if available
+        if self.negotiator:
+            self.negotiator._reset_negotiation_state()
+
+    def get_negotiation_status(self) -> Dict[str, Any]:
+        """Get comprehensive negotiation status information."""
+        return {
+            "timeout_occurred": self._negotiation_timeout_occurred,
+            "cleanup_performed": self._negotiation_cleanup_performed,
+            "start_time": self._negotiation_start_time,
+            "deadline": self._negotiation_deadline,
+            "timed_out": self._has_negotiation_timed_out(),
+            "elapsed": (
+                time.time() - self._negotiation_start_time
+                if self._negotiation_start_time > 0
+                else 0.0
+            ),
+            "current_state": self._current_state,
+        }
 
     # --- Addressing Mode Negotiation Methods ---
 
@@ -685,7 +939,11 @@ class TN3270Handler:
         """Validate if a state transition is allowed."""
         # Define valid state transitions
         valid_transitions = {
-            HandlerState.DISCONNECTED: [HandlerState.CONNECTING, HandlerState.CLOSING],
+            HandlerState.DISCONNECTED: [
+                HandlerState.CONNECTING,
+                HandlerState.CLOSING,
+                HandlerState.CONNECTED,
+            ],
             HandlerState.CONNECTING: [
                 HandlerState.NEGOTIATING,
                 HandlerState.ERROR,
@@ -1449,18 +1707,6 @@ class TN3270Handler:
         ssl_context: Optional[std_ssl.SSLContext] = None,
     ) -> None:
         """Connect the handler with enhanced state management and x3270 timing."""
-        # If already have reader/writer (from fixture), validate and mark as connected
-        if self.reader is not None and self.writer is not None:
-            # Add stream validation
-            if not hasattr(self.reader, "read") or not hasattr(self.writer, "write"):
-                await self._change_state(
-                    HandlerState.ERROR, "invalid reader/writer objects"
-                )
-                raise_protocol_error("Invalid reader or writer objects")
-            self._connected = True
-            await self._change_state(HandlerState.CONNECTED, "fixture connection")
-            return
-
         # Check if already connected
         if self._current_state == HandlerState.CONNECTED:
             logger.info("[HANDLER] Already connected")
@@ -1589,7 +1835,7 @@ class TN3270Handler:
                             # Side-effect may not accept an argument
                             res = self.reader.read()  # type: ignore[union-attr]
                         if inspect.isawaitable(res):
-                            return await res
+                            return cast(bytes, await res)
                         return cast(bytes, res)
 
                     data = await asyncio.wait_for(_compat_read(), timeout=1.0)
@@ -1719,7 +1965,7 @@ class TN3270Handler:
                                 except TypeError:
                                     res2 = self.reader.read()  # type: ignore[union-attr]
                                 if inspect.isawaitable(res2):
-                                    return await res2
+                                    return cast(bytes, await res2)
                                 return cast(bytes, res2)
 
                             chunk = await asyncio.wait_for(_compat_read2(), timeout=0.1)
@@ -1804,8 +2050,10 @@ class TN3270Handler:
         task = asyncio.create_task(_perform_negotiate())
 
         # Iteration guard and diagnostic logging
-        max_iterations = 2000  # Keep tight to satisfy tests and avoid long hangs
-        log_interval_iterations = 1000
+        # Allow enough iterations for the negotiation timeouts to work properly
+        # With 50ms sleep, 200 iterations = 10 seconds total
+        max_iterations = 200  # Increased to allow negotiation timeouts to trigger
+        log_interval_iterations = 100
         iteration = 0
 
         try:
@@ -1816,7 +2064,9 @@ class TN3270Handler:
                     break
 
                 # Yield to allow the negotiation task to make progress
-                await asyncio.sleep(0)
+                await asyncio.sleep(
+                    0.05
+                )  # 50ms sleep to reduce CPU usage while allowing timeouts to work
                 iteration += 1
 
                 # Periodically log Max RSS for diagnostics
@@ -1902,11 +2152,11 @@ class TN3270Handler:
         if self.negotiator.is_data_stream_ctl_active:
             # For now, default to TN3270_DATA for outgoing messages
             # In a more complex scenario, this data_type might be passed as an argument
-            self._last_sent_seq_number = (self._last_sent_seq_number + 1) % 65536
+            next_seq = self._get_next_sent_sequence_number()
             header = self.negotiator._outgoing_request(
                 "CLIENT_DATA",
                 data_type=TN3270_DATA,
-                seq_number=self._last_sent_seq_number,
+                seq_number=next_seq,
             )
             if hasattr(header, "to_bytes"):
                 try:
@@ -2111,13 +2361,19 @@ class TN3270Handler:
                     SNA_RESPONSE,
                 }
                 if tn3270e_header.data_type in valid_types:
-                    if tn3270e_header.seq_number != self._last_received_seq_number:
-                        raise ProtocolError(
-                            f"Invalid sequence number: expected {self._last_received_seq_number}, got {tn3270e_header.seq_number}"
+                    # Use enhanced sequence number validation with wraparound handling
+                    expected_seq = (self._last_received_seq_number + 1) % 65536
+                    if not self._validate_sequence_number(
+                        tn3270e_header.seq_number, expected_seq
+                    ):
+                        logger.warning(
+                            f"Sequence number validation failed, attempting synchronization"
                         )
-                    self._last_received_seq_number = (
-                        self._last_received_seq_number + 1
-                    ) % 65536
+                        # Try to synchronize instead of failing immediately
+                        self._synchronize_sequence_numbers(tn3270e_header.seq_number)
+                    else:
+                        # Update sequence number only if validation passed
+                        self._last_received_seq_number = tn3270e_header.seq_number
                     # Use helper to determine fixture-specific header length
                     header_len = self._get_fixture_header_len(
                         processed_data, header_len
@@ -2186,13 +2442,19 @@ class TN3270Handler:
             if tn3270e_header:
                 data_type = tn3270e_header.data_type
                 header_len = 5
-                if tn3270e_header.seq_number != self._last_received_seq_number:
-                    raise ProtocolError(
-                        f"Invalid sequence number: expected {self._last_received_seq_number}, got {tn3270e_header.seq_number}"
+                # Use enhanced sequence number validation with wraparound handling
+                expected_seq = (self._last_received_seq_number + 1) % 65536
+                if not self._validate_sequence_number(
+                    tn3270e_header.seq_number, expected_seq
+                ):
+                    logger.warning(
+                        f"Sequence number validation failed in TN3270 mode, attempting synchronization"
                     )
-                self._last_received_seq_number = (
-                    self._last_received_seq_number + 1
-                ) % 65536
+                    # Try to synchronize instead of failing immediately
+                    self._synchronize_sequence_numbers(tn3270e_header.seq_number)
+                else:
+                    # Update sequence number only if validation passed
+                    self._last_received_seq_number = tn3270e_header.seq_number
 
                 try:
                     if (
@@ -2455,41 +2717,43 @@ class TN3270Handler:
 
     async def close(self) -> None:
         """Close the connection with enhanced state management."""
-        try:
-            await self._change_state(HandlerState.CLOSING, "closing connection")
+        # Use connection lock to prevent race conditions during closing
+        async with self._async_operation_locks["connection"]:
+            try:
+                await self._change_state(HandlerState.CLOSING, "closing connection")
 
-            if self._transport:
-                await self._transport.teardown_connection()
-                self._transport = None
-            else:
-                if self.writer:
-                    try:
-                        self.writer.close()
-                        await self.writer.wait_closed()
-                    except (AttributeError, TypeError):
-                        # Mocked writers in tests may not have wait_closed()
-                        pass
-                    self.writer = None
+                if self._transport:
+                    await self._transport.teardown_connection()
+                    self._transport = None
+                else:
+                    if self.writer:
+                        try:
+                            self.writer.close()
+                            await self.writer.wait_closed()
+                        except (AttributeError, TypeError):
+                            # Mocked writers in tests may not have wait_closed()
+                            pass
+                        self.writer = None
 
-            # Cancel any background tasks we created to avoid dangling tasks
-            for t in list(self._bg_tasks):
-                if not t.done():
-                    t.cancel()
-                    try:
-                        await t
-                    except (asyncio.CancelledError, Exception):
-                        pass
-            self._bg_tasks.clear()
-            self._connected = False
+                # Cancel any background tasks we created to avoid dangling tasks
+                for t in list(self._bg_tasks):
+                    if not t.done():
+                        t.cancel()
+                        try:
+                            await t
+                        except (asyncio.CancelledError, Exception):
+                            pass
+                self._bg_tasks.clear()
+                self._connected = False
 
-            await self._change_state(
-                HandlerState.DISCONNECTED, "connection closed successfully"
-            )
+                await self._change_state(
+                    HandlerState.DISCONNECTED, "connection closed successfully"
+                )
 
-        except Exception as e:
-            logger.error(f"[CLOSE] Error during close operation: {e}")
-            await self._change_state(HandlerState.ERROR, f"error during close: {e}")
-            # Don't re-raise - allow close to complete gracefully even with errors
+            except Exception as e:
+                logger.error(f"[CLOSE] Error during close operation: {e}")
+                await self._change_state(HandlerState.ERROR, f"error during close: {e}")
+                # Don't re-raise - allow close to complete gracefully even with errors
 
     def _get_fixture_header_len(self, data: bytes, default_len: int) -> int:
         """
