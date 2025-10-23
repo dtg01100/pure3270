@@ -3,8 +3,29 @@ Examples
 
 This section provides practical examples of using Pure3270 in various scenarios.
 
+For comprehensive examples demonstrating all API modes and advanced usage patterns,
+see the example files in the ``examples/`` directory:
+
+Core Usage Patterns
+-------------------
+
+**Standalone Sessions** - Basic synchronous and asynchronous session usage
+
+**P3270 Compatibility** - Drop-in replacement for p3270 applications
+
+**Advanced Screen Operations** - Screen buffer manipulation and field operations
+
+**Error Handling** - Connection errors, timeouts, and recovery patterns
+
+**Protocol Operations** - Low-level TN3270/TN3270E protocol operations
+
+**File Transfers** - IND$FILE protocol for uploading/downloading files
+
+Getting Started Examples
+------------------------
+
 Standalone Synchronous Session
-------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
@@ -16,7 +37,7 @@ Standalone Synchronous Session
        print(session.ascii(session.read()))
 
 Standalone Asynchronous Session
--------------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: python
 
@@ -32,35 +53,44 @@ Standalone Asynchronous Session
    asyncio.run(main())
 
 
-Integration with p3270
-----------------------
+Using P3270Client API
+~~~~~~~~~~~~~~~~~~~~~
 
-To replace ``p3270``'s ``s3270`` dependency with Pure3270:
-
-1. Install ``p3270`` in your venv: ``pip install p3270``.
-2. Enable patching before importing ``p3270``.
+Pure3270 implements a superset of the ``p3270`` library API through its native ``P3270Client``
+class. This provides 100% drop-in compatibility without requiring any external dependencies:
 
 .. code-block:: python
 
-   import pure3270
-   pure3270.enable_replacement()  # Applies global patches to p3270
+   from pure3270 import P3270Client
 
-   import p3270
-   session = p3270.P3270Client()  # Now uses pure3270 under the hood
+   # Use p3270-compatible API directly
+   session = P3270Client(hostName='your-host.example.com', hostPort=23)
+   session.connect()
+   session.sendEnter()  # Using P3270Client methods
+   screen_text = session.getScreen()
+   print(screen_text)
+   session.close()
+
+Since ``pure3270.P3270Client`` implements the full ``p3270`` API natively, existing p3270 code
+can simply replace the import statement:
+
+.. code-block:: python
+
+   # Before: import p3270
+   # After:  from pure3270 import P3270Client as p3270
+   from pure3270 import P3270Client as p3270
+
+   session = p3270.P3270Client()  # Now using pure3270 implementation
    session.connect('your-host.example.com', port=23, ssl_context=None)
    session.key('Enter')
    screen_text = session.ascii(session.read())
    print(screen_text)
    session.close()
 
-This redirects ``p3270.P3270Client`` methods (``__init__``, ``connect``, ``send``,
-``read``) to pure3270 equivalents. Logs will indicate patching success.
+Selecting Terminal Models
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-
-Selecting a Terminal Model in Examples
---------------------------------------
-
-You can pass ``terminal_type`` when creating sessions to emulate different IBM models.
+You can pass ``terminal_type`` when creating sessions to emulate different IBM models:
 
 .. code-block:: python
 
@@ -71,10 +101,70 @@ You can pass ``terminal_type`` when creating sessions to emulate different IBM m
        session.connect('your-host.example.com', port=23)
        print("Screen size:", session.screen_buffer.rows, "x", session.screen_buffer.cols)
 
-File Transfer with IND$FILE
----------------------------
+    # Emulate a wide 27x132 terminal (3278 Model 5)
+    with Session(terminal_type="IBM-3278-5") as session:
+       session.connect('your-host.example.com', port=23)
+       print("Screen size:", session.screen_buffer.rows, "x", session.screen_buffer.cols)
 
-Pure3270 supports file transfer using the IND$FILE protocol, allowing you to upload files to and download files from the host.
+See :doc:`terminal_models` for the full list of supported terminal types and details.
+
+Advanced Examples
+-----------------
+
+Advanced Screen Operations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``examples/example_advanced_screen_operations.py`` file demonstrates:
+
+- Direct screen buffer manipulation
+- Field detection and navigation
+- EBCDIC/ASCII conversion
+- Cursor positioning and text input
+- Screen reading and parsing
+
+Run with: ``python examples/example_advanced_screen_operations.py``
+
+Error Handling and Recovery
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``examples/example_error_handling.py`` file demonstrates:
+
+- Connection errors and recovery
+- Timeout handling
+- SSL/TLS certificate validation
+- Network interruption recovery
+- Terminal configuration errors
+- Operation error handling
+
+Run with: ``python examples/example_error_handling.py``
+
+Protocol-Level Operations
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``examples/example_protocol_operations.py`` file demonstrates:
+
+- TN3270 protocol negotiation details
+- Data stream manipulation
+- EBCDIC encoding operations
+- IND$FILE transfer protocol framework
+- Protocol utility functions
+
+Run with: ``python examples/example_protocol_operations.py``
+
+Real-World Usage Examples
+------------------------
+
+Several comprehensive examples are available in the ``examples/`` directory:
+
+- ``example_end_to_end.py`` - Complete session lifecycle with login
+- ``example_pub400*.py`` - Real TN3270 host interactions
+- ``example_terminal_models.py`` - Terminal model configurations
+- ``example_standalone.py`` - Basic standalone usage patterns
+
+File Transfer with IND$FILE
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Pure3270 supports file transfer using the IND$FILE protocol:
 
 .. code-block:: python
 
@@ -93,32 +183,6 @@ Pure3270 supports file transfer using the IND$FILE protocol, allowing you to upl
 
             print("File transfer completed successfully")
 
-    # Run the example
     asyncio.run(file_transfer_example())
 
-Error Handling in File Transfers
---------------------------------
-
-.. code-block:: python
-
-    import asyncio
-    from pure3270 import AsyncSession
-    from pure3270.ind_file import IndFileError
-
-    async def robust_file_transfer():
-        async with AsyncSession() as session:
-            await session.connect('your-host.example.com', port=23)
-
-            try:
-                # Attempt to upload a file
-                await session.send_file('/local/path/missing.txt', 'remote.txt')
-            except IndFileError as e:
-                print(f"Upload failed: {e}")
-
-            try:
-                # Attempt to download a file
-                await session.receive_file('nonexistent.txt', '/local/path/fail.txt')
-            except IndFileError as e:
-                print(f"Download failed: {e}")
-
-    asyncio.run(robust_file_transfer())
+All example files are executable and include detailed comments explaining the functionality demonstrated.

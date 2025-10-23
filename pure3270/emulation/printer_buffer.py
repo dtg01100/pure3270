@@ -3,7 +3,7 @@ Printer buffer and rendering logic for 3287 printer emulation.
 """
 
 import logging
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Type
 
 from .buffer_writer import BufferWriter
 
@@ -116,7 +116,12 @@ class PrinterBuffer(BufferWriter):
     def __enter__(self) -> "PrinterBuffer":
         return self
 
-    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> bool:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[Any],
+    ) -> bool:
         self.reset()
         return True
 

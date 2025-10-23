@@ -1,0 +1,67 @@
+{
+  "test_info": {
+    "test_id": "real_system_validation_1761110089",
+    "host": "pub400.com",
+    "timestamp": 1761110089,
+    "validator_version": "1.0"
+  },
+  "tests": [
+    {
+      "test_name": "port_23",
+      "port": 23,
+      "success": true,
+      "protocol": "Clear Text",
+      "timing": {
+        "total_time": 3.4903342723846436,
+        "connect_time": 3.4688525199890137,
+        "operation_time": 0.020194053649902344
+      },
+      "screen_validation": {
+        "has_content": true,
+        "content_length": 801,
+        "appears_valid": false,
+        "login_prompt_detected": true,
+        "screen_dimensions_reasonable": false
+      },
+      "errors": [],
+      "warnings": [],
+      "byte_count": 801
+    },
+    {
+      "test_name": "port_992",
+      "port": 992,
+      "success": true,
+      "protocol": "SSL",
+      "timing": {
+        "total_time": 3.9865760803222656,
+        "connect_time": 3.963352918624878,
+        "operation_time": 0.02139759063720703
+      },
+      "screen_validation": {
+        "has_content": true,
+        "content_length": 802,
+        "appears_valid": false,
+        "login_prompt_detected": true,
+        "screen_dimensions_reasonable": false
+      },
+      "errors": [],
+      "warnings": [],
+      "byte_count": 802
+    }
+  ],
+  "summary": {
+    "total_tests": 2,
+    "successful_tests": 2,
+    "failed_tests": 0,
+    "ports_tested": [
+      23,
+      992
+    ],
+    "average_timings": {
+      "connect_time": 3.716102719306946,
+      "operation_time": 0.020795822143554688,
+      "total_time": 3.7384551763534546
+    },
+    "validation_passed": false
+  }
+}

@@ -151,7 +151,7 @@ class Negotiator:
 
     def __init__(
         self,
-        writer: Optional["asyncio.StreamWriter"],
+        writer: Optional[Any],
         parser: Optional["DataStreamParser"] = None,
         screen_buffer: Optional["ScreenBuffer"] = None,
         handler: Optional["TN3270Handler"] = None,

@@ -107,7 +107,7 @@ class ScreenSnapshot:
                     from pure3270.emulation.ebcdic import EBCDICCodec
 
                     ebcdic_result = EBCDICCodec().encode(char)
-                    ebcdic_bytes = ebcdic_result[0] if ebcdic_result else b""
+                    ebcdic_bytes, _ = ebcdic_result if ebcdic_result else (b"", 0)
                     if ebcdic_bytes:
                         screen.buffer[row * screen.cols + col] = ebcdic_bytes[0]
                     else:

@@ -63,12 +63,16 @@ markers = [
     "integration: marks tests as integration tests requiring external services (deselect with '-m \"not integration\"')",
     "property: property-based tests",
 ]
-norecursedirs = ["archive", "build", "dist", ".git", ".tox", ".pytest_cache"]
+norecursedirs = ["archive", "build", "dist", ".git", ".tox", ".pytest_cache", "mcp-servers"]
 testpaths = ["tests", "examples", "quick_test.py", "test_*.py"]
  timeout = 30
  timeout_method = "thread"
 
- [tool.coverage.run]
+ [tool.setuptools.packages.find]
+include = ["pure3270"]
+exclude = ["test_baselines", "test_baselines.*", "tests*", "examples", "scripts", "tools", "docs", "archive"]
+
+[tool.coverage.run]
  source = ["pure3270"]
  omit = [
      "*/tests/*",

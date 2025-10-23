@@ -372,7 +372,7 @@ class TestDataStreamSender:
         # Note: sender has no screen, but assume default
         with patch("pure3270.protocol.data_stream.ScreenBuffer", rows=24, cols=80):
             stream = data_stream_sender.build_sba(0, 0)
-            assert stream == b"\x10\x00\x00"
+            assert stream == b"\x11\x00\x00"
 
     def test_build_scs_ctl_codes(self, data_stream_sender):
         stream = data_stream_sender.build_scs_ctl_codes(0x01)  # PRINT-EOJ
@@ -409,7 +409,7 @@ def sample_wcc_stream():
 
 @pytest.fixture
 def sample_sba_stream():
-    return b"\x10\x00\x14"  # SBA to row 0 col 20
+    return b"\x11\x00\x14"  # SBA to row 0 col 20
 
 
 @pytest.fixture

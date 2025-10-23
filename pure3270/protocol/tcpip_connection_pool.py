@@ -122,28 +122,86 @@ class TCPIPConnectionPool:
             if not self._running:
                 return
 
-            self._running = False
+            try:
+                self._running = False
 
-            # Cancel background tasks
-            if self._health_check_task and not self._health_check_task.done():
-                self._health_check_task.cancel()
-            if self._cleanup_task and not self._cleanup_task.done():
-                self._cleanup_task.cancel()
+                # Cancel background tasks with proper cleanup using try-finally blocks
+                try:
+                    if self._health_check_task and not self._health_check_task.done():
+                        self._health_check_task.cancel()
+                        try:
+                            await self._health_check_task
+                        except (asyncio.CancelledError, Exception):
+                            pass
+                    if self._cleanup_task and not self._cleanup_task.done():
+                        self._cleanup_task.cancel()
+                        try:
+                            await self._cleanup_task
+                        except (asyncio.CancelledError, Exception):
+                            pass
+                finally:
+                    # Ensure task references are cleared even if cancellation fails
+                    try:
+                        self._health_check_task = None
+                    except Exception:
+                        pass
+                    try:
+                        self._cleanup_task = None
+                    except Exception:
+                        pass
 
-            # Close all connections
-            close_tasks = []
-            for session in list(self._all_connections):
-                close_tasks.append(self._force_close_session(session))
+                # Close all connections with comprehensive try-finally blocks for resource cleanup
+                close_tasks = []
+                sessions_to_close = list(self._all_connections)
 
-            if close_tasks:
-                await asyncio.gather(*close_tasks, return_exceptions=True)
+                try:
+                    for session in sessions_to_close:
+                        try:
+                            close_tasks.append(self._force_close_session(session))
+                        except Exception as e:
+                            logger.debug(f"Error preparing session closure: {e}")
 
-            # Clear collections
-            self._active_connections.clear()
-            self._idle_connections.clear()
-            self._all_connections.clear()
+                    if close_tasks:
+                        try:
+                            await asyncio.gather(*close_tasks, return_exceptions=True)
+                        except Exception as gather_error:
+                            logger.debug(f"Error gathering close tasks: {gather_error}")
+                finally:
+                    # Always clear collections even if closure fails to prevent resource leaks
+                    try:
+                        self._active_connections.clear()
+                    except Exception as e:
+                        logger.debug(f"Error clearing active connections: {e}")
+                    try:
+                        self._idle_connections.clear()
+                    except Exception as e:
+                        logger.debug(f"Error clearing idle connections: {e}")
+                    try:
+                        self._all_connections.clear()
+                    except Exception as e:
+                        logger.debug(f"Error clearing all connections: {e}")
 
-            logger.info("Connection pool stopped")
+                logger.info("Connection pool stopped")
+
+            except Exception as e:
+                logger.error(f"[STOP] Error during pool stop operation: {e}")
+                # Still clear collections on error to prevent resource leaks using nested try-finally blocks
+                try:
+                    try:
+                        self._active_connections.clear()
+                    except Exception:
+                        pass
+                    try:
+                        self._idle_connections.clear()
+                    except Exception:
+                        pass
+                    try:
+                        self._all_connections.clear()
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+                raise
 
     async def borrow_connection(
         self,

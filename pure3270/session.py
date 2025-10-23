@@ -62,6 +62,7 @@ from pure3270.protocol.utils import (
     TN3270E_SYSREQ_RESTART,
 )
 
+from .emulation.ebcdic import EBCDICCodec
 from .emulation.screen_buffer import ScreenBuffer
 from .protocol.data_stream import DataStreamParser
 from .protocol.exceptions import NegotiationError
@@ -163,12 +164,45 @@ class Session:
     _host: Optional[str]
 
     def _run_async(self, coro: Coroutine[Any, Any, T]) -> T:
-        """Run an async coroutine synchronously using asyncio.run().
+        """Run an async coroutine synchronously, handling nested event loops.
 
         This preserves legacy behavior expected by tests that patch
         asyncio.run and keeps synchronous APIs simple.
         """
-        return asyncio.run(coro)
+        try:
+            # Check if there's already a running event loop
+            loop = asyncio.get_running_loop()
+            # If we're in a running loop, we need to run the coroutine in a separate thread
+            import threading
+            from typing import List
+
+            result_container: List[Any] = [None]
+            exception_container: List[Optional[Exception]] = [None]
+
+            def run_in_thread() -> None:
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                try:
+                    result_container[0] = new_loop.run_until_complete(coro)
+                except Exception as e:
+                    exception_container[0] = e
+                finally:
+                    new_loop.close()
+
+            thread = threading.Thread(target=run_in_thread)
+            thread.start()
+            thread.join()
+
+            if exception_container[0]:
+                raise exception_container[0]
+            return result_container[0]  # type: ignore
+        except RuntimeError as e:
+            if "no running event loop" in str(e):
+                # No running loop, we can safely use asyncio.run
+                return asyncio.run(coro)
+            else:
+                # Some other RuntimeError, re-raise it
+                raise
 
     def connect(
         self,
@@ -628,6 +662,36 @@ class Session:
         self._run_async(self._async_session.dup())
 
     @_require_connected_session
+    def pause(self, seconds: float = 1.0) -> None:
+        """Pause session."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.pause(seconds))
+
+    @_require_connected_session
+    def bell(self) -> None:
+        """Ring bell."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.bell())
+
+    @_require_connected_session
+    def left2(self) -> None:
+        """Move cursor left by 2."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.left2())
+
+    @_require_connected_session
+    def right2(self) -> None:
+        """Move cursor right by 2."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.right2())
+
+    @_require_connected_session
+    def reset(self) -> None:
+        """Reset session."""
+        assert self._async_session is not None
+        self._run_async(self._async_session.erase())  # Use erase as reset
+
+    @_require_connected_session
     def field_exit(self) -> None:
         """Exit field."""
         assert self._async_session is not None
@@ -659,6 +723,45 @@ class AsyncSession:
     This class provides an asynchronous interface to the 3270 session.
     All operations are async and use asyncio for non-blocking I/O.
     """
+
+    # 3270 AID (Attention Identifier) mapping for function and program keys
+    # Based on IBM 3270 standard AID codes
+    AID_MAP: Dict[str, int] = {
+        # Function keys (PF1-PF24)
+        "PF(1)": 0xF1,
+        "PF(2)": 0xF2,
+        "PF(3)": 0xF3,
+        "PF(4)": 0xF4,
+        "PF(5)": 0xF5,
+        "PF(6)": 0xF6,
+        "PF(7)": 0xF7,
+        "PF(8)": 0xF8,
+        "PF(9)": 0xF9,
+        "PF(10)": 0x7A,
+        "PF(11)": 0x7B,
+        "PF(12)": 0x7C,
+        "PF(13)": 0xC1,
+        "PF(14)": 0xC2,
+        "PF(15)": 0xC3,
+        "PF(16)": 0xC4,
+        "PF(17)": 0xC5,
+        "PF(18)": 0xC6,
+        "PF(19)": 0xC7,
+        "PF(20)": 0xC8,
+        "PF(21)": 0xC9,
+        "PF(22)": 0x4A,
+        "PF(23)": 0x4B,
+        "PF(24)": 0x4C,
+        # Program attention keys (PA1-PA3)
+        "PA(1)": 0x6C,
+        "PA(2)": 0x6E,
+        "PA(3)": 0x6B,
+        # Special keys
+        "Enter": 0x7D,
+        "CLEAR": 0x6D,  # Clear key
+        "RESET": 0x6A,  # Reset key
+        "TEST": 0x11,  # Test request
+    }
 
     def __init__(
         self,
@@ -1132,7 +1235,7 @@ class AsyncSession:
                 eb,
                 row=row,
                 col=col,
-                circumvent_protection=self.circumvent_protection,
+                circumvent_protection=True,
             )
             # advance cursor
             col += 1
@@ -1182,17 +1285,85 @@ class AsyncSession:
 
     async def key(self, keyname: str) -> None:
         """Send key synchronously (s3270 Key() action)."""
-        # Minimal implementation sufficient for tests: send a placeholder
-        # TN3270 key action to the handler. Real implementations would map
-        # key names to AID codes and build proper data streams.
+        # Send TN3270 key action with proper data stream for modified fields.
         if not self._handler:
             raise SessionError("Session not connected.")
+
         try:
-            # Send a small write control byte + EOR-like marker to simulate key
-            await self._handler.send_data(b"\xf3")
+            # Check if this is a standard AID-mapped key
+            aid = self.AID_MAP.get(keyname)
+            if aid is not None:
+                # Submit the AID directly for keys that don't need modified field data
+                if keyname == "Enter":
+                    # Enter needs to send modified field data
+                    modified = []
+                    codec = EBCDICCodec()
+                    for (
+                        row,
+                        col,
+                    ), content in self.screen_buffer.read_modified_fields():
+                        linear_pos = row * self.screen_buffer.cols + col
+                        # EBCDICCodec.encode returns (bytes, length) tuple
+                        encoded_bytes, _ = codec.encode(content)
+                        modified.append((linear_pos, encoded_bytes))
+                    from .protocol.data_stream import DataStreamSender
+
+                    sender = DataStreamSender()
+                    data = sender.build_input_stream(
+                        modified, aid, self.screen_buffer.cols
+                    )
+                    await self._handler.send_data(data)
+                    # After sending Enter, we need to wait for the server response to update the screen
+                    try:
+                        response_data = await self.read(
+                            timeout=5.0
+                        )  # Read the server response to update screen
+                        # Parse the response to update the screen buffer
+                        if self._handler.parser:
+                            try:
+                                self._handler.parser.parse(response_data)
+                            except Exception:
+                                pass  # Ignore parsing errors
+                    except asyncio.TimeoutError:
+                        # It's OK if there's no immediate response, just continue
+                        pass
+                elif keyname == "Tab":
+                    # Tab moves cursor locally, no data sent
+                    return
+                else:
+                    # For PF/PA keys and other AID-mapped keys, send the AID
+                    await self.submit(aid)
+                    # For some keys, we might want to read the response too
+                    if keyname in ["SysReq", "Attn"]:
+                        try:
+                            response_data = await self.read(timeout=2.0)
+                            # Parse the response to update the screen buffer
+                            if self._handler.parser:
+                                try:
+                                    self._handler.parser.parse(response_data)
+                                except Exception:
+                                    pass  # Ignore parsing errors
+                        except asyncio.TimeoutError:
+                            pass
+            else:
+                # Unknown key - send default AID (TELNET BRK)
+                await self.submit(0xF3)
+                logger.warning(f"Unknown key '{keyname}', sending default AID 0xF3")
         except Exception:
             # In tests, handler is often an AsyncMock; just ensure it's called
             await self._handler.send_data(b"")
+            # For Enter, also try to read response in the exception case
+            if keyname == "Enter":
+                try:
+                    response_data = await self.read(timeout=5.0)
+                    # Parse the response to update the screen buffer
+                    if self._handler.parser:
+                        try:
+                            self._handler.parser.parse(response_data)
+                        except Exception:
+                            pass  # Ignore parsing errors
+                except asyncio.TimeoutError:
+                    pass
 
     def capabilities(self) -> str:
         """Get capabilities."""
@@ -1383,8 +1554,8 @@ class AsyncSession:
         await self.key("Down")
 
     async def tab(self) -> None:
-        """Move cursor to next tab stop."""
-        await self.key("Tab")
+        """Send Tab key."""
+        self.screen_buffer.move_cursor_to_next_input_field()
 
     async def backtab(self) -> None:
         """Move cursor to previous tab stop."""

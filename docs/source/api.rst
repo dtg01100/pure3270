@@ -113,20 +113,93 @@ VT100 Parser
    :undoc-members:
    :show-inheritance:
 
-Exceptions
-----------
+Emulation Modules
+-----------------
 
-.. automodule:: pure3270.exceptions
+Screen Buffer
+~~~~~~~~~~~~~
+
+.. automodule:: pure3270.emulation.screen_buffer
    :members:
    :undoc-members:
    :show-inheritance:
 
+EBCDIC
+~~~~~~
 
+.. automodule:: pure3270.emulation.ebcdic
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
-Emulation - Printer Buffer
---------------------------
+Printer Buffer
+~~~~~~~~~~~~~~
 
 .. automodule:: pure3270.emulation.printer_buffer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Field Attributes
+~~~~~~~~~~~~~~~~
+
+.. automodule:: pure3270.emulation.field_attributes
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Extended Position
+~~~~~~~~~~~~~~~~~
+
+.. automodule:: pure3270.emulation.extended_position
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Extended Screen Buffer
+~~~~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: pure3270.emulation.extended_screen_buffer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Addressing
+~~~~~~~~~~
+
+.. automodule:: pure3270.emulation.addressing
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Buffer Writer
+~~~~~~~~~~~~~
+
+.. automodule:: pure3270.emulation.buffer_writer
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Snapshot
+~~~~~~~~
+
+.. automodule:: pure3270.emulation.snapshot
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Regression Harness
+~~~~~~~~~~~~~~~~~~
+
+.. automodule:: pure3270.emulation.regression_harness
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+Exceptions
+----------
+
+.. automodule:: pure3270.exceptions
    :members:
    :undoc-members:
    :show-inheritance:

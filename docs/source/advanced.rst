@@ -38,16 +38,24 @@ Extend negotiation:
             await super().negotiate_tn3270()
             await self._send_custom_query()
 
-Patching Integration
---------------------
+P3270 API Compatibility
+------------------------
 
-For p3270 compatibility:
+Pure3270 implements a superset of the ``p3270`` library API natively:
+
 .. code-block:: python
 
-    from pure3270.patching import enable_replacement
+    from pure3270 import P3270Client
 
-    enable_replacement()  # Enable monkey patching
-    # Now s3270 APIs work with pure3270 backend
+    # Drop-in replacement for p3270.P3270Client
+    session = P3270Client(hostName='host', hostPort=23)
+    session.connect()
+    session.sendEnter()
+    print(session.getScreen())
+    session.close()
+
+    # For existing code, simply change the import:
+    # from pure3270 import P3270Client as p3270
 
 Performance Optimization
 ------------------------

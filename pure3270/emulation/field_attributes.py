@@ -36,7 +36,7 @@
 import logging
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Dict, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
@@ -141,11 +141,13 @@ class ExtendedAttributeSet:
     extended attributes with proper validation and error handling.
     """
 
-    def get(self, attr_type: str, default: Any = None) -> Any:
+    def get(
+        self, attr_type: str, default: Optional[Union[ExtendedAttribute, int]] = None
+    ) -> Union[ExtendedAttribute, int, None]:
         """Get an extended attribute by type, with optional default (test compatibility).
         Returns the raw value if the attribute is an object with a .value property."""
         attr = self._attributes.get(attr_type, default)
-        if hasattr(attr, "value"):
+        if attr is not None and hasattr(attr, "value"):
             return attr.value
         return attr
 

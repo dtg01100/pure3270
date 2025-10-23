@@ -14,6 +14,44 @@ from .utils import BaseStringParser
 logger = logging.getLogger(__name__)
 
 
+class VT100ParserState:
+    """Represents the recoverable state of a VT100 parser."""
+
+    def __init__(self) -> None:
+        self.current_row: int = 0
+        self.current_col: int = 0
+        self.saved_row: int = 0
+        self.saved_col: int = 0
+        self.charset: str = "B"
+        self.graphics_charset: str = "0"
+        self.is_alt_charset: bool = False
+        self.parser_pos: int = 0
+
+    def save_from_parser(self, parser: "VT100Parser") -> None:
+        """Save current state from parser instance."""
+        self.current_row = parser.current_row
+        self.current_col = parser.current_col
+        self.saved_row = parser.saved_row
+        self.saved_col = parser.saved_col
+        self.charset = parser.charset
+        self.graphics_charset = parser.graphics_charset
+        self.is_alt_charset = parser.is_alt_charset
+        if parser._parser:
+            self.parser_pos = parser._parser._pos
+
+    def restore_to_parser(self, parser: "VT100Parser") -> None:
+        """Restore state to parser instance."""
+        parser.current_row = self.current_row
+        parser.current_col = self.current_col
+        parser.saved_row = self.saved_row
+        parser.saved_col = self.saved_col
+        parser.charset = self.charset
+        parser.graphics_charset = self.graphics_charset
+        parser.is_alt_charset = self.is_alt_charset
+        if parser._parser:
+            parser._parser._pos = min(self.parser_pos, len(parser._parser._text))
+
+
 class VT100Parser:
     """VT100 escape sequence parser for ASCII terminal emulation."""
 
@@ -33,6 +71,53 @@ class VT100Parser:
         self.graphics_charset: str = "0"  # Graphics charset
         self.is_alt_charset: bool = False  # Alternative character set mode
         self._parser: Optional[BaseStringParser] = None
+        self._last_good_state: Optional[VT100ParserState] = None
+        self._error_recovery_enabled: bool = True
+
+    # Configuration methods -------------------------------------------
+    def enable_error_recovery(self) -> None:
+        """Enable error recovery mechanism."""
+        self._error_recovery_enabled = True
+
+    def disable_error_recovery(self) -> None:
+        """Disable error recovery mechanism for debugging."""
+        self._error_recovery_enabled = False
+
+    def is_error_recovery_enabled(self) -> bool:
+        """Check if error recovery is enabled."""
+        return self._error_recovery_enabled
+
+    # State management and recovery ------------------------------------
+    def _save_state(self) -> None:
+        """Save current parser state for potential error recovery."""
+        if self._last_good_state is None:
+            self._last_good_state = VT100ParserState()
+        self._last_good_state.save_from_parser(self)
+
+    def _recover_from_error(self) -> None:
+        """Recover parser state from the last known good state."""
+        if self._last_good_state is not None and self._error_recovery_enabled:
+            logger.debug("Recovering VT100 parser from error state")
+            self._last_good_state.restore_to_parser(self)
+        else:
+            # Reset to initial state if no recovery state available
+            self._reset()
+
+    def _validate_screen_buffer_bounds(self, row: int, col: int) -> bool:
+        """Validate that the given row and column are within screen buffer bounds."""
+        return (
+            0 <= row < self.screen_buffer.rows
+            and 0 <= col < self.screen_buffer.cols
+            and self.screen_buffer.buffer is not None
+        )
+
+    def _safe_buffer_access(self, row: int, col: int) -> int:
+        """Safely access screen buffer with bounds checking."""
+        if self._validate_screen_buffer_bounds(row, col):
+            pos = row * self.screen_buffer.cols + col
+            if pos < len(self.screen_buffer.buffer):
+                return pos
+        return -1  # Invalid position
 
     # Internal helpers -------------------------------------------------
     def _ensure_parser(self) -> BaseStringParser:
@@ -47,11 +132,27 @@ class VT100Parser:
         Args:
             data: Raw ASCII data with VT100 escape sequences
         """
+        # Save state before parsing for potential error recovery
+        self._save_state()
+
         try:
             text = data.decode("ascii", errors="ignore")
             self._parse_text(text)
+        except UnicodeDecodeError as e:
+            logger.warning(f"Unicode decode error in VT100 data: {e}")
+            # Continue with partial decode if possible
+            try:
+                text = data.decode("ascii", errors="replace")
+                self._parse_text(text)
+            except Exception as fallback_error:
+                logger.error(f"Fallback decode also failed: {fallback_error}")
+                self._recover_from_error()
+        except (AttributeError, TypeError) as e:
+            logger.warning(f"Data format error in VT100 parsing: {e}")
+            self._recover_from_error()
         except Exception as e:
-            logger.warning(f"Error parsing VT100 data: {e}")
+            logger.warning(f"Unexpected error parsing VT100 data: {e}")
+            self._recover_from_error()
 
     def _parse_text(self, text: str) -> None:
         """
@@ -60,23 +161,46 @@ class VT100Parser:
         Args:
             text: ASCII text with escape sequences
         """
-        self._parser = BaseStringParser(text)
-        parser = self._ensure_parser()
-        # Process text character by character
-        while parser.has_more():
-            char = parser.peek_char()
-            if char == "\x1b":  # ESC character
-                # Parse escape sequence
-                self._parse_escape_sequence()
-            elif char == "\x0e":  # SO (Shift Out) - Activate alternate charset
-                self.is_alt_charset = True
-                parser.advance(1)
-            elif char == "\x0f":  # SI (Shift In) - Activate standard charset
-                self.is_alt_charset = False
-                parser.advance(1)
-            else:
-                # Regular character
-                self._write_char(parser.read_char())
+        try:
+            self._parser = BaseStringParser(text)
+            parser = self._ensure_parser()
+
+            # Process text character by character with error recovery
+            while parser.has_more():
+                try:
+                    char = parser.peek_char()
+                    if char == "\x1b":  # ESC character
+                        # Parse escape sequence
+                        self._parse_escape_sequence()
+                    elif char == "\x0e":  # SO (Shift Out) - Activate alternate charset
+                        self.is_alt_charset = True
+                        parser.advance(1)
+                    elif char == "\x0f":  # SI (Shift In) - Activate standard charset
+                        self.is_alt_charset = False
+                        parser.advance(1)
+                    else:
+                        # Regular character
+                        self._write_char(parser.read_char())
+                except (IndexError, AttributeError) as e:
+                    logger.warning(f"Parser state error at position {parser._pos}: {e}")
+                    # Try to recover by advancing one character
+                    try:
+                        parser.advance(1)
+                    except Exception:
+                        break  # Exit parsing loop if we can't advance
+                except Exception as e:
+                    logger.warning(
+                        f"Unexpected error in text parsing at position {parser._pos}: {e}"
+                    )
+                    # Try to recover by advancing one character
+                    try:
+                        parser.advance(1)
+                    except Exception:
+                        break  # Exit parsing loop if we can't advance
+
+        except Exception as e:
+            logger.error(f"Critical error initializing text parser: {e}")
+            self._recover_from_error()
 
     def _parse_escape_sequence(self) -> None:
         """
@@ -253,78 +377,72 @@ class VT100Parser:
         Args:
             char: Character to write
         """
-        if char == "\n":
-            self.current_row = min(self.screen_buffer.rows - 1, self.current_row + 1)
-            self.current_col = 0
-        elif char == "\r":
-            self.current_col = 0
-        elif char == "\t":
-            # Tab to next 8-character boundary
-            self.current_col = min(
-                self.screen_buffer.cols - 1, ((self.current_col // 8) + 1) * 8
-            )
-        elif char == "\b":
-            # Backspace
-            if self.current_col > 0:
-                self.current_col -= 1
-        elif char == "\x07":  # Bell
-            # Ignore bell character
-            pass
-        else:
-            # Regular character
-            if (
-                self.current_row < self.screen_buffer.rows
-                and self.current_col < self.screen_buffer.cols
-            ):
-                # In ASCII mode, store ASCII characters directly without EBCDIC conversion
-                if getattr(self.screen_buffer, "_ascii_mode", False):
-                    # ASCII mode: store ASCII bytes directly
-                    ascii_byte = ord(char) if isinstance(char, str) else char
-                    pos = self.current_row * self.screen_buffer.cols + self.current_col
-                    if pos < len(self.screen_buffer.buffer):
-                        self.screen_buffer.buffer[pos] = ascii_byte
-                else:
-                    # EBCDIC mode: convert ASCII to EBCDIC for storage in screen buffer
-                    try:
-                        # Try to use the existing EBCDIC translation utilities
-                        from ..emulation.ebcdic import translate_ascii_to_ebcdic
-
-                        ebcdic_bytes = translate_ascii_to_ebcdic(char)
-                        if ebcdic_bytes:
-                            ebcdic_byte = ebcdic_bytes[0]
-                            pos = (
-                                self.current_row * self.screen_buffer.cols
-                                + self.current_col
-                            )
-                            if pos < len(self.screen_buffer.buffer):
-                                self.screen_buffer.buffer[pos] = ebcdic_byte
-                        else:
-                            # Fallback to space if conversion fails
-                            pos = (
-                                self.current_row * self.screen_buffer.cols
-                                + self.current_col
-                            )
-                            if pos < len(self.screen_buffer.buffer):
-                                self.screen_buffer.buffer[pos] = 0x40  # Space in EBCDIC
-                    except Exception as e:
-                        logger.debug(
-                            f"Error converting character '{char}' to EBCDIC: {e}"
-                        )
-                        # Store as space if conversion fails
-                        pos = (
-                            self.current_row * self.screen_buffer.cols
-                            + self.current_col
-                        )
-                        if pos < len(self.screen_buffer.buffer):
-                            self.screen_buffer.buffer[pos] = 0x40  # Space in EBCDIC
-
-            # Move cursor
-            self.current_col += 1
-            if self.current_col >= self.screen_buffer.cols:
-                self.current_col = 0
+        try:
+            if char == "\n":
                 self.current_row = min(
                     self.screen_buffer.rows - 1, self.current_row + 1
                 )
+                self.current_col = 0
+            elif char == "\r":
+                self.current_col = 0
+            elif char == "\t":
+                # Tab to next 8-character boundary
+                self.current_col = min(
+                    self.screen_buffer.cols - 1, ((self.current_col // 8) + 1) * 8
+                )
+            elif char == "\b":
+                # Backspace
+                if self.current_col > 0:
+                    self.current_col -= 1
+            elif char == "\x07":  # Bell
+                # Ignore bell character
+                pass
+            else:
+                # Regular character - use safe buffer access
+                pos = self._safe_buffer_access(self.current_row, self.current_col)
+                if pos >= 0:
+                    try:
+                        # In ASCII mode, store ASCII characters directly without EBCDIC conversion
+                        if getattr(self.screen_buffer, "_ascii_mode", False):
+                            # ASCII mode: store ASCII bytes directly
+                            ascii_byte = ord(char) if isinstance(char, str) else char
+                            self.screen_buffer.buffer[pos] = ascii_byte
+                        else:
+                            # EBCDIC mode: convert ASCII to EBCDIC for storage in screen buffer
+                            try:
+                                # Try to use the existing EBCDIC translation utilities
+                                from ..emulation.ebcdic import translate_ascii_to_ebcdic
+
+                                ebcdic_bytes = translate_ascii_to_ebcdic(char)
+                                if ebcdic_bytes:
+                                    ebcdic_byte = ebcdic_bytes[0]
+                                    self.screen_buffer.buffer[pos] = ebcdic_byte
+                                else:
+                                    # Fallback to space if conversion fails
+                                    self.screen_buffer.buffer[pos] = (
+                                        0x40  # Space in EBCDIC
+                                    )
+                            except Exception as e:
+                                logger.debug(
+                                    f"Error converting character '{char}' to EBCDIC: {e}"
+                                )
+                                # Store as space if conversion fails
+                                self.screen_buffer.buffer[pos] = 0x40  # Space in EBCDIC
+                    except (AttributeError, IndexError, TypeError) as e:
+                        logger.warning(f"Error writing character to screen buffer: {e}")
+                        # Don't crash on buffer write errors
+
+                # Move cursor
+                self.current_col += 1
+                if self.current_col >= self.screen_buffer.cols:
+                    self.current_col = 0
+                    self.current_row = min(
+                        self.screen_buffer.rows - 1, self.current_row + 1
+                    )
+        except (AttributeError, TypeError) as e:
+            logger.warning(f"Error in character processing: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error in _write_char: {e}")
 
     def _move_cursor(self, row: int, col: int) -> None:
         """
@@ -357,22 +475,45 @@ class VT100Parser:
                 1: Clear from beginning of screen to cursor
                 2: Clear entire screen
         """
-        # Use appropriate space character based on screen buffer mode
-        space_char = 0x20 if getattr(self.screen_buffer, "_ascii_mode", False) else 0x40
+        try:
+            # Use appropriate space character based on screen buffer mode
+            space_char = (
+                0x20 if getattr(self.screen_buffer, "_ascii_mode", False) else 0x40
+            )
 
-        if param == 0:
-            # Clear from cursor to end of screen
-            start_pos = self.current_row * self.screen_buffer.cols + self.current_col
-            for i in range(start_pos, len(self.screen_buffer.buffer)):
-                self.screen_buffer.buffer[i] = space_char
-        elif param == 1:
-            # Clear from beginning of screen to cursor
-            end_pos = self.current_row * self.screen_buffer.cols + self.current_col
-            for i in range(0, end_pos + 1):
-                self.screen_buffer.buffer[i] = space_char
-        elif param == 2:
-            # Clear entire screen
-            self.screen_buffer.clear()
+            if param == 0:
+                # Clear from cursor to end of screen
+                start_pos = (
+                    self.current_row * self.screen_buffer.cols + self.current_col
+                )
+                if start_pos < len(self.screen_buffer.buffer):
+                    for i in range(start_pos, len(self.screen_buffer.buffer)):
+                        self.screen_buffer.buffer[i] = space_char
+            elif param == 1:
+                # Clear from beginning of screen to cursor
+                end_pos = self.current_row * self.screen_buffer.cols + self.current_col
+                if end_pos < len(self.screen_buffer.buffer):
+                    for i in range(0, min(end_pos + 1, len(self.screen_buffer.buffer))):
+                        self.screen_buffer.buffer[i] = space_char
+            elif param == 2:
+                # Clear entire screen
+                try:
+                    self.screen_buffer.clear()
+                except Exception as e:
+                    logger.warning(f"Error clearing screen buffer: {e}")
+                    # Manual clear as fallback
+                    if self.screen_buffer.buffer:
+                        for i in range(
+                            min(
+                                len(self.screen_buffer.buffer),
+                                self.screen_buffer.rows * self.screen_buffer.cols,
+                            )
+                        ):
+                            self.screen_buffer.buffer[i] = space_char
+        except (AttributeError, TypeError) as e:
+            logger.warning(f"Error in erase display: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error in _erase_display: {e}")
 
     def _erase_line(self, param: int) -> None:
         """
@@ -384,31 +525,49 @@ class VT100Parser:
                 1: Clear from beginning of line to cursor
                 2: Clear entire line
         """
-        # Use appropriate space character based on screen buffer mode
-        space_char = 0x20 if getattr(self.screen_buffer, "_ascii_mode", False) else 0x40
+        try:
+            # Use appropriate space character based on screen buffer mode
+            space_char = (
+                0x20 if getattr(self.screen_buffer, "_ascii_mode", False) else 0x40
+            )
 
-        if param == 0:
-            # Clear from cursor to end of line
-            start_pos = self.current_row * self.screen_buffer.cols + self.current_col
-            end_pos = (
-                self.current_row * self.screen_buffer.cols + self.screen_buffer.cols
-            )
-            for i in range(start_pos, min(end_pos, len(self.screen_buffer.buffer))):
-                self.screen_buffer.buffer[i] = space_char
-        elif param == 1:
-            # Clear from beginning of line to cursor
-            start_pos = self.current_row * self.screen_buffer.cols
-            end_pos = self.current_row * self.screen_buffer.cols + self.current_col
-            for i in range(start_pos, min(end_pos + 1, len(self.screen_buffer.buffer))):
-                self.screen_buffer.buffer[i] = space_char
-        elif param == 2:
-            # Clear entire line
-            start_pos = self.current_row * self.screen_buffer.cols
-            end_pos = (
-                self.current_row * self.screen_buffer.cols + self.screen_buffer.cols
-            )
-            for i in range(start_pos, min(end_pos, len(self.screen_buffer.buffer))):
-                self.screen_buffer.buffer[i] = space_char
+            if param == 0:
+                # Clear from cursor to end of line
+                start_pos = (
+                    self.current_row * self.screen_buffer.cols + self.current_col
+                )
+                end_pos = (
+                    self.current_row * self.screen_buffer.cols + self.screen_buffer.cols
+                )
+                if start_pos < len(self.screen_buffer.buffer):
+                    for i in range(
+                        start_pos, min(end_pos, len(self.screen_buffer.buffer))
+                    ):
+                        self.screen_buffer.buffer[i] = space_char
+            elif param == 1:
+                # Clear from beginning of line to cursor
+                start_pos = self.current_row * self.screen_buffer.cols
+                end_pos = self.current_row * self.screen_buffer.cols + self.current_col
+                if start_pos < len(self.screen_buffer.buffer):
+                    for i in range(
+                        start_pos, min(end_pos + 1, len(self.screen_buffer.buffer))
+                    ):
+                        self.screen_buffer.buffer[i] = space_char
+            elif param == 2:
+                # Clear entire line
+                start_pos = self.current_row * self.screen_buffer.cols
+                end_pos = (
+                    self.current_row * self.screen_buffer.cols + self.screen_buffer.cols
+                )
+                if start_pos < len(self.screen_buffer.buffer):
+                    for i in range(
+                        start_pos, min(end_pos, len(self.screen_buffer.buffer))
+                    ):
+                        self.screen_buffer.buffer[i] = space_char
+        except (AttributeError, TypeError) as e:
+            logger.warning(f"Error in erase line: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error in _erase_line: {e}")
 
     def _index(self) -> None:
         """Index (IND) - Move cursor down one line, scrolling if needed."""

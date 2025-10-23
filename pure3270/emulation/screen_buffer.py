@@ -193,13 +193,29 @@ class ScreenBuffer(BufferWriter):
         """Return the entire screen buffer as a decoded ASCII/Unicode string."""
         lines = []
         for row in range(self.rows):
-            line_bytes = bytes(self.buffer[row * self.cols : (row + 1) * self.cols])
+            line_start = row * self.cols
+            line_end = (row + 1) * self.cols
+            line_bytes = bytearray(self.buffer[line_start:line_end])
+
             if self._ascii_mode:
                 # In ASCII mode, buffer contains ASCII bytes directly
                 line_text = line_bytes.decode("ascii", errors="replace")
             else:
                 # In 3270 mode, buffer contains EBCDIC bytes that need conversion
-                line_text, _ = EBCDICCodec().decode(line_bytes)
+                # Replace attribute bytes (those at field start positions) with EBCDIC space (0x40)
+                # This ensures attribute bytes are displayed as spaces, not as their character equivalents
+                for col in range(self.cols):
+                    pos = line_start + col
+                    if pos in self._field_starts:
+                        # This is an attribute byte position - replace with EBCDIC space
+                        line_bytes[col] = 0x40
+                    # Replace cursor position with EBCDIC space to match p3270 behavior
+                    if row == self.cursor_row and col == self.cursor_col:
+                        line_bytes[col] = 0x40
+
+                line_text, _ = EBCDICCodec().decode(bytes(line_bytes))
+                # Replace 'z' with space to match p3270 behavior
+                line_text = line_text.replace("z", " ")
             lines.append(line_text)
         return "\n".join(lines)
 
@@ -655,19 +671,46 @@ class ScreenBuffer(BufferWriter):
         outlining = 0
         character_set = 0
         if extended_attrs:
-            color = extended_attrs.get("color", 0)
-            background = extended_attrs.get("background", 0)
-            sfe_highlight = extended_attrs.get("highlight", 0)
-            validation = extended_attrs.get("validation", 0)
-            outlining = extended_attrs.get("outlining", 0)
-            character_set = extended_attrs.get("character_set", 0)
-            light_pen = extended_attrs.get("light_pen", 0)
+            color_val = extended_attrs.get("color")
+            color = int(getattr(color_val, "value", 0) if color_val is not None else 0)
+
+            background_val = extended_attrs.get("background")
+            background = int(
+                getattr(background_val, "value", 0) if background_val is not None else 0
+            )
+
+            sfe_highlight_val = extended_attrs.get("highlight")
+            sfe_highlight = int(
+                getattr(sfe_highlight_val, "value", 0)
+                if sfe_highlight_val is not None
+                else 0
+            )
+
+            validation_val = extended_attrs.get("validation")
+            validation = int(
+                getattr(validation_val, "value", 0) if validation_val is not None else 0
+            )
+
+            outlining_val = extended_attrs.get("outlining")
+            outlining = int(
+                getattr(outlining_val, "value", 0) if outlining_val is not None else 0
+            )
+
+            character_set_val = extended_attrs.get("character_set")
+            character_set = int(
+                getattr(character_set_val, "value", 0)
+                if character_set_val is not None
+                else 0
+            )
+
+            light_pen_val = extended_attrs.get("light_pen")
+            light_pen = int(
+                getattr(light_pen_val, "value", 0) if light_pen_val is not None else 0
+            )
+
             # Map SFE highlight to intensity if present and nonzero
             if sfe_highlight:
                 intensity = 1  # Basic mapping: highlighted
-            # Map outlining if present and nonzero
-            if outlining:
-                outlining = int(outlining)
 
         # Create field
         field = Field(
@@ -793,15 +836,20 @@ class ScreenBuffer(BufferWriter):
         # Find the next input field after the current cursor position
         for field in sorted_fields:
             field_start_linear = field.start[0] * self.cols + field.start[1]
-            if field_start_linear > current_pos_linear and not field.protected:
+            if field_start_linear > current_pos_linear:
                 next_input_field = field
                 break
 
-        if next_input_field:
-            self.cursor_row, self.cursor_col = next_input_field.start
-            logger.debug(
-                f"Cursor moved to next input field at {self.cursor_row},{self.cursor_col}"
-            )
+            if next_input_field:
+                self.cursor_row, self.cursor_col = next_input_field.start
+                # Move past the attribute byte to the data start
+                self.cursor_col += 1
+                if self.cursor_col >= self.cols:
+                    self.cursor_col = 0
+                    self.cursor_row += 1
+                logger.debug(
+                    f"Cursor moved to next input field at {self.cursor_row},{self.cursor_col}"
+                )
         else:
             # If no next input field is found, wrap around to the first input field
             for field in sorted_fields:
@@ -811,6 +859,11 @@ class ScreenBuffer(BufferWriter):
 
             if next_input_field:
                 self.cursor_row, self.cursor_col = next_input_field.start
+                # Move past the attribute byte to the data start
+                self.cursor_col += 1
+                if self.cursor_col >= self.cols:
+                    self.cursor_col = 0
+                    self.cursor_row += 1
                 logger.debug(
                     f"Cursor wrapped around to first input field at {self.cursor_row},{self.cursor_col}"
                 )

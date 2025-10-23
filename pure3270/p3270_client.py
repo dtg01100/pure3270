@@ -382,34 +382,8 @@ class P3270Client:
 
         except Exception as e:
             logger.error(f"Error executing command '{command}': {e}")
-        """Get the current screen content as text (always ASCII/Unicode)."""
-        if not self._connected or not self._pure_session:
-            return ""
 
-        try:
-            # Use the decoded buffer directly
-            screen_buffer = getattr(self._pure_session, "screen_buffer", None)
-            if screen_buffer is not None and hasattr(screen_buffer, "ascii_buffer"):
-                screen_text = screen_buffer.ascii_buffer
-            else:
-                # Fallback: use to_text() if available
-                if screen_buffer is not None and hasattr(screen_buffer, "to_text"):
-                    screen_text = screen_buffer.to_text()
-                else:
-                    # Fallback: try to read and decode
-                    screen_data = self._pure_session.read(timeout=1.0)
-                    if isinstance(screen_data, bytes):
-                        screen_text = self._pure_session.ascii(screen_data)
-                    elif isinstance(screen_data, str):
-                        screen_text = screen_data
-                    else:
-                        screen_text = str(screen_data)
-
-            self._last_screen = screen_text
-            return str(screen_text)
-        except Exception as e:
-            logger.error(f"Error reading screen: {e}")
-            return self._last_screen or ""
+        return None
 
     def printScreen(self) -> str:
         """Print current screen content (returns screen text)."""

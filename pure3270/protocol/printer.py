@@ -255,13 +255,26 @@ class PrinterSession:
         logger.info(f"Started new printer job: {job_id}")
         return self.current_job
 
-    def add_scs_data(self, data: bytes) -> None:
-        """Add SCS character data to the current job."""
-        if not self.is_active:
-            raise ProtocolError("Printer session not active")
+    def add_scs_data(self, data: bytes, holding_lock: bool = False) -> None:
+        """Add SCS character data to the current job.
 
+        Args:
+            data: SCS data to add
+            holding_lock: True if caller already holds self.lock (internal use only)
+        """
+        if not holding_lock:
+            if not self.is_active:
+                raise ProtocolError("Printer session not active")
+
+        # Check if we need to start a new job
         if not self.current_job:
-            self.start_new_job()
+            if holding_lock:
+                # We're already holding the lock, so start job without re-acquiring
+                self.current_job = PrinterJob(f"job_{self.job_counter + 1}")
+                self.job_counter += 1
+                logger.info(f"Started new printer job: {self.current_job.job_id}")
+            else:
+                self.start_new_job()
 
         if self.current_job:
             self.current_job.add_data(data)
@@ -490,8 +503,8 @@ class PrinterSession:
 
             # Handle different TN3270E data types
             if header.data_type == SCS_DATA:
-                # Add SCS data to current job
-                self.add_scs_data(data)
+                # Add SCS data to current job (we already hold the lock)
+                self.add_scs_data(data, holding_lock=True)
                 logger.debug(f"Processed {len(data)} bytes of SCS data")
             elif header.data_type == TN3270E_SCS_CTL_CODES:
                 # Handle SCS control codes

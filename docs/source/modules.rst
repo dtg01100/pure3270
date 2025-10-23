@@ -7,4 +7,3 @@ Pure3270 API Modules
    session
    protocol
    emulation
-   patching

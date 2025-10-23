@@ -117,23 +117,27 @@ __all__ = [
 WCC = 0xF5
 AID = 0xF6
 READ_PARTITION = 0xF1
-SBA = 0x10
+SBA = 0x11  # Set Buffer Address - CORRECTED from 0x10 per IBM 3270 spec (order appears after WRITE, not a command)
 SF = 0x1D
-RA = 0xF3
+RA = 0x3C  # Repeat to Address - CORRECTED from 0xF3 per IBM 3270 spec
 RMF = 0x2C  # Repeat to Modified Field
-GE = 0x29
+GE = 0x08  # Graphic Escape - CORRECTED from 0x29 per x3270 3270ds.h
 WRITE = 0x05
 EOA = 0x0D
 SCS_CTL_CODES = 0x04
 DATA_STREAM_CTL = 0x40
-STRUCTURED_FIELD = 0x3C  # '<'
-SFE = 0x28  # Start Field Extended (RFC 1576)
+# STRUCTURED_FIELD is 0x3C but should NOT be in order handlers - it conflicts with RA order!
+# Structured fields only appear after WSF command, not as orders in regular WRITE data streams
+STRUCTURED_FIELD = (
+    0x88  # Moved to unused value to avoid confusion - only used in WSF contexts
+)
+SFE = 0x29  # Start Field Extended - CORRECTED from 0x28 per x3270 3270ds.h (RFC 1576)
 IC = 0x0F  # Insert Cursor
 PT = 0x0E  # Program Tab
 BIND = 0xF9  # Placeholder for BIND command, not officially part of 3270 orders but used in context
 # Printer Status related orders/commands (research needed for exact values)
 # These are placeholders and need to be verified against 3270 printer protocol specs.
-WRITE_STRUCTURED_FIELD_PRINTER = 0x11  # Example: Write Structured Field for printer
+WRITE_STRUCTURED_FIELD_PRINTER = 0x12  # Changed from 0x11 to avoid conflict with SBA
 PRINTER_STATUS_SF = 0x01  # Example: Structured Field type for printer status
 SOH = 0x01  # Start of Header (SCS command for printer status) - often 0x01 in SCS
 # Other potential status indicators
@@ -728,11 +732,7 @@ class DataStreamParser:
     def _validate_data_integrity(self, data: bytes, data_type: int) -> bool:
         """Validate data integrity before parsing."""
         try:
-            # Check for null bytes in critical positions
-            if data_type in (TN3270_DATA, SCS_DATA, BIND_IMAGE) and len(data) > 0:
-                if data[0] == 0x00:
-                    self._validation_errors.append("Data starts with null byte")
-                    return False
+            # Data type specific validation (not content validation)
 
             # Check for excessive repetition (potential buffer overflow attack)
             if len(data) > 100:
@@ -759,6 +759,11 @@ class DataStreamParser:
                         "BIND-IMAGE data does not start with structured field header"
                     )
                     return False
+
+            # Validate TN3270E data types are in valid range
+            if data_type not in TN3270E_DATA_TYPES and data_type <= 0xFF:
+                # Allow unknown data types for forward compatibility
+                logger.debug(f"Unknown data type 0x{data_type:02x} for validation")
 
             return True
         except Exception as e:
@@ -852,7 +857,7 @@ class DataStreamParser:
             WCC: self._handle_wcc_with_byte,
             SBA: self._handle_sba,
             SF: self._handle_sf,
-            RA: self._handle_ra,
+            RA: self._handle_ra,  # Now correctly mapped to 0x3C (was incorrectly 0xF3, conflicted with STRUCTURED_FIELD)
             RMF: self._handle_rmf,
             GE: self._handle_ge,
             IC: self._handle_ic,
@@ -866,7 +871,8 @@ class DataStreamParser:
             # Be tolerant: some fixtures use 0x28 with two 6-bit address bytes
             # (legacy SBA encoding). Detect this and handle as SBA fallback.
             SFE: cast(Callable[..., None], lambda: self._handle_sfe_or_sba_fallback()),
-            STRUCTURED_FIELD: self._handle_structured_field,
+            # STRUCTURED_FIELD removed - it conflicts with RA (both were 0x3C)
+            # Structured fields only appear in WSF command contexts, not as orders in WRITE data streams
             BIND: self._handle_bind,
             SOH: self._handle_soh,
         }
@@ -918,6 +924,10 @@ class DataStreamParser:
         Raises:
             ParseError: For parsing errors.
         """
+        logger.debug(f"Parsing data of type {data_type:02x}: {data.hex()[:64]}...")
+        logger.debug(
+            f"Screen buffer before parse: {self.screen.buffer[:32].hex()} (first 32 bytes)"
+        )
         # Enhanced buffer size validation
         if len(data) > self._max_buffer_size:
             logger.warning(
@@ -1038,20 +1048,24 @@ class DataStreamParser:
         self.aid = None
         self.screen.set_position(0, 0)
 
+        # Enable bulk update for large data streams to avoid per-byte field detection
+        bulk_mode = False
+        if len(data) > 4096 and hasattr(self.screen, "begin_bulk_update"):
+            try:
+                self.screen.begin_bulk_update()
+                bulk_mode = True
+            except Exception:
+                bulk_mode = False
+
         try:
             parser = self._ensure_parser()
-            # Enable bulk update for large data streams to avoid per-byte field detection
-            bulk_mode = False
-            if len(data) > 4096 and hasattr(self.screen, "begin_bulk_update"):
-                try:
-                    self.screen.begin_bulk_update()
-                    bulk_mode = True
-                except Exception:
-                    bulk_mode = False
             while parser.has_more():
                 pos_before = self._pos
                 try:
                     order = parser.read_byte()
+                    logger.debug(
+                        f"Read order byte: 0x{order:02x} at position {pos_before}"
+                    )
                 except ParseError:
                     stream_trace = self._data[
                         max(0, pos_before - 5) : self._pos + 5
@@ -1061,6 +1075,7 @@ class DataStreamParser:
                     )
 
                 if order in self._order_handlers:
+                    logger.debug(f"Calling handler for order 0x{order:02x}")
                     try:
                         if order == WCC:
                             try:
@@ -1382,15 +1397,72 @@ class DataStreamParser:
         )
 
     def _handle_ra(self) -> None:
-        """Handle Repeat to Address (RMA) with extended addressing support."""
+        """Handle Repeat to Address (RA) with proper 3270 address decoding and centralized validation."""
         self._validate_screen_buffer("RA")
         if not self._validate_min_data("RA", 3):
             return
 
         # Save current position before RA
         current_row, current_col = self.screen.get_position()
-        attr_type = self._read_byte_safe("RA")
-        address = self._read_address_bytes("RA")
+
+        # RA format per IBM spec and x3270 implementation:
+        # ORDER_RA (0x3C) | buffer_address_high | buffer_address_low | character_to_repeat
+        # Read address FIRST, then character (this was backwards before!)
+
+        # Read and decode address using the same logic as SBA
+        # 3270 addresses are encoded with only 6 bits per byte in 12-bit mode
+        if self.addressing_mode == AddressingMode.MODE_14_BIT:
+            # 14-bit addressing: 2 bytes (big-endian)
+            addr_high = self._read_byte()
+            addr_low = self._read_byte()
+            address = (addr_high << 8) | addr_low
+        else:
+            # 12-bit addressing uses the lower 6 bits of each of the two bytes.
+            addr_high = self._read_byte()
+            addr_low = self._read_byte()
+            address = ((addr_high & 0x3F) << 6) | (addr_low & 0x3F)
+
+        # Validate address against addressing mode using centralized validation
+        from ..emulation.addressing import AddressCalculator
+        from ..protocol.addressing_negotiation import AddressingModeNegotiator
+
+        # Use centralized addressing mode validation if available
+        if hasattr(self, "_addressing_negotiator") and self._addressing_negotiator:
+            is_valid = self._addressing_negotiator.validate_addressing_mode_centralized(
+                address, self.addressing_mode, "RA"
+            )
+            if not is_valid:
+                logger.warning(
+                    f"Invalid RA address {address:04x} for {self.addressing_mode.value} mode"
+                )
+                # Continue with clamped address for backward compatibility
+                max_addr = AddressCalculator.get_max_positions(self.addressing_mode) - 1
+                address = min(address, max_addr)
+        else:
+            # Fallback to direct validation
+            if not AddressCalculator.validate_address(address, self.addressing_mode):
+                logger.warning(
+                    f"Invalid RA address {address:04x} for {self.addressing_mode.value} mode"
+                )
+                # Continue with clamped address for backward compatibility
+                max_addr = AddressCalculator.get_max_positions(self.addressing_mode) - 1
+                address = min(address, max_addr)
+
+        # NOW read the character to repeat (after the address)
+        char_to_repeat = self._read_byte_safe("RA")
+
+        # Check if this is an attribute byte (bit 7 set, value >= 0xC0)
+        # In 3270, attribute bytes shouldn't be repeated as characters
+        # Instead, the area should be filled with spaces (0x40)
+        if char_to_repeat >= 0xC0:
+            logger.warning(
+                f"RA char_to_repeat 0x{char_to_repeat:02x} is an attribute byte, using space (0x40) instead"
+            )
+            char_to_repeat = 0x40  # Replace with EBCDIC space
+
+        logger.debug(
+            f"RA: char=0x{char_to_repeat:02x}, addr_bytes=0x{addr_high:02x}{addr_low:02x}, decoded_addr={address}"
+        )
 
         # Convert address to coordinates based on addressing mode
         from ..emulation.addressing import AddressCalculator
@@ -1406,31 +1478,48 @@ class DataStreamParser:
 
         target_row, target_col = coords
 
-        # Validate target position is within screen bounds
-        if target_row >= self.screen.rows or target_col >= self.screen.cols:
-            logger.warning(
-                f"RA target position ({target_row}, {target_col}) exceeds screen bounds "
-                f"({self.screen.rows}x{self.screen.cols})"
+        # Clamp target position to screen bounds instead of failing
+        # Some hosts send RA with addresses beyond screen size
+        max_row = self.screen.rows - 1
+        max_col = self.screen.cols - 1
+        if target_row > max_row or target_col > max_col:
+            logger.debug(
+                f"RA target position ({target_row}, {target_col}) exceeds screen bounds, clamping to ({max_row}, {max_col})"
             )
-            return
+            target_row = min(target_row, max_row)
+            target_col = min(target_col, max_col)
 
-        log_parsing_warning(
-            logger,
-            "RA stub",
-            f"Repeat 0x{attr_type:02x} from ({current_row}, {current_col}) to ({target_row}, {target_col}) "
-            f"[address={address:04x}, mode={self.addressing_mode.value}]",
+        logger.debug(
+            f"RA: Repeat 0x{char_to_repeat:02x} from ({current_row}, {current_col}) to ({target_row}, {target_col})"
         )
 
-        # Minimal emulation: insert attr_type from current to target (linear distance)
+        # Repeat character from current position to target position
+        # Per x3270 ctlr.c lines 1654-1666: "do { write_at(buffer_addr); INC_BA(buffer_addr); } while (buffer_addr != baddr)"
+        # This means: write FROM current position UP TO (but not including) target position, wrapping if necessary
         current_pos = current_row * self.screen.cols + current_col
         target_pos = target_row * self.screen.cols + target_col
-        count = abs(target_pos - current_pos)
+        screen_size = self.screen.rows * self.screen.cols
+
+        # Calculate count - RA repeats UP TO but not including the target
+        # Handle wraparound case: if target < current, we wrap around the screen
+        if target_pos >= current_pos:
+            # Normal case: target is after current
+            count = target_pos - current_pos
+        else:
+            # Wraparound case: target is before current, so we go to end of screen and wrap to target
+            count = (screen_size - current_pos) + target_pos
+            logger.debug(
+                f"RA wraparound: current={current_pos}, target={target_pos}, count={count}"
+            )
+
+        logger.debug(
+            f"RA: Repeating {count} times from pos {current_pos} to {target_pos}"
+        )
         for _ in range(count):
-            self._insert_data(attr_type)
-        # Mark fields as modified if overlapping (stub: log only)
-        self.screen.set_position(
-            target_row, target_col + 1
-        )  # Advance position post-data
+            self._insert_data(char_to_repeat)
+
+        # Position cursor AT the target address (not after)
+        self.screen.set_position(target_row, target_col)
 
     def _handle_rmf(self) -> None:
         """Handle Repeat to Modified Field (RMF)."""
@@ -1466,8 +1555,98 @@ class DataStreamParser:
         if not self._validate_min_data("GE", 1):
             return
         graphic_byte = self._read_byte()
-        log_parsing_warning(logger, "GE stub", f"Insert graphic 0x{graphic_byte:02x}")
-        self._insert_data(graphic_byte)
+
+        # Graphic Escape character mapping for 3270/APL characters
+        # Based on IBM 3270 character set and APL standards
+        ge_char_map = {
+            # APL characters (0x40-0x7F range)
+            0x40: "←",  # APL left arrow
+            0x41: "→",  # APL right arrow
+            0x42: "↑",  # APL up arrow
+            0x43: "↓",  # APL down arrow
+            0x44: "≤",  # APL less than or equal
+            0x45: "≥",  # APL greater than or equal
+            0x46: "≠",  # APL not equal
+            0x47: "×",  # APL multiply
+            0x48: "÷",  # APL divide
+            0x49: "⌈",  # APL ceiling
+            0x4A: "⌊",  # APL floor
+            0x4B: "⊥",  # APL perpendicular
+            0x4C: "⊤",  # APL top
+            0x4D: "⊢",  # APL right tack
+            0x4E: "⊣",  # APL left tack
+            0x4F: "⋆",  # APL star
+            0x50: "⌶",  # APL I-beam
+            0x51: "⌷",  # APL squad
+            0x52: "⌸",  # APL quad
+            0x53: "⌹",  # APL del
+            0x54: "⌺",  # APL circle
+            0x55: "⌻",  # APL stile
+            0x56: "⌼",  # APL semicolon
+            0x57: "⌽",  # APL circle backslash
+            0x58: "⌾",  # APL circle star
+            0x59: "⌿",  # APL slash bar
+            0x5A: "⍀",  # APL backslash bar
+            0x5B: "⍁",  # APL slope
+            0x5C: "⍂",  # APL delta
+            0x5D: "⍃",  # APL del tilde
+            0x5E: "⍄",  # APL jot
+            0x5F: "⍅",  # APL circle
+            0x60: "⍆",  # APL up shoe
+            0x61: "⍇",  # APL down shoe
+            0x62: "⍈",  # APL comma bar
+            0x63: "⍉",  # APL transpose
+            0x64: "⍊",  # APL circle backslash bar
+            0x65: "⍋",  # APL up tack
+            0x66: "⍌",  # APL down tack
+            0x67: "⍍",  # APL epsilon
+            0x68: "⍎",  # APL down arrow
+            0x69: "⍏",  # APL up arrow
+            0x6A: "⍐",  # APL circle star
+            0x6B: "⍑",  # APL del
+            0x6C: "⍒",  # APL nabla
+            0x6D: "⍓",  # APL delta
+            0x6E: "⍔",  # APL epsilon underbar
+            0x6F: "⍕",  # APL jot underbar
+            0x70: "⍖",  # APL circle
+            0x71: "⍗",  # APL up shoe underbar
+            0x72: "⍘",  # APL down shoe underbar
+            0x73: "⍙",  # APL circle backslash
+            0x74: "⍚",  # APL tilde
+            0x75: "⍛",  # APL up tack underbar
+            0x76: "⍜",  # APL down tack underbar
+            0x77: "⍝",  # APL lamp
+            0x78: "⍞",  # APL quote quad
+            0x79: "⍟",  # APL circle star
+            0x7A: "⍠",  # APL quad
+            0x7B: "⍡",  # APL down caret tilde
+            0x7C: "⍢",  # APL up caret tilde
+            0x7D: "⍣",  # APL star
+            0x7E: "⍤",  # APL jot
+            0x7F: "⍥",  # APL circle
+            # Additional common mappings for other ranges
+            0x0B: "⌂",  # House symbol (common in some 3270 sets)
+            0x35: "§",  # Section symbol
+            0xB5: "µ",  # Micro symbol
+        }
+
+        # Get the character or fallback to the byte value as-is
+        if graphic_byte in ge_char_map:
+            display_char = ge_char_map[graphic_byte]
+            # Convert Unicode character to appropriate byte value for 3270 buffer
+            char_bytes = display_char.encode("utf-8")
+            char_byte = char_bytes[0] if char_bytes else graphic_byte
+        elif 0x20 <= graphic_byte <= 0x7E:
+            display_char = chr(graphic_byte)
+            char_byte = graphic_byte
+        else:
+            display_char = "?"
+            char_byte = graphic_byte
+
+        logger.debug(
+            f"GE: Inserting graphic 0x{graphic_byte:02x} -> '{display_char}' (byte: 0x{char_byte:02x})"
+        )
+        self._insert_data(char_byte)
         # No position advance beyond insert
 
     def _handle_ic(self) -> None:
@@ -1499,7 +1678,16 @@ class DataStreamParser:
             logger.warning("Incomplete SCS order")
 
     def _handle_write(self) -> None:
-        """Handle Write order."""
+        """Handle Write order - must consume WCC byte after WRITE command."""
+        # WRITE command is always followed by WCC byte
+        try:
+            wcc = self._read_byte()
+            self.wcc = wcc
+            logger.debug(f"Write command with WCC=0x{wcc:02x}")
+        except ParseError:
+            logger.warning("WRITE command without WCC byte")
+            wcc = 0
+
         self.screen.clear()
         self.screen.set_position(0, 0)
         logger.debug(
@@ -1562,10 +1750,8 @@ class DataStreamParser:
 
         # Validate current field position for extended addressing
         current_row, current_col = self.screen.get_position()
-        # Record field start position for robust field detection
-        pos = current_row * self.screen.cols + current_col
-        if hasattr(self.screen, "_field_starts"):
-            self.screen._field_starts.add(pos)
+        # NOTE: SFE does NOT write an attribute byte, so we should NOT mark position in _field_starts
+        # (which is used to hide attribute bytes in ascii_buffer())
         from ..emulation.addressing import AddressCalculator
 
         address = current_row * self.screen.cols + current_col
@@ -1579,11 +1765,6 @@ class DataStreamParser:
             # Handle as SF payload: no length byte, just attr-type/value pairs
             # (The SF length field already indicates the payload size)
             parser = BaseParser(sf_data)
-            # Record field start position for robust field detection
-            cur_row, cur_col = self.screen.get_position()
-            pos = cur_row * self.screen.cols + cur_col
-            if hasattr(self.screen, "_field_starts"):
-                self.screen._field_starts.add(pos)
             while parser.has_more():
                 if parser.remaining() < 2:
                     break
@@ -1608,6 +1789,7 @@ class DataStreamParser:
             return attrs
 
         # Original order handling: parse length, then fixed pairs
+        # NOTE: length is the NUMBER OF PAIRS, not total bytes (per x3270 ctlr.c)
         parser = self._ensure_parser()
         if not parser.has_more():
             return attrs
@@ -1615,7 +1797,7 @@ class DataStreamParser:
             length = self._read_byte()
         except ParseError:
             raise ParseError("Incomplete SFE order length")
-        num_pairs = length // 2
+        num_pairs = length  # length is already the pair count!
         for _ in range(num_pairs):
             if parser.remaining() < 2:
                 break

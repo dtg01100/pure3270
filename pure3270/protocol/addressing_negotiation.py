@@ -36,7 +36,7 @@ import logging
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple, cast
 
-from ..emulation.addressing import AddressingMode
+from ..emulation.addressing import AddressCalculator, AddressingMode
 from .exceptions import NegotiationError, ParseError
 from .tn3270e_header import TN3270EHeader
 
@@ -257,6 +257,70 @@ class AddressingModeNegotiator:
 
         allowed_transitions = valid_transitions.get(current_mode, [])
         return new_mode in allowed_transitions
+
+    def validate_addressing_mode_centralized(
+        self, address: int, mode: AddressingMode, context: str = "unknown"
+    ) -> bool:
+        """
+        Centralized addressing mode validation with comprehensive error handling.
+
+        This method provides a single point of validation for all addressing mode
+        checks throughout the system, ensuring consistent validation logic and
+        proper error reporting.
+
+        Args:
+            address: The address to validate (0-based linear position)
+            mode: The addressing mode to validate against
+            context: Context information for logging (e.g., "SBA", "SF", "RA")
+
+        Returns:
+            True if address is valid for the mode, False otherwise
+        """
+        try:
+            # Validate address against addressing mode limits
+            is_valid = AddressCalculator.validate_address(address, mode)
+
+            if not is_valid:
+                logger.warning(
+                    f"[ADDRESSING] Invalid address {address:04x} for {mode.value} mode in {context} context"
+                )
+
+                # Additional validation: check if address exceeds absolute limits
+                max_positions = AddressCalculator.get_max_positions(mode)
+                if address >= max_positions:
+                    logger.error(
+                        f"[ADDRESSING] Address {address:04x} exceeds absolute limit {max_positions:04x} for {mode.value} mode"
+                    )
+                    return False
+
+            return is_valid
+
+        except Exception as e:
+            logger.error(
+                f"[ADDRESSING] Error during centralized validation in {context}: {e}"
+            )
+            # Fail safe: reject on validation errors
+            return False
+
+    def get_addressing_mode_validation_summary(self) -> Dict[str, Any]:
+        """
+        Get a summary of addressing mode validation capabilities.
+
+        Returns:
+            Dictionary containing validation details
+        """
+        return {
+            "supported_modes": [mode.value for mode in AddressingMode],
+            "validation_enabled": True,
+            "centralized_validation_available": True,
+            "calculator_available": AddressCalculator is not None,
+            "max_positions_12_bit": AddressCalculator.get_max_positions(
+                AddressingMode.MODE_12_BIT
+            ),
+            "max_positions_14_bit": AddressCalculator.get_max_positions(
+                AddressingMode.MODE_14_BIT
+            ),
+        }
 
     def update_from_bind_image(self, bind_image_data: bytes) -> None:
         """
