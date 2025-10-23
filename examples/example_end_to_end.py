@@ -24,7 +24,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument("--host", default="localhost", help="Host to connect to")
 parser.add_argument("--port", type=int, default=23, help="Port to connect to")
 parser.add_argument("--user", default="guest", help="Username for login")
-parser.add_argument("--password", default="guest", help="Password for login")
+parser.add_argument("--password", help="Password for login (required)")
 parser.add_argument(
     "--ssl", action="store_true", default=False, help="Use SSL connection"
 )
