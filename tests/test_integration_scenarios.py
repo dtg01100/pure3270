@@ -62,7 +62,7 @@ class TestIntegrationScenarios:
         # Test a complete parsing workflow
         # SBA (Set Buffer Address) to position (5, 10), then write text
         sba_cmd = bytes(
-            [0x28, 0x00, 0x0A]
+            [0x11, 0x00, 0x0A]
         )  # SBA to position (0, 10) - 12-bit addressing
         text = b"HELLO WORLD"
         full_data = sba_cmd + text
@@ -110,7 +110,7 @@ class TestIntegrationScenarios:
         assert tn3270e_supported
 
         # Simulate data parsing phase
-        test_data = b"\x28\x00\x00" + b"WELCOME TO TN3270"  # SBA to (0,0) + text
+        test_data = b"\x11\x00\x00" + b"WELCOME TO TN3270"  # SBA to (0,0) + text
         parser.parse(test_data)
 
         # Verify the complete workflow worked

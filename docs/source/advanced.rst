@@ -6,7 +6,49 @@ Macro scripting/DSL has been removed and is not supported. It will not be reintr
 Printer Sessions
 ----------------
 
-For printer LU support:
+Pure3270 provides high-level printer session support for TN3270E printer LU operations:
+
+**Synchronous Printer Sessions:**
+
+.. code-block:: python
+
+    from pure3270 import PrinterSession
+
+    with PrinterSession(host="printer-host.example.com", port=23) as session:
+        # Wait for print jobs
+        import time
+        time.sleep(5)
+
+        # Get printed output
+        output = session.get_printer_output()
+        print("Printer output:", output)
+
+        # Check printer status
+        status = session.get_printer_status()
+        print(f"Status: 0x{status:02x}")
+
+**Asynchronous Printer Sessions:**
+
+.. code-block:: python
+
+    import asyncio
+    from pure3270 import AsyncPrinterSession
+
+    async def monitor_printer():
+        async with AsyncPrinterSession(host="printer-host.example.com") as session:
+            while True:
+                await asyncio.sleep(5)
+                output = await session.get_printer_output()
+                if output:
+                    print("New print job received:", output)
+                    break
+
+    asyncio.run(monitor_printer())
+
+**Low-level Printer Support:**
+
+For advanced use cases, you can still access the underlying printer buffer:
+
 .. code-block:: python
 
     session = Session()

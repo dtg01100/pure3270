@@ -42,7 +42,7 @@ class TestDataStreamParser:
         assert data_stream_parser.aid == 0x7D
 
     def test_parse_sba(self, data_stream_parser, memory_limit_500mb):
-        sample_data = b"\x10\x00\x00"  # SBA to 0,0
+        sample_data = b"\x11\x00\x00"  # SBA to 0,0
         with patch.object(data_stream_parser.screen, "set_position"):
             data_stream_parser.parse(sample_data)
             data_stream_parser.screen.set_position.assert_called_with(0, 0)
@@ -120,7 +120,7 @@ class TestDataStreamSender:
         # Note: sender has no screen, but assume default
         with patch("pure3270.protocol.data_stream.ScreenBuffer", rows=24, cols=80):
             stream = data_stream_sender.build_sba(0, 0)
-            assert stream == b"\x10\x00\x00"
+            assert stream == b"\x11\x00\x00"
 
 
 @pytest.mark.skipif(
@@ -455,7 +455,8 @@ def sample_wcc_stream(memory_limit_500mb):
 
 @pytest.fixture
 def sample_sba_stream(memory_limit_500mb):
-    return b"\x10\x00\x14"  # SBA to row 0 col 20
+    sample_sba_stream = b"\x11\x00\x14"
+    return sample_sba_stream
 
 
 @pytest.fixture

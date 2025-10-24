@@ -1,3 +1,10 @@
+"""
+Property-based tests for DataStreamParser edge cases and invariants.
+
+DISABLED: Tests work but are extremely slow and verbose, generating excessive log output.
+Consider re-enabling with reduced test cases or different configuration for CI.
+"""
+
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st

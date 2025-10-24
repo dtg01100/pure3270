@@ -3,10 +3,15 @@ import logging
 import os
 import platform
 import resource
+import sys
 from contextlib import contextmanager
 from logging import NullHandler
 from unittest.mock import AsyncMock, MagicMock
 from unittest.mock import patch as _patch
+
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "mcp-servers"))
+)
 
 import pytest
 import pytest_asyncio
@@ -148,7 +153,7 @@ def screen_buffer():
 
 
 def pytest_configure(config):
-    config.option.log_cli_level = "INFO"
+    config.option.log_cli_level = "DEBUG"
 
 
 @pytest.fixture

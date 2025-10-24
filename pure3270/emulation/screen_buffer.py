@@ -447,13 +447,12 @@ class ScreenBuffer(BufferWriter):
             # this behavior). When explicit_position is True we emulate
             # terminal typing and move the cursor forward with wrapping.
             if explicit_position:
-                next_col = col + 1
-                next_row = row
-                if next_col >= self.cols:
-                    next_col = 0
-                    next_row = min(self.rows - 1, row + 1)
-                self.set_position(next_row, next_col)
-
+                self.cursor_col += 1
+                if self.cursor_col >= self.cols:
+                    self.cursor_col = 0
+                    self.cursor_row += 1
+                    if self.cursor_row >= self.rows:
+                        self.cursor_row = 0
             # Update field content and mark as modified if this position belongs to a field
             modified_field_found = self._update_field_content(
                 int(row), int(col), ebcdic_byte
@@ -836,41 +835,24 @@ class ScreenBuffer(BufferWriter):
         # Find the next input field after the current cursor position
         for field in sorted_fields:
             field_start_linear = field.start[0] * self.cols + field.start[1]
-            if field_start_linear > current_pos_linear:
+            if not field.protected and field_start_linear > current_pos_linear:
                 next_input_field = field
                 break
 
-            if next_input_field:
-                self.cursor_row, self.cursor_col = next_input_field.start
-                # Move past the attribute byte to the data start
-                self.cursor_col += 1
-                if self.cursor_col >= self.cols:
-                    self.cursor_col = 0
-                    self.cursor_row += 1
-                logger.debug(
-                    f"Cursor moved to next input field at {self.cursor_row},{self.cursor_col}"
-                )
-        else:
-            # If no next input field is found, wrap around to the first input field
+        # If no next input field is found, wrap around to the first input field
+        if not next_input_field:
             for field in sorted_fields:
                 if not field.protected:
                     next_input_field = field
                     break
 
-            if next_input_field:
-                self.cursor_row, self.cursor_col = next_input_field.start
-                # Move past the attribute byte to the data start
-                self.cursor_col += 1
-                if self.cursor_col >= self.cols:
-                    self.cursor_col = 0
-                    self.cursor_row += 1
-                logger.debug(
-                    f"Cursor wrapped around to first input field at {self.cursor_row},{self.cursor_col}"
-                )
-            else:
-                logger.debug(
-                    "No input fields found for PT order, or no next field after wrap-around."
-                )
+        if next_input_field:
+            self.cursor_row, self.cursor_col = next_input_field.start
+            logger.debug(
+                f"Cursor moved to next input field at {self.cursor_row},{self.cursor_col}"
+            )
+        else:
+            logger.debug("No input fields found for PT order.")
 
     def set_attribute(
         self, attr: int, row: Optional[int] = None, col: Optional[int] = None

@@ -481,7 +481,9 @@ async def create_server() -> Server:
                     result = await func(arg)
             else:
                 result = await func(arg)
-        return [result] if result is not None else []
+        # The implementation returns TextContent objects directly
+        # call_tool expects an iterable of content blocks
+        return [result]
 
     return server
 

@@ -643,10 +643,8 @@ async def create_server() -> Server:
                     # Single scalar argument -> pass as single param
                     result = await func(arg)
 
-        # If result has content attribute (legacy Result), return its content; otherwise return the TextContent directly
-        if hasattr(result, "content") and result.content is not None:
-            return [result.content]
-
+        # The implementation returns TextContent objects directly
+        # call_tool expects an iterable of content blocks
         return [result]
 
     return server

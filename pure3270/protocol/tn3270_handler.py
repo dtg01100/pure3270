@@ -927,8 +927,9 @@ class TN3270Handler:
         current_time = time.time()
         self._state_history.append((new_state, current_time, reason))
         # Update transition count
-        if new_state in self._state_transition_count:
-            self._state_transition_count[new_state] += 1
+        self._state_transition_count[new_state] = (
+            self._state_transition_count.get(new_state, 0) + 1
+        )
         # Maintain history size limit
         if len(self._state_history) > self._max_state_history:
             self._state_history.pop(0)
@@ -2135,7 +2136,6 @@ class TN3270Handler:
             asyncio.StreamWriter, self.writer
         )
 
-    @handle_drain
     async def send_data(self, data: bytes) -> None:
         """
         Send data over the connection.
@@ -2175,6 +2175,7 @@ class TN3270Handler:
         async def _perform_send() -> None:
             await _call_maybe_await(writer.write, data_to_send)
             await _call_maybe_await(writer.drain)
+            logger.debug("[SEND] writer.drain() called in send_data")
 
         await _perform_send()
 

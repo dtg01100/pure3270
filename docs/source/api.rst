@@ -81,13 +81,25 @@ SSL Wrapper
    :undoc-members:
    :show-inheritance:
 
-Printer
-~~~~~~~
+Printer Sessions
+~~~~~~~~~~~~~~~~
+
+High-level printer session classes for TN3270E printer LU support.
+
+.. automodule:: pure3270.session
+    :members: PrinterSession, AsyncPrinterSession
+    :undoc-members:
+    :show-inheritance:
+
+Printer Protocol
+~~~~~~~~~~~~~~~~
+
+Low-level printer protocol implementation.
 
 .. automodule:: pure3270.protocol.printer
-   :members:
-   :undoc-members:
-   :show-inheritance:
+    :members:
+    :undoc-members:
+    :show-inheritance:
 
 TN3270E Header
 ~~~~~~~~~~~~~~

@@ -4,7 +4,7 @@
 [![Python Versions](https://img.shields.io/pypi/pyversions/pure3270?logo=python&logoColor=white&color=blue)](https://pypi.org/project/pure3270/)
 [![License](https://img.shields.io/github/license/dtg01100/pure3270?logo=github&color=green)](https://github.com/dtg01100/pure3270/blob/main/LICENSE)
 [![CI](https://github.com/dtg01100/pure3270/actions/workflows/ci.yml/badge.svg)](https://github.com/dtg01100/pure3270/actions/workflows/ci.yml)
-[![Coverage](https://img.shields.io/badge/coverage-66%25-yellow?logo=github&color=%232c3e50)](https://github.com/dtg01100/pure3270)
+[![Coverage](https://img.shields.io/badge/coverage-44%25-yellow?logo=github&color=%232c3e50)](https://github.com/dtg01100/pure3270)
 [![Static Analysis](https://github.com/dtg01100/pure3270/actions/workflows/static-analysis.yml/badge.svg)](https://github.com/dtg01100/pure3270/actions/workflows/static-analysis.yml)
 
 Pure3270 is a self-contained, pure Python 3.10+ implementation of a 3270 terminal emulator, designed to provide a native drop-in replacement for `p3270.P3270Client`. It uses standard asyncio for networking with no external dependencies and supports TN3270 and TN3270E protocols, full 3270 emulation (screen buffer, fields, keyboard simulation), and optional SSL/TLS.
@@ -48,7 +48,7 @@ This release marks a significant milestone with the completion of all high and m
 - **Complete s3270 Compatibility**: Implementation of all missing s3270 actions including Compose(), Cookie(), Expect(), and Fail()
 - **Full AID Support**: Complete support for all PA (1-3) and PF (1-24) keys
 - **Async Refactor**: Complete async refactor with `AsyncSession` supporting connect and managed context
-- **Protocol Enhancements**: Complete TN3270E protocol support with printer session capabilities
+- **Protocol Enhancements**: Complete TN3270E protocol support with high-level printer session API
 - **Enhanced Field Handling**: Improved field attribute handling and modification tracking for RMF/RMA commands
 
 Important: Macro scripting/DSL has been removed and will not be reintroduced. Pull requests adding macro DSL will be declined.
@@ -177,6 +177,48 @@ pre-commit run --all-files
 ```
 
 For more information about pre-commit hooks, see [PRE_COMMIT_HOOKS.md](PRE_COMMIT_HOOKS.md).
+
+## MCP Servers
+
+Pure3270 includes four specialized [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) servers that provide AI assistants with domain-specific tools for TN3270 development and debugging:
+
+- **TN3270 Protocol Analyzer**: Analyzes TN3270/TN3270E protocol flows, telnet negotiations, and data streams
+- **EBCDIC/ASCII Converter**: Converts between EBCDIC and ASCII character encodings
+- **Terminal Debugger**: Debugs 3270 terminal emulation, screen buffers, and field analysis
+- **Connection Tester**: Tests TN3270 connectivity, SSL/TLS, and network performance
+
+### Setting Up MCP Servers
+
+1. **Install MCP SDK** (if not already installed):
+   ```bash
+   pip install mcp
+   ```
+
+2. **Launch all servers** for development/testing:
+   ```bash
+   python launch_mcp_servers.py
+   ```
+
+3. **Configure your MCP client** using the provided `mcp-config.json`:
+   ```json
+   {
+     "mcpServers": {
+       "tn3270-protocol-analyzer": {
+         "command": "python",
+         "args": ["mcp-servers/tn3270-protocol-analyzer/server.py"],
+         "env": {"PYTHONPATH": "."}
+       }
+       // ... other servers
+     }
+   }
+   ```
+
+4. **Test server functionality**:
+   ```bash
+   python test_mcp_server_launch.py
+   ```
+
+The MCP servers provide 22 specialized tools for protocol analysis, character encoding, terminal debugging, and connection testing. They are designed to enhance AI-assisted development workflows for TN3270 applications.
 
 ## Documentation
 
@@ -657,7 +699,7 @@ For full details, refer to the source code or inline docstrings.
 
 ## Testing
 
-Pure3270 includes comprehensive tests in the `tests/` directory, enhanced with edge cases for async operations, protocol handling, and patching.
+Pure3270 includes comprehensive tests in the `tests/` directory, enhanced with edge cases for async operations and protocol handling.
 
 ### Running Tests
 
@@ -797,12 +839,9 @@ Pure3270 replaces the binary `s3270` dependency in `p3270` setups, eliminating t
 
 ### Key Changes
 
-- **Binary Replacement via Patching**: Call `pure3270.enable_replacement()` before importing `p3270`. This monkey-patches `p3270.P3270Client` to delegate to pure3270's `Session`, handling connections, sends, and reads internally using standard asyncio instead of spawning `s3270` processes.
-- **Zero-Config Opt-In**: No changes to your `p3270` code required. The patching is global by default but reversible.
-- **Handling Mismatches**:
-  - If `p3270` version doesn't match (e.g., !=0.1.6, as checked in patches), logs a warning and skips patches gracefully (no error unless `strict_version=True`).
-  - If `p3270` is not installed, patching simulates with mocks and logs a warning; use standalone `pure3270.Session` instead.
-  - Protocol differences: Pure3270 uses pure Python telnet/SSL, so ensure hosts support TN3270/TN3270E (RFC 1576/2355). SSL uses Python's `ssl` module.
+- **Native P3270Client**: Pure3270 provides a native `P3270Client` class that is a direct drop-in replacement for `p3270.P3270Client`.
+- **No External Dependencies**: Pure Python implementation using standard asyncio instead of spawning `s3270` processes.
+- **Protocol Compatibility**: Pure3270 uses pure Python telnet/SSL, so ensure hosts support TN3270/TN3270E (RFC 1576/2355). SSL uses Python's `ssl` module.
 
 ### Before / After
 
@@ -812,23 +851,22 @@ Pure3270 replaces the binary `s3270` dependency in `p3270` setups, eliminating t
 
 **After (with pure3270)**:
 - Install pure3270 as above.
-- `import pure3270; pure3270.enable_replacement(); import p3270; session = p3270.P3270Client(); session.connect(...)` (uses pure Python emulation).
+- `from pure3270 import P3270Client; session = P3270Client(); session.connect(...)` (uses pure Python emulation).
 
-Test migration by checking logs for "Patched Session ..." messages. For standalone scripts, switch to `from pure3270 import Session`.
+For standalone scripts, you can also use `from pure3270 import Session` or `AsyncSession`.
 
 ## Examples
 
 See the [`examples/`](examples/) directory for practical scripts:
-- [`example_patching.py`](examples/example_patching.py): Demonstrates applying patches and verifying redirection.
-- [`example_end_to_end.py`](examples/example_end_to_end.py): Full p3270 usage after patching (with mock host).
+- [`example_end_to_end.py`](examples/example_end_to_end.py): Full P3270Client usage (with mock host).
 - [`example_standalone.py`](examples/example_standalone.py): Direct pure3270 usage without p3270.
 
-Run them in your activated venv: `python examples/example_patching.py`. Replace mock hosts with real TN3270 servers (e.g., IBM z/OS systems) for production.
+Run them in your activated venv: `python examples/example_end_to_end.py`. Replace mock hosts with real TN3270 servers (e.g., IBM z/OS systems) for production.
 
 ## Troubleshooting
 
 - **Venv Activation Issues**: Ensure the venv is activated (prompt shows `(.venv)`). On Windows, use `Scripts\activate.bat`. If `pip` installs globally, recreate the venv.
-- **Patching Fails**: Check logs for version mismatches (e.g., `p3270` !=0.1.6). Set `strict_version=True` to raise errors. If `p3270` absent, use standalone mode.
+
 - **Connection/Protocol Errors**: Verify host/port (default 23/992 for SSL). Enable DEBUG logging: `pure3270.setup_logging('DEBUG')`. Common: Host doesn't support TN3270; test with tools like `tn3270` client.
 - **Screen Read Issues**: Ensure `read()` is called after `send()`. For empty screens, check if BIND negotiation succeeded (logs show).
 - **Async/Sync Mix**: Use `Session` for sync code; `AsyncSession` for async. Don't mix in the same script without `asyncio.run()`.

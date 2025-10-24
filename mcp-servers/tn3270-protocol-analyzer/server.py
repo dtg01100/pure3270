@@ -610,14 +610,9 @@ async def create_server() -> Server:
         else:
             result = await func(arg)
 
-        # If the implementation returned a Result with content, return that content block(s)
-        if hasattr(result, "content") and result.content is not None:
-            # call_tool expects an iterable of content blocks or structured content.
-            # Return the content block directly as a single-element list.
-            return [result.content]
-
-        # Fallback: empty result
-        return []
+        # The implementation returns TextContent objects directly
+        # call_tool expects an iterable of content blocks
+        return [result]
 
     return server
 

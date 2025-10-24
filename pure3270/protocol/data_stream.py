@@ -88,6 +88,7 @@ from .utils import (
     SSCP_LU_DATA,
     TN3270_DATA,
     TN3270E_DATA_TYPES,
+    TN3270E_REQ_ERR_COND_CLEARED,
     TN3270E_SCS_CTL_CODES,
     BaseParser,
     ParseError,
@@ -96,6 +97,7 @@ from .utils import (
 if TYPE_CHECKING:
     from ..emulation.printer_buffer import PrinterBuffer
     from ..emulation.screen_buffer import ScreenBuffer
+    from .addressing_negotiation import AddressingModeNegotiator
     from .negotiator import Negotiator
 
 logger = logging.getLogger(__name__)
@@ -137,12 +139,15 @@ PT = 0x0E  # Program Tab
 BIND = 0xF9  # Placeholder for BIND command, not officially part of 3270 orders but used in context
 # Printer Status related orders/commands (research needed for exact values)
 # These are placeholders and need to be verified against 3270 printer protocol specs.
-WRITE_STRUCTURED_FIELD_PRINTER = 0x12  # Changed from 0x11 to avoid conflict with SBA
+EUA = 0x12  # Erase Unprotected to Address - RFC 1576
+WRITE_STRUCTURED_FIELD_PRINTER = 0x13  # Changed to avoid conflict with EUA
 PRINTER_STATUS_SF = 0x01  # Example: Structured Field type for printer status
 SOH = 0x01  # Start of Header (SCS command for printer status) - often 0x01 in SCS
-# Other potential status indicators
-DEVICE_END = 0x00  # Placeholder for device end status
-INTERVENTION_REQUIRED = 0x01  # Placeholder for intervention required status
+# Printer status codes (IBM 3270 printer protocol)
+DEVICE_END = 0x00  # Device end - normal completion
+INTERVENTION_REQUIRED = 0x01  # Intervention required - operator action needed
+DATA_CHECK = 0x02  # Data check - data error detected
+OPERATION_CHECK = 0x04  # Operation check - hardware error
 LIGHT_PEN_AID = 0x7D  # Light pen AID
 
 # Structured Field Types (RFC 2355, RFC 1576, and additional types)
@@ -688,6 +693,7 @@ class DataStreamParser:
         self._screen_buffer: ScreenBuffer = screen_buffer
         self.printer: Optional[PrinterBuffer] = printer_buffer
         self.negotiator: Optional["Negotiator"] = negotiator
+        self._addressing_negotiator: Optional[AddressingModeNegotiator] = None
         self.addressing_mode = addressing_mode
         # Core parsing state (BaseParser defined in utils)
         self.parser: Optional[BaseParser] = None
@@ -859,6 +865,7 @@ class DataStreamParser:
             SF: self._handle_sf,
             RA: self._handle_ra,  # Now correctly mapped to 0x3C (was incorrectly 0xF3, conflicted with STRUCTURED_FIELD)
             RMF: self._handle_rmf,
+            EUA: self._handle_eua,
             GE: self._handle_ge,
             IC: self._handle_ic,
             PT: self._handle_pt,
@@ -871,6 +878,7 @@ class DataStreamParser:
             # Be tolerant: some fixtures use 0x28 with two 6-bit address bytes
             # (legacy SBA encoding). Detect this and handle as SBA fallback.
             SFE: cast(Callable[..., None], lambda: self._handle_sfe_or_sba_fallback()),
+            0x28: cast(Callable[..., None], lambda: self._handle_sfe_or_sba_fallback()),
             # STRUCTURED_FIELD removed - it conflicts with RA (both were 0x3C)
             # Structured fields only appear in WSF command contexts, not as orders in WRITE data streams
             BIND: self._handle_bind,
@@ -924,10 +932,7 @@ class DataStreamParser:
         Raises:
             ParseError: For parsing errors.
         """
-        logger.debug(f"Parsing data of type {data_type:02x}: {data.hex()[:64]}...")
-        logger.debug(
-            f"Screen buffer before parse: {self.screen.buffer[:32].hex()} (first 32 bytes)"
-        )
+        # Removed verbose debug logging of data streams and screen buffer contents
         # Enhanced buffer size validation
         if len(data) > self._max_buffer_size:
             logger.warning(
@@ -944,13 +949,7 @@ class DataStreamParser:
             )
             # Continue parsing but log the issue
 
-        logger.debug(f"Parsing data of type {data_type:02x}: {data.hex()[:50]}...")
-
-        # Debug: log initial buffer state (only if DEBUG level enabled)
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(
-                f"Screen buffer before parse: {self.screen.buffer[:32].hex()} (first 32 bytes)"
-            )
+        # Removed verbose debug logging of data streams
 
         if data_type == NVT_DATA:
             logger.info("Received NVT_DATA - processing as ASCII/VT100 text")
@@ -1028,6 +1027,7 @@ class DataStreamParser:
             return
         elif data_type == REQUEST:
             logger.info(f"Received REQUEST data type: {data.hex()}.")
+            self._handle_request(data)
             return
         elif data_type not in TN3270E_DATA_TYPES:
             logger.warning(
@@ -1063,9 +1063,6 @@ class DataStreamParser:
                 pos_before = self._pos
                 try:
                     order = parser.read_byte()
-                    logger.debug(
-                        f"Read order byte: 0x{order:02x} at position {pos_before}"
-                    )
                 except ParseError:
                     stream_trace = self._data[
                         max(0, pos_before - 5) : self._pos + 5
@@ -1075,7 +1072,6 @@ class DataStreamParser:
                     )
 
                 if order in self._order_handlers:
-                    logger.debug(f"Calling handler for order 0x{order:02x}")
                     try:
                         if order == WCC:
                             try:
@@ -1135,18 +1131,6 @@ class DataStreamParser:
                         self._pos = parser._pos
 
             logger.debug("Data stream parsing completed successfully")
-            # Debug: log buffer state after parse (only if DEBUG level enabled)
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(
-                    f"Screen buffer after parse: {self.screen.buffer[:32].hex()} (first 32 bytes)"
-                )
-                logger.debug(
-                    f"Screen buffer after parse: {self.screen.buffer[-32:].hex()} (last 32 bytes)"
-                )
-                logger.debug(f"Screen buffer total length: {len(self.screen.buffer)}")
-                logger.debug(
-                    f"Count of 0x40 bytes in buffer: {sum(1 for b in self.screen.buffer if b == 0x40)}"
-                )
         except ParseError as e:
             # Check if this is a critical parse error that should propagate
             error_msg = str(e)
@@ -1241,6 +1225,34 @@ class DataStreamParser:
                 self.screen.end_bulk_update()
             except Exception:
                 pass
+
+    def _handle_request(self, data: bytes) -> None:
+        """Handle REQUEST data type messages (RFC 2355 Section 10.4.1)."""
+        if len(data) < 1:
+            logger.warning("REQUEST data too short")
+            return
+
+        # Parse request flags
+        request_flags = data[0]
+
+        if request_flags & TN3270E_REQ_ERR_COND_CLEARED:
+            logger.info("REQUEST: Error condition cleared flag set")
+            # Handle error condition cleared for printer operations
+            if self.printer:
+                try:
+                    # Clear any error conditions on the printer by resetting status to success
+                    self.printer.update_status(
+                        0x00
+                    )  # 0x00 = DEVICE_END (normal completion)
+                    logger.debug(
+                        "Cleared printer error condition (reset status to 0x00)"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to clear printer error condition: {e}")
+        else:
+            logger.debug(
+                f"REQUEST with flags 0x{request_flags:02x} - no specific handling implemented"
+            )
 
     def _ensure_parser(self) -> BaseParser:
         """Ensure `self.parser` exists; create from `self._data`/_pos if needed."""
@@ -1550,6 +1562,108 @@ class DataStreamParser:
         self.screen.set_position(current_row, current_col)
         # TODO: Mark current field as modified in screen_buffer
 
+    def _handle_eua(self) -> None:
+        """Handle Erase Unprotected to Address (EUA) with proper 3270 address decoding."""
+        self._validate_screen_buffer("EUA")
+        if not self._validate_min_data("EUA", 2):
+            return
+
+        # Save current position before EUA
+        current_row, current_col = self.screen.get_position()
+
+        # EUA format per IBM 3270 spec: ORDER_EUA | buffer_address_high | buffer_address_low
+        # Read and decode address using the same logic as SBA
+        if self.addressing_mode == AddressingMode.MODE_14_BIT:
+            # 14-bit addressing: 2 bytes (big-endian)
+            addr_high = self._read_byte()
+            addr_low = self._read_byte()
+            address = (addr_high << 8) | addr_low
+        else:
+            # 12-bit addressing uses the lower 6 bits of each of the two bytes.
+            addr_high = self._read_byte()
+            addr_low = self._read_byte()
+            address = ((addr_high & 0x3F) << 6) | (addr_low & 0x3F)
+
+        # Validate address against addressing mode
+        from ..emulation.addressing import AddressCalculator
+
+        if not AddressCalculator.validate_address(address, self.addressing_mode):
+            logger.warning(
+                f"Invalid EUA address {address:04x} for {self.addressing_mode.value} mode"
+            )
+            # Continue with clamped address for backward compatibility
+            max_addr = AddressCalculator.get_max_positions(self.addressing_mode) - 1
+            address = min(address, max_addr)
+
+        # Convert address to coordinates
+        cols = self.screen.cols if self.screen else 80
+        coords = AddressCalculator.address_to_coords(
+            address, cols, self.addressing_mode
+        )
+        if coords is None:
+            logger.warning(
+                f"Failed to convert EUA target address {address:04x} to coordinates"
+            )
+            return
+
+        target_row, target_col = coords
+
+        # Clamp target position to screen bounds
+        max_row = self.screen.rows - 1
+        max_col = self.screen.cols - 1
+        if target_row > max_row or target_col > max_col:
+            logger.debug(
+                f"EUA target position ({target_row}, {target_col}) exceeds screen bounds, clamping to ({max_row}, {max_col})"
+            )
+            target_row = min(target_row, max_row)
+            target_col = min(target_col, max_col)
+
+        logger.debug(
+            f"EUA: Erase unprotected from ({current_row}, {current_col}) to ({target_row}, {target_col})"
+        )
+
+        # Erase unprotected characters from current position to target position
+        # EUA erases all unprotected characters in the specified range
+        current_pos = current_row * self.screen.cols + current_col
+        target_pos = target_row * self.screen.cols + target_col
+        screen_size = self.screen.rows * self.screen.cols
+
+        # Handle wraparound case: if target < current, we wrap around the screen
+        if target_pos >= current_pos:
+            # Normal case: target is after current
+            count = target_pos - current_pos
+        else:
+            # Wraparound case: target is before current, so we go to end of screen and wrap to target
+            count = (screen_size - current_pos) + target_pos
+            logger.debug(
+                f"EUA wraparound: current={current_pos}, target={target_pos}, count={count}"
+            )
+
+        logger.debug(
+            f"EUA: Erasing {count} unprotected positions from pos {current_pos} to {target_pos}"
+        )
+
+        # Erase unprotected positions by writing EBCDIC space (0x40) to unprotected fields
+        for _ in range(count):
+            # Check if current position is in an unprotected field
+            field = self.screen.get_field_at_position(current_row, current_col)
+            if field is None or not field.protected:
+                # Position is unprotected, erase it
+                self.screen.write_char(
+                    0x40, current_row, current_col, circumvent_protection=True
+                )
+
+            # Advance position
+            current_col += 1
+            if current_col >= self.screen.cols:
+                current_col = 0
+                current_row += 1
+                if current_row >= self.screen.rows:
+                    current_row = 0
+
+        # Position cursor at the target address (not after)
+        self.screen.set_position(target_row, target_col)
+
     def _handle_ge(self) -> None:
         """Handle Graphic Escape (GE)."""
         if not self._validate_min_data("GE", 1):
@@ -1678,16 +1792,7 @@ class DataStreamParser:
             logger.warning("Incomplete SCS order")
 
     def _handle_write(self) -> None:
-        """Handle Write order - must consume WCC byte after WRITE command."""
-        # WRITE command is always followed by WCC byte
-        try:
-            wcc = self._read_byte()
-            self.wcc = wcc
-            logger.debug(f"Write command with WCC=0x{wcc:02x}")
-        except ParseError:
-            logger.warning("WRITE command without WCC byte")
-            wcc = 0
-
+        """Handle Write order."""
         self.screen.clear()
         self.screen.set_position(0, 0)
         logger.debug(
@@ -1708,6 +1813,7 @@ class DataStreamParser:
         if self.screen:
             current_row, current_col = self.screen.get_position()
             self.screen.write_char(byte_value, current_row, current_col)
+
             # Advance cursor
             if current_col + 1 >= self.screen.cols:
                 if current_row + 1 < self.screen.rows:
@@ -1989,24 +2095,13 @@ class DataStreamParser:
 
         # Handle the structured field using the appropriate handler
         try:
-            if sf_type == BIND_SF_TYPE:
-                # Important: resolve via attribute to respect test monkey-patching
-                handler = getattr(self, "_handle_bind_sf", None)
-                if callable(handler):
-                    handler(sf_data)
-                else:
-                    logger.error("_handle_bind_sf handler not available")
-                return
-
             if sf_type in self.sf_handlers:
-                from typing import Callable, cast
-
-                cast(Callable[[bytes], Any], self.sf_handlers[sf_type])(sf_data)
+                handler = self.sf_handlers[sf_type]
+                handler(sf_data)  # type: ignore[operator]
             else:
-                self._handle_unknown_structured_field(sf_type, sf_data)
+                logger.debug(f"Skipping unknown structured field type 0x{sf_type:02x}")
         except Exception as e:
             logger.error(f"Error handling structured field type 0x{sf_type:02x}: {e}")
-            # Continue processing other fields
 
     def _handle_unknown_structured_field(self, sf_type: int, data: bytes) -> None:
         """Handle unknown structured field with logging."""
@@ -2686,7 +2781,7 @@ class DataStreamSender:
     """Data stream sender for building 3270 protocol data streams."""
 
     _lock: "threading.Lock"
-    sf_handlers: Dict[int, Callable[..., Any]]
+    sf_handlers: Dict[int, Callable[[bytes], None]]
     sf_validator: Optional["StructuredFieldValidator"]
 
     def __init__(self) -> None:

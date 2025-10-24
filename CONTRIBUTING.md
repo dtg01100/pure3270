@@ -59,6 +59,42 @@ python -m pytest tests/test_attribution_validation.py -v
 
 See `tools/ATTRIBUTION_GUIDE.md` for comprehensive documentation.
 
+### Offline Validation
+
+Pure3270 includes comprehensive offline validation tools that test functionality without requiring network access:
+
+#### Quick Validation
+```bash
+# Run all offline validation tests
+python tools/run_offline_validation.py
+
+# Run individual validation components
+python tools/synthetic_data_generator.py generate test_data 10  # Generate test data
+python tools/synthetic_data_generator.py test test_data/synthetic_test_cases.json  # Test parsing
+python tools/screen_buffer_regression_test.py generate test_output 5  # Generate screen tests
+python tools/screen_buffer_regression_test.py run test_output  # Run screen tests
+python tools/performance_benchmark.py  # Run performance benchmarks
+```
+
+#### Validation Components
+
+- **Terminal Models**: Tests all 13 IBM 3270 terminal models (3278-2/3/4/5, 3279-2/3/4/5, etc.)
+- **Protocol State Machine**: Validates TN3270 handler state transitions and history tracking
+- **Synthetic Data Streams**: Generates and tests valid TN3270 data streams with various orders
+- **Screen Buffer Operations**: Regression testing for screen buffer write/read operations
+- **Trace Replay**: Validates protocol handling against s3270 trace files
+- **Performance Benchmarks**: Measures performance of core operations
+
+#### Integration Tests
+
+Run integration tests that combine multiple validation approaches:
+
+```bash
+python -m pytest tests/test_integration_validation.py -v
+```
+
+These tests ensure all validation tools work together and provide comprehensive coverage.
+
 ## Code style
 
 - Python 3.10+

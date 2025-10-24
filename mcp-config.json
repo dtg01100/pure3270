@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "tn3270-protocol-analyzer": {
+      "command": "python",
+      "args": ["mcp-servers/tn3270-protocol-analyzer/server.py"],
+      "env": {
+        "PYTHONPATH": "."
+      }
+    },
+    "ebcdic-ascii-converter": {
+      "command": "python",
+      "args": ["mcp-servers/ebcdic-ascii-converter/server.py"],
+      "env": {
+        "PYTHONPATH": "."
+      }
+    },
+    "terminal-debugger": {
+      "command": "python",
+      "args": ["mcp-servers/terminal-debugger/server.py"],
+      "env": {
+        "PYTHONPATH": "."
+      }
+    },
+    "connection-tester": {
+      "command": "python",
+      "args": ["mcp-servers/connection-tester/server.py"],
+      "env": {
+        "PYTHONPATH": "."
+      }
+    }
+  }
+}

@@ -11,7 +11,7 @@ import os
 import sys
 
 from .p3270_client import P3270Client
-from .session import AsyncSession, Session
+from .session import AsyncPrinterSession, AsyncSession, PrinterSession, Session
 
 
 class JSONFormatter(logging.Formatter):
@@ -102,6 +102,8 @@ if __name__ == "__main__":
 __all__ = [
     "Session",
     "AsyncSession",
+    "PrinterSession",
+    "AsyncPrinterSession",
     "P3270Client",
     "setup_logging",
 ]

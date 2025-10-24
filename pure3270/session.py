@@ -66,6 +66,7 @@ from .emulation.ebcdic import EBCDICCodec
 from .emulation.screen_buffer import ScreenBuffer
 from .protocol.data_stream import DataStreamParser
 from .protocol.exceptions import NegotiationError
+from .protocol.tcpip_printer_session import TCPIPPrinterSession
 from .protocol.tn3270_handler import TN3270Handler
 
 logger = logging.getLogger(__name__)
@@ -1235,7 +1236,7 @@ class AsyncSession:
                 eb,
                 row=row,
                 col=col,
-                circumvent_protection=True,
+                circumvent_protection=self.circumvent_protection,
             )
             # advance cursor
             col += 1
@@ -1925,3 +1926,215 @@ class AsyncSession:
         aid_data = bytes([aid])
         await self._handler.send_data(aid_data)
         logger.debug(f"Submitted AID: 0x{aid:02x}")
+
+
+class PrinterSession:
+    """
+    High-level synchronous printer session for TN3270E printer LU support.
+
+    Provides a simple interface for printer operations, following the same
+    pattern as the regular Session class but optimized for SCS data handling.
+    """
+
+    def __init__(
+        self,
+        host: Optional[str] = None,
+        port: int = 23,
+        ssl_context: Optional[Any] = None,
+        timeout: float = 30.0,
+    ) -> None:
+        """
+        Initialize a printer session.
+
+        Args:
+            host: Printer host to connect to
+            port: Port number (default 23)
+            ssl_context: SSL context for secure connections
+            timeout: Connection timeout in seconds
+        """
+        self._host = host
+        self._port = port
+        self._ssl_context = ssl_context
+        self._timeout = timeout
+        self._printer_session: Optional[TCPIPPrinterSession] = None
+
+    def connect(
+        self,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        ssl_context: Optional[Any] = None,
+    ) -> None:
+        """Connect to the printer host synchronously."""
+        if host:
+            self._host = host
+        if port:
+            self._port = port
+        if ssl_context:
+            self._ssl_context = ssl_context
+
+        if not self._host:
+            raise ValueError("Host must be specified")
+
+        # Create and connect printer session
+        self._printer_session = TCPIPPrinterSession(
+            host=self._host,
+            port=self._port,
+            ssl_context=self._ssl_context,
+            timeout=self._timeout,
+        )
+
+        # Run async connect in event loop
+        asyncio.run(self._printer_session.connect())
+
+    def get_printer_output(self) -> str:
+        """Get the current printer output as a string."""
+        if not self._printer_session or not self._printer_session.handler:
+            raise SessionError("Printer session not connected")
+
+        printer_buffer = self._printer_session.handler.printer_buffer
+        if printer_buffer:
+            return printer_buffer.get_rendered_output()
+        return ""
+
+    def get_printer_status(self) -> int:
+        """Get the current printer status code."""
+        if not self._printer_session or not self._printer_session.handler:
+            raise SessionError("Printer session not connected")
+
+        printer_buffer = self._printer_session.handler.printer_buffer
+        if printer_buffer:
+            return printer_buffer.get_status()
+        return 0x00
+
+    def get_job_statistics(self) -> Dict[str, Any]:
+        """Get printer job statistics."""
+        if not self._printer_session or not self._printer_session.handler:
+            raise SessionError("Printer session not connected")
+
+        # Access the printer session's job statistics
+        # This would need to be implemented in TCPIPPrinterSession
+        return {
+            "status": "active",
+            "jobs_completed": 0,
+            "total_bytes": 0,
+        }
+
+    def close(self) -> None:
+        """Close the printer session."""
+        if self._printer_session:
+            asyncio.run(self._printer_session.close())
+            self._printer_session = None
+
+    def __enter__(self) -> "PrinterSession":
+        """Context manager entry."""
+        self.connect()
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Context manager exit."""
+        self.close()
+
+
+class AsyncPrinterSession:
+    """
+    Asynchronous printer session for TN3270E printer LU support.
+
+    Provides async interface for printer operations with full control
+    over connection lifecycle and SCS data handling.
+    """
+
+    def __init__(
+        self,
+        host: Optional[str] = None,
+        port: int = 23,
+        ssl_context: Optional[Any] = None,
+        timeout: float = 30.0,
+    ) -> None:
+        """
+        Initialize an async printer session.
+
+        Args:
+            host: Printer host to connect to
+            port: Port number (default 23)
+            ssl_context: SSL context for secure connections
+            timeout: Connection timeout in seconds
+        """
+        self._host = host
+        self._port = port
+        self._ssl_context = ssl_context
+        self._timeout = timeout
+        self._printer_session: Optional[TCPIPPrinterSession] = None
+
+    async def connect(
+        self,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        ssl_context: Optional[Any] = None,
+    ) -> None:
+        """Connect to the printer host asynchronously."""
+        if host:
+            self._host = host
+        if port:
+            self._port = port
+        if ssl_context:
+            self._ssl_context = ssl_context
+
+        if not self._host:
+            raise ValueError("Host must be specified")
+
+        # Create and connect printer session
+        self._printer_session = TCPIPPrinterSession(
+            host=self._host,
+            port=self._port,
+            ssl_context=self._ssl_context,
+            timeout=self._timeout,
+        )
+
+        await self._printer_session.connect()
+
+    async def get_printer_output(self) -> str:
+        """Get the current printer output as a string."""
+        if not self._printer_session or not self._printer_session.handler:
+            raise SessionError("Printer session not connected")
+
+        printer_buffer = self._printer_session.handler.printer_buffer
+        if printer_buffer:
+            return printer_buffer.get_rendered_output()
+        return ""
+
+    async def get_printer_status(self) -> int:
+        """Get the current printer status code."""
+        if not self._printer_session or not self._printer_session.handler:
+            raise SessionError("Printer session not connected")
+
+        printer_buffer = self._printer_session.handler.printer_buffer
+        if printer_buffer:
+            return printer_buffer.get_status()
+        return 0x00
+
+    async def get_job_statistics(self) -> Dict[str, Any]:
+        """Get printer job statistics."""
+        if not self._printer_session or not self._printer_session.handler:
+            raise SessionError("Printer session not connected")
+
+        # Access the printer session's job statistics
+        return {
+            "status": "active",
+            "jobs_completed": 0,
+            "total_bytes": 0,
+        }
+
+    async def close(self) -> None:
+        """Close the printer session."""
+        if self._printer_session:
+            await self._printer_session.close()
+            self._printer_session = None
+
+    async def __aenter__(self) -> "AsyncPrinterSession":
+        """Async context manager entry."""
+        await self.connect()
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Async context manager exit."""
+        await self.close()

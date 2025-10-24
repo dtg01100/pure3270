@@ -182,6 +182,33 @@ class TestDataStreamParserEdgeCases:
         assert new_row == row
         assert new_col == col
 
+    def test_parser_eua_order(self):
+        """Test parser handling of Erase Unprotected to Address (EUA) order."""
+        # Set up some unprotected data
+        self.screen_buffer.write_char(ord("A"), 0, 0, protected=False)
+        self.screen_buffer.write_char(ord("B"), 0, 1, protected=False)
+        self.screen_buffer.write_char(ord("C"), 0, 2, protected=False)
+
+        # Move cursor to start
+        self.screen_buffer.set_position(0, 0)
+
+        # EUA to address 2 (should erase A and B, leave C)
+        # Address for (0,2) in 12-bit mode: (0 & 0x3F) << 6 | (2 & 0x3F) = 0x02
+        eua_command = bytes([0x12, 0x00, 0x02])  # EUA order + address bytes
+
+        self.parser.parse(eua_command)
+
+        # Check that unprotected characters were erased
+        # Position (0,0) should be erased (was 'A', now space)
+        assert self.screen_buffer.buffer[0] == 0x40  # EBCDIC space
+        # Position (0,1) should be erased (was 'B', now space)
+        assert self.screen_buffer.buffer[1] == 0x40  # EBCDIC space
+        # Position (0,2) should remain unchanged (was 'C')
+        assert self.screen_buffer.buffer[2] == ord("C")
+        # Cursor should be at target position (0,2)
+        row, col = self.screen_buffer.get_position()
+        assert row == 0 and col == 2
+
     def test_parser_field_sequencing(self):
         """Test parser handling of field sequences."""
         # Create a simple field with SF (Start Field) command

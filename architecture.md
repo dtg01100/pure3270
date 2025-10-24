@@ -2,7 +2,7 @@
 
 ## Overview
 
-The `pure3270` library is a self-contained, pure Python 3.10+ implementation designed to emulate the functionality of the `s3270` terminal emulator. It is primarily intended for integration with the `p3270` library through runtime monkey-patching, allowing seamless replacement of `p3270`'s underlying dependencies on `s3270` without requiring external binaries or complex setup. The design emphasizes zero-configuration opt-in via a simple `pure3270.enable_replacement()` function, which applies global patching by default but supports selective configuration.
+The `pure3270` library is a self-contained, pure Python 3.10+ implementation designed to emulate the functionality of the `s3270` terminal emulator. It provides a native `P3270Client` class that serves as a direct drop-in replacement for `p3270.P3270Client`, eliminating the need for external `s3270` binaries or complex setup.
 
 Key design principles:
 - **Purity**: Standard library only (e.g., `asyncio` for networking, `ssl` for TLS, `logging` for logs). This maintains self-contained nature without external dependencies or native binaries.
@@ -19,7 +19,7 @@ The library supports TN3270 and TN3270E protocols, full 3270 terminal emulation 
 
 ## Package Structure
 
-The package follows a modular directory layout to separate concerns: emulation logic, protocol handling, patching mechanisms. This structure promotes maintainability and allows for easy extension.
+The package follows a modular directory layout to separate concerns: emulation logic, protocol handling, and client compatibility. This structure promotes maintainability and allows for easy extension.
 
 Actual directory layout:
 ```
@@ -39,12 +39,12 @@ pure3270/
 │   ├── printer.py       # Printer session support
 │   ├── tn3270e_header.py # TN3270E header processing
 │   └── utils.py         # Telnet command utilities
-└── patching/            # Monkey-patching mechanisms for p3270 integration
+└── patching/            # Legacy patching mechanisms (deprecated)
     ├── __init__.py
-    └── patching.py      # MonkeyPatchManager for dynamic overrides and enable_replacement()
+    └── patching.py      # Legacy MonkeyPatchManager for backward compatibility
 
 Top-level directories:
-- examples/              # Python example scripts (e.g., example_end_to_end.py, example_patching.py)
+- examples/              # Python example scripts (e.g., example_end_to_end.py, example_standalone.py)
 - tests/                 # Unit and integration tests
 - pyproject.toml         # Project configuration and dependencies (standard library only for runtime)
 - setup.py               # Setuptools configuration
@@ -94,8 +94,8 @@ Key modules and classes:
   - Utility functions for telnet commands and IAC sequence processing.
 
 - **`patching/patching.py`**:
-  - `MonkeyPatchManager`: Core class for applying patches. Uses `sys.modules` manipulation and `types.MethodType` for method overrides on `p3270` (e.g., Session init/connect/send/read).
-  - `enable_replacement()`: Zero-config function to apply patches (alias: `patch`).
+  - `MonkeyPatchManager`: Legacy class for backward compatibility. No longer recommended.
+  - `enable_replacement()`: Legacy function for patching (deprecated).
   - Exception: `Pure3270PatchError`.
 
 ## Core Emulation
@@ -247,35 +247,18 @@ sequenceDiagram
     end
 ```
 
-## Patching Mechanism
+## Legacy Patching Mechanism (Deprecated)
 
-Runtime monkey-patching integrates with `p3270` by overriding its internal calls to `s3270`.
+The library previously supported runtime monkey-patching to integrate with `p3270`, but this approach has been deprecated in favor of the native `P3270Client` implementation.
 
-- **Strategies**:
-  - **Method Overrides**: Use `setattr` and `MethodType` on `p3270.session.Session` to swap `__init__`, `connect`, `send`, `read`, `close` with pure3270 equivalents (delegating to `Session`).
-  - **Version Check**: Inspect `p3270.__version__` for compatibility; warn/log on mismatch, optional strict raise.
-  - **Fallback**: If `p3270` not installed or mismatch, log warning and simulate/mock for verification.
+- **Legacy Support**: The `patching` module remains for backward compatibility but is no longer recommended.
+- **Migration**: Use the native `P3270Client` class instead of patching.
 
-- **Configuration API**:
-  - `enable_replacement(global=True, selective_modules=['session'], strict_version=False)`: Applies patches. Selective targets session/commands.
-  - `patch()`: Alias for `enable_replacement()` for zero-config.
-
-- **Implementation**: Single `patching.py` with `MonkeyPatchManager` as context manager for reversible patches:
-  ```python
-  from pure3270.patching.patching import enable_replacement
-  enable_replacement()  # Applies patches
-  ```
-
-Text-based diagram for patching flow:
-```
-p3270 Session.__init__() --> override --> Pure3270 Session._pure_session
-p3270.Session.connect() --> delegate --> Pure3270Session.connect(asyncio)
-If mismatch: Log & Proceed (or raise if strict) --> Partial/Original
-```
+For historical reference, the patching mechanism used `sys.modules` manipulation and method overrides to replace `p3270` functionality.
 
 ## API Compatibility
 
-The API remains fully compatible with existing p3270 and s3270 interfaces. Asyncio integration is handled transparently under the hood in `TN3270Handler` and `AsyncSession`, with no changes to public methods like `connect()`, `send()`, or `read_screen()`. Developers using the library or patched p3270 sessions will not notice the switch to pure Python emulation.
+The API provides full compatibility with existing p3270 and s3270 interfaces through the native `P3270Client` class. Asyncio integration is handled transparently under the hood in `TN3270Handler` and `AsyncSession`, with no changes to public methods like `connect()`, `send()`, or `read_screen()`.
 
 - **Mirroring s3270**: `Session` class with `connect(host, port=23)`, `send(b'key Enter')`, `read()` (returns bytes), `disconnect()` via `close()`. Supports scripting commands like `s3270` (e.g., `String("field")`).
 
@@ -293,11 +276,11 @@ Macro scripting/DSL has been removed and will not be reintroduced.
 ## Extensibility
 
 - **Subclassing**: Extend `Session` for custom session logic, `DataStreamParser` for new orders, or `MonkeyPatchManager` for additional overrides.
-- **Custom Patches**: Modify `apply_patches()` in `MonkeyPatchManager` for selective integrations beyond p3270.
+- **Custom Extensions**: Extend `P3270Client` or `Session` classes for custom integrations.
 
 ## Error Handling, Logging, Performance
 
-- **Errors**: Inline exceptions: `Pure3270Error` (base, in session.py/patching.py), `SessionError` (session.py), `ProtocolError`/`NegotiationError` (tn3270_handler.py), `ParseError` (data_stream.py), `SSLError` (ssl_wrapper.py), `Pure3270PatchError` (patching.py). Raised with context (e.g., connection details).
+- **Errors**: Inline exceptions: `Pure3270Error` (base, in session.py), `SessionError` (session.py), `ProtocolError`/`NegotiationError` (tn3270_handler.py), `ParseError` (data_stream.py), `SSLError` (ssl_wrapper.py), `Pure3270PatchError` (patching.py, legacy). Raised with context (e.g., connection details).
 
 - **Logging**: Uses stdlib `logging` module. Default: INFO level, with `pure3270` logger. Protocol traces at DEBUG. Configurable via `setup_logging(level='DEBUG')` in __init__.py.
 
@@ -305,13 +288,10 @@ Macro scripting/DSL has been removed and will not be reintroduced.
 
 ## Integration Examples
 
-- **Patching** (see top-level examples/example_patching.py):
-  1. Import: `from pure3270 import enable_replacement; enable_replacement()`
-  2. Use p3270 normally: `from p3270 import Session; sess = Session(); sess.connect('host')` – internally uses pure3270.
+- **Native P3270Client** (see top-level examples/example_end_to_end.py):
+  1. `from pure3270 import P3270Client; client = P3270Client(); client.connect('host'); client.sendEnter(); print(client.getScreen())`
 
-- **Standalone** (see top-level examples/example_end_to_end.py):
+- **Standalone** (see top-level examples/example_standalone.py):
   1. `from pure3270 import Session; with Session(secure=True) as sess: sess.connect('host', 992); sess.send('key PF3'); print(sess.read())`
-
-- **Selective Patching**: `enable_replacement(patch_sessions=True, patch_commands=False)` – Only overrides session methods.
 
 This design ensures seamless integration, high fidelity to 3270 standards, and room for growth.

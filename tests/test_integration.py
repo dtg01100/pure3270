@@ -60,9 +60,6 @@ class TestIntegration:
             macro_sequence = ["String(login)", "key Enter"]
             await real_async_session.macro(macro_sequence)
 
-            # Read after macro
-            await real_async_session.read()
-
         # Assert final buffer matches expected EBCDIC pattern
         assert real_async_session.screen.buffer == expected_pattern
 

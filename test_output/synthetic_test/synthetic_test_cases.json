@@ -1,0 +1,38 @@
+[
+  {
+    "id": "synthetic_000",
+    "description": "Synthetic test case 0",
+    "data_stream": "f5ce7e7963fc5aedfdcb562904410f416f410d4365ab78b2d6874168f2ac97876777965a57a1583c1b0798290341eb433f42280d",
+    "expected_behavior": {
+      "should_parse": true,
+      "may_have_validation_errors": false,
+      "tests_cursor_positioning": false,
+      "tests_field_attributes": false,
+      "tests_extended_attributes": true
+    }
+  },
+  {
+    "id": "synthetic_001",
+    "description": "Synthetic test case 1",
+    "data_stream": "f5c88a547b59a187b4e20d3c050d9e3c062deb3c161deedbe26b0d",
+    "expected_behavior": {
+      "should_parse": true,
+      "may_have_validation_errors": false,
+      "tests_cursor_positioning": true,
+      "tests_field_attributes": true,
+      "tests_extended_attributes": false
+    }
+  },
+  {
+    "id": "synthetic_002",
+    "description": "Synthetic test case 2",
+    "data_stream": "f5f078ef934e7a4890a6845076d1f79076e7bfa56483637ffecfc983d5add5a69c786329044118414e435143d8290142c3290443804305433a43880d5c8baf68b440f8f883c06d290143980ddb72679f69cac740d992bd445c9c8e7d4e1d2811171a0f0d",
+    "expected_behavior": {
+      "should_parse": true,
+      "may_have_validation_errors": false,
+      "tests_cursor_positioning": true,
+      "tests_field_attributes": true,
+      "tests_extended_attributes": true
+    }
+  }
+]

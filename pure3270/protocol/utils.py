@@ -193,6 +193,9 @@ TN3270E_RSF_NO_RESPONSE = 0x00
 TN3270E_RSF_POSITIVE_RESPONSE = 0x00
 TN3270E_RSF_REQUEST = 0x01
 
+# TN3270E Request Flags (RFC 2355 Section 10.4.1)
+TN3270E_REQ_ERR_COND_CLEARED = 0x01  # Error condition cleared
+
 # TN3270E Response Mode Constants
 TN3270E_RESPONSE_MODE = 0x15  # Response mode subnegotiation option
 TN3270E_RESPONSE_MODE_IS = 0x00
