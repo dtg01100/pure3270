@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 
-def run_command(cmd, description):
+def run_command(cmd: list[str], description: str) -> bool:
     """Run a command and return success status."""
     print(f"\n🔍 {description}")
     print(f"   Command: {' '.join(cmd)}")
@@ -37,13 +37,38 @@ def run_command(cmd, description):
         return False
 
 
-def main():
+def main() -> int:
     """Run all offline validation tests."""
     print("🚀 Pure3270 Offline Validation Suite")
     print("=" * 50)
 
-    # Change to project root
-    os.chdir(Path(__file__).parent.parent)
+    # Ensure we're in the project root directory
+    # In CI, the repo is checked out into a subdirectory named after the repo
+    script_dir = Path(__file__).parent
+    project_root = script_dir.parent
+
+    # Check if we're already in the right place (has tests/ and pure3270/ directories)
+    if (project_root / "tests").exists() and (project_root / "pure3270").exists():
+        os.chdir(project_root)
+    else:
+        # We're in the nested repo directory, go up one more level
+        project_root = script_dir.parent.parent
+        if (project_root / "tests").exists() and (project_root / "pure3270").exists():
+            os.chdir(project_root)
+        else:
+            # Last resort: find the directory containing both tests/ and pure3270/
+            current = Path.cwd()
+            for parent in [current] + list(current.parents):
+                if (parent / "tests").exists() and (parent / "pure3270").exists():
+                    os.chdir(parent)
+                    break
+            else:
+                # If we can't find it, assume we're already in the right place
+                pass
+
+    print(f"Working directory: {os.getcwd()}")
+    print(f"Script directory: {script_dir}")
+    print(f"Project root: {project_root}")
 
     tests_passed = 0
     total_tests = 0

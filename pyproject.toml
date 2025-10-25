@@ -95,6 +95,7 @@ exclude = ["test_baselines", "test_baselines.*", "tests*", "examples", "scripts"
      "if 0:",
      "if __name__ == .__main__.:",
  ]
+ fail_under = 0
 
  [tool.black]
 line-length = 88
