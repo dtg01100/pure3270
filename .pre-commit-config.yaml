@@ -32,8 +32,8 @@ repos:
      hooks:
        - id: mypy
          args: [--config-file=mypy.ini, --ignore-missing-imports]
-         files: '^(pure3270/|tests/|examples/|setup.py|pyproject.toml)'
-         exclude: '^(archive/|tools/|scripts/|tests/data/traces/)'
+         files: '^(pure3270/|tests/|setup.py|pyproject.toml)'
+         exclude: '^(archive/|tools/|scripts/|tests/data/traces/|examples/)'
    - repo: https://github.com/PyCQA/bandit
      rev: 1.8.1
      hooks:
