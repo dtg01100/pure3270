@@ -1,0 +1,271 @@
+{
+  "summary": {
+    "total_traces": 65,
+    "matches": 3,
+    "differences": 62,
+    "errors": 0,
+    "s3270_available": true
+  },
+  "results": [
+    {
+      "trace": "930.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "935.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "937.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "all_chars.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "apl.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "badapl.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "bid-bug.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "bid-ta.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "bid.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "contention-resolution.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "dbcs-wrap.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "devname_change1.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "devname_change2.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "devname_failure.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "devname_success.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "elf.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "elfDefault.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "empty-user.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "empty.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "ft-crash.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "ft-double.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "ft_cut.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "ft_cut_ewa.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "ft_dft.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "ibmlink-cr.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "ibmlink.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "ibmlink2.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "ibmlink_help.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "ignore_eor.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "invalid_command.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "invalid_eua.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "invalid_ra.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "invalid_sba.trc",
+      "status": "match"
+    },
+    {
+      "trace": "invisible_underscore.trc",
+      "status": "match"
+    },
+    {
+      "trace": "korean.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "login.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "lu.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "no_bid.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "no_flags.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "numeric.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "nvt-data.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "ra_test.trc",
+      "status": "match"
+    },
+    {
+      "trace": "reverse.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "rpqnames.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "short_eua.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "short_ge.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "short_mf_attr.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "short_mf_count.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "short_ra_addr.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "short_ra_char.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "short_ra_ge.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "short_sa.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "short_sba.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "short_sf.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "short_sfe_attr.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "short_sfe_count.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "smoke.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "sruvm.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "sscp-lu-data.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "sscp-lu.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "target.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "tn3270e-renegotiate.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "wont-tn3270e.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "wrap.trc",
+      "status": "difference"
+    },
+    {
+      "trace": "wrap_field.trc",
+      "status": "difference"
+    }
+  ]
+}

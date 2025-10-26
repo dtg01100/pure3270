@@ -1,0 +1,46 @@
+{
+  "case": 31,
+  "rows": 24,
+  "cols": 80,
+  "fields": [
+    {
+      "start": [
+        13,
+        69
+      ],
+      "end": [
+        19,
+        11
+      ],
+      "protected": true,
+      "numeric": true,
+      "content": "J62EX2BK"
+    },
+    {
+      "start": [
+        3,
+        32
+      ],
+      "end": [
+        2,
+        34
+      ],
+      "protected": false,
+      "numeric": false,
+      "content": "KIT0K48V"
+    },
+    {
+      "start": [
+        2,
+        26
+      ],
+      "end": [
+        23,
+        61
+      ],
+      "protected": true,
+      "numeric": false,
+      "content": "80UW20C0"
+    }
+  ]
+}

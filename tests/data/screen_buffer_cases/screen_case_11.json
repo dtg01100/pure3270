@@ -1,0 +1,46 @@
+{
+  "case": 11,
+  "rows": 24,
+  "cols": 80,
+  "fields": [
+    {
+      "start": [
+        6,
+        42
+      ],
+      "end": [
+        15,
+        16
+      ],
+      "protected": false,
+      "numeric": false,
+      "content": "FDR66TLO"
+    },
+    {
+      "start": [
+        1,
+        43
+      ],
+      "end": [
+        15,
+        51
+      ],
+      "protected": true,
+      "numeric": false,
+      "content": "KMWIPIOE"
+    },
+    {
+      "start": [
+        11,
+        59
+      ],
+      "end": [
+        23,
+        67
+      ],
+      "protected": false,
+      "numeric": true,
+      "content": "WZ8TCZW8"
+    }
+  ]
+}

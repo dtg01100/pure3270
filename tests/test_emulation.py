@@ -179,8 +179,8 @@ class TestEBCDICCodec:
         assert encoded == b"\xc1\xc2\xc3\xf1\xf2\xf3"  # A B C digits in EBCDIC
 
     def test_encode_unknown_char(self, ebcdic_codec):
-        encoded, _ = ebcdic_codec.encode("ä")  # Unknown, maps to 0x7A
-        assert encoded == b"\x7a"
+        encoded, _ = ebcdic_codec.encode("ä")  # Unknown, maps to 0x43 (C in EBCDIC)
+        assert encoded == b"\x43"
 
     def test_decode(self, ebcdic_codec):
         decoded, _ = ebcdic_codec.decode(b"\xc1\xc2\xc3")
@@ -198,10 +198,10 @@ class TestEBCDICCodec:
 
     # General tests for exceptions and logging (emulation specific)
     def test_decode_unmapped_bytes(self, ebcdic_codec):
-        """Test decode with unmapped bytes defaults to 'z'."""
-        data = b"\x00\xff\xab"  # \x00 maps to Null, \xFF and \xAB unmapped
+        """Test decode with unmapped bytes uses actual CP037 characters."""
+        data = b"\x00\xff\xab"  # \x00 maps to Null, \xFF and \xAB to their CP037 chars
         decoded, _ = ebcdic_codec.decode(data)
-        assert decoded == "\x00zz"  # Null + two 'z'
+        assert decoded == "\x00\x9f¿"  # Null + \x9f + ¿
 
     def test_encode_surrogate_escape(self, ebcdic_codec):
         """Test encode with surrogate char defaults to 'z'."""
@@ -217,17 +217,17 @@ class TestEBCDICCodec:
         assert decoded == text
 
     def test_round_trip_unmapped(self, ebcdic_codec):
-        """Test round-trip for unmapped character defaults to ':'."""
+        """Test round-trip for unmapped character uses actual CP037 character."""
         text = chr(0xFF)
         encoded, _ = ebcdic_codec.encode(text)
         decoded, _ = ebcdic_codec.decode(encoded)
-        assert decoded == ":"  # Unmapped chars encode to 0x7A which decodes to ':'
+        assert decoded == chr(0xFF)  # Round-trip preserves the character
 
     def test_decode_mock_data(self, ebcdic_codec):
-        """Test decode with mock unmapped data like b'\x00\xff'."""
+        """Test decode with mock data like b'\x00\xff'."""
         mock_data = b"\x00\xff"
         decoded, _ = ebcdic_codec.decode(mock_data)
-        assert decoded == "\x00z"
+        assert decoded == "\x00\x9f"
 
 
 def test_emulation_exception(caplog):

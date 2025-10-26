@@ -1,0 +1,20 @@
+{
+  "case": 43,
+  "rows": 24,
+  "cols": 80,
+  "fields": [
+    {
+      "start": [
+        18,
+        75
+      ],
+      "end": [
+        8,
+        28
+      ],
+      "protected": false,
+      "numeric": false,
+      "content": "KMELIQIP"
+    }
+  ]
+}

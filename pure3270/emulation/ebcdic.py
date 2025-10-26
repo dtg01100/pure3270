@@ -188,33 +188,66 @@ class EBCDICCodec:
     """
 
     def __init__(self) -> None:
-        # Build a forward table (byte -> unicode char). Prefer the cp037
-        # decoder but normalize non-printable/unmapped results to 'z', except
-        # for the NUL (0x00) byte which should remain as '\x00'.
+        # Build a forward table (byte -> unicode char) using CP037 mapping.
+        # Explicit CP037 mapping for uppercase letters and digits
+        cp037_map = {
+            0xC1: "A",
+            0xC2: "B",
+            0xC3: "C",
+            0xC4: "D",
+            0xC5: "E",
+            0xC6: "F",
+            0xC7: "G",
+            0xC8: "H",
+            0xC9: "I",
+            0xD1: "J",
+            0xD2: "K",
+            0xD3: "L",
+            0xD4: "M",  # Correct: CP037 0xD4 is 'M'
+            0xD5: "N",
+            0xD6: "O",
+            0xD7: "P",
+            0xD8: "Q",
+            0xD9: "R",
+            0xE2: "S",
+            0xE3: "T",  # Correct: CP037 0xE3 is 'T'
+            0xE4: "U",
+            0xE5: "V",
+            0xE6: "W",
+            0xE7: "X",
+            0xE8: "Y",
+            0xE9: "Z",
+            0xF0: "0",
+            0xF1: "1",
+            0xF2: "2",
+            0xF3: "3",
+            0xF4: "4",
+            0xF5: "5",
+            0xF6: "6",
+            0xF7: "7",
+            0xF8: "8",
+            0xF9: "9",
+        }
+        import codecs
+
         table = []
         for b in range(256):
-            ch = _decode_cp037(bytes([b]))
-            if ch == "\x00" or (len(ch) == 1 and 0x20 <= ord(ch) <= 0x7E):
-                table.append(ch)
+            if b in cp037_map:
+                ch = cp037_map[b]
             else:
-                table.append("z")
+                try:
+                    ch = codecs.decode(bytes([b]), "cp037")
+                except Exception:
+                    ch = "z"
+            table.append(ch)
         self.ebcdic_to_unicode_table = tuple(table)
 
-        # Build a conservative reverse mapping (unicode -> byte) for the
-        # characters tests expect to round-trip: uppercase letters, digits,
-        # space, and common punctuation. Any other character will be treated
-        # as unknown and map to 0x7A.
-        allowed = set(
-            'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 !@#$%^&*()_+-=[]{}|;:",./<>?'
-        )
+        # Build a complete reverse mapping (unicode -> byte) for all characters
+        # in the EBCDIC table. Each unique character maps to its EBCDIC byte value.
         rev = {}
         for i, ch in enumerate(self.ebcdic_to_unicode_table):
-            if ch in allowed and ch not in rev:
+            if ch not in rev:
                 rev[ch] = i
-        # Allow lowercase letters to map to same byte as uppercase if present
-        for upper in list(rev.keys()):
-            if upper.isalpha():
-                rev[upper.lower()] = rev[upper]
 
         self._unicode_to_ebcdic_table = rev
 
@@ -224,17 +257,22 @@ class EBCDICCodec:
     def decode(self, data: bytes) -> tuple[str, int]:
         """Decode raw EBCDIC bytes to (string, length).
 
-        Unknown or non-printable bytes yield the character 'z' (per tests).
+        Uses CP037 codec for robust translation. Unknown bytes yield 'z'.
         """
         if not data:
             return ("", 0)
-        out_chars = []
-        for b in data:
-            try:
-                out_chars.append(self.ebcdic_to_unicode_table[b])
-            except Exception:
-                out_chars.append("z")
-        return ("".join(out_chars), len(out_chars))
+        try:
+            decoded = _decode_cp037(data)
+            return (decoded, len(decoded))
+        except Exception:
+            # Fallback: decode each byte using table, else 'z'
+            out_chars = []
+            for b in data:
+                try:
+                    out_chars.append(self.ebcdic_to_unicode_table[b])
+                except Exception:
+                    out_chars.append("z")
+            return ("".join(out_chars), len(out_chars))
 
     def encode(self, text: Union[str, bytes]) -> Tuple[bytes, int]:
         """Encode text to EBCDIC bytes, returning (bytes, length).

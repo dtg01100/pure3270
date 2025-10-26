@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="1" failures="6" skipped="0" tests="24" time="43.851" timestamp="2025-10-25T05:11:30.346737+00:00" hostname="e10675617d95"><testcase classname="tests.test_protocol_negotiation_traces.TestProtocolNegotiation" name="test_login_trace_telnet_negotiation" time="0.005"><failure message="AssertionError: Expected telnet option END-OF-RECORD not found in negotiation&#10;assert False&#10; +  where False = any(&lt;generator object TestProtocolNegotiation.test_login_trace_telnet_negotiation.&lt;locals&gt;.&lt;genexpr&gt; at 0x7f33bd156180&gt;)">self = &lt;tests.test_protocol_negotiation_traces.TestProtocolNegotiation object at 0x7f33bd5e21e0&gt;
+login_trace = PosixPath('/workspaces/pure3270/tests/data/traces/login.trc')
+login_expected = {'data_stream_commands': ['EraseWriteAlternate'], 'description': 'Expected output for login trace - IBM mainframe logi...': ['reverse', 'underscore'], 'intensity': ['normal', 'intensified'], 'protection': ['protected', 'unprotected']}, ...}
+
+    def test_login_trace_telnet_negotiation(self, login_trace: Path, login_expected: Dict):
+        """Test telnet negotiation in login trace."""
+        assert login_trace.exists(), "Login trace file not found"
+
+        capture = self.parse_trace_for_negotiation(login_trace)
+
+        # Verify telnet options were negotiated
+        assert len(capture.telnet_options) &gt; 0, "No telnet options found"
+
+        # Check for expected options from login_expected.json
+        if login_expected and 'telnet_negotiation' in login_expected:
+            expected_options = login_expected['telnet_negotiation'].get('options', [])
+
+            negotiated_options = set(opt['option'] for opt in capture.telnet_options)
+
+            for expected_opt in expected_options:
+&gt;               assert any(expected_opt.upper() in opt.upper() for opt in negotiated_options), \
+                    f"Expected telnet option {expected_opt} not found in negotiation"
+E               AssertionError: Expected telnet option END-OF-RECORD not found in negotiation
+E               assert False
+E                +  where False = any(&lt;generator object TestProtocolNegotiation.test_login_trace_telnet_negotiation.&lt;locals&gt;.&lt;genexpr&gt; at 0x7f33bd156180&gt;)
+
+tests/test_protocol_negotiation_traces.py:178: AssertionError</failure></testcase><testcase classname="tests.test_protocol_negotiation_traces.TestProtocolNegotiation" name="test_smoke_trace_tn3270e_negotiation" time="0.001" /><testcase classname="tests.test_protocol_negotiation_traces.TestProtocolNegotiation" name="test_smoke_trace_bind_image" time="0.001" /><testcase classname="tests.test_protocol_negotiation_traces.TestProtocolNegotiation" name="test_negotiation_sequence_login" time="0.001" /><testcase classname="tests.test_protocol_negotiation_traces.TestProtocolNegotiation" name="test_negotiation_sequence_smoke" time="0.001" /><testcase classname="tests.test_protocol_negotiation_traces.TestProtocolNegotiation" name="test_negotiation_coverage_report" time="0.001" /><testcase classname="tests.test_protocol_negotiation_traces.TestProtocolNegotiation" name="test_required_options_negotiated[login-expected_options0]" time="0.001"><failure message="AssertionError: Required option TERMINAL-TYPE not negotiated in login.trc&#10;assert False">self = &lt;tests.test_protocol_negotiation_traces.TestProtocolNegotiation object at 0x7f33bd6991c0&gt;
+trace_name = 'login'
+expected_options = ['TERMINAL-TYPE', 'BINARY', 'END-OF-RECORD']
+
+    @pytest.mark.parametrize('trace_name,expected_options', [
+        ('login', ['TERMINAL-TYPE', 'BINARY', 'END-OF-RECORD']),
+        ('smoke', ['TN3270E', 'BINARY']),
+    ])
+    def test_required_options_negotiated(self, trace_name: str, expected_options: List[str]):
+        """Test that required telnet options are negotiated."""
+        trace_path = Path(__file__).parent / 'data' / 'traces' / f'{trace_name}.trc'
+
+        if not trace_path.exists():
+            pytest.skip(f"Trace file {trace_name}.trc not found")
+
+        capture = self.parse_trace_for_negotiation(trace_path)
+
+        negotiated_options = set(opt['option'].upper() for opt in capture.telnet_options)
+
+        for expected_opt in expected_options:
+            found = any(expected_opt.upper() in opt for opt in negotiated_options)
+&gt;           assert found, f"Required option {expected_opt} not negotiated in {trace_name}.trc"
+E           AssertionError: Required option TERMINAL-TYPE not negotiated in login.trc
+E           assert False
+
+tests/test_protocol_negotiation_traces.py:333: AssertionError</failure></testcase><testcase classname="tests.test_protocol_negotiation_traces.TestProtocolNegotiation" name="test_required_options_negotiated[smoke-expected_options1]" time="0.001"><failure message="AssertionError: Required option BINARY not negotiated in smoke.trc&#10;assert False">self = &lt;tests.test_protocol_negotiation_traces.TestProtocolNegotiation object at 0x7f33bd2fa750&gt;
+trace_name = 'smoke', expected_options = ['TN3270E', 'BINARY']
+
+    @pytest.mark.parametrize('trace_name,expected_options', [
+        ('login', ['TERMINAL-TYPE', 'BINARY', 'END-OF-RECORD']),
+        ('smoke', ['TN3270E', 'BINARY']),
+    ])
+    def test_required_options_negotiated(self, trace_name: str, expected_options: List[str]):
+        """Test that required telnet options are negotiated."""
+        trace_path = Path(__file__).parent / 'data' / 'traces' / f'{trace_name}.trc'
+
+        if not trace_path.exists():
+            pytest.skip(f"Trace file {trace_name}.trc not found")
+
+        capture = self.parse_trace_for_negotiation(trace_path)
+
+        negotiated_options = set(opt['option'].upper() for opt in capture.telnet_options)
+
+        for expected_opt in expected_options:
+            found = any(expected_opt.upper() in opt for opt in negotiated_options)
+&gt;           assert found, f"Required option {expected_opt} not negotiated in {trace_name}.trc"
+E           AssertionError: Required option BINARY not negotiated in smoke.trc
+E           assert False
+
+tests/test_protocol_negotiation_traces.py:333: AssertionError</failure></testcase><testcase classname="tests.test_printer_protocol_traces.TestPrinterProtocol" name="test_print_job_detection" time="0.001" /><testcase classname="tests.test_printer_protocol_traces.TestPrinterProtocol" name="test_print_eoj_markers" time="0.001" /><testcase classname="tests.test_printer_protocol_traces.TestPrinterProtocol" name="test_scs_control_codes" time="0.001" /><testcase classname="tests.test_printer_protocol_traces.TestPrinterProtocol" name="test_printer_response_handling" time="0.001" /><testcase classname="tests.test_printer_protocol_traces.TestPrinterProtocol" name="test_print_job_content" time="0.001"><failure message="AssertionError: Expected content marker 'T.D.C.J. - INSTITUTIONAL DIVISION' not found in job 1&#10;assert 'T.D.C.J. - INSTITUTIONAL DIVISION' in 'USER: PKA6039            T.D.C.J.  ...  NL   NL   NL NL   NL   NL NL   NL   NL  ...  19. 275-87-03200-7      BEANS, DRIED, PINTO      LOC=SACKS 02 ...  NL NL   NL   NL NL   NL   NL   NL NL NL NL NL NL NL NL NL NL NL NL NL NL ...'">self = &lt;tests.test_printer_protocol_traces.TestPrinterProtocol object at 0x7f33bd3800e0&gt;
+smoke_trace = PosixPath('/workspaces/pure3270/tests/data/traces/smoke.trc')
+smoke_expected = {'bind_image': {'description': 'Contains session establishment parameters', 'present': True, 'response_flag': 'NO-RESP...rtprinter)'], 'description': 'Expected output for smoke trace - TN3270E printer session with multiple print jobs', ...}
+
+    def test_print_job_content(self, smoke_trace: Path, smoke_expected: Dict):
+        """Test print job content is captured."""
+        assert smoke_trace.exists(), "Smoke trace file not found"
+
+        analyzer = PrinterTraceAnalyzer(smoke_trace)
+        analyzer.parse_trace()
+
+        # Verify print jobs have content
+        for job in analyzer.print_jobs:
+            assert len(job.lines) &gt; 0, \
+                f"Print job {job.job_number} has no content"
+
+        # Check for expected content markers
+        if smoke_expected and 'printer' in smoke_expected:
+            print_jobs = smoke_expected['printer'].get('print_jobs', [])
+
+            for expected_job in print_jobs:
+                job_num = expected_job.get('job_number', 0)
+                if job_num &gt; 0 and job_num &lt;= len(analyzer.print_jobs):
+                    actual_job = analyzer.print_jobs[job_num - 1]
+                    all_content = ' '.join(actual_job.lines)
+
+                    # Check for content markers
+                    markers = expected_job.get('content_markers', [])
+                    for marker in markers:
+                        if marker != 'PRINT-EOJ':  # Skip EOJ marker (checked separately)
+&gt;                           assert marker in all_content, \
+                                f"Expected content marker '{marker}' not found in job {job_num}"
+E                           AssertionError: Expected content marker 'T.D.C.J. - INSTITUTIONAL DIVISION' not found in job 1
+E                           assert 'T.D.C.J. - INSTITUTIONAL DIVISION' in 'USER: PKA6039            T.D.C.J.  ...  NL   NL   NL NL   NL   NL NL   NL   NL  ...  19. 275-87-03200-7      BEANS, DRIED, PINTO      LOC=SACKS 02 ...  NL NL   NL   NL NL   NL   NL   NL NL NL NL NL NL NL NL NL NL NL NL NL NL ...'
+
+tests/test_printer_protocol_traces.py:268: AssertionError</failure></testcase><testcase classname="tests.test_printer_protocol_traces.TestPrinterProtocol" name="test_multi_page_print_jobs" time="0.002"><failure message="AssertionError: Expected multi-page print jobs but found none&#10;assert 0 &gt; 0&#10; +  where 0 = len([])">self = &lt;tests.test_printer_protocol_traces.TestPrinterProtocol object at 0x7f33bd2fbbc0&gt;
+smoke_trace = PosixPath('/workspaces/pure3270/tests/data/traces/smoke.trc')
+smoke_expected = {'bind_image': {'description': 'Contains session establishment parameters', 'present': True, 'response_flag': 'NO-RESP...rtprinter)'], 'description': 'Expected output for smoke trace - TN3270E printer session with multiple print jobs', ...}
+
+    def test_multi_page_print_jobs(self, smoke_trace: Path, smoke_expected: Dict):
+        """Test multi-page print jobs are handled."""
+        assert smoke_trace.exists(), "Smoke trace file not found"
+
+        analyzer = PrinterTraceAnalyzer(smoke_trace)
+        analyzer.parse_trace()
+
+        # Verify multi-page jobs exist
+        multi_page_jobs = [job for job in analyzer.print_jobs if job.pages &gt; 1]
+
+        if smoke_expected and 'printer' in smoke_expected:
+            expected_jobs = smoke_expected['printer'].get('print_jobs', [])
+
+            for expected_job in expected_jobs:
+                expected_pages = expected_job.get('pages', 0)
+                if expected_pages &gt; 1:
+                    # At least one job should be multi-page
+&gt;                   assert len(multi_page_jobs) &gt; 0, \
+                        "Expected multi-page print jobs but found none"
+E                   AssertionError: Expected multi-page print jobs but found none
+E                   assert 0 &gt; 0
+E                    +  where 0 = len([])
+
+tests/test_printer_protocol_traces.py:288: AssertionError</failure></testcase><testcase classname="tests.test_printer_protocol_traces.TestPrinterProtocol" name="test_tn3270e_sequence_numbers" time="0.001" /><testcase classname="tests.test_printer_protocol_traces.TestPrinterProtocol" name="test_printer_coverage_report" time="0.001" /><testcase classname="tests.test_printer_protocol_traces.TestPrinterProtocol" name="test_scs_feature_present[newline-Newline (NL) control code]" time="0.001" /><testcase classname="tests.test_printer_protocol_traces.TestPrinterProtocol" name="test_scs_feature_present[form_feed-Form feed (FF) control code for page breaks]" time="0.001" /><testcase classname="tests.test_printer_protocol_traces.TestPrinterProtocol" name="test_scs_feature_present[end_of_medium-End of medium (EM) marker]" time="0.001" /><testcase classname="tests.test_printer_protocol_traces.TestPrinterProtocol" name="test_print_job_boundaries" time="0.001" /><testcase classname="tests.test_error_handling_traces" name="test_missing_trace_file" time="0.006" /><testcase classname="tests.test_error_handling_traces" name="test_truncated_hex_record_detection" time="4.793" /><testcase classname="tests.test_error_handling_traces" name="test_non_hex_characters_in_record" time="25.824"><failure message="AssertionError: Non-hex payload not reported&#10;assert (0 &gt; 0 or False or False)&#10; +  where 0 = ValidationResult(success=True, records_parsed=134, records_failed=0, features=TraceFeatures(has_telnet_negotiation=True, has_tn3270e=True, has_bind_image=True, has_printer_data=True, has_extended_attributes=True, has_structured_fields=False, has_aid_codes=True, has_error_conditions=True, commands_seen=['EraseWriteAlternate'], orders_seen=[], aids_seen=[]), errors=[], warnings=[], screen_validation={'validated': True, 'matches_expected': None, 'screen_rows': 24, 'screen_cols': 80, 'num_fields': 3, 'field_details': [{'index': 0, 'start': (0, 9), 'end': (0, 9), 'protected': True, 'content': '{', 'numeric': False, 'modified': False}, {'index': 1, 'start': (0, 10), 'end': (0, 19), 'protected': True, 'content': '{\x00\x00\x00\x00\x00\x00\x00\x00\x00', 'numeric': False, 'modified': True}, {'index': 2, 'start': (0, 20), 'end': (23, 79), 'protected': True, 'content': '{\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00                                                                                                                                                                                                                                                                                         ...                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      ', 'numeric': False, 'modified': True}]}).records_failed&#10; +  and   False = any(&lt;generator object test_non_hex_characters_in_record.&lt;locals&gt;.&lt;genexpr&gt; at 0x7f33bd1d6f60&gt;)&#10; +  and   False = any(&lt;generator object test_non_hex_characters_in_record.&lt;locals&gt;.&lt;genexpr&gt; at 0x7f33bd1d7030&gt;)">tmp_path = PosixPath('/tmp/pytest-of-vscode/pytest-0/test_non_hex_characters_in_rec0')
+EnhancedReplay = &lt;class 'enhanced_trace_replay.EnhancedTraceReplay'&gt;
+
+    def test_non_hex_characters_in_record(tmp_path: Path, EnhancedReplay):
+        """Inject non-hex characters into a hex record to ensure parser warns."""
+        src = Path(__file__).parent / "data" / "traces" / "login.trc"
+        lines = read_lines(src)
+        modified = []
+        injected = False
+        for ln in lines:
+            if not injected and ln.strip().startswith("&lt;") and "0x" in ln:
+                parts = ln.split()
+                if len(parts) &gt;= 3:
+                    hex_payload = parts[-1]
+                    # inject invalid characters into payload
+                    hex_payload = hex_payload[:10] + "GGHH" + hex_payload[10:]
+                    parts[-1] = hex_payload
+                    ln = " ".join(parts)
+                    injected = True
+            modified.append(ln)
+        tmp = write_temp_trace(tmp_path, "badhex_login.trc", modified)
+        replay = EnhancedReplay(str(tmp))
+        result = replay.replay_and_validate()
+        # Expect a warning about non-hex data or failed records
+&gt;       assert (result.records_failed &gt; 0) or any("Could not parse hex data" in w for w in result.warnings) \
+            or any("hex" in e.lower() for e in result.errors), "Non-hex payload not reported"
+E       AssertionError: Non-hex payload not reported
+E       assert (0 &gt; 0 or False or False)
+E        +  where 0 = ValidationResult(success=True, records_parsed=134, records_failed=0, features=TraceFeatures(has_telnet_negotiation=True, has_tn3270e=True, has_bind_image=True, has_printer_data=True, has_extended_attributes=True, has_structured_fields=False, has_aid_codes=True, has_error_conditions=True, commands_seen=['EraseWriteAlternate'], orders_seen=[], aids_seen=[]), errors=[], warnings=[], screen_validation={'validated': True, 'matches_expected': None, 'screen_rows': 24, 'screen_cols': 80, 'num_fields': 3, 'field_details': [{'index': 0, 'start': (0, 9), 'end': (0, 9), 'protected': True, 'content': '{', 'numeric': False, 'modified': False}, {'index': 1, 'start': (0, 10), 'end': (0, 19), 'protected': True, 'content': '{\x00\x00\x00\x00\x00\x00\x00\x00\x00', 'numeric': False, 'modified': True}, {'index': 2, 'start': (0, 20), 'end': (23, 79), 'protected': True, 'content': '{\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00                                                                                                                                                                                                                                                                                         ...                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      ', 'numeric': False, 'modified': True}]}).records_failed
+E        +  and   False = any(&lt;generator object test_non_hex_characters_in_record.&lt;locals&gt;.&lt;genexpr&gt; at 0x7f33bd1d6f60&gt;)
+E        +  and   False = any(&lt;generator object test_non_hex_characters_in_record.&lt;locals&gt;.&lt;genexpr&gt; at 0x7f33bd1d7030&gt;)
+
+tests/test_error_handling_traces.py:95: AssertionError</failure></testcase><testcase time="0.008" /><testcase classname="pytest" name="internal" time="0.000"><error message="internal error">Traceback (most recent call last):
+  File "/home/vscode/.local/lib/python3.12/site-packages/_pytest/main.py", line 289, in wrap_session
+    session.exitstatus = doit(config, session) or 0
+                         ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vscode/.local/lib/python3.12/site-packages/_pytest/main.py", line 343, in _main
+    config.hook.pytest_runtestloop(session=session)
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_callers.py", line 167, in _multicall
+    raise exception
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+  File "/home/vscode/.local/lib/python3.12/site-packages/_pytest/logging.py", line 801, in pytest_runtestloop
+    return (yield)  # Run all the tests.
+            ^^^^^
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+  File "/home/vscode/.local/lib/python3.12/site-packages/_pytest/terminal.py", line 688, in pytest_runtestloop
+    result = yield
+             ^^^^^
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vscode/.local/lib/python3.12/site-packages/_pytest/main.py", line 367, in pytest_runtestloop
+    item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_callers.py", line 167, in _multicall
+    raise exception
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+  File "/home/vscode/.local/lib/python3.12/site-packages/_pytest/warnings.py", line 90, in pytest_runtest_protocol
+    return (yield)
+            ^^^^^
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+  File "/home/vscode/.local/lib/python3.12/site-packages/_pytest/assertion/__init__.py", line 192, in pytest_runtest_protocol
+    return (yield)
+            ^^^^^
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_callers.py", line 53, in run_old_style_hookwrapper
+    return result.get_result()
+           ^^^^^^^^^^^^^^^^^^^
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_result.py", line 103, in get_result
+    raise exc.with_traceback(tb)
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_callers.py", line 38, in run_old_style_hookwrapper
+    res = yield
+          ^^^^^
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+  File "/home/vscode/.local/lib/python3.12/site-packages/_pytest/unittest.py", line 475, in pytest_runtest_protocol
+    return (yield)
+            ^^^^^
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_callers.py", line 139, in _multicall
+    teardown.throw(exception)
+  File "/home/vscode/.local/lib/python3.12/site-packages/_pytest/faulthandler.py", line 88, in pytest_runtest_protocol
+    return (yield)
+            ^^^^^
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vscode/.local/lib/python3.12/site-packages/_pytest/runner.py", line 117, in pytest_runtest_protocol
+    runtestprotocol(item, nextitem=nextitem)
+  File "/home/vscode/.local/lib/python3.12/site-packages/_pytest/runner.py", line 136, in runtestprotocol
+    reports.append(call_and_report(item, "call", log))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vscode/.local/lib/python3.12/site-packages/_pytest/runner.py", line 250, in call_and_report
+    ihook.pytest_runtest_logreport(report=report)
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_hooks.py", line 512, in __call__
+    return self._hookexec(self.name, self._hookimpls.copy(), kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_manager.py", line 120, in _hookexec
+    return self._inner_hookexec(hook_name, methods, kwargs, firstresult)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_callers.py", line 167, in _multicall
+    raise exception
+  File "/home/vscode/.local/lib/python3.12/site-packages/pluggy/_callers.py", line 121, in _multicall
+    res = hook_impl.function(*args)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/vscode/.local/lib/python3.12/site-packages/_pytest/terminal.py", line 666, in pytest_runtest_logreport
+    self._write_progress_information_filling_space()
+  File "/home/vscode/.local/lib/python3.12/site-packages/_pytest/terminal.py", line 766, in _write_progress_information_filling_space
+    self.write(msg.rjust(fill), flush=True, **{color: True})
+  File "/home/vscode/.local/lib/python3.12/site-packages/_pytest/terminal.py", line 509, in write
+    self._tw.write(content, flush=flush, **markup)
+  File "/home/vscode/.local/lib/python3.12/site-packages/_pytest/_io/terminalwriter.py", line 177, in write
+    self.flush()
+  File "/home/vscode/.local/lib/python3.12/site-packages/_pytest/_io/terminalwriter.py", line 184, in flush
+    self._file.flush()
+BrokenPipeError: [Errno 32] Broken pipe</error></testcase></testsuite></testsuites>

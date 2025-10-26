@@ -1,0 +1,20 @@
+{
+  "case": 13,
+  "rows": 24,
+  "cols": 80,
+  "fields": [
+    {
+      "start": [
+        15,
+        1
+      ],
+      "end": [
+        15,
+        43
+      ],
+      "protected": false,
+      "numeric": false,
+      "content": "2JDOWAC7"
+    }
+  ]
+}

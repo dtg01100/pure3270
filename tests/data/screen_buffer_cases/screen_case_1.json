@@ -1,0 +1,20 @@
+{
+  "case": 1,
+  "rows": 24,
+  "cols": 80,
+  "fields": [
+    {
+      "start": [
+        14,
+        63
+      ],
+      "end": [
+        2,
+        18
+      ],
+      "protected": false,
+      "numeric": true,
+      "content": "5KT8002U"
+    }
+  ]
+}

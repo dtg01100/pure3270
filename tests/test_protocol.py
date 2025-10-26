@@ -29,60 +29,67 @@ class TestDataStreamParser:
         assert data_stream_parser.aid is None
 
     def test_parse_wcc(self, data_stream_parser, memory_limit_500mb):
-        sample_data = b"\xf5\xc1"  # WCC 0xC1
+        # TN3270 stream: Write (0xF5), WCC (0xC1)
+        sample_data = b"\xf5\xc1"
         data_stream_parser.parse(sample_data)
         assert data_stream_parser.wcc == 0xC1
-        # Check if clear was called if bit set (bit 0 means reset modified flags)
-        # Our implementation clears buffer to spaces (0x40) when cleared
-        assert data_stream_parser.screen.buffer == bytearray([0x40] * 1920)
+        assert all(b == 0x40 for b in data_stream_parser.screen.buffer)
 
     def test_parse_aid(self, data_stream_parser, memory_limit_500mb):
-        sample_data = b"\xf6\x7d"  # AID Enter 0x7D
+        # TN3270 stream: Write (0xF5), WCC (0xC1), AID (0x7D)
+        sample_data = b"\xf5\xc1\x7d"
         data_stream_parser.parse(sample_data)
         assert data_stream_parser.aid == 0x7D
 
     def test_parse_sba(self, data_stream_parser, memory_limit_500mb):
-        sample_data = b"\x11\x00\x00"  # SBA to 0,0
-        with patch.object(data_stream_parser.screen, "set_position"):
+        # TN3270 stream: Write (0xF5), WCC (0xC1), SBA (0x11), row=0, col=0
+        sample_data = b"\xf5\xc1\x11\x00\x00"
+        with patch.object(
+            data_stream_parser.screen, "set_position"
+        ) as mock_set_position:
             data_stream_parser.parse(sample_data)
-            data_stream_parser.screen.set_position.assert_called_with(0, 0)
+            mock_set_position.assert_called_with(0, 0)
 
     def test_parse_sf(self, data_stream_parser, memory_limit_500mb):
-        sample_data = b"\x1d\x40"  # SF protected
-        with patch.object(data_stream_parser.screen, "set_attribute"):
+        # TN3270 stream: Write (0xF5), WCC (0xC1), SF (0x1D), attr=0x40
+        sample_data = b"\xf5\xc1\x1d\x40"
+        with patch.object(
+            data_stream_parser.screen, "set_attribute"
+        ) as mock_set_attribute:
             data_stream_parser.parse(sample_data)
-            data_stream_parser.screen.set_attribute.assert_called_once_with(0x40)
+            mock_set_attribute.assert_called_once_with(0x40)
 
     def test_parse_ra(self, data_stream_parser, memory_limit_500mb):
         sample_data = b"\xf3\x40\x00\x05"  # RA space 5 times
         data_stream_parser.parse(sample_data)
-        # Assert logging or basic handling
+        # Assert buffer updated for repeated character
+        assert data_stream_parser.screen.buffer[:5] == b"\x40" * 5
 
     def test_parse_ge(self, data_stream_parser, memory_limit_500mb):
         sample_data = b"\x29"  # GE
+        # Should not raise, but log unsupported
         data_stream_parser.parse(sample_data)
-        # Assert debug log for unsupported
 
     def test_parse_write(self, data_stream_parser, memory_limit_500mb):
         sample_data = b"\x05"  # Write
-        with patch.object(data_stream_parser.screen, "clear"):
+        with patch.object(data_stream_parser.screen, "clear") as mock_clear:
             data_stream_parser.parse(sample_data)
-            data_stream_parser.screen.clear.assert_called_once()
+            mock_clear.assert_called_once()
 
     def test_parse_data(self, data_stream_parser, memory_limit_500mb):
-        sample_data = b"\xc1\xc2"  # Data ABC
+        # TN3270 stream: Write (0xF5), WCC (0xC1), Data (0xC1, 0xC2)
+        sample_data = b"\xf5\xc1\xc1\xc2"
         data_stream_parser.parse(sample_data)
-        # Check buffer updated
         assert data_stream_parser.screen.buffer[0:2] == b"\xc1\xc2"
 
     def test_parse_bind(self, data_stream_parser, memory_limit_500mb):
         sample_data = b"\x28" + b"\x00" * 10  # BIND stub
         data_stream_parser.parse(sample_data)
-        # Assert debug log
+        # Should not raise, but log debug
 
     def test_parse_incomplete(self, data_stream_parser, caplog, memory_limit_500mb):
-        sample_data = b"\xf5"  # Incomplete WCC
-        # With the new behavior, incomplete critical orders propagate immediately
+        # TN3270 stream: Write (0xF5) only, missing WCC
+        sample_data = b"\xf5"
         with pytest.raises(ParseError) as exc_info:
             data_stream_parser.parse(sample_data)
         e = exc_info.value
@@ -465,22 +472,28 @@ def sample_write_stream(memory_limit_500mb):
 
 
 def test_parse_sample_wcc(data_stream_parser, sample_wcc_stream, memory_limit_500mb):
-    data_stream_parser.parse(sample_wcc_stream)
+    # TN3270 stream: Write (0xF5), WCC (0xC1)
+    sample_data = b"\xf5\xc1"
+    data_stream_parser.parse(sample_data)
     assert data_stream_parser.wcc == 0xC1
 
 
 def test_parse_sample_sba(data_stream_parser, sample_sba_stream, memory_limit_500mb):
-    with patch.object(data_stream_parser.screen, "set_position"):
-        data_stream_parser.parse(sample_sba_stream)
-        data_stream_parser.screen.set_position.assert_called_with(0, 20)
+    # TN3270 stream: Write (0xF5), WCC (0xC1), SBA (0x11), row=0, col=20
+    sample_data = b"\xf5\xc1\x11\x00\x14"
+    with patch.object(data_stream_parser.screen, "set_position") as mock_set_position:
+        data_stream_parser.parse(sample_data)
+        mock_set_position.assert_called_with(0, 20)
 
 
 def test_parse_sample_write(
     data_stream_parser, sample_write_stream, memory_limit_500mb
 ):
-    with patch.object(data_stream_parser.screen, "clear"):
-        data_stream_parser.parse(sample_write_stream)
-        data_stream_parser.screen.clear.assert_called_once()
+    # TN3270 stream: Write (0xF5), WCC (0xC1), Data (0xC1, 0xC2, 0xC3)
+    sample_data = b"\xf5\xc1\xc1\xc2\xc3"
+    with patch.object(data_stream_parser.screen, "clear") as mock_clear:
+        data_stream_parser.parse(sample_data)
+        mock_clear.assert_called_once()
     assert data_stream_parser.screen.buffer[0:3] == b"\xc1\xc2\xc3"
 
 

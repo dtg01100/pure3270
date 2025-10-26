@@ -101,13 +101,8 @@ class TN3270EHeader:
             logger.debug("TN3270E header parsing failed: all 0xFF header")
             return None
 
-        # Validate data type is within expected range
+        # Validate data type byte is present
         data_type = data[0]
-        if data_type > 0xFF:
-            logger.debug(
-                f"TN3270E header parsing failed: invalid data type 0x{data_type:02x}"
-            )
-            return None
 
         # Validate sequence number is reasonable (not extremely large)
         seq_number = (data[3] << 8) | data[4]
@@ -125,16 +120,14 @@ class TN3270EHeader:
                 "!BBBH", data[:5]
             )
 
-            # Additional validation of parsed values
-            # Do not reject unknown data types here; allow construction so that
-            # repr() can show UNKNOWN(0x..) as some tests expect tolerant parsing.
+            # Accept any data_type; unknowns will be handled by get_data_type_name()
 
-            # Validate response flag is within expected range
+            # Validate response flag is within expected range per RFC 2355
+            # Allow NO_RESPONSE (0x00), ERROR_RESPONSE (0x01), ALWAYS_RESPONSE (0x02), NEGATIVE_RESPONSE (0xFF)
             if response_flag not in (
                 TN3270E_RSF_NO_RESPONSE,
                 TN3270E_RSF_ERROR_RESPONSE,
                 TN3270E_RSF_ALWAYS_RESPONSE,
-                TN3270E_RSF_POSITIVE_RESPONSE,
                 TN3270E_RSF_NEGATIVE_RESPONSE,
             ):
                 logger.debug(

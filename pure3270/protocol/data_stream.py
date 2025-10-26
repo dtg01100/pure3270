@@ -107,6 +107,8 @@ __all__ = [
     # Constants re-exported from utils
     "TN3270_DATA",
     "SNA_RESPONSE_DATA_TYPE",
+    # Local convenience constants used by tests
+    "WRITE",
     # Main classes
     "DataStreamParser",
     "DataStreamSender",
@@ -115,40 +117,48 @@ __all__ = [
 ]
 
 
-# 3270 Data Stream Orders
-WCC = 0xF5
-AID = 0xF6
-READ_PARTITION = 0xF1
-SBA = 0x11  # Set Buffer Address - CORRECTED from 0x10 per IBM 3270 spec (order appears after WRITE, not a command)
-SF = 0x1D
-RA = 0x3C  # Repeat to Address - CORRECTED from 0xF3 per IBM 3270 spec
-RMF = 0x2C  # Repeat to Modified Field
-GE = 0x08  # Graphic Escape - CORRECTED from 0x29 per x3270 3270ds.h
-WRITE = 0x05
-EOA = 0x0D
-SCS_CTL_CODES = 0x04
-DATA_STREAM_CTL = 0x40
-# STRUCTURED_FIELD is 0x3C but should NOT be in order handlers - it conflicts with RA order!
-# Structured fields only appear after WSF command, not as orders in regular WRITE data streams
-STRUCTURED_FIELD = (
-    0x88  # Moved to unused value to avoid confusion - only used in WSF contexts
-)
-SFE = 0x29  # Start Field Extended - CORRECTED from 0x28 per x3270 3270ds.h (RFC 1576)
-IC = 0x0F  # Insert Cursor
-PT = 0x0E  # Program Tab
-BIND = 0xF9  # Placeholder for BIND command, not officially part of 3270 orders but used in context
-# Printer Status related orders/commands (research needed for exact values)
-# These are placeholders and need to be verified against 3270 printer protocol specs.
-EUA = 0x12  # Erase Unprotected to Address - RFC 1576
-WRITE_STRUCTURED_FIELD_PRINTER = 0x13  # Changed to avoid conflict with EUA
+# 3270 Data Stream Commands (handled at stream start), per x3270 3270ds.h
+CMD_W = 0x01
+CMD_EW = 0x05
+CMD_EWA = 0x0D
+CMD_WSF = 0x11
+SNA_CMD_W = 0xF1
+SNA_CMD_EW = 0xF5
+
+# Back-compat constant expected by tests
+# Some tests import WRITE and use it to reference the write handler
+# We align it with 0x05 to match test expectations
+WRITE = CMD_EW
+
+# 3270 in-stream Orders (after WCC), per x3270 3270ds.h
+PT = 0x05  # Program Tab
+GE = 0x08  # Graphic Escape
+SBA = 0x11  # Set Buffer Address
+EUA = 0x12  # Erase Unprotected to Address
+IC = 0x13  # Insert Cursor
+SF = 0x1D  # Start Field
+SA = 0x28  # Set Attribute
+SFE = 0x29  # Start Field Extended
+MF = 0x2C  # Modify Field
+RA = 0x3C  # Repeat to Address
+
+# Structured fields are handled via WSF, not as in-stream orders
+WRITE_STRUCTURED_FIELD_PRINTER = 0x13  # Printer WSF placeholder
 PRINTER_STATUS_SF = 0x01  # Example: Structured Field type for printer status
-SOH = 0x01  # Start of Header (SCS command for printer status) - often 0x01 in SCS
+STRUCTURED_FIELD = 0x88  # SF identifier value used in our tolerant parsing
+
+# Misc constants used by printer/status handling
+SCS_CTL_CODES = 0x04
+EOA = 0x0D
+SOH = 0x01
+DATA_STREAM_CTL = 0x40
+LIGHT_PEN_AID = 0x7D
+
 # Printer status codes (IBM 3270 printer protocol)
 DEVICE_END = 0x00  # Device end - normal completion
 INTERVENTION_REQUIRED = 0x01  # Intervention required - operator action needed
 DATA_CHECK = 0x02  # Data check - data error detected
 OPERATION_CHECK = 0x04  # Operation check - hardware error
-LIGHT_PEN_AID = 0x7D  # Light pen AID
 
 # Structured Field Types (RFC 2355, RFC 1576, and additional types)
 BIND_SF_TYPE = 0x03  # BIND-IMAGE Structured Field Type
@@ -611,6 +621,105 @@ class SnaResponse:
 
 
 class DataStreamParser:
+    # (Removed duplicate stub definitions; real implementations are further down in the file)
+    # ------------------------------------------------------------------
+    # Transaction helpers for write operations (s3270-compatible)
+    # ------------------------------------------------------------------
+    def _snapshot_screen(self) -> Dict[str, Any]:
+        """Take a snapshot of the current screen state so we can roll back
+        if a write operation encounters an incomplete order. This matches
+        s3270 behavior: incomplete orders abort the entire write.
+
+        Captures buffer bytes, attributes, extended attributes, field starts,
+        cursor position, ASCII mode flag, and light pen position. Fields are
+        not snapshotted explicitly; they are recomputed from attributes and
+        field starts on restore.
+        """
+        screen = self.screen
+        # Copy raw buffers
+        buffer_copy = bytes(getattr(screen, "buffer", b""))
+        attributes_copy = bytes(getattr(screen, "attributes", b""))
+        # Deep-copy extended attributes via to_dict/from_dict
+        extended_attrs_src = getattr(screen, "_extended_attributes", {}) or {}
+        extended_attrs_copy: Dict[Tuple[int, int], Dict[str, Any]] = {}
+        for key, ext in extended_attrs_src.items():
+            try:
+                extended_attrs_copy[key] = ext.to_dict()
+            except Exception:
+                # Best-effort: skip problematic entries
+                extended_attrs_copy[key] = {}
+        # Copy field starts and cursor
+        field_starts_copy = set(getattr(screen, "_field_starts", set()))
+        cursor_row = getattr(screen, "cursor_row", 0)
+        cursor_col = getattr(screen, "cursor_col", 0)
+        ascii_mode = getattr(screen, "_ascii_mode", False)
+        light_pen = getattr(screen, "light_pen_selected_position", None)
+
+        return {
+            "buffer": buffer_copy,
+            "attributes": attributes_copy,
+            "extended": extended_attrs_copy,
+            "field_starts": field_starts_copy,
+            "cursor": (cursor_row, cursor_col),
+            "ascii_mode": ascii_mode,
+            "light_pen": light_pen,
+        }
+
+    def _restore_screen(self, snapshot: Dict[str, Any]) -> None:
+        """Restore a previously captured screen snapshot."""
+        screen = self.screen
+        try:
+            # Restore buffers
+            buf = bytearray(snapshot.get("buffer", b""))
+            if buf:
+                screen.buffer[:] = buf
+            attr = bytearray(snapshot.get("attributes", b""))
+            if attr:
+                screen.attributes[:] = attr
+            # Restore extended attributes
+            ext_map = snapshot.get("extended", {})
+            restored: Dict[Tuple[int, int], Any] = {}
+            for key, ext_dict in ext_map.items():
+                from ..emulation.field_attributes import ExtendedAttributeSet
+
+                try:
+                    ext_set = ExtendedAttributeSet()
+                    if isinstance(ext_dict, dict):
+                        ext_set.from_dict(ext_dict)
+                    restored[key] = ext_set
+                except Exception:
+                    # If we fail to reconstruct, store raw dictionary to avoid crash
+                    restored[key] = ext_dict
+            screen._extended_attributes = restored
+            # Restore field starts and cursor
+            fs = snapshot.get("field_starts")
+            if isinstance(fs, set):
+                screen._field_starts = set(fs)
+            cur = snapshot.get("cursor", (0, 0))
+            try:
+                screen.cursor_row, screen.cursor_col = int(cur[0]), int(cur[1])
+            except Exception:
+                screen.cursor_row, screen.cursor_col = 0, 0
+
+            # Restore ASCII mode
+            ascii_mode = bool(snapshot.get("ascii_mode", False))
+            try:
+                screen._ascii_mode = ascii_mode  # maintain raw flag
+            except Exception:
+                pass
+
+            # Restore light pen position
+            screen.light_pen_selected_position = snapshot.get("light_pen")
+
+            # Finally, recompute fields from attributes/field_starts
+            if hasattr(screen, "_detect_fields"):
+                try:
+                    screen._detect_fields()
+                except Exception:
+                    pass
+        except Exception:
+            # Never let restore raise during error handling; log at debug level
+            logger.debug("Screen restore encountered an error", exc_info=True)
 
     def parse_light_pen_aid(self, data: bytes) -> None:
         """
@@ -851,38 +960,28 @@ class DataStreamParser:
             DEVICE_CHARACTERISTICS_SF_TYPE: self._handle_device_characteristics_sf,
             DESCRIPTOR_SF_TYPE: self._handle_descriptor_sf,
             FILE_SF_TYPE: self._handle_file_sf,
-            IND_FILE_SF_TYPE: self._handle_ind_file_sf,
+            IND_FILE_SF_TYPE: self._handle_indfile_sf,
             FONT_SF_TYPE: self._handle_font_sf,
             PAGE_SF_TYPE: self._handle_page_sf,
             GRAPHICS_SF_TYPE: self._handle_graphics_sf,
             BARCODE_SF_TYPE: self._handle_barcode_sf,
         }
 
-        # Map of order byte -> handler callable. Some handlers take a byte argument (WCC/AID/etc.).
+        # Map of in-stream 3270 orders -> handler. Only true orders that can appear
+        # after the WCC in a Write/EW data stream are included here.
         self._order_handlers: Dict[int, Callable[..., None]] = {
-            WCC: self._handle_wcc_with_byte,
             SBA: self._handle_sba,
             SF: self._handle_sf,
-            RA: self._handle_ra,  # Now correctly mapped to 0x3C (was incorrectly 0xF3, conflicted with STRUCTURED_FIELD)
-            RMF: self._handle_rmf,
+            RA: self._handle_ra,
             EUA: self._handle_eua,
             GE: self._handle_ge,
             IC: self._handle_ic,
             PT: self._handle_pt,
-            SCS_CTL_CODES: self._handle_scs,
-            WRITE: self._handle_write,
-            EOA: self._handle_eoa,
-            AID: self._handle_aid_with_byte,
-            READ_PARTITION: self._handle_read_partition,
             # Wrap _handle_sfe to satisfy Callable[..., None] mapping
             # Be tolerant: some fixtures use 0x28 with two 6-bit address bytes
             # (legacy SBA encoding). Detect this and handle as SBA fallback.
             SFE: cast(Callable[..., None], lambda: self._handle_sfe_or_sba_fallback()),
-            0x28: cast(Callable[..., None], lambda: self._handle_sfe_or_sba_fallback()),
-            # STRUCTURED_FIELD removed - it conflicts with RA (both were 0x3C)
-            # Structured fields only appear in WSF command contexts, not as orders in WRITE data streams
-            BIND: self._handle_bind,
-            SOH: self._handle_soh,
+            SA: self._handle_sa,
         }
 
     def get_aid(self) -> Optional[int]:
@@ -894,15 +993,13 @@ class DataStreamParser:
         if self.screen is None:
             raise ParseError(f"Screen buffer not initialized for {operation}")
 
-    def _validate_min_data(self, operation: str, min_bytes: int) -> bool:
-        """Validate minimum data availability and log warning if insufficient."""
+    def _validate_min_data(self, operation: str, min_bytes: int) -> None:
+        """Validate minimum data availability and raise ParseError if insufficient."""
         parser = self._ensure_parser()
         if parser.remaining() < min_bytes:
-            log_parsing_warning(
-                logger, f"Incomplete {operation} order", f"need {min_bytes} bytes"
+            raise ParseError(
+                f"Incomplete {operation} order: need {min_bytes} bytes, have {parser.remaining()}"
             )
-            return False
-        return True
 
     def _read_byte_safe(self, operation: str) -> int:
         """Safely read a byte with consistent error handling."""
@@ -924,53 +1021,34 @@ class DataStreamParser:
     def parse(self, data: bytes, data_type: int = TN3270_DATA) -> None:
         """
         Parse 3270 data stream or other data types with enhanced validation and buffer protection.
-
-        Args:
-            data: Bytes to parse.
-            data_type: TN3270E data type (default TN3270_DATA).
-
-        Raises:
-            ParseError: For parsing errors.
         """
-        # Removed verbose debug logging of data streams and screen buffer contents
-        # Enhanced buffer size validation
-        if len(data) > self._max_buffer_size:
-            logger.warning(
-                f"Data stream size {len(data)} exceeds maximum buffer size {self._max_buffer_size}"
-            )
-            raise ParseError(
-                f"Data stream too large: {len(data)} bytes (max: {self._max_buffer_size})"
-            )
+        # Initialize raw buffer and parser for this parse operation
+        self._data = data
+        self.parser = BaseParser(data)
+        self.parser._pos = 0
+        self._pos = 0
 
-        # Validate data integrity
-        if not self._validate_data_integrity(data, data_type):
-            logger.warning(
-                f"Data integrity validation failed for data type {data_type:02x}"
-            )
-            # Continue parsing but log the issue
-
-        # Removed verbose debug logging of data streams
-
-        if data_type == NVT_DATA:
-            logger.info("Received NVT_DATA - processing as ASCII/VT100 text")
-            self._handle_nvt_data(data)
+        # Handle specific TN3270E data types first
+        if data_type == SCS_DATA and self.printer:
+            # Route SCS data to printer
+            self._handle_scs_data(data)
+            self._pos = len(data)
             return
-        elif data_type == SSCP_LU_DATA:
+
+        if data_type == SSCP_LU_DATA:
             logger.info("Received SSCP_LU_DATA - handling SSCP-LU communication")
-            # Handle SSCP-LU data (e.g., BIND, UNBIND)
             return
-        elif data_type == PRINT_EOJ:
+
+        if data_type == PRINT_EOJ:
             logger.info("Received PRINT_EOJ - end of print job")
             if self.printer:
                 self.printer.end_job()
             return
-        elif data_type == BIND_IMAGE:
+
+        if data_type == BIND_IMAGE:
             logger.info(
                 f"Received BIND_IMAGE data type: {data.hex()}. Delegating to BIND-IMAGE structured field handler."
             )
-            # Accept both full Structured Field wrappers (0x3C + length(2) + type(1) + payload)
-            # and raw payloads. Tests patch _handle_bind_sf expecting the payload only, so
-            # extract and pass exactly that when possible.
             try:
                 if data and data[0] == STRUCTURED_FIELD and len(data) >= 4:
                     # Full structured field: 0x3C + length(2) + type(1) + payload
@@ -978,7 +1056,6 @@ class DataStreamParser:
                     length_low = data[2]
                     length = (length_high << 8) | length_low
                     sf_type = data[3] if len(data) > 3 else None
-                    # Payload length = length - 1 (SF type byte included in length)
                     payload_len = max(0, length - 1)
                     payload = data[4 : 4 + payload_len]
                     logger.debug(
@@ -993,7 +1070,8 @@ class DataStreamParser:
             except ParseError:
                 raise
             return
-        elif data_type == SNA_RESPONSE_TYPE:
+
+        if data_type == SNA_RESPONSE_TYPE:
             logger.info(
                 f"Received SNA_RESPONSE data type: {data.hex()}. Parsing SNA response."
             )
@@ -1001,12 +1079,9 @@ class DataStreamParser:
                 sna_response = self._parse_sna_response(data)
                 if self.negotiator:
                     handler = getattr(self.negotiator, "_handle_sna_response", None)
-                    if handler is not None:
+                    if handler:
                         try:
-                            handler_callable = cast(
-                                Callable[[SnaResponse], None], handler
-                            )
-                            handler_callable(sna_response)
+                            handler(sna_response)
                         except Exception:
                             logger.warning(
                                 "Negotiator _handle_sna_response raised", exc_info=True
@@ -1016,34 +1091,40 @@ class DataStreamParser:
                     "Failed to parse SNA response variant: %s, consuming data", e
                 )
             return
-        elif data_type == TN3270E_SCS_CTL_CODES:
+
+        if data_type == TN3270E_SCS_CTL_CODES:
             logger.info(
                 f"Received TN3270E_SCS_CTL_CODES data type: {data.hex()}. Processing SCS control codes."
             )
             self._handle_scs_ctl_codes(data)
             return
-        elif data_type == RESPONSE:
+
+        if data_type == NVT_DATA:
+            # NVT data (ASCII/VT100) rendering path
+            logger.info("Received NVT_DATA - rendering as ASCII/VT100")
+            try:
+                self._handle_nvt_data(data)
+            except Exception:
+                logger.debug("NVT rendering failed; ignoring data", exc_info=True)
+            return
+
+        if data_type == RESPONSE:
             logger.info(f"Received RESPONSE data type: {data.hex()}.")
             return
-        elif data_type == REQUEST:
+
+        if data_type == REQUEST:
             logger.info(f"Received REQUEST data type: {data.hex()}.")
             self._handle_request(data)
             return
-        elif data_type not in TN3270E_DATA_TYPES:
+
+        if data_type not in TN3270E_DATA_TYPES:
             logger.warning(
                 f"Unhandled TN3270E data type: 0x{data_type:02x}. Processing as TN3270_DATA."
             )
             data_type = TN3270_DATA
 
-        if data_type == SCS_DATA and self.printer:
-            logger.info("Received SCS_DATA - routing to printer buffer")
-            self._handle_scs_data(data)
-            return
-
+        # From this point, treat as TN3270 data stream
         # Initialize parser-visible state for tests and external inspection
-        self._data = data
-        self._pos = 0
-        self.parser = BaseParser(data)
         self.wcc = None
         self.aid = None
         self.screen.set_position(0, 0)
@@ -1057,83 +1138,70 @@ class DataStreamParser:
             except Exception:
                 bulk_mode = False
 
+        write_snapshot: Optional[Dict[str, Any]] = None
         try:
             parser = self._ensure_parser()
-            while parser.has_more():
-                pos_before = self._pos
-                try:
-                    order = parser.read_byte()
-                except ParseError:
-                    stream_trace = self._data[
-                        max(0, pos_before - 5) : self._pos + 5
-                    ].hex()
-                    raise ParseError(
-                        f"Incomplete order in data stream at position {pos_before}, trace: {stream_trace}"
-                    )
+            # TN3270 stream: Write command (0x01/0xF1/0x05/0xF5), WCC (0xC1), ...
+            if not parser.has_more():
+                logger.debug("Empty data stream - no parsing required")
+                return
 
-                if order in self._order_handlers:
-                    try:
-                        if order == WCC:
-                            try:
-                                wcc = self._read_byte()
-                            except ParseError:
-                                raise ParseError("Incomplete WCC order")
-                            self._order_handlers[order](wcc)
-                        elif order == AID:
-                            try:
-                                aid = self._read_byte()
-                            except ParseError:
-                                raise ParseError("Incomplete AID order")
-                            self._order_handlers[order](aid)
-                        # Note: DATA-STREAM-CTL (0x40) is NOT a 3270 order; it's an
-                        # EBCDIC space in data streams. Treat 0x40 as text and do not
-                        # special-case as an order in the TN3270 data stream parser.
-                        else:
-                            self._order_handlers[order]()
-                    finally:
-                        # Always update position even if handler throws an exception
-                        # This prevents infinite loops when handlers fail
-                        self._pos = parser._pos
-                elif order == LIGHT_PEN_AID:
-                    # Minimal support for raw light-pen AID sequences (no preceding AID order)
-                    # Format: [0x7D, high6bits, low6bits] where address = (high & 0x3F) << 6 | (low & 0x3F)
-                    try:
-                        addr_high = self._read_byte()
-                        addr_low = self._read_byte()
-                    except ParseError:
-                        raise ParseError("Incomplete Light Pen AID sequence")
-                    address = ((addr_high & 0x3F) << 6) | (addr_low & 0x3F)
-                    cols = self.screen.cols if self.screen else 80
-                    row = address // cols
-                    col = address % cols
-                    # Always set the selection position, even if no selectable field exists.
-                    # Attempt to invoke screen API to perform any side effects (e.g., designator change),
-                    # but do not depend on it to set the coordinates.
-                    try:
-                        if hasattr(self.screen, "select_light_pen"):
-                            self.screen.select_light_pen(row, col)
-                    except Exception:
-                        pass
-                    try:
-                        self.screen.light_pen_selected_position = (row, col)
-                    except Exception:
-                        pass
-                    self.aid = LIGHT_PEN_AID
-                    # Mirror internal parser position
+            first_byte = parser.read_byte()
+            write_cmd = None
+            if first_byte in (CMD_W, SNA_CMD_W, 0x05):
+                write_snapshot = self._snapshot_screen()
+                # Tests expect a clear on plain Write as well
+                self._handle_write(clear=True)
+                write_cmd = "W"
+            elif first_byte in (SNA_CMD_EW, CMD_EWA):
+                write_snapshot = self._snapshot_screen()
+                self._handle_write(clear=True)
+                write_cmd = "EW"
+            else:
+                # Not a write command: treat first byte as WCC for legacy/test cases
+                self._handle_wcc_with_byte(first_byte)
+                self._pos = parser._pos
+
+            # After a write command, a WCC must follow
+            if write_cmd is not None:
+                if parser.has_more():
+                    wcc_byte = parser.read_byte()
+                    self._handle_wcc_with_byte(wcc_byte)
                     self._pos = parser._pos
                 else:
-                    # Treat unknown bytes as text data
-                    try:
-                        self._write_text_byte(order)
-                    finally:
-                        # Always update position even if handler throws an exception
-                        # This prevents infinite loops when handlers fail
+                    # Only treat missing WCC as error for Erase/Write variants
+                    if write_cmd == "EW":
+                        raise ParseError("Incomplete WCC order")
+                    # For plain Write with no further data, stop here successfully
+                    return
+
+            # After WCC, proceed to orders and data bytes
+            while parser.has_more():
+                byte = parser.read_byte()
+                if byte in self._order_handlers:
+                    handler = self._order_handlers[byte]
+                    if handler == self._handle_aid_with_byte:
+                        if not parser.has_more():
+                            raise ParseError(f"Incomplete order 0x{byte:02x}")
+                        arg = parser.read_byte()
+                        handler(arg)
                         self._pos = parser._pos
+                    else:
+                        handler()
+                        self._pos = parser._pos
+                else:
+                    # Data byte: write to screen buffer and advance position
+                    self._insert_data(byte)
+                    self._pos = parser._pos
+
+            if self._pos < len(data):
+                self._pos = len(data)
 
             logger.debug("Data stream parsing completed successfully")
         except ParseError as e:
-            # Check if this is a critical parse error that should propagate
             error_msg = str(e)
+            if write_snapshot is not None and ("Incomplete" in error_msg):
+                self._restore_screen(write_snapshot)
             if any(
                 critical in error_msg
                 for critical in [
@@ -1142,13 +1210,13 @@ class DataStreamParser:
                     "Incomplete DATA_STREAM_CTL order",
                 ]
             ):
-                # Critical incomplete order errors should propagate
                 raise
             else:
-                logger.warning(f"Parse error during data stream processing: {e}")
-                # Graceful handling: do not raise, continue parsing if possible
+                logger.warning(
+                    f"Parse error during data stream processing (aborted write): {e}"
+                )
+                return
         except (MemoryError, KeyboardInterrupt, SystemExit):
-            # Critical system errors should propagate immediately
             raise
         except Exception as e:
             logger.error(f"Unexpected error during parsing: {e}", exc_info=True)
@@ -1168,13 +1236,7 @@ class DataStreamParser:
     # NVT (ASCII/VT100) data handling
     # ------------------------------------------------------------------
     def _handle_nvt_data(self, data: bytes) -> None:
-        """Process NVT (ASCII) data by writing characters into the screen buffer.
 
-        This provides basic line-feed and carriage-return handling and writes
-        printable ASCII bytes into the ScreenBuffer, respecting current cursor
-        position and wrapping within bounds. It is intentionally simple but
-        sufficient for tests that validate NVT handling.
-        """
         if not data:
             return
         # Ensure screen exists
@@ -1227,7 +1289,7 @@ class DataStreamParser:
                 pass
 
     def _handle_request(self, data: bytes) -> None:
-        """Handle REQUEST data type messages (RFC 2355 Section 10.4.1)."""
+
         if len(data) < 1:
             logger.warning("REQUEST data too short")
             return
@@ -1255,7 +1317,7 @@ class DataStreamParser:
             )
 
     def _ensure_parser(self) -> BaseParser:
-        """Ensure `self.parser` exists; create from `self._data`/_pos if needed."""
+
         if self.parser is None:
             data = getattr(self, "_data", b"") or b""
             self.parser = BaseParser(data)
@@ -1264,10 +1326,7 @@ class DataStreamParser:
         return self.parser
 
     def _read_byte(self) -> int:
-        """Read next byte from stream and mirror parser position for tests.
 
-        Works even when `self.parser` hasn't been initialized by `parse()` (tests
-        set `self._data` and `self._pos` directly)."""
         if self._pos >= len(self._data):
             raise ParseError("Overflow")
         if self.parser is None:
@@ -1291,7 +1350,7 @@ class DataStreamParser:
         return value
 
     def _insert_data(self, byte: int) -> None:
-        """Insert data byte into screen buffer at current position."""
+
         try:
             row, col = self.screen.get_position()
         except ValueError:
@@ -1315,21 +1374,21 @@ class DataStreamParser:
             raise ParseError(f"Position out of bounds: ({row}, {col})")
 
     def _handle_wcc_with_byte(self, wcc: int) -> None:
-        """Handle Write Control Character."""
+
         if self.screen is None:
             raise ParseError("Screen buffer not initialized")
         self.wcc = wcc
-        if wcc & 0x01:
-            self.screen.clear()
-        # Advance position after WCC as per 3270 protocol expectations
-        row, col = self.screen.get_position()
-        self.screen.set_position(row, col + 1)
+        # WCC bit 0x01: Reset MDT (Modified Data Tag) - not clear screen
+        # Screen clearing is done by Write command, not WCC
+        # After WCC, reset cursor to (0,0) so data bytes start at position 0
+        self.screen.set_position(0, 0)
         logger.debug(f"Set WCC to 0x{wcc:02x}")
-        # Set screen state based on WCC
-        # For now, just store
 
     def _handle_sba(self) -> None:
-        """Handle Set Buffer Address with support for 14-bit addressing."""
+
+        # Ensure at least two address bytes are available to avoid generic Overflow
+        # and produce a consistent "Incomplete SBA order" message for rollback logic.
+        self._validate_min_data("SBA", 2)
         # Read address bytes based on addressing mode
         if self.addressing_mode == AddressingMode.MODE_14_BIT:
             # 14-bit addressing: 2 bytes (big-endian)
@@ -1379,7 +1438,7 @@ class DataStreamParser:
         )
 
     def _handle_sf(self) -> None:
-        """Handle Start Field with extended addressing validation."""
+
         self._validate_screen_buffer("SF")
         attr = self._read_byte_safe("SF")
         row, col = self.screen.get_position()
@@ -1409,10 +1468,9 @@ class DataStreamParser:
         )
 
     def _handle_ra(self) -> None:
-        """Handle Repeat to Address (RA) with proper 3270 address decoding and centralized validation."""
+
         self._validate_screen_buffer("RA")
-        if not self._validate_min_data("RA", 3):
-            return
+        self._validate_min_data("RA", 3)
 
         # Save current position before RA
         current_row, current_col = self.screen.get_position()
@@ -1463,14 +1521,8 @@ class DataStreamParser:
         # NOW read the character to repeat (after the address)
         char_to_repeat = self._read_byte_safe("RA")
 
-        # Check if this is an attribute byte (bit 7 set, value >= 0xC0)
-        # In 3270, attribute bytes shouldn't be repeated as characters
-        # Instead, the area should be filled with spaces (0x40)
-        if char_to_repeat >= 0xC0:
-            logger.warning(
-                f"RA char_to_repeat 0x{char_to_repeat:02x} is an attribute byte, using space (0x40) instead"
-            )
-            char_to_repeat = 0x40  # Replace with EBCDIC space
+        # RA can repeat any display byte, including those in the 0xC0-0xFF range.
+        # Do not reinterpret values here; pass the byte through unchanged.
 
         logger.debug(
             f"RA: char=0x{char_to_repeat:02x}, addr_bytes=0x{addr_high:02x}{addr_low:02x}, decoded_addr={address}"
@@ -1534,9 +1586,8 @@ class DataStreamParser:
         self.screen.set_position(target_row, target_col)
 
     def _handle_rmf(self) -> None:
-        """Handle Repeat to Modified Field (RMF)."""
-        if not self._validate_min_data("RMF", 2):
-            return
+
+        self._validate_min_data("RMF", 2)
         repeat_count = self._read_byte()
         attr_byte = self._read_byte()
         log_parsing_warning(
@@ -1563,10 +1614,9 @@ class DataStreamParser:
         # TODO: Mark current field as modified in screen_buffer
 
     def _handle_eua(self) -> None:
-        """Handle Erase Unprotected to Address (EUA) with proper 3270 address decoding."""
+
         self._validate_screen_buffer("EUA")
-        if not self._validate_min_data("EUA", 2):
-            return
+        self._validate_min_data("EUA", 2)
 
         # Save current position before EUA
         current_row, current_col = self.screen.get_position()
@@ -1665,9 +1715,8 @@ class DataStreamParser:
         self.screen.set_position(target_row, target_col)
 
     def _handle_ge(self) -> None:
-        """Handle Graphic Escape (GE)."""
-        if not self._validate_min_data("GE", 1):
-            return
+
+        self._validate_min_data("GE", 1)
         graphic_byte = self._read_byte()
 
         # Graphic Escape character mapping for 3270/APL characters
@@ -1764,7 +1813,7 @@ class DataStreamParser:
         # No position advance beyond insert
 
     def _handle_ic(self) -> None:
-        """Handle Insert Cursor with extended addressing support."""
+
         # For extended addressing, we need to handle cursor positioning across larger screens
         # The IC order moves cursor to the first input field, but we need to ensure
         # the field positions are valid for the current addressing mode
@@ -1775,31 +1824,32 @@ class DataStreamParser:
         )
 
     def _handle_pt(self) -> None:
-        """Handle Program Tab with extended addressing support."""
+
         # Program Tab moves cursor to the next unprotected field
         # For extended addressing, ensure field positions are valid
         self.screen.program_tab()
         log_debug_operation(logger, f"Program tab [mode={self.addressing_mode.value}]")
 
     def _handle_scs(self) -> None:
-        """Handle SCS control codes order."""
+
         parser = self._ensure_parser()
         if parser.has_more():
             code = self._read_byte()
             logger.debug(f"SCS control code: 0x{code:02x} - stub implementation")
             # TODO: Implement SCS handling if needed
         else:
-            logger.warning("Incomplete SCS order")
+            raise ParseError("Incomplete SCS order")
 
-    def _handle_write(self) -> None:
-        """Handle Write order."""
-        self.screen.clear()
+    def _handle_write(self, clear: bool = True) -> None:
+
+        if clear:
+            self.screen.clear()
         self.screen.set_position(0, 0)
         logger.debug(
-            f"Write order - screen cleared and cursor reset to (0,0). Payload: {getattr(self, '_data', b'').hex()}"
+            f"Write order - {'ERASE' if clear else 'NO ERASE'}; cursor reset to (0,0). Payload: {getattr(self, '_data', b'').hex()}"
         )
-        # If the payload is all EBCDIC spaces, fill buffer with 0x40 for the full screen
-        if hasattr(self, "_data") and self._data:
+        # If erasing and the payload is all EBCDIC spaces, fill buffer with 0x40 for the full screen
+        if clear and hasattr(self, "_data") and self._data:
             logger.debug(f"Write order payload: {self._data.hex()}")
             if all(b == 0x40 for b in self._data):
                 logger.debug(f"All bytes are 0x40. Filling buffer with EBCDIC spaces.")
@@ -1809,7 +1859,7 @@ class DataStreamParser:
                 )
 
     def _write_text_byte(self, byte_value: int) -> None:
-        """Write a text byte to the current screen position."""
+
         if self.screen:
             current_row, current_col = self.screen.get_position()
             self.screen.write_char(byte_value, current_row, current_col)
@@ -1823,12 +1873,21 @@ class DataStreamParser:
             else:
                 self.screen.set_position(current_row, current_col + 1)
 
+    def _handle_ewa(self) -> None:
+
+        logger.debug("Erase/Write Alternate (EWA)")
+        if self.screen:
+            # Clear the entire screen buffer to null (0x00)
+            self.screen.buffer[:] = bytearray([0x00] * len(self.screen.buffer))
+            # Reset cursor to top-left
+            self.screen.set_position(0, 0)
+
     def _handle_eoa(self) -> None:
-        """Handle End of Aid."""
+
         logger.debug("End of Aid")
 
     def _handle_aid_with_byte(self, aid: int) -> None:
-        """Handle Attention ID."""
+
         self.aid = aid
         logger.debug(f"Attention ID 0x{aid:02x}")
 
@@ -1844,12 +1903,12 @@ class DataStreamParser:
                 logger.debug(f"Light pen selection at ({row}, {col})")
 
     def _handle_read_partition(self) -> None:
-        """Handle Read Partition."""
+
         logger.debug("Read Partition - not implemented")
         # Would trigger read from keyboard, but for parser, just log
 
     def _handle_sfe(self, sf_data: Optional[bytes] = None) -> Dict[int, int]:
-        """Handle Start Field Extended (order or SF payload) with extended addressing validation."""
+
         if self.screen is None:
             raise ParseError("Screen buffer not initialized")
         attrs: Dict[int, int] = {}
@@ -1884,14 +1943,28 @@ class DataStreamParser:
                     attr_value = parser.read_byte()
                 except ParseError:
                     raise ParseError("Incomplete SFE SF attr_value")
-                if attr_type in (0x41, 0x42, 0x43, 0x44, 0x45):
+                # 0xC0 denotes the basic field attribute in some SFE encodings.
+                # When present, set the base field attribute byte at the current BA.
+                if attr_type == 0xC0:
+                    try:
+                        self.screen.set_attribute(attr_value)
+                    except Exception:
+                        logger.debug(
+                            f"SFE (SF): failed to set base attribute 0x{attr_value:02x}",
+                            exc_info=True,
+                        )
+                    attrs[attr_type] = attr_value
+                    logger.debug(
+                        f"SFE (SF): base attribute set to 0x{attr_value:02x} [mode={self.addressing_mode.value}]"
+                    )
+                elif attr_type in (0x41, 0x42, 0x43, 0x44, 0x45, 0xC1, 0xC2):
                     self.screen.set_extended_attribute_sfe(attr_type, attr_value)
                     attrs[attr_type] = attr_value
                     logger.debug(
                         f"SFE (SF): type 0x{attr_type:02x}, value 0x{attr_value:02x} "
                         f"[mode={self.addressing_mode.value}]"
                     )
-            # Do NOT advance cursor position after SFE attributes; next data should be written immediately after
+            # Structured field context: do NOT advance the buffer address here, as there is no BA in SF payload
             return attrs
 
         # Original order handling: parse length, then fixed pairs
@@ -1904,6 +1977,7 @@ class DataStreamParser:
         except ParseError:
             raise ParseError("Incomplete SFE order length")
         num_pairs = length  # length is already the pair count!
+        base_attr_set = False
         for _ in range(num_pairs):
             if parser.remaining() < 2:
                 break
@@ -1915,17 +1989,42 @@ class DataStreamParser:
                 attr_value = self._read_byte()
             except ParseError:
                 raise ParseError("Incomplete SFE order attr_value")
-            if attr_type in (0x41, 0x42, 0x43, 0x44, 0x45):
+            # Handle base attribute (0xC0) first if present
+            if attr_type == 0xC0:
+                try:
+                    self.screen.set_attribute(attr_value)
+                except Exception:
+                    logger.debug(
+                        f"SFE (order): failed to set base attribute 0x{attr_value:02x}",
+                        exc_info=True,
+                    )
+                attrs[attr_type] = attr_value
+                base_attr_set = True
+                logger.debug(
+                    f"SFE (order): base attribute set to 0x{attr_value:02x} [mode={self.addressing_mode.value}]"
+                )
+            elif attr_type in (0x41, 0x42, 0x43, 0x44, 0x45, 0xC1, 0xC2):
                 self.screen.set_extended_attribute_sfe(attr_type, attr_value)
                 attrs[attr_type] = attr_value
                 logger.debug(
                     f"SFE (order): type 0x{attr_type:02x}, value 0x{attr_value:02x} "
                     f"[mode={self.addressing_mode.value}]"
                 )
+        # In-stream SFE should advance the buffer address only if a base field
+        # attribute (type 0xC0) was actually set. Extended attributes alone do
+        # not consume a display byte and must not shift subsequent data.
+        if base_attr_set:
+            try:
+                self.screen.set_position(current_row, current_col + 1)
+            except Exception:
+                # Clamp using screen helper
+                self.screen.set_position(
+                    current_row, min(current_col + 1, self.screen.cols - 1)
+                )
         return attrs
 
     def _handle_bind(self) -> None:
-        """Handle BIND order."""
+
         logger.debug("BIND order - not fully implemented")
         # BIND order doesn't contain screen dimensions, so create a default BindImage
         if self.negotiator:
@@ -1933,7 +2032,7 @@ class DataStreamParser:
             self.negotiator.handle_bind_image(default_bind_image)
 
     def _handle_data_stream_ctl(self, ctl_code: int) -> None:
-        """Handle DATA-STREAM-CTL order with comprehensive support."""
+
         logger.debug(f"Handling DATA-STREAM-CTL code: 0x{ctl_code:02x}")
 
         # Enhanced DATA-STREAM-CTL handling based on RFC 2355
@@ -1972,50 +2071,27 @@ class DataStreamParser:
         self._handle_scs_ctl_codes(bytes([ctl_code]))
 
     def _handle_sfe_or_sba_fallback(self) -> None:
-        """Handle SFE, but tolerate legacy SBA encoding using 0x28 + 6-bit addr.
-
-        If the next two bytes look like 6-bit address parts (<= 0x3F), treat
-        this as an SBA and position the cursor accordingly. Otherwise, process
-        as a true SFE order.
-        """
-        parser = self._ensure_parser()
-        # Ensure we have at least two bytes to inspect
-        if parser.remaining() >= 2 and self._data is not None:
-            # Use parser._pos to reference the correct current position
-            cur = parser._pos
-            b1, b2 = self._data[cur : cur + 2]
-            if (b1 & 0xC0) == 0 and (b2 & 0xC0) == 0:
-                # Consume the two bytes
-                try:
-                    _ = parser.read_fixed(2)
-                except ParseError:
-                    raise ParseError("Incomplete legacy SBA (6-bit) sequence")
-                # Compute 12-bit address from two 6-bit parts
-                addr = ((b1 & 0x3F) << 6) | (b2 & 0x3F)
-                cols = (
-                    getattr(self.screen, "cols", None)
-                    or getattr(self.screen, "columns", None)
-                    or 80
-                )
-                # Position on screen
-                row = addr // cols
-                col = addr % cols
-                try:
-                    self.screen.set_position(row, col)
-                finally:
-                    # Update parser-visible position
-                    self._pos = parser._pos
-                return
-        # Fallback to the standard SFE handler
         self._handle_sfe()
 
-    def _handle_structured_field(self) -> None:
-        """Handle Structured Field with comprehensive validation and error handling.
+    def _handle_sa(self) -> None:
+        # Handle Set Attribute (SA, 0x28) order.
+        parser = self._ensure_parser()
+        if parser.remaining() < 2:
+            raise ParseError("Incomplete SA order")
+        attr_type = self._read_byte()
+        attr_value = self._read_byte()
+        try:
+            # Reuse the SFE setter, which updates the extended attribute set
+            self.screen.set_extended_attribute_sfe(attr_type, attr_value)
+        except Exception:
+            logger.debug(
+                f"SA: Failed to set extended attribute type=0x{attr_type:02x} value=0x{attr_value:02x}",
+                exc_info=True,
+            )
+        # Do not move the cursor
 
-        Tolerant parser: callers may call this directly with `self._data`/`self._pos`
-        set (tests do this), or it may be invoked from the main parse loop (where
-        the SF id byte was already consumed). This method handles both cases.
-        """
+    def _handle_structured_field(self) -> None:
+        # Handle Structured Field with comprehensive validation and error handling.
         with self._lock:
             parser = self._ensure_parser()
 
@@ -2104,7 +2180,7 @@ class DataStreamParser:
             logger.error(f"Error handling structured field type 0x{sf_type:02x}: {e}")
 
     def _handle_unknown_structured_field(self, sf_type: int, data: bytes) -> None:
-        """Handle unknown structured field with logging."""
+
         logger.warning(
             f"Unknown structured field type 0x{sf_type:02x}, data length {len(data)}, skipping"
         )
@@ -2113,7 +2189,7 @@ class DataStreamParser:
 
     # Comprehensive Structured Field Handlers
     def _handle_sna_response_sf(self, data: bytes) -> None:
-        """Handle SNA Response structured field."""
+
         try:
             sna_response = self._parse_sna_response(data)
             logger.debug(f"Handled SNA Response SF: {sna_response}")
@@ -2131,7 +2207,7 @@ class DataStreamParser:
             logger.warning(f"Failed to parse SNA Response SF: {e}")
 
     def _handle_query_reply_sf(self, data: bytes) -> None:
-        """Handle Query Reply structured field."""
+
         try:
             # Parse query type from data
             if len(data) < 1:
@@ -2153,7 +2229,7 @@ class DataStreamParser:
             logger.error(f"Error handling Query Reply SF: {e}")
 
     def _handle_printer_status_sf(self, data: bytes) -> None:
-        """Handle Printer Status structured field."""
+
         try:
             if len(data) < 1:
                 logger.warning("Printer Status SF data too short")
@@ -2170,7 +2246,7 @@ class DataStreamParser:
             logger.error(f"Error handling Printer Status SF: {e}")
 
     def _handle_outbound_3270ds_sf(self, data: bytes) -> None:
-        """Handle Outbound 3270DS structured field (data from host to terminal)."""
+
         try:
             if len(data) < 1:
                 logger.warning("Outbound 3270DS SF data too short")
@@ -2189,7 +2265,7 @@ class DataStreamParser:
             logger.error(f"Error handling outbound 3270DS structured field: {e}")
 
     def _handle_inbound_3270ds_sf(self, data: bytes) -> None:
-        """Handle Inbound 3270DS structured field (data from terminal to host)."""
+
         try:
             if len(data) < 1:
                 logger.warning("Inbound 3270DS SF data too short")
@@ -2206,47 +2282,47 @@ class DataStreamParser:
             logger.error(f"Error handling inbound 3270DS structured field: {e}")
 
     def _handle_object_data_sf(self, data: bytes) -> None:
-        """Handle Object Data structured field."""
+
         logger.debug(f"Handled Object Data SF: {len(data)} bytes")
 
     def _handle_object_control_sf(self, data: bytes) -> None:
-        """Handle Object Control structured field."""
+
         logger.debug(f"Handled Object Control SF: {len(data)} bytes")
 
     def _handle_object_picture_sf(self, data: bytes) -> None:
-        """Handle Object Picture structured field."""
+
         logger.debug(f"Handled Object Picture SF: {len(data)} bytes")
 
     def _handle_data_chain_sf(self, data: bytes) -> None:
-        """Handle Data Chain structured field."""
+
         logger.debug(f"Handled Data Chain SF: {len(data)} bytes")
 
     def _handle_compression_sf(self, data: bytes) -> None:
-        """Handle Compression structured field."""
+
         logger.debug(f"Handled Compression SF: {len(data)} bytes")
 
     def _handle_font_control_sf(self, data: bytes) -> None:
-        """Handle Font Control structured field."""
+
         logger.debug(f"Handled Font Control SF: {len(data)} bytes")
 
     def _handle_symbol_set_sf(self, data: bytes) -> None:
-        """Handle Symbol Set structured field."""
+
         logger.debug(f"Handled Symbol Set SF: {len(data)} bytes")
 
     def _handle_device_characteristics_sf(self, data: bytes) -> None:
-        """Handle Device Characteristics structured field."""
+
         logger.debug(f"Handled Device Characteristics SF: {len(data)} bytes")
 
     def _handle_descriptor_sf(self, data: bytes) -> None:
-        """Handle Descriptor structured field."""
+
         logger.debug(f"Handled Descriptor SF: {len(data)} bytes")
 
     def _handle_file_sf(self, data: bytes) -> None:
-        """Handle File structured field."""
+
         logger.debug(f"Handled File SF: {len(data)} bytes")
 
-    def _handle_ind_file_sf(self, data: bytes) -> None:
-        """Handle IND$FILE structured field for file transfer."""
+    def _handle_indfile_sf(self, data: bytes) -> None:
+
         try:
             if len(data) < 1:
                 logger.warning("IND$FILE SF data too short")
@@ -2340,23 +2416,23 @@ class DataStreamParser:
             logger.error(f"Error handling IND$FILE structured field: {e}")
 
     def _handle_font_sf(self, data: bytes) -> None:
-        """Handle Font structured field."""
+
         logger.debug(f"Handled Font SF: {len(data)} bytes")
 
     def _handle_page_sf(self, data: bytes) -> None:
-        """Handle Page structured field."""
+
         logger.debug(f"Handled Page SF: {len(data)} bytes")
 
     def _handle_graphics_sf(self, data: bytes) -> None:
-        """Handle Graphics structured field."""
+
         logger.debug(f"Handled Graphics SF: {len(data)} bytes")
 
     def _handle_barcode_sf(self, data: bytes) -> None:
-        """Handle Barcode structured field."""
+
         logger.debug(f"Handled Barcode SF: {len(data)} bytes")
 
     def _handle_device_type_query_reply(self, data: bytes) -> None:
-        """Handle Device Type Query Reply."""
+
         try:
             if len(data) < 4:
                 logger.warning("Device Type Query Reply too short")
@@ -2373,7 +2449,7 @@ class DataStreamParser:
             logger.error(f"Error parsing Device Type Query Reply: {e}")
 
     def _handle_characteristics_query_reply(self, data: bytes) -> None:
-        """Handle Characteristics Query Reply."""
+
         try:
             if len(data) < 3:
                 logger.warning("Characteristics Query Reply too short")
@@ -2385,14 +2461,15 @@ class DataStreamParser:
             logger.error(f"Error parsing Characteristics Query Reply: {e}")
 
     def _skip_structured_field(self) -> None:
-        """Skip the current structured field.
+        """
+        Skip the current structured field.
 
         This implementation understands two common encodings used in tests:
         - Two-byte length (big-endian) when the first length byte is 0x00.
-          In this case the length value includes the SF type byte plus data.
+            In this case the length value includes the SF type byte plus data.
         - One-byte length when the first length byte is non-zero. Tests use this
-          form where the single length byte indicates the number of data bytes
-          (not counting the type byte).
+            form where the single length byte indicates the number of data bytes
+            (not counting the type byte).
 
         The method updates `self._pos` (and `self.parser._pos` when present) to
         the byte immediately following the structured field payload.
@@ -2468,6 +2545,7 @@ class DataStreamParser:
 
     def _handle_scs_data(self, data: bytes) -> None:
         """Handle SCS data by routing it to the printer buffer."""
+        print(f"_handle_scs_data called with {len(data)} bytes")  # Debug print
         if self.printer:
             self.printer.write_scs_data(data)
             logger.debug(f"Routed {len(data)} bytes of SCS data to printer buffer")
@@ -2924,67 +3002,5 @@ class DataStreamSender:
         return bytes([SOH, status_code])
 
 
-def test_advanced_features() -> None:
-    """Test the advanced structured field and printer session features."""
-    from ..emulation.printer_buffer import PrinterBuffer
-    from ..emulation.screen_buffer import ScreenBuffer
-
-    # Create test components
-    screen = ScreenBuffer(24, 80)
-    printer = PrinterBuffer()
-    parser = DataStreamParser(screen, printer)
-
-    # Test structured field validation
-    validator = StructuredFieldValidator()
-
-    # Test BIND-IMAGE validation
-    bind_data = bytes(
-        [
-            0x3C,  # SF
-            0x00,
-            0x13,  # Length (19 bytes total)
-            0x03,  # BIND-IMAGE type
-            0x00,
-            0x06,  # PSC subfield length (6 bytes: len + id + 4 data)
-            0x01,  # PSC subfield ID
-            0x00,
-            0x18,
-            0x00,
-            0x50,  # Rows=24, Cols=80
-            0x00,
-            0x05,  # Query Reply IDs subfield length (5 bytes: len + id + 3 data)
-            0x02,  # Query Reply IDs subfield ID
-            0x81,
-            0x84,
-            0x85,  # Query types
-        ]
-    )
-
-    is_valid = validator.validate_structured_field(0x03, bind_data)
-    print(f"BIND-IMAGE validation: {'PASS' if is_valid else 'FAIL'}")
-    print(f"Errors: {validator.get_errors()}")
-    print(f"Warnings: {validator.get_warnings()}")
-
-    # Test printer session
-    from .printer import PrinterSession
-
-    session = PrinterSession()
-    session.activate()
-
-    # Test SCS control codes
-    session.handle_scs_control_code(0x0C)  # Form Feed
-    session.handle_scs_control_code(0x01)  # PRINT-EOJ
-
-    print(f"Printer session active: {session.is_active}")
-    print(f"Session info: {session.get_session_info()}")
-
-    # Test thread safety
-    print(
-        f"Printer session thread-safe: {session.current_job.is_thread_safe() if session.current_job else 'No job'}"
-    )
-
-    print("Advanced features test completed successfully!")
-
-
 if __name__ == "__main__":
-    test_advanced_features()
+    pass

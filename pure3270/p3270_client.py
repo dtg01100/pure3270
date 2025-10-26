@@ -191,6 +191,7 @@ class P3270Client:
             if command in [
                 "Enter",
                 "Clear",
+                "CLEAR",
                 "Home",
                 "Tab",
                 "BackTab",
@@ -250,7 +251,13 @@ class P3270Client:
                 update_screen = True
             elif command == "Reset":
                 # Reset is not directly implemented, use clear
-                self._pure_session.clear()
+                self._pure_session.erase()
+                update_screen = True
+            elif command == "Newline":
+                self._pure_session.newline()
+                update_screen = True
+            elif command == "Test":
+                self._pure_session.test()
                 update_screen = True
 
             # PF/PA keys
@@ -400,10 +407,6 @@ class P3270Client:
             logger.error(f"Error saving screen to {filename}: {e}")
             return False
 
-    def clearScreen(self) -> None:
-        """Clear the screen."""
-        self._sendCommand("Clear")
-
     def sendText(self, text: str, asterisks: bool = False) -> None:
         """
         Send text to the current cursor position.
@@ -439,6 +442,10 @@ class P3270Client:
     def sendHome(self) -> None:
         """Send Home key."""
         self._sendCommand("Home")
+
+    def clearScreen(self) -> None:
+        """Clear the screen."""
+        self._sendCommand("CLEAR")
 
     def sendPF(self, pfNum: int) -> None:
         """Send PF key (PF1-PF24)."""

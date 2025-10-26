@@ -1,0 +1,46 @@
+{
+  "case": 48,
+  "rows": 24,
+  "cols": 80,
+  "fields": [
+    {
+      "start": [
+        2,
+        7
+      ],
+      "end": [
+        16,
+        3
+      ],
+      "protected": false,
+      "numeric": true,
+      "content": "UZP1NOGX"
+    },
+    {
+      "start": [
+        15,
+        0
+      ],
+      "end": [
+        0,
+        36
+      ],
+      "protected": false,
+      "numeric": false,
+      "content": "1QNZL649"
+    },
+    {
+      "start": [
+        18,
+        23
+      ],
+      "end": [
+        7,
+        40
+      ],
+      "protected": true,
+      "numeric": false,
+      "content": "TP0AG9B6"
+    }
+  ]
+}

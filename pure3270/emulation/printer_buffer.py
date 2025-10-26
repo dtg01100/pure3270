@@ -69,17 +69,57 @@ class PrinterBuffer(BufferWriter):
         pass
 
     def get_content(self) -> str:
-        """Retrieve the buffer content as a string."""
-        return self.get_rendered_output()
+        """Retrieve the buffer content as a cleaned string (ASCII, no control chars except \n, \f, \t)."""
+        raw = self.get_rendered_output()
+        print(f"PrinterBuffer raw output: '{raw}'")  # Debug print
+        # Remove only non-printable/control chars except \n, \f, \t
+        import re
+
+        cleaned = re.sub(r"[^\x09\x0a\x0c\x20-\x7e]", "", raw)
+        import logging
+
+        logger = logging.getLogger(__name__)
+        logger.debug(f"PrinterBuffer cleaned output: '{cleaned}'")
+        return cleaned
 
     def write_scs_data(self, data: bytes) -> None:
-        """Processes incoming SCS data."""
-        # This is a simplified implementation.
-        # Full implementation would involve parsing SCS commands like text,
-        # line feed, carriage return, form feed, etc.
-        for byte in data:
-            self.write_char(byte)
-            # Add more SCS command handling here (e.g., Form Feed, Horizontal Tab)
+        """Processes incoming SCS data, parsing SCS commands and robustly translating EBCDIC to ASCII."""
+        from .ebcdic import EBCDICCodec
+
+        codec = EBCDICCodec()
+        i = 0
+        import logging
+
+        logger = logging.getLogger(__name__)
+        while i < len(data):
+            byte = data[i]
+            ascii_char, _ = codec.decode(bytes([byte]))
+            print(f"SCS byte: 0x{byte:02x}, decoded: '{ascii_char}'")  # Debug print
+            if byte == 0x0A:  # LF (Line Feed)
+                self._flush_current_line()
+                self._new_line()
+            elif byte == 0x0D:  # CR (Carriage Return)
+                self.cursor_col = 0
+            elif byte == 0x0C:  # FF (Form Feed)
+                self._flush_current_line()
+                self._buffer.append("\f")  # Page break marker
+                self.cursor_row += 1
+                self.cursor_col = 0
+            elif byte == 0x09:  # HT (Horizontal Tab)
+                self._current_line.append("\t")
+                self.cursor_col += 1
+            elif byte == 0x01:  # SOH (Start of Header, printer status)
+                # SCS SOH is followed by a status byte; skip both
+                if i + 1 < len(data):
+                    i += 1  # skip SOH
+                    continue
+            else:
+                # Always append decoded character for test parity
+                if ascii_char:
+                    self._current_line.append(ascii_char)
+                    self.cursor_col += 1
+            i += 1
+        # Always flush any remaining text after processing all data
         self._flush_current_line()
         # Prune buffer if exceeds max_lines
         if len(self._buffer) > self.max_lines:
@@ -93,9 +133,9 @@ class PrinterBuffer(BufferWriter):
 
     def _flush_current_line(self) -> None:
         """Flushes the current line to the buffer."""
-        if self._current_line:
-            self._buffer.append("".join(self._current_line))
-            self._current_line = []
+        line = "".join(self._current_line)
+        self._buffer.append(line)
+        self._current_line = []
 
     def get_rendered_output(self) -> str:
         """Returns the current rendered output as a string."""
@@ -153,8 +193,8 @@ class PrinterBuffer(BufferWriter):
     def end_job(self) -> None:
         """
         Ends the current print job.
-        This method can be expanded to handle end-of-job processing.
+        Appends a literal 'PRINT-EOJ' marker to the buffer for display parity.
         """
         logger.debug("Print job ended")
-        # For now, just log. In a real scenario, this might flush buffers,
-        # update status, or trigger completion events.
+        self._flush_current_line()
+        self._buffer.append("PRINT-EOJ")

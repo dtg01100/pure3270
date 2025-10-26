@@ -1,0 +1,20 @@
+{
+  "case": 4,
+  "rows": 24,
+  "cols": 80,
+  "fields": [
+    {
+      "start": [
+        19,
+        39
+      ],
+      "end": [
+        8,
+        17
+      ],
+      "protected": false,
+      "numeric": true,
+      "content": "YPAOILIL"
+    }
+  ]
+}

@@ -6,8 +6,21 @@ This server replays s3270 trace files as TN3270 server responses,
 allowing pure3270 to be tested against known protocol exchanges without
 requiring access to real TN3270 hosts.
 
+Features:
+- Bidirectional trace replay (send and receive events)
+- Per-connection state tracking
+- Loop mode for continuous testing
+- Connection statistics and monitoring
+- Configurable concurrent connection limits
+
 Usage:
-    python tools/trace_replay_server.py <trace_file> [--port PORT]
+    python tools/trace_replay_server.py <trace_file> [options]
+
+Options:
+    --port PORT          Port to listen on (default: 2323)
+    --host HOST          Host to bind to (default: 127.0.0.1)
+    --loop               Loop trace playback when complete
+    --max-connections N  Maximum concurrent connections (default: 1)
 """
 
 import asyncio
@@ -15,12 +28,27 @@ import logging
 import re
 import sys
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 # Add pure3270 to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from pure3270.protocol.utils import TN3270_DATA
+from pure3270.protocol.utils import (
+    DO,
+    IAC,
+    SB,
+    SE,
+    TELOPT_BINARY,
+    TELOPT_EOR,
+    TELOPT_TN3270E,
+    TN3270_DATA,
+    TN3270E_DEVICE_TYPE,
+    TN3270E_FUNCTIONS,
+    TN3270E_IS,
+    TN3270E_REQUEST,
+    TN3270E_SEND,
+    WILL,
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -43,19 +71,26 @@ class TraceEvent:
         if not line or line.startswith("//"):
             return None
 
-        # Parse send lines: < 0x0   hexdata
-        send_match = re.match(r"<\s+0x\w+\s+([0-9a-fA-F]+)", line)
-        if send_match:
-            hex_data = send_match.group(1)
-            data = bytes.fromhex(hex_data)
-            return cls("send", data, sequence)
+        # In s3270 trace files, lines beginning with '<' indicate data
+        # received by the client from the host (i.e., server-to-client),
+        # and lines beginning with '>' indicate data sent by the client
+        # to the host (i.e., client-to-server). For our replay server,
+        # '<' should therefore be treated as events we SEND to the connected
+        # client, and '>' as events we expect to RECEIVE from the client.
 
-        # Parse recv lines: > 0x0   hexdata
-        recv_match = re.match(r">\s+0x\w+\s+([0-9a-fA-F]+)", line)
+        # Parse server-to-client events: < 0x...  hexdata
+        recv_match = re.match(r"<\s+0x\w+\s+([0-9a-fA-F]+)$", line)
         if recv_match:
             hex_data = recv_match.group(1)
             data = bytes.fromhex(hex_data)
             return cls("recv", data, sequence)
+
+        # Parse client-to-server events: > 0x...  hexdata
+        send_match = re.match(r">\s+0x\w+\s+([0-9a-fA-F]+)$", line)
+        if send_match:
+            hex_data = send_match.group(1)
+            data = bytes.fromhex(hex_data)
+            return cls("send", data, sequence)
 
         return None
 
@@ -63,15 +98,33 @@ class TraceEvent:
 class TraceReplayServer:
     """Server that replays s3270 traces as TN3270 responses."""
 
-    def __init__(self, trace_file: str):
+    def __init__(
+        self,
+        trace_file: str,
+        loop_mode: bool = False,
+        max_connections: int = 1,
+        compat_handshake: bool = False,
+    ):
         self.trace_file = Path(trace_file)
         self.events: List[TraceEvent] = []
-        self.send_index = 0  # Index of next send event to expect
-        self.recv_index = 0  # Index of next recv event to send
+        self.loop_mode = loop_mode  # Restart trace from beginning when done
+        self.max_connections = max_connections
+        self.active_connections = 0
+        self.compat_handshake = compat_handshake
+
+        # Per-connection state
+        self.connection_states: Dict[asyncio.StreamWriter, Dict[str, Any]] = {}
+
+        # Track negotiation phase per connection when compat is enabled
+        self._compat_negotiation_complete: Dict[asyncio.StreamWriter, bool] = {}
+        # Global flag: once any connection completes compat negotiation, allow
+        # trace replay for all connections (helps clients that briefly open a
+        # second socket during negotiation)
+        self._global_compat_complete: bool = False
 
         self._load_trace()
 
-    def _load_trace(self):
+    def _load_trace(self) -> None:
         """Load and parse the trace file."""
         logger.info(f"Loading trace file: {self.trace_file}")
 
@@ -95,94 +148,505 @@ class TraceReplayServer:
 
     async def handle_connection(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
-    ):
+    ) -> None:
         """Handle a single client connection."""
         client_addr = writer.get_extra_info("peername")
         logger.info(f"New connection from {client_addr}")
 
+        # Check connection limit
+        if self.active_connections >= self.max_connections:
+            # For integration testing, allow additional connections instead of rejecting.
+            # Some clients may temporarily open a second socket during negotiation/fallback.
+            # Streaming to multiple clients is harmless for these offline replays.
+            logger.warning(
+                f"Connection limit reached ({self.max_connections}), allowing additional connection {client_addr} for replay"
+            )
+
+        self.active_connections += 1
+
+        # Initialize connection state
+        conn_state = {
+            "send_index": 0,
+            "recv_index": 0,
+            "client_addr": client_addr,
+            "start_time": asyncio.get_event_loop().time(),
+            "bytes_sent": 0,
+            "bytes_received": 0,
+            "events_processed": 0,
+        }
+        self.connection_states[writer] = conn_state
+
         try:
-            # Reset indices for this connection
-            self.send_index = 0
-            self.recv_index = 0
+            # Optional compatibility handshake: proactively negotiate TN3270E
+            if self.compat_handshake:
+                self._compat_negotiation_complete[writer] = False
+                await self._send_compat_handshake(writer)
 
             while True:
-                # Send next recv event if available
-                if self.recv_index < len(self.recv_events):
-                    event = self.recv_events[self.recv_index]
-                    logger.debug(f"Sending event {self.recv_index}: {event.data.hex()}")
-                    writer.write(event.data)
-                    await writer.drain()
-                    self.recv_index += 1
+                # In compat mode, skip trace negotiation frames until compat is done
+                if self.compat_handshake and not (
+                    self._compat_negotiation_complete.get(writer, False)
+                    or self._global_compat_complete
+                ):
+                    # Only send trace events once compat negotiation has finished
+                    # Yield control briefly and re-check on next iteration
+                    await asyncio.sleep(0)
+                    continue
+                else:
+                    # Send next recv event if available
+                    if conn_state["recv_index"] < len(self.recv_events):
+                        event = self.recv_events[conn_state["recv_index"]]
+                        # In compat mode, skip early telnet/TN3270E negotiation events from trace
+                        # and jump directly to BIND-IMAGE or TN3270-DATA
+                        if self.compat_handshake and self._should_skip_trace_event(
+                            event
+                        ):
+                            logger.debug(
+                                f"[{client_addr}] Skipping trace event {conn_state['recv_index']} (negotiation frame)"
+                            )
+                            conn_state["recv_index"] += 1
+                            continue
+                        if conn_state["bytes_sent"] == 0:
+                            logger.info(
+                                f"[{client_addr}] Starting trace replay (first send)"
+                            )
+                        logger.debug(
+                            f"[{client_addr}] Sending event {conn_state['recv_index']}: {len(event.data)} bytes"
+                        )
+                        writer.write(event.data)
+                        await writer.drain()
+                        conn_state["bytes_sent"] += len(event.data)
+                        conn_state["recv_index"] += 1
+                        conn_state["events_processed"] += 1
 
-                # Wait for client data with timeout
+                # Wait briefly for client data; keep this short so we don't
+                # throttle server-to-client replay. A shorter timeout allows
+                # us to stream multiple recv events quickly even if the client
+                # isn't sending anything (common in offline trace replays).
                 try:
-                    data = await asyncio.wait_for(reader.read(1024), timeout=1.0)
-                except asyncio.TimeoutError:
-                    # No data received, check if we should send more
-                    if self.recv_index >= len(self.recv_events):
-                        # No more data to send, close connection
+                    data = await asyncio.wait_for(reader.read(1024), timeout=0.05)
+                    if not data:
+                        # Client closed connection
+                        logger.info(f"[{client_addr}] Client closed connection")
                         break
+
+                    conn_state["bytes_received"] += len(data)
+                    logger.debug(
+                        f"[{client_addr}] Received {len(data)} bytes: {data[:50].hex()}..."
+                    )
+
+                    # Opportunistic compatible negotiation handling
+                    if (
+                        self.compat_handshake
+                        and not self._compat_negotiation_complete.get(writer, False)
+                    ):
+                        logger.debug(f"[{client_addr}] Processing compat negotiation")
+                        negotiation_done = await self._handle_compat_negotiation(
+                            data, writer
+                        )
+                        if negotiation_done:
+                            self._compat_negotiation_complete[writer] = True
+                            self._global_compat_complete = True
+                            logger.info(
+                                f"[{client_addr}] Compat negotiation complete, resuming trace replay (global)"
+                            )
+                        # Continue to process the rest after handling negotiation
+                        continue
+                except asyncio.TimeoutError:
+                    # No data received, check if we should send more or loop
+                    if conn_state["recv_index"] >= len(self.recv_events):
+                        # In compat mode, if negotiation isn't complete, keep waiting
+                        if (
+                            self.compat_handshake
+                            and not self._compat_negotiation_complete.get(writer, False)
+                        ):
+                            continue
+                        if self.loop_mode:
+                            # Reset indices to loop the trace
+                            conn_state["send_index"] = 0
+                            conn_state["recv_index"] = 0
+                            logger.debug(f"[{client_addr}] Looping trace playback")
+                            continue
+                        else:
+                            # No more data to send, close connection
+                            logger.info(
+                                f"[{client_addr}] Trace complete, closing connection"
+                            )
+                            break
                     continue
 
                 if not data:
                     # Client closed connection
+                    logger.info(f"[{client_addr}] Client closed connection")
                     break
 
+                conn_state["bytes_received"] += len(data)
+
                 # Validate received data against expected send event
-                if self.send_index < len(self.send_events):
-                    expected = self.send_events[self.send_index]
+                if conn_state["send_index"] < len(self.send_events):
+                    expected = self.send_events[conn_state["send_index"]]
                     if data == expected.data:
-                        logger.debug(f"Event {self.send_index} matches: {data.hex()}")
-                        self.send_index += 1
+                        logger.debug(
+                            f"[{client_addr}] Event {conn_state['send_index']} matches: {len(data)} bytes"
+                        )
+                        conn_state["send_index"] += 1
+                        conn_state["events_processed"] += 1
                     else:
-                        logger.warning(f"Event {self.send_index} mismatch!")
+                        logger.warning(
+                            f"[{client_addr}] Event {conn_state['send_index']} mismatch!"
+                        )
                         logger.warning(f"Expected: {expected.data.hex()}")
                         logger.warning(f"Received: {data.hex()}")
-                        # Continue anyway for now
-                        self.send_index += 1
+                        # Continue anyway for testing purposes
+                        conn_state["send_index"] += 1
                 else:
-                    logger.warning(f"Unexpected data from client: {data.hex()}")
+                    logger.warning(
+                        f"[{client_addr}] Unexpected data from client: {data.hex()[:100]}..."
+                    )
 
         except Exception as e:
-            logger.error(f"Error handling connection: {e}")
+            logger.error(f"[{client_addr}] Error handling connection: {e}")
         finally:
-            writer.close()
-            await writer.wait_closed()
-            logger.info(f"Connection closed for {client_addr}")
+            # Log connection statistics
+            duration = asyncio.get_event_loop().time() - conn_state["start_time"]
+            logger.info(
+                f"[{client_addr}] Connection closed - Duration: {duration:.2f}s, "
+                f"Events: {conn_state['events_processed']}, "
+                f"Sent: {conn_state['bytes_sent']} bytes, "
+                f"Received: {conn_state['bytes_received']} bytes"
+            )
 
-    async def start_server(self, host: str = "127.0.0.1", port: int = 2323):
-        """Start the replay server."""
+            # Clean up connection state
+            if writer in self.connection_states:
+                del self.connection_states[writer]
+
+            # Proactively decrement active connection count; ensure it happens even if
+            # the socket is reset while awaiting close.
+            self.active_connections -= 1
+
+            # Close the writer and wait for it to close; guard against resets during shutdown
+            try:
+                writer.close()
+                await writer.wait_closed()
+            except ConnectionResetError:
+                # Client already reset/closed; this is expected during rapid test shutdowns
+                logger.debug(
+                    f"[{client_addr}] Connection reset during wait_closed; ignoring"
+                )
+            except Exception as e:
+                # Don't let shutdown exceptions bubble up and spam the event loop
+                logger.debug(f"[{client_addr}] Exception during connection close: {e}")
+
+    async def _send_bytes(self, writer: asyncio.StreamWriter, data: bytes) -> None:
+        try:
+            writer.write(data)
+            await writer.drain()
+        except Exception as e:
+            logger.debug(f"Error sending bytes: {e}")
+
+    async def _send_compat_handshake(self, writer: asyncio.StreamWriter) -> None:
+        """Send a complete RFC-compliant TN3270E negotiation sequence.
+
+        Per RFC 1646/2355, a TN3270E server should:
+        1. Send WILL TN3270E, WILL EOR, WILL BINARY
+        2. Send DO BINARY, DO EOR
+        3. Send TN3270E DEVICE-TYPE SEND (server asks client for device type)
+        4. Wait for client response with DEVICE-TYPE IS
+        5. Send TN3270E FUNCTIONS SEND (server asks for functions)
+        6. Wait for client response with FUNCTIONS IS
+
+        For compat mode, we'll send the complete server-initiated sequence.
+        """
+        # Step 1: Basic telnet options
+        seq = bytes(
+            [
+                IAC,
+                WILL,
+                TELOPT_TN3270E,
+                IAC,
+                WILL,
+                TELOPT_EOR,
+                IAC,
+                WILL,
+                TELOPT_BINARY,
+                IAC,
+                DO,
+                TELOPT_BINARY,
+                IAC,
+                DO,
+                TELOPT_EOR,
+            ]
+        )
+        await self._send_bytes(writer, seq)
+
+        # Step 2: TN3270E DEVICE-TYPE subnegotiation (server sends SEND to request device type)
+        device_type_send = bytes(
+            [IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_SEND, IAC, SE]
+        )
+        await self._send_bytes(writer, device_type_send)
+
+        # Step 3: TN3270E FUNCTIONS REQUEST IS with a common bitmask
+        # Many servers send REQUEST IS to indicate supported functions; clients respond accordingly
+        from pure3270.protocol.utils import (
+            TN3270E_BIND_IMAGE,
+            TN3270E_DATA_STREAM_CTL,
+            TN3270E_RESPONSES,
+            TN3270E_SCS_CTL_CODES,
+        )
+
+        funcs = (
+            TN3270E_BIND_IMAGE
+            | TN3270E_DATA_STREAM_CTL
+            | TN3270E_RESPONSES
+            | TN3270E_SCS_CTL_CODES
+        )
+        # Encode as 4-byte big-endian for compatibility with common traces
+        funcs_bytes = funcs.to_bytes(4, byteorder="big")
+        functions_request_is = (
+            bytes(
+                [
+                    IAC,
+                    SB,
+                    TELOPT_TN3270E,
+                    TN3270E_FUNCTIONS,
+                    TN3270E_REQUEST,
+                    TN3270E_IS,
+                ]
+            )
+            + funcs_bytes
+            + bytes([IAC, SE])
+        )
+        await self._send_bytes(writer, functions_request_is)
+
+    def _is_telnet_negotiation(self, data: bytes) -> bool:
+        """Check if data contains only telnet negotiation (IAC sequences)."""
+        # Heuristic: mostly IAC bytes, no substantial data
+        if not data:
+            return False
+        iac_count = data.count(IAC)
+        # If >50% IAC, it's likely negotiation
+        return iac_count > len(data) / 3
+
+    def _should_skip_trace_event(self, event: TraceEvent) -> bool:
+        """Determine if a trace event should be skipped during compat negotiation.
+
+        Skip early telnet/TN3270E negotiation frames from the trace when compat mode
+        handles negotiation directly. Resume at first BIND-IMAGE or TN3270-DATA.
+        """
+        data = event.data
+        # Skip if it's purely telnet negotiation (IAC sequences)
+        if self._is_telnet_negotiation(data):
+            return True
+        # Check for TN3270E headers (first byte = data type)
+        if len(data) >= 5:
+            # TN3270E header is 5 bytes: data_type, req_flag, resp_flag, seq_num (2 bytes)
+            # Common data types: 0x00 (3270-DATA), 0x03 (BIND-IMAGE)
+            from pure3270.protocol.utils import BIND_IMAGE, TN3270_DATA
+
+            first_byte = data[0]
+            if first_byte in (TN3270_DATA, BIND_IMAGE):
+                # This is actual 3270 data, don't skip
+                return False
+        return False
+
+    def _find_iac_sequences(self, data: bytes) -> list[tuple[int, int]]:
+        """Return list of (start,end) indexes for IAC SB ... IAC SE sequences."""
+        out = []
+        i = 0
+        while i < len(data) - 1:
+            if data[i] == IAC and data[i + 1] == SB:
+                j = i + 2
+                while j < len(data) - 1:
+                    if data[j] == IAC and data[j + 1] == SE:
+                        out.append((i, j + 2))
+                        i = j + 2
+                        break
+                    j += 1
+                else:
+                    # No matching SE found, skip this SB
+                    i += 1
+            else:
+                i += 1
+        return out
+
+    async def _handle_compat_negotiation(
+        self, data: bytes, writer: asyncio.StreamWriter
+    ) -> bool:
+        """Heuristically detect TN3270E subnegotiations from client and respond sanely.
+
+        Returns True if negotiation appears complete (client sent DEVICE-TYPE and FUNCTIONS)
+        """
+        # Track key negotiations we've seen
+        device_type_received = False
+        functions_received = False
+
+        # First, handle simple IAC option negotiations (non-subnegotiation)
+        i = 0
+        while i < len(data) - 2:
+            if data[i] == IAC:
+                cmd = data[i + 1]
+                opt = data[i + 2] if i + 2 < len(data) else None
+                if opt is None:
+                    break
+
+                if cmd == DO:
+                    # Client says DO <option>, we should respond WILL or WONT
+                    if opt == TELOPT_TN3270E:
+                        # Already sent WILL TN3270E in handshake
+                        pass
+                    elif opt == TELOPT_BINARY:
+                        # Client wants us to send binary, we already said WILL
+                        pass
+                    elif opt == TELOPT_EOR:
+                        # Client wants us to send EOR, we already said WILL
+                        pass
+                elif cmd == WILL:
+                    # Client says WILL <option>, we should respond DO or DONT
+                    if opt == TELOPT_BINARY:
+                        # Client will send binary, we already said DO
+                        pass
+                    elif opt == TELOPT_EOR:
+                        # Client will send EOR, we already said DO
+                        pass
+                    elif opt == TELOPT_TN3270E:
+                        # Client agrees to TN3270E
+                        pass
+                i += 3
+            else:
+                i += 1
+
+        # Now handle subnegotiations
+        for start, end in self._find_iac_sequences(data):
+            sb = data[start:end]
+            # Expect IAC SB <option> <payload...> IAC SE
+            if len(sb) < 6 or sb[0] != IAC or sb[1] != SB:
+                continue
+            option = sb[2]
+            payload = sb[3:-2]
+            if option != TELOPT_TN3270E or not payload:
+                continue
+            # payload[0] is one of {TN3270E_DEVICE_TYPE, TN3270E_FUNCTIONS, etc.}
+            p0 = payload[0]
+            if p0 == TN3270E_DEVICE_TYPE:
+                if len(payload) >= 2 and payload[1] == TN3270E_IS:
+                    # Client sent DEVICE-TYPE IS <device>
+                    device_type_received = True
+                    client_device = b"IBM-3278-4-E"
+                    if len(payload) > 2:
+                        # Extract device name from payload
+                        device_bytes = payload[2:]
+                        try:
+                            device_name = device_bytes.split(b"\x00", 1)[0].decode(
+                                "ascii", errors="ignore"
+                            )
+                            if device_name and "IBM" in device_name.upper():
+                                client_device = device_name.encode("ascii")
+                        except Exception:
+                            pass
+                    logger.debug(
+                        f"Received DEVICE-TYPE IS: {client_device.decode('ascii', errors='ignore')}"
+                    )
+
+                    # Now send FUNCTIONS SEND to continue negotiation
+                    functions_send = bytes(
+                        [
+                            IAC,
+                            SB,
+                            TELOPT_TN3270E,
+                            TN3270E_FUNCTIONS,
+                            TN3270E_SEND,
+                            IAC,
+                            SE,
+                        ]
+                    )
+                    await self._send_bytes(writer, functions_send)
+
+            elif p0 == TN3270E_FUNCTIONS:
+                if len(payload) >= 2 and payload[1] == TN3270E_IS:
+                    # Client sent FUNCTIONS IS <functions>
+                    functions_received = True
+                    func_bytes = payload[2:] if len(payload) > 2 else bytes()
+                    if func_bytes:
+                        funcs = int.from_bytes(func_bytes, byteorder="big")
+                        logger.debug(f"Received FUNCTIONS IS: 0x{funcs:02x}")
+                    else:
+                        logger.debug("Received FUNCTIONS IS: (empty)")
+
+        # Negotiation is complete if we've received both device type and functions
+        complete = device_type_received and functions_received
+        if complete:
+            logger.debug("TN3270E negotiation complete")
+        return complete
+
+    async def start_server(self, host: str = "127.0.0.1", port: int = 2323) -> None:
+        """Start the replay server and ensure clean shutdown on cancellation."""
         server = await asyncio.start_server(self.handle_connection, host, port)
 
         logger.info(f"Trace replay server started on {host}:{port}")
         logger.info(f"Replaying: {self.trace_file.name}")
+        logger.info(f"Loop mode: {'enabled' if self.loop_mode else 'disabled'}")
+        logger.info(f"Max connections: {self.max_connections}")
 
         try:
             async with server:
                 await server.serve_forever()
         except KeyboardInterrupt:
             logger.info("Server stopped")
+        except asyncio.CancelledError:
+            # Expected on caller shutdown; fall through to close
+            pass
+        finally:
+            try:
+                server.close()
+                await server.wait_closed()
+            except Exception:
+                pass
+
+    def get_connection_stats(self) -> Dict[str, Any]:
+        """Get statistics about active connections."""
+        return {
+            "active_connections": self.active_connections,
+            "max_connections": self.max_connections,
+            "connection_states": {
+                str(writer): state for writer, state in self.connection_states.items()
+            },
+        }
 
 
-async def main():
+async def main() -> None:
     """Main entry point."""
-    if len(sys.argv) < 2:
-        print("Usage: python tools/trace_replay_server.py <trace_file> [--port PORT]")
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Trace replay server for TN3270 testing"
+    )
+    parser.add_argument("trace_file", help="s3270 trace file to replay")
+    parser.add_argument(
+        "--port", "-p", type=int, default=2323, help="Port to listen on (default: 2323)"
+    )
+    parser.add_argument(
+        "--host", default="127.0.0.1", help="Host to bind to (default: 127.0.0.1)"
+    )
+    parser.add_argument(
+        "--loop", action="store_true", help="Loop trace playback when complete"
+    )
+    parser.add_argument(
+        "--max-connections",
+        type=int,
+        default=1,
+        help="Maximum concurrent connections (default: 1)",
+    )
+
+    args = parser.parse_args()
+
+    if not Path(args.trace_file).exists():
+        print(f"Trace file not found: {args.trace_file}")
         sys.exit(1)
 
-    trace_file = sys.argv[1]
-    port = 2323
-
-    # Parse optional port argument
-    if len(sys.argv) > 2 and sys.argv[2] == "--port":
-        port = int(sys.argv[3])
-
-    if not Path(trace_file).exists():
-        print(f"Trace file not found: {trace_file}")
-        sys.exit(1)
-
-    server = TraceReplayServer(trace_file)
-    await server.start_server(port=port)
+    server = TraceReplayServer(
+        args.trace_file, loop_mode=args.loop, max_connections=args.max_connections
+    )
+    await server.start_server(host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

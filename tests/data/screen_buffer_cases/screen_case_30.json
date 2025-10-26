@@ -1,0 +1,33 @@
+{
+  "case": 30,
+  "rows": 24,
+  "cols": 80,
+  "fields": [
+    {
+      "start": [
+        14,
+        3
+      ],
+      "end": [
+        2,
+        64
+      ],
+      "protected": false,
+      "numeric": false,
+      "content": "SVZUR0UV"
+    },
+    {
+      "start": [
+        0,
+        10
+      ],
+      "end": [
+        20,
+        21
+      ],
+      "protected": true,
+      "numeric": true,
+      "content": "P32M1ZUR"
+    }
+  ]
+}

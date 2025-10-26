@@ -1,0 +1,56 @@
+name: Trace Replay Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  trace-replay:
+    name: Trace Replay & Coverage
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.10, 3.11, 3.12]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install dependencies
+        run: |
+          pip install -e . || pip install .
+          pip install pytest coverage
+
+      - name: Prepare output directory
+        run: mkdir -p test_output
+
+      - name: Run negotiation/printer/error/DBCS tests
+        run: |
+          pytest -q \
+            tests/test_protocol_negotiation_traces.py \
+            tests/test_printer_protocol_traces.py \
+            tests/test_error_handling_traces.py \
+            tests/test_dbcs_traces.py \
+            --junitxml=test_output/pytest_results.xml
+        # Let pytest exit non-zero to fail the job when tests fail
+
+      - name: Run enhanced trace replay on key traces (reports)
+        run: |
+          python tools/enhanced_trace_replay.py tests/data/traces/login.trc --expected tests/data/expected/login_expected.json --json > test_output/login_trace_report.json || true
+          python tools/enhanced_trace_replay.py tests/data/traces/smoke.trc --expected tests/data/expected/smoke_expected.json --json > test_output/smoke_trace_report.json || true
+        # Replay tools may return non-zero for failures; we still capture reports
+
+      - name: Upload CI artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trace-replay-test-output
+          path: test_output

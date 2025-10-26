@@ -1,0 +1,381 @@
+Replaying trace: login.trc
+Features detected: {'telnet_negotiation': True, 'tn3270e': True, 'bind_image': True, 'printer': True, 'extended_attributes': True, 'structured_fields': False, 'aid_codes': True, 'error_conditions': True, 'commands': ['EraseWriteAlternate'], 'orders': [], 'aids': []}
+Trace contains 134 records
+{
+  "success": true,
+  "records_parsed": 134,
+  "records_failed": 0,
+  "features": {
+    "telnet_negotiation": true,
+    "tn3270e": true,
+    "bind_image": true,
+    "printer": true,
+    "extended_attributes": true,
+    "structured_fields": false,
+    "aid_codes": true,
+    "error_conditions": true,
+    "commands": [
+      "EraseWriteAlternate"
+    ],
+    "orders": [],
+    "aids": []
+  },
+  "errors": [],
+  "warnings": [
+    "Skipping non-hex line: < EraseWriteAlternate(reset,restore) NULL NULL NULL NULL NULL NULL NULL NUL ..."
+  ],
+  "screen_validation": {
+    "validated": true,
+    "matches_expected": null,
+    "screen_rows": 24,
+    "screen_cols": 80,
+    "num_fields": 23,
+    "field_details": [
+      {
+        "index": 0,
+        "start": [
+          0,
+          1
+        ],
+        "end": [
+          0,
+          1
+        ],
+        "protected": true,
+        "content": "C",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 1,
+        "start": [
+          0,
+          2
+        ],
+        "end": [
+          0,
+          2
+        ],
+        "protected": true,
+        "content": "O",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 2,
+        "start": [
+          0,
+          3
+        ],
+        "end": [
+          0,
+          3
+        ],
+        "protected": true,
+        "content": "R",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 3,
+        "start": [
+          0,
+          4
+        ],
+        "end": [
+          0,
+          4
+        ],
+        "protected": true,
+        "content": "P",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 4,
+        "start": [
+          0,
+          5
+        ],
+        "end": [
+          0,
+          5
+        ],
+        "protected": true,
+        "content": ".",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 5,
+        "start": [
+          0,
+          6
+        ],
+        "end": [
+          0,
+          6
+        ],
+        "protected": true,
+        "content": " ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 6,
+        "start": [
+          0,
+          7
+        ],
+        "end": [
+          0,
+          7
+        ],
+        "protected": true,
+        "content": "1",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 7,
+        "start": [
+          0,
+          8
+        ],
+        "end": [
+          0,
+          8
+        ],
+        "protected": true,
+        "content": "9",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 8,
+        "start": [
+          0,
+          9
+        ],
+        "end": [
+          0,
+          9
+        ],
+        "protected": true,
+        "content": "8",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 9,
+        "start": [
+          0,
+          10
+        ],
+        "end": [
+          0,
+          10
+        ],
+        "protected": true,
+        "content": "0",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 10,
+        "start": [
+          0,
+          11
+        ],
+        "end": [
+          0,
+          11
+        ],
+        "protected": true,
+        "content": ",",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 11,
+        "start": [
+          0,
+          12
+        ],
+        "end": [
+          0,
+          12
+        ],
+        "protected": true,
+        "content": " ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 12,
+        "start": [
+          0,
+          13
+        ],
+        "end": [
+          0,
+          13
+        ],
+        "protected": true,
+        "content": "2",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 13,
+        "start": [
+          0,
+          14
+        ],
+        "end": [
+          0,
+          14
+        ],
+        "protected": true,
+        "content": "0",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 14,
+        "start": [
+          0,
+          15
+        ],
+        "end": [
+          0,
+          15
+        ],
+        "protected": true,
+        "content": "2",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 15,
+        "start": [
+          0,
+          16
+        ],
+        "end": [
+          0,
+          16
+        ],
+        "protected": true,
+        "content": "1",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 16,
+        "start": [
+          0,
+          17
+        ],
+        "end": [
+          0,
+          17
+        ],
+        "protected": true,
+        "content": ".",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 17,
+        "start": [
+          0,
+          18
+        ],
+        "end": [
+          0,
+          18
+        ],
+        "protected": true,
+        "content": " ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 18,
+        "start": [
+          0,
+          19
+        ],
+        "end": [
+          0,
+          19
+        ],
+        "protected": true,
+        "content": " ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 19,
+        "start": [
+          0,
+          20
+        ],
+        "end": [
+          0,
+          20
+        ],
+        "protected": true,
+        "content": " ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 20,
+        "start": [
+          0,
+          21
+        ],
+        "end": [
+          0,
+          21
+        ],
+        "protected": true,
+        "content": " ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 21,
+        "start": [
+          0,
+          22
+        ],
+        "end": [
+          0,
+          26
+        ],
+        "protected": true,
+        "content": "- IB\u0000",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 22,
+        "start": [
+          0,
+          27
+        ],
+        "end": [
+          23,
+          79
+        ],
+        "protected": true,
+        "content": "\u0000\u0000\u0000\u0000                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 ",
+        "numeric": false,
+        "modified": false
+      }
+    ]
+  }
+}

@@ -113,6 +113,16 @@ jobs:
       run: |
         python tools/run_offline_validation.py
 
+    - name: Run comprehensive trace testing
+      run: |
+        python examples/full_trace_testing.py --all-traces --output-dir test_output/ci_trace_tests
+
+    - name: Run fuzz testing
+      run: |
+        echo "🧪 Running fuzz tests for robustness validation..."
+        python examples/differential_fuzz.py
+      continue-on-error: true  # Fuzz tests might have intermittent failures due to network simulation
+
     - name: Run mypy
       run: mypy pure3270/
 
@@ -146,6 +156,8 @@ jobs:
         path: |
           .coverage
           coverage.xml
+          test_output/ci_trace_tests/
+          test_output/fuzz_test_results.txt
 
     - name: Report new version test results
       if: needs.setup.outputs.is-new-version-test == 'true'

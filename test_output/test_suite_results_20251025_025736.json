@@ -1,0 +1,56 @@
+{
+  "timestamp": 1761361036.5965197,
+  "suite_version": "1.0",
+  "tests": {
+    "batch_trace_processing": {
+      "name": "batch_trace_processing",
+      "duration": 0.19022893905639648,
+      "success": false,
+      "output": "",
+      "errors": "usage: batch_trace_test.py [-h] [--priority-only] [--verbose]\n                           [--output OUTPUT] [--trace-dir TRACE_DIR]\nbatch_trace_test.py: error: unrecognized arguments: /workspaces/pure3270/tests/data/traces\n"
+    },
+    "network_simulation": {
+      "name": "network_simulation",
+      "duration": 0,
+      "success": true,
+      "skipped": true,
+      "reason": "Network simulation not enabled"
+    },
+    "integration": {
+      "name": "integration",
+      "duration": 19.914003610610962,
+      "success": false,
+      "details": [
+        {
+          "trace": "ra_test.trc",
+          "duration": 12.965955972671509,
+          "success": false,
+          "output": "Running integration tests with 3 client(s)\nTrace file: ra_test.trc\n\nStarting trace replay server on port 2323...\n\u2705 Server started successfully\n[0] Starting client test...\n[0] Connected in 5.08s\n[1] Starting client test...\n[1] Connected in 5.08s\n[2] Starting client test...\n[2] Connected in 0.07s\n[0] \u2705 Test completed successfully\n[0] Screen size: 24x80\n[0] Fields detected: 0\n[1] \u2705 Test completed successfully\n[1] Screen size: 24x80\n[1] Fields detected: 0\n[2] \u2705 Test completed successfully\n[2] Screen size: 24x80\n[2] Fields detected: 0\nStopping trace replay server...\n\u2705 Server stopped\n\n================================================================================\nTRACE INTEGRATION TEST SUMMARY\n================================================================================\n\nTrace file: ra_test.trc\nTotal clients: 3\nSuccessful: 3\nFailed: 0\n.1f\n\nClient Results:\n   Client 0: \u2705 PASS (10.26s)\n   Client 1: \u2705 PASS (5.60s)\n   Client 2: \u2705 PASS (0.57s)\n\nPerformance:\n   Average connection time: 3.41s\n   Total test duration: 16.43s\n\n================================================================================\n\ud83c\udf89 ALL INTEGRATION TESTS PASSED!\nPure3270 successfully connects and communicates with trace replay server.\n================================================================================\n\n",
+          "errors": "[STATE] Rapid state transition detected: DISCONNECTED -> CONNECTING in 0.000s\n[STATE] Rapid state transition detected: CONNECTING -> NEGOTIATING in 0.000s\n[NEGOTIATION] Server doesn't support TN3270E, but proceeding with negotiation\n[NEGOTIATION] TN3270E negotiation timed out, falling back to basic TN3270 mode\n[STATE] Entering TN3270_MODE without TN3270E negotiation - falling back to basic TN3270\n[STATE] Rapid state transition detected: DISCONNECTED -> CONNECTING in 0.000s\n[STATE] Rapid state transition detected: CONNECTING -> NEGOTIATING in 0.000s\n[NEGOTIATION] Server doesn't support TN3270E, but proceeding with negotiation\n[NEGOTIATION] TN3270E negotiation timed out, falling back to basic TN3270 mode\n[STATE] Entering TN3270_MODE without TN3270E negotiation - falling back to basic TN3270\n[STATE] Rapid state transition detected: DISCONNECTED -> CONNECTING in 0.000s\n[STATE] Rapid state transition detected: CONNECTING -> NEGOTIATING in 0.000s\nError draining writer: Connection lost\nNegotiation operation failed: Writer drain failed: Connection lost\ninitial_telnet_negotiation failed with non-retryable error: Writer drain failed: Connection lost\nInitial negotiation failed after retries: Writer drain failed: Connection lost\n[STATE] Entering ERROR state from NEGOTIATING - this indicates a failure condition\n[STATE] Rapid state transition detected: NEGOTIATING -> ERROR in 0.071s\n[STATE] Entered ERROR state from NEGOTIATING\n[CLOSE] Error during close operation: Event loop is closed\n[STATE] Entering ERROR state from CLOSING - this indicates a failure condition\n[STATE] Rapid state transition detected: CLOSING -> ERROR in 0.000s\n[STATE] Entered ERROR state from CLOSING\n[CLOSE] Error during close operation: Event loop is closed\n[STATE] Entering ERROR state from CLOSING - this indicates a failure condition\n[STATE] Rapid state transition detected: CLOSING -> ERROR in 0.000s\n[STATE] Entered ERROR state from CLOSING\n[CLOSE] Error during close operation: [Errno 32] Broken pipe\n[STATE] Entering ERROR state from CLOSING - this indicates a failure condition\n[STATE] Rapid state transition detected: CLOSING -> ERROR in 0.000s\n[STATE] Entered ERROR state from CLOSING\n"
+        },
+        {
+          "trace": "ibmlink.trc",
+          "duration": 6.948047637939453,
+          "success": false,
+          "output": "Running integration tests with 3 client(s)\nTrace file: ibmlink.trc\n\nStarting trace replay server on port 2323...\n\u2705 Server started successfully\n[0] Starting client test...\n[0] Connected in 2.08s\n[1] Starting client test...\n[1] Connected in 2.08s\n[2] Starting client test...\n[2] Connected in 0.07s\n[0] \u2705 Test completed successfully\n[0] Screen size: 24x80\n[0] Fields detected: 0\n[1] \u2705 Test completed successfully\n[1] Screen size: 24x80\n[1] Fields detected: 0\n[2] \u2705 Test completed successfully\n[2] Screen size: 24x80\n[2] Fields detected: 0\nStopping trace replay server...\n\u2705 Server stopped\n\n================================================================================\nTRACE INTEGRATION TEST SUMMARY\n================================================================================\n\nTrace file: ibmlink.trc\nTotal clients: 3\nSuccessful: 3\nFailed: 0\n.1f\n\nClient Results:\n   Client 0: \u2705 PASS (4.26s)\n   Client 1: \u2705 PASS (2.60s)\n   Client 2: \u2705 PASS (0.57s)\n\nPerformance:\n   Average connection time: 1.41s\n   Total test duration: 7.43s\n\n================================================================================\n\ud83c\udf89 ALL INTEGRATION TESTS PASSED!\nPure3270 successfully connects and communicates with trace replay server.\n================================================================================\n\n",
+          "errors": "[STATE] Rapid state transition detected: DISCONNECTED -> CONNECTING in 0.000s\n[STATE] Rapid state transition detected: CONNECTING -> NEGOTIATING in 0.000s\nReceived TN3270E header with unknown SEQ-NUMBER 516. Data type: BIND_IMAGE, Response flag: POSITIVE_RESPONSE\n[NEGOTIATION] TN3270E negotiation timed out, falling back to basic TN3270 mode\n[STATE] Entering TN3270_MODE without TN3270E negotiation - falling back to basic TN3270\n[STATE] Rapid state transition detected: DISCONNECTED -> CONNECTING in 0.000s\n[STATE] Rapid state transition detected: CONNECTING -> NEGOTIATING in 0.000s\nReceived TN3270E header with unknown SEQ-NUMBER 516. Data type: BIND_IMAGE, Response flag: POSITIVE_RESPONSE\n[NEGOTIATION] TN3270E negotiation timed out, falling back to basic TN3270 mode\n[STATE] Entering TN3270_MODE without TN3270E negotiation - falling back to basic TN3270\n[STATE] Rapid state transition detected: DISCONNECTED -> CONNECTING in 0.000s\n[STATE] Rapid state transition detected: CONNECTING -> NEGOTIATING in 0.000s\nError draining writer: Connection lost\nNegotiation operation failed: Writer drain failed: Connection lost\ninitial_telnet_negotiation failed with non-retryable error: Writer drain failed: Connection lost\nInitial negotiation failed after retries: Writer drain failed: Connection lost\n[STATE] Entering ERROR state from NEGOTIATING - this indicates a failure condition\n[STATE] Rapid state transition detected: NEGOTIATING -> ERROR in 0.071s\n[STATE] Entered ERROR state from NEGOTIATING\n[CLOSE] Error during close operation: Event loop is closed\n[STATE] Entering ERROR state from CLOSING - this indicates a failure condition\n[STATE] Rapid state transition detected: CLOSING -> ERROR in 0.000s\n[STATE] Entered ERROR state from CLOSING\n[CLOSE] Error during close operation: Event loop is closed\n[STATE] Entering ERROR state from CLOSING - this indicates a failure condition\n[STATE] Rapid state transition detected: CLOSING -> ERROR in 0.000s\n[STATE] Entered ERROR state from CLOSING\n[CLOSE] Error during close operation: [Errno 32] Broken pipe\n[STATE] Entering ERROR state from CLOSING - this indicates a failure condition\n[STATE] Rapid state transition detected: CLOSING -> ERROR in 0.000s\n[STATE] Entered ERROR state from CLOSING\n"
+        }
+      ]
+    },
+    "performance": {
+      "name": "performance",
+      "duration": 1.2898378372192383,
+      "success": false,
+      "output": "\ud83d\ude80 Pure3270 Performance Benchmark Suite\n==================================================\nBenchmarking screen buffer operations (1000 iterations)...\nBenchmarking data stream parsing (100 streams)...\nBenchmarking addressing operations (10000 iterations)...\n\n==================================================\n\ud83d\udcca BENCHMARK RESULTS\n==================================================\n\n\ud83d\udd27 Screen Buffer:\n   iterations: 1000\n.4f\n.4f\n.2f\n.2f\n\n\ud83d\udd27 Data Parsing:\n   streams: 100\n   successful: 100\n   total: 100\n.4f\n.4f\n.4f\n.2f\n\n\ud83d\udd27 Addressing:\n   iterations: 10000\n.4f\n.4f\n.2f\n.2f\n\n\u2705 All benchmarks completed successfully\n",
+      "errors": ""
+    }
+  },
+  "summary": {
+    "total_duration": 19.914803504943848,
+    "tests_run": 4,
+    "tests_passed": 1,
+    "tests_failed": 3,
+    "tests_skipped": 1,
+    "overall_success": false
+  }
+}

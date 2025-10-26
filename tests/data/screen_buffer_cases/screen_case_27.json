@@ -1,0 +1,46 @@
+{
+  "case": 27,
+  "rows": 24,
+  "cols": 80,
+  "fields": [
+    {
+      "start": [
+        18,
+        43
+      ],
+      "end": [
+        16,
+        68
+      ],
+      "protected": true,
+      "numeric": false,
+      "content": "PGUA5IAV"
+    },
+    {
+      "start": [
+        3,
+        2
+      ],
+      "end": [
+        4,
+        67
+      ],
+      "protected": true,
+      "numeric": true,
+      "content": "MBJIMXJ3"
+    },
+    {
+      "start": [
+        11,
+        12
+      ],
+      "end": [
+        10,
+        9
+      ],
+      "protected": false,
+      "numeric": false,
+      "content": "L82ZNMAK"
+    }
+  ]
+}

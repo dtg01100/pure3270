@@ -1,0 +1,33 @@
+{
+  "case": 40,
+  "rows": 24,
+  "cols": 80,
+  "fields": [
+    {
+      "start": [
+        11,
+        65
+      ],
+      "end": [
+        6,
+        65
+      ],
+      "protected": true,
+      "numeric": true,
+      "content": "9AKHX04D"
+    },
+    {
+      "start": [
+        4,
+        26
+      ],
+      "end": [
+        9,
+        0
+      ],
+      "protected": true,
+      "numeric": true,
+      "content": "WE69P106"
+    }
+  ]
+}

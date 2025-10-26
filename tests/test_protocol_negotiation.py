@@ -169,12 +169,15 @@ class TestDataStreamParserEdgeCases:
         """Test parser handling of special 3270 control codes."""
         # Test with common 3270 orders like SBA, SF, etc.
         # Set Buffer Address to position (5, 10) for a 24x80 screen
-        # Address = 5*80 + 10 = 410 = 0x19A, encoded as 0x66 0x5A in 12-bit addressing
+        # Address = 5*80 + 10 = 410 = 0x19A, encoded in 12-bit addressing
         row, col = 5, 10
         addr = row * 80 + col
         addr_high = (addr >> 6) & 0x3F
         addr_low = addr & 0x3F
-        sba_command = bytes([0x28, addr_high, addr_low])  # SBA
+        # Need Write command + WCC + SBA order + address bytes
+        sba_command = bytes(
+            [0x05, 0xC0, 0x11, addr_high, addr_low]
+        )  # Write + WCC + SBA + address
 
         self.parser.parse(sba_command)
         # Check that the screen buffer position was updated
@@ -194,7 +197,8 @@ class TestDataStreamParserEdgeCases:
 
         # EUA to address 2 (should erase A and B, leave C)
         # Address for (0,2) in 12-bit mode: (0 & 0x3F) << 6 | (2 & 0x3F) = 0x02
-        eua_command = bytes([0x12, 0x00, 0x02])  # EUA order + address bytes
+        # Send WCC + EUA order + address bytes (no Write command to avoid clearing screen)
+        eua_command = bytes([0xC0, 0x12, 0x00, 0x02])  # WCC + EUA + address
 
         self.parser.parse(eua_command)
 

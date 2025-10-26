@@ -214,8 +214,6 @@ class ScreenBuffer(BufferWriter):
                         line_bytes[col] = 0x40
 
                 line_text, _ = EBCDICCodec().decode(bytes(line_bytes))
-                # Replace 'z' with space to match p3270 behavior
-                line_text = line_text.replace("z", " ")
             lines.append(line_text)
         return "\n".join(lines)
 
@@ -746,17 +744,31 @@ class ScreenBuffer(BufferWriter):
         for row in range(self.rows):
             start = row * self.cols
             end = start + self.cols
-            chunk = bytes(self.buffer[start:end])
+            line_bytes = bytearray(self.buffer[start:end])
+
             if self._ascii_mode:
                 try:
-                    text = chunk.decode("ascii", errors="replace")
+                    text = line_bytes.decode("ascii", errors="replace")
                 except Exception:
                     text = ""
             else:
+                # In 3270 mode, mask attribute bytes and cursor position with EBCDIC space
+                for col in range(self.cols):
+                    pos = start + col
+                    if pos in self._field_starts:
+                        line_bytes[col] = 0x40  # EBCDIC space for attributes
+                    if row == self.cursor_row and col == self.cursor_col:
+                        line_bytes[col] = 0x40  # Hide cursor as space
                 try:
-                    text, _ = EBCDICCodec().decode(chunk)
+                    # Prefer CP037 decoding to align with s3270 Ascii() behavior
+                    decoded, _ = EBCDICCodec().decode(bytes(line_bytes))
+                    # Clean any control characters that should not appear in screen text
+                    text = "".join(
+                        c if ord(c) >= 32 or c in "\t\n\r" else " " for c in decoded
+                    )
                 except Exception:
-                    text = ""
+                    # Fallback to emulator mapping if codec fails
+                    text = EmulationEncoder.decode(bytes(line_bytes))
             lines.append(text)
         return "\n".join(lines)
 
@@ -922,7 +934,17 @@ class ScreenBuffer(BufferWriter):
         self.move_cursor_to_next_input_field()
 
     def set_extended_attribute_sfe(self, attr_type: int, attr_value: int) -> None:
-        """Accumulate extended field attributes from SFE order, supporting multiple attributes and SF+SFE."""
+        """Accumulate extended field attributes for the field at the current buffer address.
+
+        Important semantics:
+        - Extended attributes (from SFE or SA) do NOT consume a display byte and
+          must NOT create a field-start marker on their own.
+        - Only the base field attribute (set via SF or SFE type 0xC0) occupies a
+          buffer position and should be recorded in `_field_starts`.
+
+        This method therefore ONLY updates the accumulated extended attributes
+        and does not modify the display buffer or `_field_starts`.
+        """
         row, col = self.get_position()
         attr_map = {
             0x41: "highlight",
@@ -941,15 +963,6 @@ class ScreenBuffer(BufferWriter):
                 self._extended_attributes[pos_tuple] = ExtendedAttributeSet()
             attr_set = self._extended_attributes[pos_tuple]
             attr_set.set_attribute(key, attr_value)
-            # Mark the field start in buffer and attributes for SFE only if not already marked
-            pos = row * self.cols + col
-            if 0 <= pos < self.size:
-                self.buffer[pos] = 0xC0
-                self.attributes[pos * 3] = 0xC0
-                # Also record a field start for detection driven by _field_starts
-                self._field_starts.add(pos)
-                if self._suspend_field_detection == 0:
-                    self._detect_fields()
             logger.debug(
                 f"Set extended attribute '{key}'=0x{attr_value:02x} at ({row}, {col}) (accumulated)"
             )

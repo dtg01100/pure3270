@@ -1,0 +1,20 @@
+{
+  "case": 9,
+  "rows": 24,
+  "cols": 80,
+  "fields": [
+    {
+      "start": [
+        16,
+        23
+      ],
+      "end": [
+        1,
+        11
+      ],
+      "protected": false,
+      "numeric": false,
+      "content": "MPKFKQOT"
+    }
+  ]
+}

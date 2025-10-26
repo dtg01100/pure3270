@@ -59,9 +59,12 @@ class TCPIPPrinterSessionManager:
     async def start(self) -> None:
         """Start the session manager and connection pool."""
         if self._started:
-            return
+            raise RuntimeError("Session manager already started")
 
-        self.connection_pool = TCPIPConnectionPool(self.pool_config)
+        # Use existing injected pool if present (for testing), otherwise create one
+        if not self.connection_pool:
+            self.connection_pool = TCPIPConnectionPool(self.pool_config)
+
         await self.connection_pool.start()
         self._started = True
 
@@ -70,7 +73,7 @@ class TCPIPPrinterSessionManager:
     async def stop(self) -> None:
         """Stop the session manager and cleanup resources."""
         if not self._started:
-            return
+            raise RuntimeError("Session manager not started")
 
         # Close all active sessions
         async with self._session_lock:
@@ -96,7 +99,7 @@ class TCPIPPrinterSessionManager:
         ssl_context: Optional[Any] = None,
         session_id: Optional[str] = None,
         timeout: Optional[float] = None,
-    ) -> TCPIPPrinterSession:
+    ) -> str:
         """
         Create a new printer session.
 
@@ -108,7 +111,7 @@ class TCPIPPrinterSessionManager:
             timeout: Connection timeout (uses default if None)
 
         Returns:
-            Active printer session ready for use
+            The created session's identifier
 
         Raises:
             RuntimeError: If manager not started or session creation fails
@@ -119,11 +122,18 @@ class TCPIPPrinterSessionManager:
         connection_timeout = timeout or self.default_timeout
 
         try:
-            # Borrow connection from pool
-            session = await asyncio.wait_for(
-                self.connection_pool.borrow_connection(
-                    host=host, port=port, ssl_context=ssl_context, session_id=session_id
-                ),
+            # Borrow connection from pool (may return a connection token/tuple)
+            await asyncio.wait_for(
+                self.connection_pool.borrow_connection(host, port),
+                timeout=connection_timeout,
+            )
+
+            # Instantiate a printer session (constructor patched in tests)
+            session = TCPIPPrinterSession(
+                host=host,
+                port=port,
+                ssl_context=ssl_context,
+                session_id=session_id,
                 timeout=connection_timeout,
             )
 
@@ -134,15 +144,16 @@ class TCPIPPrinterSessionManager:
             log_session_action(
                 logger, "create", f"session {session.session_id} for {host}:{port}"
             )
-            return session
+            return session.session_id
 
+        except asyncio.TimeoutError as e:
+            log_session_error(logger, "create_printer_session", e)
+            raise RuntimeError("Failed to create printer session: timeout") from e
         except Exception as e:
             log_session_error(logger, "create_printer_session", e)
             raise RuntimeError(f"Failed to create printer session: {e}") from e
 
-    async def get_printer_session(
-        self, session_id: str
-    ) -> Optional[TCPIPPrinterSession]:
+    async def get_printer_session(self, session_id: str) -> TCPIPPrinterSession:
         """
         Get an existing printer session by ID.
 
@@ -150,13 +161,18 @@ class TCPIPPrinterSessionManager:
             session_id: Session identifier
 
         Returns:
-            Session if found and active, None otherwise
+            Active session
+
+        Raises:
+            RuntimeError: If session not found or inactive
         """
         async with self._session_lock:
             session = self._active_sessions.get(session_id)
-            if session and session.is_active:
-                return session
-            return None
+            if session is None:
+                raise RuntimeError(f"Session {session_id} not found")
+            if not session.is_active:
+                raise RuntimeError(f"Session {session_id} is not active")
+            return session
 
     async def send_print_job(
         self, session_id: str, print_data: bytes, timeout: Optional[float] = None
@@ -174,8 +190,6 @@ class TCPIPPrinterSessionManager:
             ConnectionError: If send fails
         """
         session = await self.get_printer_session(session_id)
-        if not session:
-            raise RuntimeError(f"Session {session_id} not found or not active")
 
         send_timeout = timeout or self.default_timeout
 
@@ -193,7 +207,7 @@ class TCPIPPrinterSessionManager:
             log_session_error(logger, "send_print_job", e)
             # Mark session as error state
             await self._handle_session_error(session, e)
-            raise
+            raise RuntimeError("Failed to send print job") from e
 
     async def send_printer_status(
         self, session_id: str, status_code: int, timeout: Optional[float] = None
@@ -210,8 +224,6 @@ class TCPIPPrinterSessionManager:
             RuntimeError: If session not found or not active
         """
         session = await self.get_printer_session(session_id)
-        if not session:
-            raise RuntimeError(f"Session {session_id} not found or not active")
 
         send_timeout = timeout or self.default_timeout
 
@@ -248,8 +260,6 @@ class TCPIPPrinterSessionManager:
             TimeoutError: If receive times out
         """
         session = await self.get_printer_session(session_id)
-        if not session:
-            raise RuntimeError(f"Session {session_id} not found or not active")
 
         receive_timeout = timeout or self.default_timeout
 
@@ -284,6 +294,9 @@ class TCPIPPrinterSessionManager:
             del self._active_sessions[session_id]
 
         try:
+            # Close the session first
+            await self._close_session_safe(session)
+
             # Return connection to pool (handles cleanup)
             if self.connection_pool:
                 await self.connection_pool.return_connection(session)
@@ -341,12 +354,9 @@ class TCPIPPrinterSessionManager:
         except Exception as e:
             logger.debug(f"Error closing session {session.session_id}: {e}")
 
-    def get_active_sessions(self) -> List[Dict[str, Any]]:
-        """Get information about all active sessions."""
-        sessions_info = []
-        for session in self._active_sessions.values():
-            sessions_info.append(session.get_session_info())
-        return sessions_info
+    def get_active_sessions(self) -> List[str]:
+        """Get identifiers for all active sessions."""
+        return list(self._active_sessions.keys())
 
     def get_pool_stats(self) -> Dict[str, Any]:
         """Get connection pool statistics."""

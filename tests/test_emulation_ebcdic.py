@@ -63,6 +63,6 @@ def test_ebcdic_edge_cases(memory_limit_500mb):
 )
 def test_codec_errors(memory_limit_500mb):
     codec = EBCDICCodec()
-    # Our implementation uses 'z' for unknown values instead of raising errors
+    # Our implementation now properly decodes all EBCDIC characters using CP037
     result, _ = codec.decode(b"\xff" * 10)
-    assert result == "z" * 10  # Should handle invalid chars gracefully
+    assert result == "\x9f" * 10  # 0xff decodes to \x9f in CP037

@@ -1,0 +1,67 @@
+{
+  "timestamp": "20251025_031727",
+  "total_tests": 1,
+  "successful_tests": 0,
+  "failed_tests": 1,
+  "average_match_percentage": 0.0,
+  "network_conditions": {
+    "latency_ms": 0,
+    "jitter_ms": 0,
+    "packet_loss": 0,
+    "bandwidth_kbps": null,
+    "reorder_probability": 0,
+    "duplicate_probability": 0
+  },
+  "test_results": [
+    {
+      "trace_file": "tests/data/traces/ra_test.trc",
+      "network_conditions": {
+        "latency_ms": 0,
+        "jitter_ms": 0,
+        "packet_loss": 0,
+        "bandwidth_kbps": null,
+        "reorder_probability": 0,
+        "duplicate_probability": 0
+      },
+      "pure3270_screen": [],
+      "expected_screen": [
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        ""
+      ],
+      "match_percentage": 0,
+      "differences": [],
+      "errors": [],
+      "duration_seconds": 1.5843873023986816,
+      "success": false
+    }
+  ],
+  "summary": {
+    "total_duration": 1.5844836235046387,
+    "output_directory": "test_output/trace_tests",
+    "traces_tested": [
+      "tests/data/traces/ra_test.trc"
+    ]
+  }
+}

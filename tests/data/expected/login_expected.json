@@ -1,0 +1,124 @@
+{
+  "trace_file": "login.trc",
+  "description": "Expected output for login trace - IBM mainframe login screen",
+  "protocol": {
+    "type": "TN3270",
+    "tn3270e": false,
+    "telnet_negotiation": true
+  },
+  "screen": {
+    "rows": 43,
+    "cols": 80,
+    "model": "3278-4-E",
+    "num_fields": 20,
+    "key_fields": [
+      {
+        "name": "user_field",
+        "row": 6,
+        "col": 32,
+        "length": 10,
+        "attributes": {
+          "protected": false,
+          "intensified": true,
+          "hidden": false,
+          "numeric": false
+        },
+        "label": "Uzivatel (User)"
+      },
+      {
+        "name": "password_field",
+        "row": 7,
+        "col": 32,
+        "length": 10,
+        "attributes": {
+          "protected": false,
+          "intensified": false,
+          "hidden": true,
+          "numeric": false,
+          "nondisplay": true
+        },
+        "label": "Heslo (Password)"
+      }
+    ]
+  },
+  "expected_content": {
+    "header": "Global Payments Europe",
+    "system_info": {
+      "system": "IBM02C",
+      "subsystem": "QINTER",
+      "display": "QPADEV000S"
+    },
+    "screen_title": "Test system CMS/MMS",
+    "prompts": [
+      "Uzivatel (User) . . . . . .",
+      "Heslo (Password)  . . . . ."
+    ]
+  },
+  "validation_checks": [
+    {
+      "type": "screen_size",
+      "expected": "43x80",
+      "description": "Verify screen dimensions match Model 4"
+    },
+    {
+      "type": "field_count",
+      "min": 15,
+      "max": 25,
+      "description": "Verify reasonable number of fields"
+    },
+    {
+      "type": "input_fields",
+      "count": 2,
+      "description": "Verify user and password input fields exist"
+    },
+    {
+      "type": "extended_attributes",
+      "present": true,
+      "description": "Verify extended field attributes (color, highlighting)"
+    },
+    {
+      "type": "cursor_position",
+      "row": 6,
+      "col": 33,
+      "description": "Cursor should be positioned at user field"
+    }
+  ],
+  "telnet_negotiation": {
+    "terminal_type": "IBM-3278-4-E",
+    "options": [
+      "BINARY",
+      "END-OF-RECORD",
+      "TERMINAL-TYPE",
+      "NEW-ENVIRON"
+    ]
+  },
+  "data_stream_commands": [
+    "EraseWriteAlternate"
+  ],
+  "field_attributes": {
+    "colors": [
+      "blue",
+      "green",
+      "neutralWhite"
+    ],
+    "highlighting": [
+      "reverse",
+      "underscore"
+    ],
+    "protection": [
+      "protected",
+      "unprotected"
+    ],
+    "intensity": [
+      "normal",
+      "intensified"
+    ]
+  },
+  "notes": [
+    "This trace captures a login screen for an IBM mainframe system",
+    "Uses extended field attributes for color and highlighting",
+    "Password field is marked as nondisplay (hidden input)",
+    "System operates in connected-3270 mode (not TN3270E)",
+    "Cursor is positioned at the user input field ready for input"
+  ]
+}

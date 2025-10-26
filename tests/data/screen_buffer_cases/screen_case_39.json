@@ -1,0 +1,72 @@
+{
+  "case": 39,
+  "rows": 24,
+  "cols": 80,
+  "fields": [
+    {
+      "start": [
+        7,
+        50
+      ],
+      "end": [
+        2,
+        25
+      ],
+      "protected": true,
+      "numeric": false,
+      "content": "OJ8MX1V2"
+    },
+    {
+      "start": [
+        14,
+        19
+      ],
+      "end": [
+        8,
+        24
+      ],
+      "protected": true,
+      "numeric": true,
+      "content": "OHTY61SU"
+    },
+    {
+      "start": [
+        14,
+        46
+      ],
+      "end": [
+        22,
+        72
+      ],
+      "protected": true,
+      "numeric": false,
+      "content": "H98JXGEL"
+    },
+    {
+      "start": [
+        14,
+        0
+      ],
+      "end": [
+        10,
+        74
+      ],
+      "protected": false,
+      "numeric": false,
+      "content": "I20AUH02"
+    },
+    {
+      "start": [
+        10,
+        71
+      ],
+      "end": [
+        3,
+        67
+      ],
+      "protected": true,
+      "numeric": true,
+      "content": "ZE8G9BKC"
+    }
+  ]
+}

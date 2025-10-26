@@ -1,0 +1,20 @@
+{
+  "case": 45,
+  "rows": 24,
+  "cols": 80,
+  "fields": [
+    {
+      "start": [
+        14,
+        36
+      ],
+      "end": [
+        19,
+        7
+      ],
+      "protected": false,
+      "numeric": true,
+      "content": "DN4ZT51Q"
+    }
+  ]
+}

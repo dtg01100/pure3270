@@ -1,0 +1,54 @@
+{
+  "trace_file": "smoke.trc",
+  "printer_features": {
+    "num_print_jobs": 2,
+    "total_eoj_markers": 4,
+    "total_responses": 27,
+    "scs_features": [
+      "form_feed",
+      "end_of_medium",
+      "newline"
+    ],
+    "print_jobs": [
+      {
+        "job_number": 1,
+        "start_line": 98,
+        "end_line": 192,
+        "pages": 2,
+        "line_count": 53,
+        "has_eoj_marker": true,
+        "scs_codes": [
+          "FF",
+          "NL",
+          "EM"
+        ],
+        "sequence_numbers": [
+          0
+        ]
+      },
+      {
+        "job_number": 2,
+        "start_line": 279,
+        "end_line": 374,
+        "pages": 2,
+        "line_count": 53,
+        "has_eoj_marker": true,
+        "scs_codes": [
+          "FF",
+          "NL",
+          "EM"
+        ],
+        "sequence_numbers": [
+          0
+        ]
+      }
+    ]
+  },
+  "coverage_metrics": {
+    "print_jobs_detected": true,
+    "eoj_markers_present": true,
+    "scs_codes_present": true,
+    "responses_sent": true,
+    "multi_page_jobs": true
+  }
+}

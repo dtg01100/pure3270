@@ -1,0 +1,37 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pure3270 Trace Test Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .summary { background: #f0f0f0; padding: 20px; border-radius: 5px; margin-bottom: 20px; }
+        .test-result { margin: 10px 0; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        .success { background: #d4edda; border-color: #c3e6cb; }
+        .failure { background: #f8d7da; border-color: #f5c6cb; }
+        .details { margin-top: 10px; }
+        pre { background: #f8f8f8; padding: 10px; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <h1>Pure3270 Trace Test Report</h1>
+    <div class="summary">
+        <h2>Summary</h2>
+        <p><strong>Timestamp:</strong> 20251025_032016</p>
+        <p><strong>Total Tests:</strong> 1</p>
+        <p><strong>Successful:</strong> 1</p>
+        <p><strong>Failed:</strong> 0</p>
+        <p><strong>Average Match:</strong> 98.3%</p>
+        <p><strong>Network Conditions:</strong> {'latency_ms': 0, 'jitter_ms': 0, 'packet_loss': 0, 'bandwidth_kbps': None, 'reorder_probability': 0, 'duplicate_probability': 0}</p>
+    </div>
+
+    <h2>Test Results</h2>
+
+    <div class="test-result success">
+        <h3>ibmlink.trc</h3>
+        <p><strong>Match:</strong> 98.3%</p>
+        <p><strong>Duration:</strong> 0.01s</p>
+        <p><strong>Success:</strong> Yes</p>
+<h4>Differences:</h4><p>Line 21:</p><pre>Pure3270:             ________           ________                                         </pre><pre>Expected:                                                                                 </pre><p>Line 22:</p><pre>Pure3270:                                                                                 </pre><pre>Expected:             ________           ________                                         </pre></div>
+</body>
+</html>

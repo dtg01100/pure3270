@@ -1,0 +1,23 @@
+{
+  "login_trace": {
+    "telnet_options_count": 27,
+    "tn3270e_events_count": 1,
+    "device_types": [],
+    "functions": []
+  },
+  "smoke_trace": {
+    "telnet_options_count": 52,
+    "tn3270e_events_count": 8,
+    "device_types": [
+      "IBM-3287-1"
+    ],
+    "functions": [
+      "BIND-IMAGE",
+      "DATA-STREAM-CTL",
+      "RESPONSES",
+      "SCS-CTL-CODES",
+      "SYSREQ"
+    ],
+    "bind_images": 3
+  }
+}
