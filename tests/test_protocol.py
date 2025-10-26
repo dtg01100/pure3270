@@ -35,11 +35,18 @@ class TestDataStreamParser:
         assert data_stream_parser.wcc == 0xC1
         assert all(b == 0x40 for b in data_stream_parser.screen.buffer)
 
-    def test_parse_aid(self, data_stream_parser, memory_limit_500mb):
-        # TN3270 stream: Write (0xF5), WCC (0xC1), AID (0x7D)
+    def test_parse_data_byte(self, data_stream_parser, memory_limit_500mb):
+        # TN3270 stream: Write (0xF5), WCC (0xC1), Data byte (0x7D)
+        # Note: In outbound streams (host→terminal), bytes after WCC that are not
+        # order codes (like SBA 0x11, SF 0x1D, etc.) are treated as data bytes.
+        # AID only appears at the start of inbound streams (terminal→host).
+        # See RFC 1576 Section 3.3 for data stream format specification.
         sample_data = b"\xf5\xc1\x7d"
         data_stream_parser.parse(sample_data)
-        assert data_stream_parser.aid == 0x7D
+        # Verify data byte was written to screen buffer
+        assert data_stream_parser.screen.buffer[0] == 0x7D
+        # AID should not be extracted from outbound streams per RFC 1576
+        assert data_stream_parser.aid is None
 
     def test_parse_sba(self, data_stream_parser, memory_limit_500mb):
         # TN3270 stream: Write (0xF5), WCC (0xC1), SBA (0x11), row=0, col=0
@@ -60,9 +67,14 @@ class TestDataStreamParser:
             mock_set_attribute.assert_called_once_with(0x40)
 
     def test_parse_ra(self, data_stream_parser, memory_limit_500mb):
-        sample_data = b"\xf3\x40\x00\x05"  # RA space 5 times
+        # TN3270 stream: Write (0xF5), WCC (0xC1), RA (0x3C), addr_high, addr_low, char
+        # RA format: 0x3C | address_high | address_low | character_to_repeat
+        # Repeat 0x40 (EBCDIC space) from address 0 to address 4 (5 positions)
+        sample_data = (
+            b"\xf5\xc1\x3c\x00\x04\x40"  # WRITE + WCC + RA + addr(0,4) + space
+        )
         data_stream_parser.parse(sample_data)
-        # Assert buffer updated for repeated character
+        # Assert buffer updated for repeated character from position 0 to 4
         assert data_stream_parser.screen.buffer[:5] == b"\x40" * 5
 
     def test_parse_ge(self, data_stream_parser, memory_limit_500mb):
