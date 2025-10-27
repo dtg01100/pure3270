@@ -145,3 +145,5 @@ docs/build/
 reference/
 
 # End of .gitignore
+batch_comparison_results.json
+kilo_code_task_oct-26-2025_*.md

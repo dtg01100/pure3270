@@ -126,34 +126,102 @@ class TestDisplayOutputParity:
 
         # Replay trace: feed SCS data to printer buffer
         with open(trace_path, "r", encoding="utf-8") as f:
+            current_packet = b""  # Accumulate hex data across multiple lines
+            last_offset = -1
+
             for line in f:
                 line = line.strip()
                 if not line or line.startswith("#"):
                     continue
-                if line.startswith("<") and "0x" in line:
-                    parts = line.split()
-                    hex_payload = parts[-1]
+
+                # Parse hex data lines (format: "< 0x0   hexdata" or "> 0x0  hexdata")
+                if line.startswith(("<", ">")) and len(line.split()) >= 3:
+                    parts = line.split(maxsplit=2)
+                    direction = parts[0]
+                    offset_str = parts[1]
+                    hex_payload = parts[2]
+
+                    # Parse offset (e.g., "0x0", "0x20", "0x40")
                     try:
-                        data = bytes.fromhex(hex_payload)
-                    except Exception:
-                        continue  # skip malformed
+                        offset = int(offset_str, 16)
+                    except ValueError:
+                        continue
 
-                    # Parse TN3270E header if present (first 5 bytes)
-                    data_type = SCS_DATA  # default
-                    payload = data
-                    if len(data) >= 5:
-                        from pure3270.protocol.tn3270e_header import TN3270EHeader
-                        from pure3270.protocol.utils import PRINT_EOJ
+                    # Only process data from host (lines starting with "<")
+                    if direction == "<":
+                        # If offset resets to 0, process accumulated packet first
+                        if offset == 0 and current_packet:
+                            # Parse TN3270E header if present (first 5 bytes)
+                            data_type = SCS_DATA  # default
+                            payload = current_packet
+                            if len(current_packet) >= 5:
+                                from pure3270.protocol.tn3270e_header import (
+                                    TN3270EHeader,
+                                )
+                                from pure3270.protocol.utils import PRINT_EOJ
 
-                        header = TN3270EHeader.from_bytes(data[:5])
-                        if header:
-                            data_type = header.data_type
-                            payload = data[5:]  # skip header
+                                header = TN3270EHeader.from_bytes(current_packet[:5])
+                                if header:
+                                    data_type = header.data_type
+                                    payload = current_packet[5:]  # skip header
 
-                    try:
-                        parser.parse(payload, data_type=data_type)
-                    except Exception:
-                        continue  # skip errors
+                            try:
+                                parser.parse(payload, data_type=data_type)
+                            except Exception:
+                                pass  # skip errors
+
+                            # Reset for next packet
+                            current_packet = b""
+                            last_offset = -1
+
+                        # Append hex data to current packet
+                        try:
+                            data = bytes.fromhex(hex_payload)
+                            current_packet += data
+                            last_offset = offset
+                        except Exception:
+                            continue  # skip malformed
+                else:
+                    # Non-hex line - process accumulated packet if any
+                    if current_packet:
+                        # Parse TN3270E header if present (first 5 bytes)
+                        data_type = SCS_DATA  # default
+                        payload = current_packet
+                        if len(current_packet) >= 5:
+                            from pure3270.protocol.tn3270e_header import TN3270EHeader
+                            from pure3270.protocol.utils import PRINT_EOJ
+
+                            header = TN3270EHeader.from_bytes(current_packet[:5])
+                            if header:
+                                data_type = header.data_type
+                                payload = current_packet[5:]  # skip header
+
+                        try:
+                            parser.parse(payload, data_type=data_type)
+                        except Exception:
+                            pass  # skip errors
+
+                        # Reset for next packet
+                        current_packet = b""
+                        last_offset = -1
+
+            # Process final packet if any
+            if current_packet:
+                data_type = SCS_DATA  # default
+                payload = current_packet
+                if len(current_packet) >= 5:
+                    from pure3270.protocol.tn3270e_header import TN3270EHeader
+                    from pure3270.protocol.utils import PRINT_EOJ
+
+                    header = TN3270EHeader.from_bytes(current_packet[:5])
+                    if header:
+                        data_type = header.data_type
+                        payload = current_packet[5:]  # skip header
+
+                try:
+                    parser.parse(payload, data_type=data_type)
+                except Exception:
+                    pass  # skip errors
 
         # Extract display output from printer buffer
         display_text = printer_buffer.get_content()
