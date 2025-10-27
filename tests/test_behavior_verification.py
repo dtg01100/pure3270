@@ -137,8 +137,21 @@ class TestDisplayOutputParity:
                         data = bytes.fromhex(hex_payload)
                     except Exception:
                         continue  # skip malformed
+
+                    # Parse TN3270E header if present (first 5 bytes)
+                    data_type = SCS_DATA  # default
+                    payload = data
+                    if len(data) >= 5:
+                        from pure3270.protocol.tn3270e_header import TN3270EHeader
+                        from pure3270.protocol.utils import PRINT_EOJ
+
+                        header = TN3270EHeader.from_bytes(data[:5])
+                        if header:
+                            data_type = header.data_type
+                            payload = data[5:]  # skip header
+
                     try:
-                        parser.parse(data, data_type=SCS_DATA)
+                        parser.parse(payload, data_type=data_type)
                     except Exception:
                         continue  # skip errors
 
