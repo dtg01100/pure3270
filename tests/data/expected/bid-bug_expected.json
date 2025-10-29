@@ -1,0 +1,223 @@
+{
+  "trace_file": "bid-bug.trc",
+  "description": "WIRED (TN3270E) mode TSO/E logon session with BIND images, structured fields, AID processing, and printer protocols",
+  "protocol": {
+    "type": "TN3270E",
+    "tn3270e": true,
+    "telnet_negotiation": true
+  },
+  "screen": {
+    "rows": 43,
+    "cols": 132,
+    "model": "3279-4-E",
+    "num_fields": 28,
+    "key_elements": [
+      {
+        "name": "userid_field",
+        "row": 6,
+        "col": 19,
+        "length": 8,
+        "attributes": {
+          "protected": false,
+          "intensified": true,
+          "hidden": false,
+          "numeric": false
+        },
+        "content": " LJU     ",
+        "label": "Userid    ===>"
+      },
+      {
+        "name": "password_field",
+        "row": 8,
+        "col": 19,
+        "length": 9,
+        "attributes": {
+          "protected": false,
+          "intensified": false,
+          "hidden": true,
+          "numeric": false,
+          "nondisplay": true
+        },
+        "label": "Password  ===>"
+      },
+      {
+        "name": "procedure_field",
+        "row": 10,
+        "col": 19,
+        "length": 8,
+        "attributes": {
+          "protected": false,
+          "intensified": true,
+          "hidden": false,
+          "numeric": false
+        },
+        "content": " ISPFPROC",
+        "label": "Procedure ===>"
+      }
+    ],
+    "logon_screen": true,
+    "has_colors": true
+  },
+  "expected_content": {
+    "title": "TSO/E LOGON",
+    "system_info": {
+      "lu_name": "TCP00049",
+      "host_system": "z/OS",
+      "application": "TSO/E"
+    },
+    "menu_options": [
+      "PF1/PF13 ==> Help",
+      "PF3/PF15 ==> Logoff",
+      "PA1 ==> Attention",
+      "PA2 ==> Reshow"
+    ],
+    "logon_parameters": [
+      "Enter LOGON parameters below:",
+      "RACF LOGON parameters:",
+      "Userid    ===> LJU",
+      "Password  ===>",
+      "Procedure ===> ISPFPROC",
+      "Group Ident  ===>",
+      "New Password ===>",
+      "Perform   ===>"
+    ],
+    "session_options": [
+      "-Nomail",
+      "-Nonotice",
+      "S -Reconnect",
+      "-OIDcard"
+    ]
+  },
+  "validation_checks": [
+    {
+      "type": "screen_size",
+      "expected": "43x132",
+      "description": "Verify screen dimensions match Model 4"
+    },
+    {
+      "type": "protocol_mode",
+      "expected": "TN3270E",
+      "description": "Verify TN3270E mode with BIND images"
+    },
+    {
+      "type": "field_count",
+      "min": 25,
+      "max": 35,
+      "description": "Verify comprehensive field layout for logon screen"
+    },
+    {
+      "type": "input_fields",
+      "count": 15,
+      "description": "Verify multiple input fields (userid, password, procedure, etc.)"
+    },
+    {
+      "type": "extended_attributes",
+      "present": true,
+      "description": "Verify extended field attributes (colors, highlighting, nondisplay)"
+    },
+    {
+      "type": "structured_fields",
+      "present": true,
+      "description": "Verify structured field processing (Reply Modes, Character Sets, etc.)"
+    },
+    {
+      "type": "aid_processing",
+      "present": true,
+      "description": "Verify AID code handling (Enter key for logon)"
+    },
+    {
+      "type": "teleconference_manager",
+      "clues": [
+        "Contention resolution",
+        "Multiple session elements",
+        "Device name changes"
+      ],
+      "description": "Verify teleconference manager protocol handling"
+    },
+    {
+      "type": "lu_name",
+      "expected_in_trace": "TCP00049",
+      "description": "Verify LU name assignment from BIND image"
+    },
+    {
+      "type": "printer_session",
+      "switches_to_lu": "A26TS001",
+      "description": "Verify TN3270E printer session switching"
+    },
+    {
+      "type": "cursor_position",
+      "row": 8,
+      "col": 20,
+      "description": "Cursor should be positioned at password field"
+    }
+  ],
+  "telnet_negotiation": {
+    "initial_mode": "TN3270",
+    "upgrade_to": "TN3270E",
+    "terminal_type": "IBM-3278-4-E",
+    "functions": [
+      "BIND-IMAGE",
+      "RESPONSES",
+      "SYSREQ",
+      "CONTENTION-RESOLUTION"
+    ],
+    "device_type": "IBM-DYNAMIC",
+    "connect_device": "TCP00049"
+  },
+  "data_stream_commands": [
+    "EraseWrite",
+    "WriteStructuredField"
+  ],
+  "structured_fields": [
+    {
+      "type": "QueryReply",
+      "replies": [
+        "Summary",
+        "UsableArea",
+        "AlphanumericPartitions",
+        "CharacterSets",
+        "Color",
+        "Highlighting",
+        "ReplyModes",
+        "DistributedDataManagement",
+        "RPQNames",
+        "ImplicitPartition"
+      ],
+      "description": "Full query reply with all capabilities"
+    },
+    {
+      "type": "OutboundDS",
+      "purpose": "Distributed data management"
+    }
+  ],
+  "field_attributes": {
+    "colors": [
+      "neutralWhite",
+      "red",
+      "green"
+    ],
+    "highlighting": [
+      "normal",
+      "selectable"
+    ],
+    "protection": [
+      "protected",
+      "unprotected"
+    ],
+    "special": [
+      "intensified",
+      "nondisplay",
+      "skip"
+    ]
+  },
+  "notes": [
+    "This is the most comprehensive test trace, exercising 7/8 protocol features",
+    "Tests WIRED mode TN3270E with full negotiation sequence",
+    "Includes complex logon screen with multiple field types and attributes",
+    "Validates structured field processing and query replies",
+    "Tests AID processing with Enter key submission",
+    "Includes session switching to printer LU A26TS001",
+    "One of the 'TOP 10 MOST COMPREHENSIVE TRACES' in coverage analysis",
+    "Exercises contention resolution teleconference manager features"
+  ]
+}

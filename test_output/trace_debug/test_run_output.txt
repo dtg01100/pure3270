@@ -1,0 +1,254 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.11, pytest-8.4.2, pluggy-1.6.0 -- /usr/local/bin/python
+cachedir: .pytest_cache
+benchmark: 5.1.0 (defaults: timer=time.perf_counter disable_gc=False min_rounds=5 min_time=0.000005 max_time=1.0 calibration_precision=10 warmup=False warmup_iterations=100000)
+hypothesis profile 'default'
+rootdir: /workspaces/pure3270
+configfile: pyproject.toml
+plugins: timeout-2.4.0, benchmark-5.1.0, asyncio-1.2.0, hypothesis-6.142.1, cov-7.0.0, anyio-4.11.0
+timeout: 30.0s
+timeout method: thread
+timeout func_only: False
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 1 item
+
+tests/test_trace_replay.py::test_replay_trace
+-------------------------------- live log call ---------------------------------
+INFO     tests.test_trace_replay:test_trace_replay.py:37 Testing trace replay with file: tests/data/traces/ra_test.trc
+INFO     pure3270.trace.replayer:replayer.py:53 Replaying trace file: tests/data/traces/ra_test.trc
+INFO     pure3270.trace.replayer:replayer.py:61 Processing 5 records from trace
+DEBUG    pure3270.trace.replayer:replayer.py:66 Processing record 1/5 (3 bytes)
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1129 parse invoked: data_type=0x00 len=3 preview_hex=fffd28
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1614 Set WCC to 0xff
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=1 remaining=2 preview_hex=fd28
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0xfd at pos=2
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0xfd as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=2 remaining=1 preview_hex=28
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x28 at pos=3
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1329 parser identified order 0x28, invoking handler
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1340 invoking handler for order 0x28 (_handle_sa)
+WARNING  pure3270.protocol.data_stream:data_stream.py:1361 ParseError pos=3: Incomplete SA order; aborting write and rolling back
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1373 parser pos after abort=3
+WARNING  pure3270.protocol.data_stream:data_stream.py:1420 ParseError pos=3: Incomplete SA order; aborting write and rolling back
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1429 parser pos after abort=3
+WARNING  pure3270.trace.replayer:replayer.py:71 Failed to parse record 1: Incomplete SA order
+DEBUG    pure3270.trace.replayer:replayer.py:66 Processing record 2/5 (7 bytes)
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1129 parse invoked: data_type=0x00 len=7 preview_hex=fffa280802fff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1614 Set WCC to 0xff
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=1 remaining=6 preview_hex=fa280802fff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0xfa at pos=2
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0xfa as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=2 remaining=5 preview_hex=280802fff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x28 at pos=3
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1329 parser identified order 0x28, invoking handler
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1340 invoking handler for order 0x28 (_handle_sa)
+WARNING  pure3270.emulation.screen_buffer:screen_buffer.py:970 Unknown extended attribute type 0x08
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1342 handler for order 0x28 returned, parser pos=5
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=5 remaining=2 preview_hex=fff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0xff at pos=6
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0xff as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=6 remaining=1 preview_hex=f0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0xf0 at pos=7
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0xf0 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1402 Data stream parsing completed successfully
+DEBUG    pure3270.trace.replayer:replayer.py:66 Processing record 3/5 (28 bytes)
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1129 parse invoked: data_type=0x00 len=28 preview_hex=fffa28020449424d2d333237382d342d450149424d305445514ffff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1614 Set WCC to 0xff
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=1 remaining=27 preview_hex=fa28020449424d2d333237382d342d45
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0xfa at pos=2
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0xfa as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=2 remaining=26 preview_hex=28020449424d2d333237382d342d4501
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x28 at pos=3
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1329 parser identified order 0x28, invoking handler
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1340 invoking handler for order 0x28 (_handle_sa)
+WARNING  pure3270.emulation.screen_buffer:screen_buffer.py:970 Unknown extended attribute type 0x02
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1342 handler for order 0x28 returned, parser pos=5
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=5 remaining=23 preview_hex=49424d2d333237382d342d450149424d
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x49 at pos=6
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x49 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=6 remaining=22 preview_hex=424d2d333237382d342d450149424d30
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x42 at pos=7
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x42 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=7 remaining=21 preview_hex=4d2d333237382d342d450149424d3054
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x4d at pos=8
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x4d as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=8 remaining=20 preview_hex=2d333237382d342d450149424d305445
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x2d at pos=9
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x2d as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=9 remaining=19 preview_hex=333237382d342d450149424d30544551
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x33 at pos=10
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x33 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=10 remaining=18 preview_hex=3237382d342d450149424d305445514f
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x32 at pos=11
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x32 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=11 remaining=17 preview_hex=37382d342d450149424d305445514fff
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x37 at pos=12
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x37 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=12 remaining=16 preview_hex=382d342d450149424d305445514ffff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x38 at pos=13
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x38 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=13 remaining=15 preview_hex=2d342d450149424d305445514ffff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x2d at pos=14
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x2d as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=14 remaining=14 preview_hex=342d450149424d305445514ffff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x34 at pos=15
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x34 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=15 remaining=13 preview_hex=2d450149424d305445514ffff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x2d at pos=16
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x2d as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=16 remaining=12 preview_hex=450149424d305445514ffff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x45 at pos=17
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x45 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=17 remaining=11 preview_hex=0149424d305445514ffff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x01 at pos=18
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x01 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=18 remaining=10 preview_hex=49424d305445514ffff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x49 at pos=19
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x49 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=19 remaining=9 preview_hex=424d305445514ffff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x42 at pos=20
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x42 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=20 remaining=8 preview_hex=4d305445514ffff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x4d at pos=21
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x4d as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=21 remaining=7 preview_hex=305445514ffff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x30 at pos=22
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x30 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=22 remaining=6 preview_hex=5445514ffff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x54 at pos=23
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x54 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=23 remaining=5 preview_hex=45514ffff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x45 at pos=24
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x45 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=24 remaining=4 preview_hex=514ffff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x51 at pos=25
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x51 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=25 remaining=3 preview_hex=4ffff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x4f at pos=26
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x4f as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=26 remaining=2 preview_hex=fff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0xff at pos=27
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0xff as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=27 remaining=1 preview_hex=f0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0xf0 at pos=28
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0xf0 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1402 Data stream parsing completed successfully
+DEBUG    pure3270.trace.replayer:replayer.py:66 Processing record 4/5 (9 bytes)
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1129 parse invoked: data_type=0x00 len=9 preview_hex=fffa2803040204fff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1614 Set WCC to 0xff
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=1 remaining=8 preview_hex=fa2803040204fff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0xfa at pos=2
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0xfa as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=2 remaining=7 preview_hex=2803040204fff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x28 at pos=3
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1329 parser identified order 0x28, invoking handler
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1340 invoking handler for order 0x28 (_handle_sa)
+WARNING  pure3270.emulation.screen_buffer:screen_buffer.py:970 Unknown extended attribute type 0x03
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1342 handler for order 0x28 returned, parser pos=5
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=5 remaining=4 preview_hex=0204fff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x02 at pos=6
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x02 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=6 remaining=3 preview_hex=04fff0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x04 at pos=7
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1329 parser identified order 0x04, invoking handler
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1340 invoking handler for order 0x04 (_handle_scs)
+DEBUG    pure3270.protocol.data_stream:data_stream.py:2067 SCS control code: 0xff - stub implementation
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1342 handler for order 0x04 returned, parser pos=8
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=8 remaining=1 preview_hex=f0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0xf0 at pos=9
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0xf0 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1402 Data stream parsing completed successfully
+DEBUG    pure3270.trace.replayer:replayer.py:66 Processing record 5/5 (32 bytes)
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1129 parse invoked: data_type=0x00 len=32 preview_hex=00000100017ec2114040132902c06042002845f23c40c9f02902c0604200ffef
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1614 Set WCC to 0x00
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=1 remaining=31 preview_hex=000100017ec2114040132902c0604200
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x00 at pos=2
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x00 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=2 remaining=30 preview_hex=0100017ec2114040132902c060420028
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x01 at pos=3
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x01 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=3 remaining=29 preview_hex=00017ec2114040132902c06042002845
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x00 at pos=4
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x00 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=4 remaining=28 preview_hex=017ec2114040132902c06042002845f2
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x01 at pos=5
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x01 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=5 remaining=27 preview_hex=7ec2114040132902c06042002845f23c
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x7e at pos=6
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0x7e as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=6 remaining=26 preview_hex=c2114040132902c06042002845f23c40
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0xc2 at pos=7
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0xc2 as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=7 remaining=25 preview_hex=114040132902c06042002845f23c40c9
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x11 at pos=8
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1329 parser identified order 0x11, invoking handler
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1340 invoking handler for order 0x11 (_handle_sba)
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1665 Set buffer address to (0, 0) [address=0000, mode=12-bit]
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1342 handler for order 0x11 returned, parser pos=10
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=10 remaining=22 preview_hex=132902c06042002845f23c40c9f02902
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x13 at pos=11
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1329 parser identified order 0x13, invoking handler
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1340 invoking handler for order 0x13 (_handle_ic)
+DEBUG    pure3270.emulation.screen_buffer:screen_buffer.py:833 No input fields found for IC order.
+DEBUG    pure3270.protocol.data_stream:logging_utils.py:70 Insert cursor - moved to first input field [mode=12-bit]
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1342 handler for order 0x13 returned, parser pos=11
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=11 remaining=21 preview_hex=2902c06042002845f23c40c9f02902c0
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x29 at pos=12
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1329 parser identified order 0x29, invoking handler
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1340 invoking handler for order 0x29 (<lambda>)
+DEBUG    pure3270.emulation.screen_buffer:screen_buffer.py:780 _detect_fields: _field_starts=[0]
+DEBUG    pure3270.emulation.screen_buffer:screen_buffer.py:630 _create_field_from_range: Field start=(0,0), end=(23,79), content=000100017ec23237382d342d450149424d305445514ffff0404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040
+DEBUG    pure3270.emulation.screen_buffer:screen_buffer.py:729 _create_field_from_range: Created field Field(start=(0, 0), end=(23, 79), protected=True, numeric=False, modified=False, intensity=0, content=b'\x00\x01\x00\x01~\xc2278-4-E\x01IBM0TEQO\xff\xf0@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+DEBUG    pure3270.emulation.screen_buffer:screen_buffer.py:886 Set field attribute 0x60 at position (0, 0)
+DEBUG    pure3270.protocol.data_stream:data_stream.py:2232 SFE (order): base attribute set to 0x60 [mode=12-bit]
+DEBUG    pure3270.emulation.field_attributes:field_attributes.py:198 Set extended attribute 'color': ColorAttribute(value=0)
+DEBUG    pure3270.emulation.screen_buffer:screen_buffer.py:966 Set extended attribute 'color'=0x00 at (0, 0) (accumulated)
+DEBUG    pure3270.protocol.data_stream:data_stream.py:2238 SFE (order): type 0x42, value 0x00 [mode=12-bit]
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1342 handler for order 0x29 returned, parser pos=17
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=17 remaining=15 preview_hex=2845f23c40c9f02902c0604200ffef
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x28 at pos=18
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1329 parser identified order 0x28, invoking handler
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1340 invoking handler for order 0x28 (_handle_sa)
+DEBUG    pure3270.emulation.field_attributes:field_attributes.py:198 Set extended attribute 'outlining': OutliningAttribute(value=242)
+DEBUG    pure3270.emulation.screen_buffer:screen_buffer.py:966 Set extended attribute 'outlining'=0xf2 at (0, 1) (accumulated)
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1342 handler for order 0x28 returned, parser pos=20
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=20 remaining=12 preview_hex=3c40c9f02902c0604200ffef
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x3c at pos=21
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1329 parser identified order 0x3c, invoking handler
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1340 invoking handler for order 0x3c (_handle_ra)
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1756 RA: char=0xf0, addr_bytes=0x40c9, decoded_addr=9
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1785 RA: Repeat 0xf0 from (0, 1) to (0, 9)
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1808 RA: Repeating 8 times from pos 1 to 9
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1342 handler for order 0x3c returned, parser pos=24
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=24 remaining=8 preview_hex=2902c0604200ffef
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0x29 at pos=25
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1329 parser identified order 0x29, invoking handler
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1340 invoking handler for order 0x29 (<lambda>)
+DEBUG    pure3270.emulation.screen_buffer:screen_buffer.py:780 _detect_fields: _field_starts=[0, 9]
+DEBUG    pure3270.emulation.screen_buffer:screen_buffer.py:630 _create_field_from_range: Field start=(0,0), end=(0,8), content=00f0f0f0f0f0f0f0f0
+DEBUG    pure3270.emulation.screen_buffer:screen_buffer.py:729 _create_field_from_range: Created field Field(start=(0, 0), end=(0, 8), protected=True, numeric=False, modified=False, intensity=0, content=b'\x00\xf0\xf0\xf0\xf0\xf0\xf0\xf0\xf0')
+DEBUG    pure3270.emulation.screen_buffer:screen_buffer.py:630 _create_field_from_range: Field start=(0,9), end=(23,79), content=2d342d450149424d305445514ffff0404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040404040
+DEBUG    pure3270.emulation.screen_buffer:screen_buffer.py:729 _create_field_from_range: Created field Field(start=(0, 9), end=(23, 79), protected=True, numeric=False, modified=False, intensity=0, content=b'-4-E\x01IBM0TEQO\xff\xf0@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@')
+DEBUG    pure3270.emulation.screen_buffer:screen_buffer.py:886 Set field attribute 0x60 at position (0, 9)
+DEBUG    pure3270.protocol.data_stream:data_stream.py:2232 SFE (order): base attribute set to 0x60 [mode=12-bit]
+DEBUG    pure3270.emulation.field_attributes:field_attributes.py:198 Set extended attribute 'color': ColorAttribute(value=0)
+DEBUG    pure3270.emulation.screen_buffer:screen_buffer.py:966 Set extended attribute 'color'=0x00 at (0, 9) (accumulated)
+DEBUG    pure3270.protocol.data_stream:data_stream.py:2238 SFE (order): type 0x42, value 0x00 [mode=12-bit]
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1342 handler for order 0x29 returned, parser pos=30
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=30 remaining=2 preview_hex=ffef
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0xff at pos=31
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0xff as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1314 parser loop entering pos=31 remaining=1 preview_hex=ef
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1322 parser read byte=0xef at pos=32
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1345 parser treating 0xef as data byte
+DEBUG    pure3270.protocol.data_stream:data_stream.py:1402 Data stream parsing completed successfully
+INFO     tests.test_trace_replay:test_trace_replay.py:67 Replay successful: ascii_screen length=1943, fields count=2
+PASSED                                                                   [100%]
+
+=============================== warnings summary ===============================
+../../home/vscode/.local/lib/python3.12/site-packages/_hypothesis_pytestplugin.py:469
+  /home/vscode/.local/lib/python3.12/site-packages/_hypothesis_pytestplugin.py:469: UserWarning: Skipping collection of '.hypothesis' directory - this usually means you've explicitly set the `norecursedirs` pytest config option, replacing rather than extending the default ignores.
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+========================= 1 passed, 1 warning in 0.23s =========================

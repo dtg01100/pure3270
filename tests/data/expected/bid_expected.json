@@ -1,0 +1,78 @@
+{
+  "trace_file": "bid.trc",
+  "description": "BIND image validation - comprehensive TN3270E session establishment and initial screen setup",
+  "protocol": {
+    "type": "TN3270E",
+    "tn3270e": true,
+    "telnet_negotiation": true,
+    "bind_processing": true,
+    "session_establishment": true
+  },
+  "screen": {
+    "rows": 24,
+    "cols": 80,
+    "model": "3278-2-E",
+    "num_fields": 0,
+    "key_elements": []
+  },
+  "expected_content": {
+    "validation_approach": "Session establishment validation - tests complete TN3270E connection setup"
+  },
+  "validation_checks": [
+    {
+      "type": "protocol_mode",
+      "expected": "TN3270E",
+      "description": "TN3270E protocol mode must be detected and validated"
+    },
+    {
+      "type": "bind_image_present",
+      "expected_bind": true,
+      "description": "BIND image processing is fundamental to TN3270E sessions"
+    },
+    {
+      "type": "screen_size",
+      "expected": "24x80",
+      "description": "Standard 3270 screen dimensions for initial setup"
+    },
+    {
+      "type": "field_count",
+      "min": 0,
+      "max": 5,
+      "description": "Initial screen may have few or no input fields"
+    },
+    {
+      "type": "telnet_functions",
+      "expected_functions": ["TN3270E", "BINARY", "EOR"],
+      "description": "Essential telnet function negotiation for TN3270E"
+    },
+    {
+      "type": "parsing_errors",
+      "expected_errors": false,
+      "description": "-threat BIND processing should complete without errors"
+    }
+  ],
+  "telnet_negotiation": {
+    "bind_processing": true,
+    "function_negotiation": ["SEND-DEVICE-TYPES", "BIND-SMOOTHED"],
+    "device_type": "IBM-3278-2-E"
+  },
+  "data_stream_commands": [],
+  "structured_fields": [],
+  "field_attributes": {
+    "colors": [],
+    "highlighting": [],
+    "protection": [],
+    "special": []
+  },
+  "notes": [
+    "Comprehensive BIND image validation for TN3270E session establishment",
+    "Validates complete initial screen setup and protocol negotiation",
+    "Critical for ensuring proper session initialization",
+    "Tests interaction between telnet negotiation and 3270 data streams"
+  ],
+  "session_establishment": {
+    "bind_success": true,
+    "device_type_negotiated": true,
+    "screen_ready": true
+  }
+}

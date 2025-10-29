@@ -103,26 +103,19 @@ class Pure3270TraceProcessor:
     def process_data_stream(self, data: bytes, event: TraceEvent) -> bool:
         """Process a data stream packet through pure3270."""
         try:
-            # Strip TN3270E header if present (first 5 bytes)
-            # TN3270E header: data_type | request_flag | response_flag | seq_hi | seq_lo
-            if len(data) >= 5 and data[0] in [
-                0x00,
-                0x01,
-                0x02,
-                0x03,
-                0x04,
-                0x05,
-                0x06,
-                0x07,
-            ]:
-                # Check if this looks like TN3270E header
-                # Heuristic: if byte 0 is < 0x08, it's likely a TN3270E data type
+            # For s3270 traces, data may include TN3270E headers or be raw 3270 data
+            # Try to detect and strip TN3270E header if present
+            data_stream = data
+            if len(data) >= 5 and data[0] <= 0x07:  # TN3270E data types
                 data_stream = data[5:]
-            else:
-                data_stream = data
 
             # Parse the 3270 data stream
             self.parser.parse(data_stream, data_type=0x00)  # TN3270_DATA
+
+            # Ensure field detection runs after parsing
+            if hasattr(self.screen_buffer, "_detect_fields"):
+                self.screen_buffer._detect_fields()
+
             return True
 
         except Exception as e:
@@ -238,6 +231,7 @@ class TraceComparator:
 
         results = {
             "trace_file": trace_file,
+            "screen_buffer": pure_proc.screen_buffer,
             "events_processed": processed_count,
             "errors": error_count,
             "screen_size": s3270_proc.expected_screen_size,

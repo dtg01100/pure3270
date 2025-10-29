@@ -136,6 +136,13 @@ class Field:
 
         Uses optional `codec` for encoding; falls back to `EmulationEncoder`.
         """
+        # Normalize to uppercase to emulate 3270 field semantics where
+        # alphabetic input is typically uppercased before encoding.
+        try:
+            if isinstance(text, str):
+                text = text.upper()
+        except Exception:
+            pass
         if codec is None:
             try:
                 codec = EBCDICCodec()
@@ -188,6 +195,37 @@ logger = logging.getLogger(__name__)
 
 
 class ScreenBuffer(BufferWriter):
+    def _is_file_transfer_content(self, text: str) -> bool:
+        """Check if text contains file transfer patterns that should be suppressed from screen display."""
+        # Look for IND$FILE commands and file transfer metadata patterns
+        file_transfer_patterns = [
+            "IND$FILE PUT",
+            "IND$FILE GET",
+            "IND$FILE",
+            "FILE TRANSFER",
+            "FT: ",  # File transfer metadata prefix
+            "ft-",  # File transfer trace prefix
+        ]
+
+        text_upper = text.upper()
+        for pattern in file_transfer_patterns:
+            if pattern in text_upper:
+                return True
+
+        # Check for raw file transfer metadata patterns (hex sequences that might appear as garbage)
+        # Look for sequences that commonly appear in file transfer operations
+        if any(seq in text for seq in ["\x01\x00", "\x02\x00", "\xff\xfd", "\xff\xfb"]):
+            return True
+
+        # Check for lines that are mostly non-printable or control characters
+        # which often indicate file transfer data leaking into screen
+        printable_chars = sum(1 for c in text if ord(c) >= 32 and ord(c) <= 126)
+        total_chars = len(text.strip())
+        if total_chars > 10 and printable_chars / total_chars < 0.3:
+            return True
+
+        return False
+
     @property
     def ascii_buffer(self) -> str:
         """Return the entire screen buffer as a decoded ASCII/Unicode string."""
@@ -202,18 +240,20 @@ class ScreenBuffer(BufferWriter):
                 line_text = line_bytes.decode("ascii", errors="replace")
             else:
                 # In 3270 mode, buffer contains EBCDIC bytes that need conversion
-                # Replace attribute bytes (those at field start positions) with EBCDIC space (0x40)
-                # This ensures attribute bytes are displayed as spaces, not as their character equivalents
-                for col in range(self.cols):
-                    pos = line_start + col
-                    if pos in self._field_starts:
-                        # This is an attribute byte position - replace with EBCDIC space
-                        line_bytes[col] = 0x40
-                    # Replace cursor position with EBCDIC space to match p3270 behavior
-                    if row == self.cursor_row and col == self.cursor_col:
-                        line_bytes[col] = 0x40
+                # Do not mask field attributes or cursor positions to match s3270's Ascii() behavior
+                decoded, _ = EBCDICCodec().decode(bytes(line_bytes))
+                # Clean any control characters that should not appear in screen text
+                line_text = "".join(
+                    c if ord(c) >= 32 or c in "\t\n\r" else " " for c in decoded
+                )
 
-                line_text, _ = EBCDICCodec().decode(bytes(line_bytes))
+            # Suppress file transfer content from screen display
+            if self._is_file_transfer_content(line_text):
+                logger.debug(
+                    f"Suppressing file transfer content from screen: {line_text!r}"
+                )
+                continue
+
             lines.append(line_text)
         return "\n".join(lines)
 
@@ -444,8 +484,16 @@ class ScreenBuffer(BufferWriter):
             # the cursor position but should not move it (tests rely on
             # this behavior). When explicit_position is True we emulate
             # terminal typing and move the cursor forward with wrapping.
+            # DBCS characters advance the cursor by 2 positions instead of 1.
             if explicit_position:
-                self.cursor_col += 1
+                advance = 1
+                # Check if this position has DBCS character set (e.g., Katakana)
+                attr_set = self._extended_attributes.get((row, col))
+                if attr_set:
+                    char_set_attr = attr_set.get_attribute("character_set")
+                    if char_set_attr and char_set_attr.value == 0x02:  # Katakana DBCS
+                        advance = 2
+                self.cursor_col += advance
                 if self.cursor_col >= self.cols:
                     self.cursor_col = 0
                     self.cursor_row += 1
@@ -752,11 +800,18 @@ class ScreenBuffer(BufferWriter):
                 except Exception:
                     text = ""
             else:
-                # In 3270 mode, mask attribute bytes and cursor position with EBCDIC space
+                # In 3270 mode, mask field attributes, cursor position and attribute bytes with EBCDIC space
                 for col in range(self.cols):
                     pos = start + col
-                    if pos in self._field_starts:
+                    # Check if this byte is an attribute byte (0x00-0x3F, 0xC0-0xFF, etc., all possible field attribute ranges)
+                    byte_value = line_bytes[col]
+                    is_attribute_byte = (byte_value <= 0x3F) or (byte_value >= 0xC0)
+
+                    # Mask all possible field attribute byte ranges (0x00-0x3F, 0xC0-0xFF, etc.)
+                    # or positions marked as field starts containing attribute bytes
+                    if is_attribute_byte or pos in self._field_starts:
                         line_bytes[col] = 0x40  # EBCDIC space for attributes
+
                     if row == self.cursor_row and col == self.cursor_col:
                         line_bytes[col] = 0x40  # Hide cursor as space
                 try:
@@ -874,8 +929,7 @@ class ScreenBuffer(BufferWriter):
             row, col = self.get_position()
         pos = row * self.cols + col
         if 0 <= pos < self.size:
-            # Tests expect the field attribute byte to appear in the main buffer too
-            self.buffer[pos] = attr
+            # Only update attributes buffer and field starts, matching s3270's behavior
             self.attributes[pos * 3] = attr
             # Mark a field start at this position
             self._field_starts.add(pos)

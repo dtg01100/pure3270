@@ -1,0 +1,34 @@
+{
+  "trace_file": "wrap.trc",
+  "description": "Line wrapping operations",
+  "validation_checks": [
+    {
+      "type": "screen_size",
+      "expected": "24x80",
+      "description": "Text wrapping test"
+    },
+    {
+      "type": "field_count",
+      "min": 3,
+      "max": 10,
+      "description": "Wrapping can affect field layout"
+    },
+    {
+      "type": "parsing_errors",
+      "expected_errors": false,
+      "description": "Wrapping should work correctly"
+    }
+  ],
+  "protocol": {
+    "tn3270e": true,
+    "primary_features": [
+      "screen_operations",
+      "field_processing"
+    ],
+    "expected_screen_size": "24x80",
+    "field_count_range": [
+      1,
+      10
+    ]
+  }
+}

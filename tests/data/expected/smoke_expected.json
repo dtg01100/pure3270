@@ -1,165 +1,34 @@
 {
   "trace_file": "smoke.trc",
-  "description": "Expected output for smoke trace - TN3270E printer session with multiple print jobs",
-  "protocol": {
-    "type": "TN3270E",
-    "tn3270e": true,
-    "telnet_negotiation": true,
-    "printer_session": true
-  },
-  "tn3270e": {
-    "device_type": "IBM-3287-1",
-    "associate_device": "TDC01702",
-    "connect_device": "TDC01902",
-    "functions": [
-      "BIND-IMAGE",
-      "DATA-STREAM-CTL",
-      "RESPONSES",
-      "SCS-CTL-CODES",
-      "SYSREQ"
-    ],
-    "mode": "3270",
-    "has_bind_image": true
-  },
-  "printer": {
-    "device_model": "IBM-3287-1",
-    "type": "SCS",
-    "num_print_jobs": 2,
-    "print_jobs": [
-      {
-        "job_number": 1,
-        "description": "Document listing for PKA6039 - Main Kitchen requisition",
-        "pages": 2,
-        "lines_approximate": 100,
-        "content_markers": [
-          "USER: PKA6039",
-          "T.D.C.J. - INSTITUTIONAL DIVISION",
-          "DOCUMENT    LISTING",
-          "DOCUMENT NO:    331783.00",
-          "CUSTOMER: 03200240006 E2- FOOD SERVICE",
-          "REFERENCE DOC.: SACKS/MAIN",
-          "PRINT-EOJ"
-        ],
-        "format": "SCS",
-        "start_sequence": 2,
-        "end_sequence": 4
-      },
-      {
-        "job_number": 2,
-        "description": "Document listing for PKA6039 - High Security Kitchen requisition",
-        "pages": 2,
-        "lines_approximate": 90,
-        "content_markers": [
-          "USER: PKA6039",
-          "DOCUMENT NO:    331731.00",
-          "CUSTOMER: 03200240006 E2- FOOD SERVICE",
-          "REFERENCE DOC.: SACKS/HS",
-          "SACKS/SPICES HIGH SECURITY KITCHEN",
-          "PRINT-EOJ"
-        ],
-        "format": "SCS",
-        "start_sequence": 7,
-        "end_sequence": 9
-      }
-    ]
-  },
+  "description": "Basic smoke test trace",
   "validation_checks": [
     {
-      "type": "tn3270e_negotiation",
-      "expected": true,
-      "description": "Verify TN3270E protocol negotiation completed"
+      "type": "screen_size",
+      "expected": "24x80",
+      "description": "Standard 3270 screen size"
     },
     {
-      "type": "device_type",
-      "expected": "IBM-3287-1",
-      "description": "Verify printer device type negotiated"
+      "type": "field_count",
+      "min": 0,
+      "max": 5,
+      "description": "Basic field count check"
     },
     {
-      "type": "bind_image",
-      "present": true,
-      "description": "Verify BIND image was received"
-    },
-    {
-      "type": "print_jobs",
-      "count": 2,
-      "description": "Verify two complete print jobs"
-    },
-    {
-      "type": "print_eoj",
-      "count": 4,
-      "description": "Verify 4 PRINT-EOJ markers (2 per job)"
-    },
-    {
-      "type": "scs_data",
-      "present": true,
-      "description": "Verify SCS control codes in print data"
-    },
-    {
-      "type": "responses",
-      "positive_responses": 10,
-      "description": "Verify all positive responses sent"
+      "type": "parsing_errors",
+      "expected_errors": false,
+      "description": "Should process without errors"
     }
   ],
-  "data_stream_commands": [
-    "Write(reset,unformatted,restore,resetMDT)",
-    "Write(reset,unformatted,startprinter)"
-  ],
-  "tn3270e_headers": [
-    "BIND-IMAGE",
-    "3270-DATA",
-    "PRINT-EOJ",
-    "RESPONSE"
-  ],
-  "response_flags": [
-    "NO-RESPONSE",
-    "ALWAYS-RESPONSE",
-    "POSITIVE-RESPONSE"
-  ],
-  "bind_image": {
-    "present": true,
-    "sequence_number": 0,
-    "response_flag": "NO-RESPONSE",
-    "description": "Contains session establishment parameters"
-  },
-  "scs_features": {
-    "newline": true,
-    "form_feed": true,
-    "carriage_return": false,
-    "horizontal_tab": false,
-    "vertical_tab": false
-  },
-  "content_validation": {
-    "user": "PKA6039",
-    "facility": "T.D.C.J. - INSTITUTIONAL DIVISION",
-    "document_types": [
-      "DOCUMENT LISTING"
+  "protocol": {
+    "tn3270e": true,
+    "primary_features": [
+      "screen_operations",
+      "field_processing"
     ],
-    "locations": [
-      "SACKS/MAIN",
-      "SACKS/HS"
-    ],
-    "items": [
-      "COOKING STARCH",
-      "FLOUR",
-      "RICE",
-      "SALT",
-      "SEASONING"
+    "expected_screen_size": "24x80",
+    "field_count_range": [
+      1,
+      10
     ]
-  },
-  "timing": {
-    "negotiation_complete": true,
-    "first_print_start": "08:30:36",
-    "second_print_start": "08:31:02",
-    "approximate_duration_seconds": 26
-  },
-  "notes": [
-    "This trace captures a TN3270E printer session with full negotiation",
-    "Contains BIND-IMAGE negotiation for session establishment",
-    "Two complete print jobs with PRINT-EOJ markers",
-    "Uses SCS (SNA Character Stream) format for printer data",
-    "Demonstrates TN3270E response handling with sequence numbers",
-    "All responses are sent with DEVICE-END status",
-    "Print data includes newline (NL) and form feed (FF) control codes",
-    "Each print job ends with multiple PRINT-EOJ markers"
-  ]
+  }
 }

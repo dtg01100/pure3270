@@ -1,0 +1,35 @@
+{
+  "trace_file": "numeric.trc",
+  "description": "Numeric field operations",
+  "validation_checks": [
+    {
+      "type": "screen_size",
+      "expected": "43x80",
+      "description": "Numeric field test"
+    },
+    {
+      "type": "field_count",
+      "min": 0,
+      "max": 5,
+      "description": "Numeric tests need input fields"
+    },
+    {
+      "type": "parsing_errors",
+      "expected_errors": false,
+      "description": "Numeric processing should work"
+    }
+  ],
+  "protocol": {
+    "tn3270e": true,
+    "primary_features": [
+      "screen_operations",
+      "field_processing",
+      "large_screen_support"
+    ],
+    "expected_screen_size": "43x80",
+    "field_count_range": [
+      1,
+      10
+    ]
+  }
+}

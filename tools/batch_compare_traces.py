@@ -111,22 +111,45 @@ async def run_batch_comparison(
 
         try:
             # Capture the comparison result
-            # Since compare_trace prints to stdout, we need to capture it
-            # But for simplicity, we'll modify to return more structured data
-            rc = await compare_trace(trace_path, port, s3270_path, delay=delay)
+            import io
+            import subprocess
+            import sys
+            from contextlib import redirect_stdout
 
-            if rc == 0:
-                status = "match" if s3270_path else "no_reference"
-                result.add_result(trace_name, status)
-            elif rc == 1:
-                status = "difference"
-                # Note: diff is printed to stdout, but for batch we might want to capture it
-                # For now, just record the status
-                result.add_result(trace_name, status)
-            else:
-                result.add_result(
-                    trace_name, "error", error=f"Unexpected return code: {rc}"
-                )
+            # Run the comparison and capture both stdout and stderr
+            stdout_capture = io.StringIO()
+            try:
+                with redirect_stdout(stdout_capture):
+                    rc = await compare_trace(trace_path, port, s3270_path, delay=delay)
+
+                captured_output = stdout_capture.getvalue()
+
+                if rc == 0:
+                    status = "match" if s3270_path else "no_reference"
+                    result.add_result(trace_name, status)
+                elif rc == 1:
+                    status = "difference"
+                    # Extract diff information from captured output
+                    lines = captured_output.split("\n")
+                    diff_lines = [
+                        line
+                        for line in lines
+                        if line.startswith("[DIFF]")
+                        or line.startswith("--- ")
+                        or line.startswith("+++ ")
+                    ]
+                    diff_text = "\n".join(diff_lines[:10])  # First 10 diff lines
+                    result.add_result(
+                        trace_name,
+                        status,
+                        diff_text if diff_text else "Screen differences found",
+                    )
+                else:
+                    result.add_result(
+                        trace_name, "error", error=f"Unexpected return code: {rc}"
+                    )
+            finally:
+                stdout_capture.close()
 
         except Exception as e:
             logger.error("Error comparing %s: %s", trace_name, e)

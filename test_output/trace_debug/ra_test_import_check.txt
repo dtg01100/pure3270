@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "<stdin>", line 3, in <module>
+ModuleNotFoundError: No module named 'pure3270.trace'
+read_bytes= 512
+b'// # Data stream for RA background color test.\n// #\n// rows 43\n// columns 80\n// # Ask for TN3270E.\n// telnet.do tn3270e\n< 0x0   '

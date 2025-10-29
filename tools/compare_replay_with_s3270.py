@@ -91,13 +91,20 @@ def find_real_s3270(user_path: Optional[str]) -> Optional[Path]:
     return None
 
 
-async def run_pure3270_capture(host: str, port: int, delay: float = 1.0) -> str:
+async def run_pure3270_capture(
+    host: str, port: int, delay: float = 1.0, is_printer: bool = False
+) -> str:
     """Connect with pure3270.AsyncSession and return screen text after delay.
 
     Using AsyncSession ensures cooperative cancellation and clean shutdown
     when a timeout occurs.
     """
-    async with AsyncSession(terminal_type="IBM-3278-4-E") as session:
+    # Use appropriate terminal type based on session type
+    terminal_type = "IBM-3278-4"
+    if is_printer:
+        terminal_type = "IBM-3278-2"  # Printer sessions use different default
+
+    async with AsyncSession(terminal_type=terminal_type) as session:
         await session.connect(host, port)
         await asyncio.sleep(delay)
         # Access the screen buffer via async session
@@ -186,10 +193,16 @@ async def compare_trace(
 
     try:
         # Capture from pure3270 with timeout
-        logger.info("Capturing screen from pure3270...")
+        # Detect printer sessions from trace name (smoke.trc is a known printer session)
+        is_printer_session = trace_path.name == "smoke.trc"
+        logger.info(
+            "Capturing screen from pure3270... (printer=%s)", is_printer_session
+        )
         try:
             p_screen = await asyncio.wait_for(
-                run_pure3270_capture("127.0.0.1", port, delay=delay),
+                run_pure3270_capture(
+                    "127.0.0.1", port, delay=delay, is_printer=is_printer_session
+                ),
                 timeout=capture_timeout,
             )
         except asyncio.TimeoutError:

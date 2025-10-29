@@ -1,0 +1,75 @@
+{
+  "trace_file": "ra_test.trc",
+  "description": "RA (Repeat to Address) order bug fix validation - tests basic TN3270E protocol with known parsing issues",
+  "protocol": {
+    "type": "TN3270E",
+    "tn3270e": true,
+    "telnet_negotiation": false
+  },
+  "screen": {
+    "rows": 24,
+    "cols": 80,
+    "model": "3278-2-E",
+    "num_fields": 2,
+    "key_elements": []
+  },
+  "expected_content": {
+    "validation_approach": "Error tolerance validation - trace is designed to test RA order bug fixes"
+  },
+  "validation_checks": [
+    {
+      "type": "screen_size",
+      "expected": "43x80",
+      "description": "Verify actual buffer dimensions after RA processing"
+    },
+    {
+      "type": "field_count",
+      "min": 2,
+      "max": 5,
+      "description": "Verify field detection after RA order processing"
+    },
+    {
+      "type": "parsing_errors",
+      "expected_errors": false,
+      "description": "After RA fix, parsing should succeed"
+    },
+    {
+      "type": "protocol_mode",
+      "expected": "TN3270E",
+      "description": "Verify TN3270E protocol mode detection"
+    },
+    {
+      "type": "input_fields",
+      "count": 0,
+      "description": "RA test creates protected fields, no input fields expected"
+    },
+    {
+      "type": "screen_contains_text",
+      "text": "B00000000",
+      "case_sensitive": true,
+      "description": "Verify screen contains the RA-repeated content starting with EBCDIC char 0xC2"
+    }
+  ],
+  "telnet_negotiation": {
+    "minimal_setup": true,
+    "functions": [],
+    "device_type": "IBM-3278-2-E"
+  },
+  "data_stream_commands": [],
+  "structured_fields": [],
+  "field_attributes": {
+    "colors": [],
+    "highlighting": [],
+    "protection": [
+      "protected"
+    ],
+    "special": []
+  },
+  "notes": [
+    "This trace was used to identify and fix the RA (Repeat to Address) order byte ordering bug",
+    "Contains deliberate parsing errors to test error recovery",
+    "From the original RA fix investigation in RA_FIX_SUMMARY.md",
+    "Serves as regression test for RA order handling",
+    "Basic TN3270E connectivity test without complex features"
+  ]
+}

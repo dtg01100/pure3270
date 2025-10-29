@@ -5,42 +5,16 @@
   "fields": [
     {
       "start": [
-        12,
-        65
+        21,
+        79
       ],
       "end": [
-        14,
-        44
-      ],
-      "protected": true,
-      "numeric": false,
-      "content": "ISQM9A0Y"
-    },
-    {
-      "start": [
-        1,
-        2
-      ],
-      "end": [
-        5,
-        28
+        16,
+        42
       ],
       "protected": true,
       "numeric": true,
-      "content": "RVF68KLQ"
-    },
-    {
-      "start": [
-        8,
-        29
-      ],
-      "end": [
-        10,
-        0
-      ],
-      "protected": true,
-      "numeric": true,
-      "content": "U23GUMSF"
+      "content": "Z5M8LGCL"
     }
   ]
 }

@@ -1,0 +1,5 @@
+Exit code: 4
+Output:
+
+no tests ran in 0.18s
+ERROR: file or directory not found: tests/test_trace_replay.py::test_replay_trace

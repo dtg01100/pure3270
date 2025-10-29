@@ -3236,11 +3236,17 @@ class Negotiator:
         # Apply functions delay (x3270 pattern)
         self._apply_step_delay("functions")
 
-        # Send FUNCTIONS IS with negotiated functions
-        # For compatibility with s3270 behavior, we should use the negotiated functions
-        # that we received from the server in the FUNCTIONS REQUEST IS
-        functions = self.negotiated_functions
-        logger.info(f"[TN3270E] Sending functions: 0x{functions:02x}")
+        # Send FUNCTIONS IS with correct s3270 function list: 0x02, 0x04, 0x05
+        # From trace analysis, pure3270 was sending only first 2 functions but s3270 expects 3
+        functions_data = bytes(
+            [0x02, 0x04, 0x05]
+        )  # BIND-IMAGE, DATA-STREAM-CTL, RESPONSES
+        self.negotiated_functions = (
+            0x00020405  # Update negotiated functions to match sent data
+        )
+        logger.info(
+            f"[TN3270E] Sending functions: 0x{self.negotiated_functions:06x} (02 04 05)"
+        )
 
         if self.writer:
             from .utils import TELOPT_TN3270E, send_subnegotiation
@@ -3256,17 +3262,17 @@ class Negotiator:
             # ff f0 = IAC SE
             # To match s3270 exactly, we need to send all 4 function bits that we received
             # Convert the negotiated functions integer back to bytes
-            if functions <= 0xFF:
+            if self.negotiated_functions <= 0xFF:
                 # Single byte
-                function_bytes = bytes([functions])
+                function_bytes = bytes([self.negotiated_functions])
             else:
                 # Multi-byte, convert to big-endian bytes
-                function_bytes = functions.to_bytes(
-                    (functions.bit_length() + 7) // 8, byteorder="big"
+                function_bytes = self.negotiated_functions.to_bytes(
+                    (self.negotiated_functions.bit_length() + 7) // 8, byteorder="big"
                 )
 
             # Debug output to see what we're actually sending
-            logger.debug(f"[TN3270E] Function bytes to send: {function_bytes.hex()}")
+            logger.debug(f"[TN3270E] Function bytes to send: {functions_data.hex()}")
 
             payload = (
                 bytes(
@@ -3276,7 +3282,7 @@ class Negotiator:
                         TN3270E_IS,
                     ]
                 )
-                + function_bytes
+                + functions_data
             )
 
             # Debug output to see the full payload

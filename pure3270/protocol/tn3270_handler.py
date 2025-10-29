@@ -388,7 +388,9 @@ class TN3270Handler:
         # --- Enhanced Sequence Number Tracking ---
         self._last_sent_seq_number = 0
         self._last_received_seq_number = 0
-        self._sequence_number_window = 256  # Window for wraparound detection
+        self._sequence_number_window = (
+            2048  # Window for wraparound detection (increased from 256)
+        )
         self._sequence_sync_enabled = True
         self._sequence_number_history: List[Dict[str, Any]] = (
             []
@@ -451,7 +453,7 @@ class TN3270Handler:
         return False
 
     def _validate_sequence_number(self, received_seq: int, expected_seq: int) -> bool:
-        """Validate received sequence number with wraparound handling."""
+        """Validate received sequence number with wraparound handling and improved window logic."""
         if not self._sequence_sync_enabled:
             return True  # Skip validation if disabled
 
@@ -459,23 +461,35 @@ class TN3270Handler:
         if received_seq == expected_seq:
             return True
 
-        # Check for wraparound
+        # Check for wraparound with enhanced detection
         if self._detect_sequence_wraparound(received_seq, expected_seq):
             logger.info(
                 f"Sequence number wraparound detected and accepted: expected {expected_seq}, got {received_seq}"
             )
             return True
 
-        # Check if received sequence is within acceptable window
+        # Enhanced window validation: check both direct difference and wraparound difference
         seq_diff = abs(received_seq - expected_seq)
-        if seq_diff <= self._sequence_number_window:
-            logger.warning(
-                f"Sequence number within window but not exact: expected {expected_seq}, got {received_seq}"
+        # Handle wraparound case for window calculation
+        wraparound_diff = min(
+            abs(received_seq - (expected_seq + 65536)),
+            abs(received_seq - (expected_seq - 65536)),
+        )
+
+        # Accept if either direct or wraparound difference is within window
+        if (
+            seq_diff <= self._sequence_number_window
+            or wraparound_diff <= self._sequence_number_window
+        ):
+            logger.debug(
+                f"Sequence number within window: expected {expected_seq}, got {received_seq} "
+                f"(diff={seq_diff}, wraparound_diff={wraparound_diff}, window={self._sequence_number_window})"
             )
             return True
 
-        logger.error(
-            f"Sequence number validation failed: expected {expected_seq}, got {received_seq}"
+        logger.warning(
+            f"Sequence number validation failed: expected {expected_seq}, got {received_seq} "
+            f"(diff={seq_diff}, wraparound_diff={wraparound_diff}, window={self._sequence_number_window})"
         )
         return False
 
@@ -486,24 +500,32 @@ class TN3270Handler:
         return self._last_sent_seq_number
 
     def _update_received_sequence_number(self, received_seq: int) -> None:
-        """Update last received sequence number with validation."""
+        """Update last received sequence number with validation and enhanced recovery."""
         if self._validate_sequence_number(
             received_seq, self._last_received_seq_number + 1
         ):
             self._last_received_seq_number = received_seq
             self._record_sequence_number(received_seq, "received")
         else:
-            logger.error(
-                f"Invalid sequence number received: {received_seq}, expected: {self._last_received_seq_number + 1}"
+            logger.warning(
+                f"Invalid sequence number received: {received_seq}, expected: {self._last_received_seq_number + 1}. "
+                f"Attempting synchronization recovery."
             )
+            # Attempt synchronization instead of just logging error
+            self._synchronize_sequence_numbers(received_seq)
 
     def _synchronize_sequence_numbers(self, received_seq: int) -> None:
-        """Synchronize sequence numbers after detecting a gap or wraparound."""
+        """Synchronize sequence numbers after detecting a gap or wraparound with enhanced recovery."""
         logger.info(
             f"Synchronizing sequence numbers: setting received to {received_seq}"
         )
+        # Reset sequence tracking to prevent further validation issues
         self._last_received_seq_number = received_seq
         self._record_sequence_number(received_seq, "sync")
+
+        # Clear recent sequence history to avoid stale validation state
+        self._sequence_number_history.clear()
+        logger.debug("Cleared sequence number history during synchronization")
 
     def get_sequence_number_info(self) -> Dict[str, Any]:
         """Get comprehensive sequence number information."""
@@ -528,10 +550,11 @@ class TN3270Handler:
         )
 
     def set_sequence_window(self, window_size: int) -> None:
-        """Set the sequence number validation window size."""
+        """Set the sequence number validation window size with enhanced bounds."""
+        # Allow larger windows for better synchronization recovery
         self._sequence_number_window = max(
-            1, min(window_size, 32768)
-        )  # Reasonable bounds
+            1, min(window_size, 65535)  # Allow up to full 16-bit range
+        )
         logger.debug(f"Sequence number window set to {self._sequence_number_window}")
 
     def reset_sequence_numbers(self) -> None:
@@ -2508,7 +2531,7 @@ class TN3270Handler:
                         tn3270e_header.seq_number, expected_seq
                     ):
                         logger.warning(
-                            f"Sequence number validation failed, attempting synchronization"
+                            f"Sequence number validation failed in ASCII mode, attempting synchronization"
                         )
                         # Try to synchronize instead of failing immediately
                         self._synchronize_sequence_numbers(tn3270e_header.seq_number)
@@ -2834,7 +2857,17 @@ class TN3270Handler:
         if self.negotiator.negotiated_functions & TN3270E_SYSREQ:
             # Use TN3270E SYSREQ
             sub_data = bytes([TN3270E_SYSREQ_MESSAGE_TYPE, command_code])
-            send_subnegotiation(writer, bytes([TELOPT_TN3270E]), sub_data)
+            # Use negotiator helper to ensure deterministic logging for subnegotiation
+            if getattr(self, "negotiator", None):
+                try:
+                    self.negotiator._send_subneg(
+                        bytes([TELOPT_TN3270E]), sub_data, writer=writer
+                    )
+                except Exception:
+                    # Fallback to direct send if negotiator helper fails
+                    send_subnegotiation(writer, bytes([TELOPT_TN3270E]), sub_data)
+            else:
+                send_subnegotiation(writer, bytes([TELOPT_TN3270E]), sub_data)
             await writer.drain()
             logger.debug(f"Sent TN3270E SYSREQ command: 0x{command_code:02x}")
         else:
@@ -2958,6 +2991,53 @@ class TN3270Handler:
         if len(data) >= 5 and data[:4] == b"\x00\x00\x00\x00" and data[4] == 0xF5:
             return 4
         return default_len
+
+    def _parse_resilient(self, data: bytes, data_type: Optional[int] = None) -> None:
+        """
+        Call the DataStreamParser.parse method but tolerate non-critical truncated
+        orders by skipping a minimal amount and retrying. Fatal ParseError messages
+        (Incomplete WCC/AID/DATA_STREAM_CTL) are re-raised to preserve existing behavior.
+        """
+        if not hasattr(self, "parser") or self.parser is None:
+            return
+        if not data:
+            return
+        offset = 0
+        length = len(data)
+        critical_failures = [
+            "Incomplete WCC order",
+            "Incomplete AID order",
+            "Incomplete DATA_STREAM_CTL order",
+            # Treat SA/SBA incompletes as fatal for write operations (matches
+            # DataStreamParser._is_critical_error semantics).
+            "Incomplete SA order",
+            "Incomplete SBA order",
+        ]
+        # Try parsing, on non-critical ParseError skip minimal bytes and retry.
+        while offset < length:
+            try:
+                if data_type is None:
+                    self.parser.parse(data[offset:])
+                else:
+                    self.parser.parse(data[offset:], data_type=data_type)
+                return
+            except ParseError as e:
+                err = str(e)
+                # Determine parser-local position to report an absolute offset
+                parser_pos = getattr(self.parser, "_pos", 0)
+                pos = offset + (parser_pos or 0)
+                if any(cf in err for cf in critical_failures):
+                    # Fatal for this write/operation - re-raise
+                    raise
+                # Non-critical: warn, skip one byte (or minimal parser progress), and continue
+                logger.warning("ParseError pos=%d: %s; skipping 1 byte", pos, e)
+                # Advance by at least 1, prefer parser progress if available
+                try:
+                    advance = max(1, parser_pos or 1)
+                except Exception:
+                    advance = 1
+                offset = min(offset + advance, length)
+                logger.debug("parser pos after skip=%d", offset)
 
     def is_connected(self) -> bool:
         """Check if the handler is connected."""
