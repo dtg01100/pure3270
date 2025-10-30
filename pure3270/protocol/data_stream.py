@@ -3389,7 +3389,9 @@ def _handle_scs_data(self, data: bytes) -> None:
         # Try to extract model and other data with best effort
         try:
             parser.seek(0)  # Reset to beginning for second pass
-            self._extract_bind_model_and_flags(parser, sf_length)
+            model, flags, session_parameters, query_reply_ids = (
+                self._extract_bind_model_and_flags(parser, sf_length)
+            )
         except Exception:
             pass
 
@@ -3421,15 +3423,15 @@ def _handle_scs_data(self, data: bytes) -> None:
 
             # Try to read subfield carefully
             try:
-                subfield_len = parser.read_byte()
+                subfield_len: int = int(parser.read_byte())
                 if subfield_len < 2:
                     continue  # Skip invalid subfields
 
                 if not parser.has_more():
                     break
 
-                subfield_id = parser.read_byte()
-                sub_data_len = subfield_len - 2
+                subfield_id: int = int(parser.read_byte())
+                sub_data_len: int = subfield_len - 2
 
                 if parser.remaining() < sub_data_len:
                     logger.debug(
@@ -3437,7 +3439,7 @@ def _handle_scs_data(self, data: bytes) -> None:
                     )
                     break
 
-                sub_data = parser.read_fixed(sub_data_len)
+                sub_data: bytes = parser.read_fixed(sub_data_len)
 
                 if subfield_id == BIND_SF_SUBFIELD_PSC:
                     # PSC subfield: rows (2 bytes), cols (2 bytes), possibly more attributes
@@ -3460,13 +3462,14 @@ def _handle_scs_data(self, data: bytes) -> None:
         self, data: bytes
     ) -> Tuple[Optional[int], Optional[int]]:
         """Extract dimensions using pattern recognition for malformed BIND-IMAGE data."""
-        rows, cols = None, None
+        rows: Optional[int] = None
+        cols: Optional[int] = None
 
         # Common patterns in BIND-IMAGE data from traces
         # Look for sequences that look like row/col values
 
         # Pattern 1: Look for common dimension pairs (24x80, 32x80, 43x80, etc.)
-        common_dimensions = [
+        common_dimensions: List[Tuple[int, int]] = [
             (24, 80),
             (32, 80),
             (43, 80),
@@ -3482,11 +3485,11 @@ def _handle_scs_data(self, data: bytes) -> None:
         # Try to find these dimension pairs in the data
         for r, c in common_dimensions:
             # Look for bytes that could represent these dimensions
-            row_bytes = [(r >> 8) & 0xFF, r & 0xFF]
-            col_bytes = [(c >> 8) & 0xFF, c & 0xFF]
+            row_bytes: List[int] = [(r >> 8) & 0xFF, r & 0xFF]
+            col_bytes: List[int] = [(c >> 8) & 0xFF, c & 0xFF]
 
             # Look for row bytes followed by col bytes
-            pattern = bytes(row_bytes + col_bytes)
+            pattern: bytes = bytes(row_bytes + col_bytes)
             if pattern in data:
                 rows, cols = r, c
                 logger.debug(f"Found dimension pattern {r}x{c} in BIND-IMAGE data")
@@ -3498,11 +3501,10 @@ def _handle_scs_data(self, data: bytes) -> None:
         if rows is None:
             for i in range(len(data) - 3):
                 # Look for low row byte (24, 27, 32, 43) followed by two col bytes
-                if (
-                    data[i] in [24, 27, 32, 43] and data[i - 1] == 0
-                ):  # Row high byte should be 0
-                    potential_row = data[i]
-                    potential_col = (data[i + 1] << 8) | data[i + 2]
+                if data[i] in [24, 27, 32, 43] and data[i - 1] == 0:
+                    # Row high byte should be 0
+                    potential_row: int = int(data[i])
+                    potential_col: int = (data[i + 1] << 8) | data[i + 2]
                     if potential_col in [80, 132]:
                         rows, cols = potential_row, potential_col
                         logger.debug(f"Found plausible dimensions: {rows}x{cols}")
@@ -3515,9 +3517,10 @@ def _handle_scs_data(self, data: bytes) -> None:
 
             # Look for any bytes that look like they'll produce reasonable dimensions
             for i in range(min(20, len(data) - 3)):
-                if data[i] == 0 and data[i + 1] in [24, 27, 32, 43]:  # Row
-                    row_candidate = data[i + 1]
-                    col_candidate = (data[i + 2] << 8) | data[i + 3]
+                if data[i] == 0 and data[i + 1] in [24, 27, 32, 43]:
+                    # Row
+                    row_candidate: int = int(data[i + 1])
+                    col_candidate: int = (data[i + 2] << 8) | data[i + 3]
                     if 60 <= col_candidate <= 140:  # Reasonable column range
                         rows, cols = row_candidate, col_candidate
                         logger.debug(f"Using fallback dimensions: {rows}x{cols}")
@@ -3525,10 +3528,55 @@ def _handle_scs_data(self, data: bytes) -> None:
 
         return rows, cols
 
-    def _extract_bind_model_and_flags(self, parser: BaseParser, sf_length: int) -> None:
-        """Extract model and other information using pattern recognition."""
-        # This is a stub for now - we can enhance this later if needed
-        pass
+    def _extract_bind_model_and_flags(
+        self, parser: BaseParser, sf_length: int
+    ) -> Tuple[Optional[str], Optional[int], Dict[str, Any], List[int]]:
+        """Extract model, flags, session parameters and query-reply IDs.
+
+        Returns a tuple of (model, flags, session_parameters, query_reply_ids).
+        This performs a best-effort structured-field scan and extracts known
+        subfields such as QUERY_REPLY_IDS. Implementation is conservative
+        and won't raise on malformed input.
+        """
+        model: Optional[str] = None
+        flags: Optional[int] = None
+        session_parameters: Dict[str, Any] = {}
+        query_reply_ids: List[int] = []
+
+        # Expected data end for this structured field
+        expected_end = parser._pos + (sf_length - 3)
+        if expected_end > len(parser._data):
+            expected_end = len(parser._data)
+
+        while parser._pos < expected_end and parser.has_more():
+            try:
+                subfield_len: int = int(parser.read_byte())
+                if subfield_len < 2:
+                    continue
+
+                if not parser.has_more():
+                    break
+
+                subfield_id: int = int(parser.read_byte())
+                sub_data_len: int = subfield_len - 2
+
+                if parser.remaining() < sub_data_len:
+                    # Truncated subfield; stop parsing further
+                    break
+
+                sub_data: bytes = parser.read_fixed(sub_data_len)
+
+                if subfield_id == BIND_SF_SUBFIELD_QUERY_REPLY_IDS:
+                    # Parse as sequence of 2-byte IDs
+                    for i in range(0, len(sub_data), 2):
+                        if i + 1 < len(sub_data):
+                            qid = (sub_data[i] << 8) | sub_data[i + 1]
+                            query_reply_ids.append(int(qid))
+                # Other subfield parsing can be added here in future
+            except Exception:
+                break
+
+        return model, flags, session_parameters, query_reply_ids
 
     def _parse_sna_response(self, data: bytes) -> SnaResponse:
         """Parse SNA response structured field or data, enhanced for bind image replies and positive/negative responses."""
