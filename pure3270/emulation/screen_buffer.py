@@ -244,9 +244,9 @@ class ScreenBuffer(BufferWriter):
                 for col in range(self.cols):
                     pos = line_start + col
                     byte_value = line_bytes[col]
-                    # Mask field attribute bytes (0x00-0x3F, 0xC0-0xFF) with EBCDIC space
-                    is_attribute_byte = (byte_value <= 0x3F) or (byte_value >= 0xC0)
-                    if is_attribute_byte or pos in self._field_starts:
+                    # Field attribute bytes are typically 0x00-0x3F, but EBCDIC printable chars are 0x40-0xFE
+                    # Only mask positions marked as field starts containing attribute bytes
+                    if pos in self._field_starts:
                         line_bytes[col] = 0x40  # EBCDIC space
 
                     # Also mask cursor position
@@ -503,7 +503,9 @@ class ScreenBuffer(BufferWriter):
                 attr_set = self._extended_attributes.get((row, col))
                 if attr_set:
                     char_set_attr = attr_set.get_attribute("character_set")
-                    if char_set_attr and isinstance(char_set_attr, CharacterSetAttribute):
+                    if char_set_attr and isinstance(
+                        char_set_attr, CharacterSetAttribute
+                    ):
                         if char_set_attr.is_dbcs():
                             advance = 2
                 self.cursor_col += advance
@@ -816,13 +818,9 @@ class ScreenBuffer(BufferWriter):
                 # In 3270 mode, mask field attributes, cursor position and attribute bytes with EBCDIC space
                 for col in range(self.cols):
                     pos = start + col
-                    # Check if this byte is an attribute byte (0x00-0x3F, 0xC0-0xFF, etc., all possible field attribute ranges)
-                    byte_value = line_bytes[col]
-                    is_attribute_byte = (byte_value <= 0x3F) or (byte_value >= 0xC0)
-
-                    # Mask all possible field attribute byte ranges (0x00-0x3F, 0xC0-0xFF, etc.)
-                    # or positions marked as field starts containing attribute bytes
-                    if is_attribute_byte or pos in self._field_starts:
+                    # Field attribute bytes are typically 0x00-0x3F, but EBCDIC printable chars are 0x40-0xFE
+                    # Only mask positions marked as field starts containing attribute bytes
+                    if pos in self._field_starts:
                         line_bytes[col] = 0x40  # EBCDIC space for attributes
 
                     if row == self.cursor_row and col == self.cursor_col:
@@ -942,7 +940,8 @@ class ScreenBuffer(BufferWriter):
             row, col = self.get_position()
         pos = row * self.cols + col
         if 0 <= pos < self.size:
-            # Only update attributes buffer and field starts, matching s3270's behavior
+            # Store attribute in main buffer (3270 tradition) and attributes buffer
+            self.buffer[pos] = attr
             self.attributes[pos * 3] = attr
             # Mark a field start at this position
             self._field_starts.add(pos)

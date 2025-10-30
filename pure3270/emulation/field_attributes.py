@@ -1187,9 +1187,29 @@ class CharacterSetAttribute(ExtendedAttribute):
         # 0xFC - DBCS Turkish (Host Supplied)
         # 0xFD - DBCS Latin-5 (Host Supplied)
         # 0xFE - DBCS Japanese Extended
-        dbcs_values = {0x02, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46,
-                      0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7,
-                      0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE}
+        dbcs_values = {
+            0x02,
+            0x41,
+            0x42,
+            0x43,
+            0x44,
+            0x45,
+            0x46,
+            0xF1,
+            0xF2,
+            0xF3,
+            0xF4,
+            0xF5,
+            0xF6,
+            0xF7,
+            0xF8,
+            0xF9,
+            0xFA,
+            0xFB,
+            0xFC,
+            0xFD,
+            0xFE,
+        }
         return self._value in dbcs_values
 
     def to_dict(self) -> Dict[str, Any]:

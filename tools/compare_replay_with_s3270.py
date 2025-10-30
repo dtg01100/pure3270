@@ -92,7 +92,11 @@ def find_real_s3270(user_path: Optional[str]) -> Optional[Path]:
 
 
 async def run_pure3270_capture(
-    host: str, port: int, delay: float = 1.0, is_printer: bool = False
+    host: str,
+    port: int,
+    delay: float = 1.0,
+    is_printer: bool = False,
+    terminal_type: Optional[str] = None,
 ) -> str:
     """Connect with pure3270.AsyncSession and return screen text after delay.
 
@@ -100,11 +104,14 @@ async def run_pure3270_capture(
     when a timeout occurs.
     """
     # Use appropriate terminal type based on session type
-    terminal_type = "IBM-3278-4"
-    if is_printer:
-        terminal_type = "IBM-3278-2"  # Printer sessions use different default
+    if terminal_type is None:
+        terminal_type = "IBM-3278-4"
+        if is_printer:
+            terminal_type = "IBM-3278-2"  # Printer sessions use different default
 
-    async with AsyncSession(terminal_type=terminal_type) as session:
+    async with AsyncSession(
+        terminal_type=terminal_type, is_printer_session=is_printer
+    ) as session:
         await session.connect(host, port)
         await asyncio.sleep(delay)
         # Access the screen buffer via async session
@@ -117,7 +124,7 @@ async def run_real_s3270_capture(
     host: str,
     port: int,
     delay: float = 1.0,
-    model: str = "3278-4-E",
+    model: str = "3287-1",
 ) -> Tuple[str, str]:
     """Connect with the real s3270 and return (stdout, stderr) content from Ascii().
 
@@ -177,7 +184,7 @@ async def compare_trace(
     port: int,
     s3270_path: Optional[Path],
     delay: float = 1.0,
-    s3270_model: str = "3278-4-E",
+    s3270_model: str = "3287-1",
     compat_handshake: bool = False,
     capture_timeout: float = 180.0,
 ) -> int:
@@ -187,6 +194,16 @@ async def compare_trace(
         str(trace_path), loop_mode=False, compat_handshake=compat_handshake
     )
 
+    # Determine correct s3270 model based on trace
+    # smoke.trc was recorded with model 3287-1 (printer), but for comparison with pure3270
+    # (which only supports display terminals), use a display model
+    if trace_path.name == "smoke.trc":
+        s3270_model = "3278-2"  # Use display model to match pure3270 capabilities
+    else:
+        s3270_model = (
+            "3278-4"  # Use display model without -E suffix for pure3270 compatibility
+        )
+
     # Start server as a background task
     server_task = asyncio.create_task(server.start_server(host="127.0.0.1", port=port))
     await asyncio.sleep(0.15)
@@ -195,13 +212,28 @@ async def compare_trace(
         # Capture from pure3270 with timeout
         # Detect printer sessions from trace name (smoke.trc is a known printer session)
         is_printer_session = trace_path.name == "smoke.trc"
+        # Use terminal type that matches s3270 model for fair comparison
+        pure3270_terminal = f"IBM-{s3270_model.upper()}"
+        if is_printer_session:
+            if trace_path.name == "smoke.trc":
+                pure3270_terminal = "IBM-3278-2"  # Use display terminal - pure3270 doesn't support printer types yet
+            else:
+                pure3270_terminal = (
+                    "IBM-3278-2"  # Printer sessions use different default
+                )
         logger.info(
-            "Capturing screen from pure3270... (printer=%s)", is_printer_session
+            "Capturing screen from pure3270... (printer=%s, terminal=%s)",
+            is_printer_session,
+            pure3270_terminal,
         )
         try:
             p_screen = await asyncio.wait_for(
                 run_pure3270_capture(
-                    "127.0.0.1", port, delay=delay, is_printer=is_printer_session
+                    "127.0.0.1",
+                    port,
+                    delay=delay,
+                    is_printer=is_printer_session,
+                    terminal_type=pure3270_terminal,
                 ),
                 timeout=capture_timeout,
             )

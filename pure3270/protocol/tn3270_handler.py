@@ -2403,7 +2403,9 @@ class TN3270Handler:
                     )
                     return b""
 
-                if ascii_mode_detected:
+                if ascii_mode_detected and not self._negotiated_tn3270e:
+                    # Only switch to ASCII mode if not in a negotiated TN3270E session
+                    # TN3270E sessions should remain in EBCDIC mode
                     try:
                         await _call_maybe_await(self.negotiator.set_ascii_mode)
                     except Exception:
@@ -2429,12 +2431,17 @@ class TN3270Handler:
                 )
 
                 # Refactored: delegate to helper methods
+                logger.debug(
+                    f"Data processing path selection: ascii_mode={ascii_mode}, negotiated_tn3270e={self._negotiated_tn3270e}"
+                )
                 if ascii_mode:
+                    logger.debug("Taking ASCII mode path")
                     result = await self._handle_ascii_mode(processed_data)
                     if result is not None:
                         return result
                     continue
                 else:
+                    logger.debug("Taking TN3270 mode path")
                     result = await self._handle_tn3270_mode(processed_data)
                     if result is not None:
                         return result
@@ -2749,7 +2756,19 @@ class TN3270Handler:
         payload = (processed_data or b"").rstrip(b"\x19")
         if payload:
             try:
+                # Debug: Show the incoming payload
+                logger.debug(f"TN3270 mode: received payload of {len(payload)} bytes")
+                if len(payload) <= 25:
+                    logger.debug(f"  Raw payload: {payload.hex()}")
+
                 data_for_parser = payload[header_len:]
+
+                # Debug: Show header stripping
+                if header_len > 0:
+                    logger.debug(
+                        f"  Stripped {header_len} byte header, remaining {len(data_for_parser)} bytes"
+                    )
+
                 # Some connected-3270 captures include leading zero padding
                 # before the actual 3270 data stream. Strip blocks of zeros.
                 while (
@@ -2757,9 +2776,17 @@ class TN3270Handler:
                     and data_for_parser[:4] == b"\x00\x00\x00\x00"
                 ):
                     data_for_parser = data_for_parser[4:]
+                    logger.debug(
+                        f"  Stripped 4 zero bytes, remaining {len(data_for_parser)} bytes"
+                    )
+
                 # Strip Write Control Character if present
                 if data_for_parser.startswith(b"\xf5"):
                     data_for_parser = data_for_parser[1:]
+                    logger.debug(
+                        f"  Stripped WCC byte, remaining {len(data_for_parser)} bytes"
+                    )
+
                 try:
                     if data_for_parser and all(b == 0x40 for b in data_for_parser):
                         self.screen_buffer.buffer[:] = b"\x40" * len(
@@ -2767,6 +2794,14 @@ class TN3270Handler:
                         )
                 except Exception:
                     pass
+
+                # Debug: Log what we're parsing
+                logger.debug(
+                    f"TN3270 mode: parsing {len(data_for_parser)} bytes with data_type=0x{data_type:02x}"
+                )
+                if len(data_for_parser) <= 20 and data_type == 0x00:  # TN3270_DATA
+                    logger.debug(f"  Parser input: {data_for_parser[:20].hex()}")
+
                 self.parser.parse(data_for_parser, data_type=data_type)
             except ParseError as e:
                 logger.warning(f"Failed to parse received data: {e}")

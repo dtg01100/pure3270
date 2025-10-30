@@ -11,7 +11,7 @@ import os
 import sys
 
 from .p3270_client import P3270Client
-from .session import AsyncPrinterSession, AsyncSession, PrinterSession, Session
+from .session import AsyncSession, Session
 
 
 class JSONFormatter(logging.Formatter):

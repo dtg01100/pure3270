@@ -2541,7 +2541,9 @@ class DataStreamParser:
 
         # Check for absurdly large length values (likely malformed data)
         # If length would require more data than available, treat as malformed
-        if length > parser.remaining() + 1000:  # Allow some tolerance but flag massive discrepancies
+        if (
+            length > parser.remaining() + 1000
+        ):  # Allow some tolerance but flag massive discrepancies
             logger.debug(
                 f"SF length {length} exceeds available data {parser.remaining()}, treating as malformed"
             )
