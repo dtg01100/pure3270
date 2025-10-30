@@ -350,7 +350,8 @@ class Session:
         """Check if session is in TN3270E mode."""
         # First check async session (for normal connected sessions)
         if self._async_session is not None:
-            return self._async_session.tn3270_mode
+            # Ensure we return a plain bool (guard against Any from async session)
+            return bool(self._async_session.tn3270_mode)
 
         # For trace replay scenarios, check the handler directly
         if (
@@ -358,7 +359,7 @@ class Session:
             and self._handler
             and hasattr(self._handler, "negotiated_tn3270e")
         ):
-            return self._handler.negotiated_tn3270e
+            return bool(self._handler.negotiated_tn3270e)
 
         return False
 

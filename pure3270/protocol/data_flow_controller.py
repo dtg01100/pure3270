@@ -276,18 +276,18 @@ class DataFlowController:
         if not printer_host:
             raise ValueError("Printer host must be specified for print job routing")
 
-        # Create printer session
-        printer_session = await self.session_manager.create_printer_session(
+        # Create printer session (manager returns the session_id string)
+        printer_session_id = await self.session_manager.create_printer_session(
             host=printer_host, port=printer_port, session_id=f"{flow_id}_session"
         )
 
-        # Activate printer session in translator
+        # Activate printer session in translator (session type)
         self.protocol_translator.activate_printer_session("tn3270e")
 
         flow_info = {
             "flow_id": flow_id,
             "main_session_id": main_session_id,
-            "printer_session_id": printer_session.session_id,
+            "printer_session_id": printer_session_id,
             "printer_host": printer_host,
             "printer_port": printer_port,
             "created_at": asyncio.get_event_loop().time(),
@@ -297,7 +297,7 @@ class DataFlowController:
         log_session_action(
             logger,
             "create_printer_flow",
-            f"flow {flow_id} -> {printer_session.session_id}",
+            f"flow {flow_id} -> {printer_session_id}",
         )
 
         return flow_info

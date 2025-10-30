@@ -987,6 +987,23 @@ class Negotiator:
             # No running event loop; run synchronously for tests
             asyncio.run(coro)  # type: ignore[arg-type]
 
+    def _send_subneg(
+        self, option: bytes, data: bytes, writer: Optional[Any] = None
+    ) -> None:
+        """Send a TN3270E subnegotiation using the provided writer or the negotiator's writer.
+
+        Centralized helper used by other modules to send subnegotiation data in a
+        consistent way and provide deterministic logging for tests.
+        """
+        w = writer or self.writer
+        if w is None:
+            raise ProtocolError("No writer available for subnegotiation")
+        try:
+            send_subnegotiation(w, option, data)
+        except Exception as e:
+            logger.debug(f"_send_subneg failed: {e}")
+            raise
+
     def _get_next_seq_number(self) -> int:
         """Get the next sequential number for TN3270E requests."""
         self._next_seq_number = (
@@ -1249,7 +1266,7 @@ class Negotiator:
             # If the server already refused TN3270E (via WONT) and fallback is disabled,
             # this is a hard failure per tests/RFC expectations.
             if getattr(self, "_forced_failure", False) or (
-                not self.allow_fallback and not self._server_support
+                not self.allow_fallback and not self._server_supports_tn3270e
             ):
                 raise NegotiationError(
                     "TN3270E negotiation refused by server and fallback disabled"
