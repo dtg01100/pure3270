@@ -144,14 +144,6 @@ class PrinterBuffer(BufferWriter):
             logger.debug("write_scs_data: suppressing chunk containing TN3270 orders")
             return True
 
-        # Check for field attributes (high bit set, typically 0xC0-0xFF)
-        field_attrs = [b for b in chunk if b >= 0xC0]
-        if len(field_attrs) > len(chunk) * 0.1:  # More than 10% field attributes
-            logger.debug(
-                "write_scs_data: suppressing chunk with high field attribute density"
-            )
-            return True
-
         # Check for trace metadata patterns in decoded text
         try:
             decoded, _ = codec.decode(chunk)
@@ -232,8 +224,12 @@ class PrinterBuffer(BufferWriter):
         # see marker sequences that span the boundary. Do not require exact
         # positional equality: trace offsets may be imprecise.
         try:
-            if parser_base is not None and getattr(self, "_pending_bytes", b""):
-                pending = getattr(self, "_pending_bytes", b"")
+            if (
+                parser_base is not None
+                and hasattr(self, "_pending_bytes")
+                and self._pending_bytes
+            ):
+                pending = self._pending_bytes
                 if pending:
                     data = pending + data
                     # For correlation, prefer the pending base if available
