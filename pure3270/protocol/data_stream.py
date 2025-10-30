@@ -2735,12 +2735,12 @@ class DataStreamParser:
             return BindImage()
 
         # Parse BIND RU structure directly (offsets from 3270ds.h)
-        rows = None
-        cols = None
-        query_reply_ids = []
-        model = None
-        flags = None
-        session_parameters = {}
+        rows: Optional[int] = None
+        cols: Optional[int] = None
+        query_reply_ids: List[int] = []
+        model: Optional[int] = None
+        flags: Optional[int] = None
+        session_parameters: Dict[str, Any] = {}
         plu_name = None
 
         # Extract maximum RUs

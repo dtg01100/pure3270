@@ -665,6 +665,16 @@ class BaseParser:
         self._pos += length
         return self._data[start : self._pos]
 
+    def seek(self, pos: int) -> None:
+        """Set the current read position within the buffer.
+
+        Allows caller to rewind or advance the internal cursor for
+        multi-pass parsing algorithms.
+        """
+        if pos < 0 or pos > len(self._data):
+            raise ParseError("Seek position out of range")
+        self._pos = int(pos)
+
 
 class BaseStringParser:
     def __init__(self, text: str):
