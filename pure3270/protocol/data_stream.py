@@ -47,12 +47,14 @@ from typing import (
     Dict,
     List,
     Optional,
+    Set,
     Tuple,
     Union,
     cast,
 )
 
 from ..emulation.addressing import AddressingMode
+from ..emulation.ebcdic import EBCDICCodec
 from ..emulation.printer_buffer import PrinterBuffer  # Import PrinterBuffer
 from ..emulation.screen_buffer import ScreenBuffer  # Import ScreenBuffer
 from ..utils.logging_utils import log_debug_operation, log_parsing_warning
@@ -135,7 +137,7 @@ class _NullScreenBuffer:
         # Simple byte buffer representing screen positions
         self.buffer = bytearray(b" " * (self.rows * self.cols))
         # Track field starts if parser touches it
-        self._field_starts = set()
+        self._field_starts: Set[int] = set()
 
     def get_position(self) -> Tuple[int, int]:
         return (self._row, self._col)
@@ -145,7 +147,9 @@ class _NullScreenBuffer:
         self._row = max(0, min(row, self.rows - 1))
         self._col = max(0, min(col, self.cols - 1))
 
-    def set_char(self, b: int, row: int = None, col: int = None, **kwargs) -> None:
+    def set_char(
+        self, b: int, row: Optional[int] = None, col: Optional[int] = None, **kwargs
+    ) -> None:
         # Allow calling with explicit coords or use current cursor
         if row is None or col is None:
             row, col = self.get_position()
@@ -157,31 +161,33 @@ class _NullScreenBuffer:
                 pass
 
     # write_char is used by some parser codepaths
-    def write_char(self, b: int, row: int = None, col: int = None, **kwargs) -> None:
+    def write_char(
+        self, b: int, row: Optional[int] = None, col: Optional[int] = None, **kwargs
+    ) -> None:
         self.set_char(b, row=row, col=col, **kwargs)
 
-    def add_field(self, *args, **kwargs):
+    def add_field(self, *args, **kwargs) -> None:
         # no-op; parser may mark _field_starts directly
         return None
 
-    def set_attribute(self, *args, **kwargs):
+    def set_attribute(self, *args, **kwargs) -> None:
         return None
 
-    def snapshot(self, *args, **kwargs):
+    def snapshot(self, *args, **kwargs) -> None:
         return None
 
-    def restore_snapshot(self, *args, **kwargs):
+    def restore_snapshot(self, *args, **kwargs) -> None:
         return None
 
-    def clear(self, *args, **kwargs):
+    def clear(self, *args, **kwargs) -> None:
         # reset buffer and cursor
         self.buffer[:] = b" " * (self.rows * self.cols)
         self.set_position(0, 0)
 
-    def begin_bulk_update(self, *args, **kwargs):
+    def begin_bulk_update(self, *args, **kwargs) -> None:
         return None
 
-    def end_bulk_update(self, *args, **kwargs):
+    def end_bulk_update(self, *args, **kwargs) -> None:
         return None
 
 
@@ -260,6 +266,23 @@ BARCODE_SF_TYPE = 0x4F  # Barcode Structured Field Type
 # BIND-IMAGE Subfield IDs (RFC 2355, Section 5.1)
 BIND_SF_SUBFIELD_PSC = 0x01  # Presentation Space Control
 BIND_SF_SUBFIELD_QUERY_REPLY_IDS = 0x02  # Query Reply IDs
+
+# BIND RU Constants (from s3270 reference implementation)
+BIND_RU = 0x31  # BIND Request Unit identifier
+BIND_OFF_MAXRU_SEC = 10  # Offset to max RU secondary
+BIND_OFF_MAXRU_PRI = 11  # Offset to max RU primary
+BIND_OFF_RD = 20  # Offset to default rows
+BIND_OFF_CD = 21  # Offset to default columns
+BIND_OFF_RA = 22  # Offset to alternate rows
+BIND_OFF_CA = 23  # Offset to alternate columns
+BIND_OFF_SSIZE = 24  # Offset to screen size
+BIND_OFF_PLU_NAME_LEN = 27  # Offset to PLU name length
+BIND_PLU_NAME_MAX = 8  # Maximum PLU name length
+BIND_OFF_PLU_NAME = 28  # Offset to PLU name
+
+# Model dimensions
+MODEL_2_ROWS = 24
+MODEL_2_COLS = 80
 
 
 class StructuredFieldValidator:
@@ -876,6 +899,12 @@ class DataStreamParser:
         # Back-compat for tests expecting a private _screen_buffer attribute
         self._screen_buffer: ScreenBuffer = (
             screen_buffer if screen_buffer is not None else _NullScreenBuffer()
+        )
+
+        # Debug: Log screen buffer info at initialization
+        ascii_mode = getattr(self.screen, "_ascii_mode", None)
+        logger.debug(
+            f"DataStreamParser initialized: screen={type(self.screen).__name__} ascii_mode={ascii_mode}"
         )
         self.printer: Optional[PrinterBuffer] = printer_buffer
         self.negotiator: Optional["Negotiator"] = negotiator
@@ -1534,7 +1563,12 @@ class DataStreamParser:
         # Switch screen to ASCII mode for NVT rendering
         try:
             if hasattr(self.screen, "set_ascii_mode"):
+                ascii_mode_before = getattr(self.screen, "_ascii_mode", False)
                 self.screen.set_ascii_mode(True)
+                ascii_mode_after = getattr(self.screen, "_ascii_mode", False)
+                logger.debug(
+                    f"NVT data: switching ASCII mode from {ascii_mode_before} to {ascii_mode_after}"
+                )
         except Exception:
             pass
 
@@ -1653,6 +1687,12 @@ class DataStreamParser:
         if 0 <= row < self.screen.rows and 0 <= col < self.screen.cols:
             pos = row * self.screen.cols + col
             if pos < buffer_size:
+                # Log first 20 bytes to debug screen content differences
+                if pos < 20:
+                    ascii_mode = getattr(self.screen, "_ascii_mode", False)
+                    logger.debug(
+                        f"_insert_data: pos={pos} byte=0x{byte:02x} ('{chr(byte) if 32 <= byte < 127 else '?'}') ascii_mode={ascii_mode} screen={type(self.screen).__name__}"
+                    )
                 self.screen.buffer[pos] = byte
                 # Handle cursor advancement with wrapping
                 col += 1
@@ -1754,6 +1794,7 @@ class DataStreamParser:
     def _handle_sf(self) -> None:
 
         self._validate_screen_buffer("SF")
+        self._validate_min_data("SF", 1)
         attr = self._read_byte_safe("SF")
         row, col = self.screen.get_position()
 
@@ -2498,6 +2539,14 @@ class DataStreamParser:
         length = (length_high << 8) | length_low
         logger.debug(f"Structured Field: length={length}, type=? (0x??)")
 
+        # Check for absurdly large length values (likely malformed data)
+        # If length would require more data than available, treat as malformed
+        if length > parser.remaining() + 1000:  # Allow some tolerance but flag massive discrepancies
+            logger.debug(
+                f"SF length {length} exceeds available data {parser.remaining()}, treating as malformed"
+            )
+            return
+
         # Must have at least one byte for SF type
         if parser.remaining() < 1:
             logger.debug("Structured field missing type byte, skipping")
@@ -2662,82 +2711,81 @@ class DataStreamParser:
     # as instance methods on DataStreamParser for callers/tests that expect
     # to call them directly.
     def _parse_bind_image(self, data: bytes) -> "BindImage":
-        """Parse BIND-IMAGE structured field payload into a BindImage.
+        """Parse BIND-IMAGE data as raw SNA BIND RU structure (not structured field).
 
-        This mirrors the standalone logic used elsewhere in the file but
-        guarantees the parser instance exposes the callable.
+        This mirrors the s3270 process_bind() function which parses raw BIND RU data
+        directly, not as structured field subfields.
         """
-        parser = BaseParser(data)
-        if parser.remaining() < 3:
-            logger.warning("Invalid BIND-IMAGE structured field: too short")
+        if len(data) < 1 or data[0] != BIND_RU:
+            logger.warning(
+                f"Invalid BIND RU: expected 0x{BIND_RU:02x} at start, got 0x{data[0]:02x}"
+            )
             from dataclasses import make_dataclass
 
             return BindImage()
 
-        # Skip optional SF id 0x3C at front
-        if parser.peek_byte() == 0x3C:
-            parser.read_byte()
-
-        if parser.remaining() < 3:
-            logger.warning("Invalid BIND-IMAGE: insufficient header")
-            return BindImage()
-
-        sf_length = parser.read_u16()
-        sf_type = parser.read_byte()
-
-        # Accept different sf_type values for BIND-IMAGE (s3270 compatibility)
-        # Traces may use 0x02, 0x03, or other values for BIND-IMAGE data
-        if sf_type not in (BIND_SF_TYPE, 0x02, 0x00):  # Allow common variations
-            logger.warning(
-                f"Unexpected BIND-IMAGE type 0x{sf_type:02x}, trying to parse anyway"
-            )
-
+        # Parse BIND RU structure directly (offsets from 3270ds.h)
         rows = None
         cols = None
         query_reply_ids = []
         model = None
         flags = None
         session_parameters = {}
+        plu_name = None
 
-        expected_end = parser._pos + (sf_length - 3)
-        if expected_end > len(parser._data):
-            expected_end = len(parser._data)
+        # Extract maximum RUs
+        if len(data) > BIND_OFF_MAXRU_SEC:
+            maxru_sec = data[BIND_OFF_MAXRU_SEC]
+            session_parameters["maxru_sec"] = maxru_sec
+        if len(data) > BIND_OFF_MAXRU_PRI:
+            maxru_pri = data[BIND_OFF_MAXRU_PRI]
+            session_parameters["maxru_pri"] = maxru_pri
 
-        while parser._pos < expected_end and parser.has_more():
-            if parser.remaining() < 2:
-                logger.warning("Truncated subfield length in BIND-IMAGE")
-                break
-            subfield_len = parser.read_byte()
-            if subfield_len < 2:
-                logger.warning(f"Invalid subfield length {subfield_len} in BIND-IMAGE")
-                break
-            if not parser.has_more():
-                logger.warning("Truncated subfield ID in BIND-IMAGE")
-                break
-            subfield_id = parser.read_byte()
-            sub_data_len = subfield_len - 2
-            if parser.remaining() < sub_data_len:
-                logger.warning("Subfield data truncated in BIND-IMAGE")
-                break
-            sub_data = parser.read_fixed(sub_data_len)
+        # Extract screen size information
+        if len(data) > BIND_OFF_SSIZE:
+            bind_ss = data[BIND_OFF_SSIZE]
+            if bind_ss == 0x00 or bind_ss == 0x02:
+                # Model 2 screen size
+                rows = MODEL_2_ROWS
+                cols = MODEL_2_COLS
+                flags = bind_ss
+            elif bind_ss == 0x03:
+                # Default model 2, alternate max
+                rows = MODEL_2_ROWS
+                cols = MODEL_2_COLS
+                flags = bind_ss
+            elif bind_ss == 0x7E:
+                # Explicit default dimensions
+                if len(data) > BIND_OFF_CD:
+                    rows = data[BIND_OFF_RD]
+                    cols = data[BIND_OFF_CD]
+                    flags = bind_ss
+            elif bind_ss == 0x7F:
+                # Explicit default and alternate dimensions
+                if len(data) > BIND_OFF_CA:
+                    rows = data[BIND_OFF_RD]
+                    cols = data[BIND_OFF_CD]
+                    # Alternate dimensions stored in session_parameters
+                    session_parameters["alt_rows"] = data[BIND_OFF_RA]
+                    session_parameters["alt_cols"] = data[BIND_OFF_CA]
+                    flags = bind_ss
 
-            if subfield_id == BIND_SF_SUBFIELD_PSC:
-                if len(sub_data) >= 4:
-                    rows = (sub_data[0] << 8) | sub_data[1]
-                    cols = (sub_data[2] << 8) | sub_data[3]
-                    if len(sub_data) >= 5:
-                        flags = sub_data[4]
-                    if len(sub_data) > 5:
-                        session_parameters["psc_data"] = sub_data[5:].hex()
-                else:
-                    logger.warning("PSC subfield too short for rows/cols")
-            elif subfield_id == BIND_SF_SUBFIELD_QUERY_REPLY_IDS:
-                query_reply_ids = list(sub_data)
-            elif subfield_id == 0x03:
-                if len(sub_data) >= 1:
-                    model = sub_data[0]
-            elif subfield_id == 0x04:
-                session_parameters["extended_attrs"] = sub_data.hex()
+        # Extract PLU name
+        if len(data) > BIND_OFF_PLU_NAME_LEN:
+            namelen = data[BIND_OFF_PLU_NAME_LEN]
+            if namelen > 0 and namelen <= BIND_PLU_NAME_MAX:
+                if len(data) > BIND_OFF_PLU_NAME + namelen:
+                    plu_name_bytes = data[
+                        BIND_OFF_PLU_NAME : BIND_OFF_PLU_NAME + namelen
+                    ]
+                    # Convert EBCDIC to ASCII for PLU name
+                    try:
+                        ebcdic_codec = EBCDICCodec()
+                        plu_name, _ = ebcdic_codec.decode(plu_name_bytes)
+                        session_parameters["plu_name"] = plu_name
+                    except Exception as e:
+                        logger.warning(f"Failed to decode PLU name from EBCDIC: {e}")
+                        session_parameters["plu_name_raw"] = plu_name_bytes.hex()
 
         bind_image = BindImage(
             rows=rows,
@@ -2746,6 +2794,9 @@ class DataStreamParser:
             model=model,
             flags=flags,
             session_parameters=session_parameters,
+        )
+        logger.debug(
+            f"Parsed BIND RU: rows={rows}, cols={cols}, flags=0x{flags:02x}, plu_name={plu_name}"
         )
         return bind_image
 
