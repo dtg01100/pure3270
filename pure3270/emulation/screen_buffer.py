@@ -240,7 +240,19 @@ class ScreenBuffer(BufferWriter):
                 line_text = line_bytes.decode("ascii", errors="replace")
             else:
                 # In 3270 mode, buffer contains EBCDIC bytes that need conversion
-                # Do not mask field attributes or cursor positions to match s3270's Ascii() behavior
+                # Mask field attribute bytes to prevent raw EBCDIC display as Unicode escape sequences
+                for col in range(self.cols):
+                    pos = line_start + col
+                    byte_value = line_bytes[col]
+                    # Mask field attribute bytes (0x00-0x3F, 0xC0-0xFF) with EBCDIC space
+                    is_attribute_byte = (byte_value <= 0x3F) or (byte_value >= 0xC0)
+                    if is_attribute_byte or pos in self._field_starts:
+                        line_bytes[col] = 0x40  # EBCDIC space
+
+                    # Also mask cursor position
+                    if row == self.cursor_row and col == self.cursor_col:
+                        line_bytes[col] = 0x40  # EBCDIC space
+
                 decoded, _ = EBCDICCodec().decode(bytes(line_bytes))
                 # Clean any control characters that should not appear in screen text
                 line_text = "".join(
@@ -487,12 +499,13 @@ class ScreenBuffer(BufferWriter):
             # DBCS characters advance the cursor by 2 positions instead of 1.
             if explicit_position:
                 advance = 1
-                # Check if this position has DBCS character set (e.g., Katakana)
+                # Check if this position has DBCS character set
                 attr_set = self._extended_attributes.get((row, col))
                 if attr_set:
                     char_set_attr = attr_set.get_attribute("character_set")
-                    if char_set_attr and char_set_attr.value == 0x02:  # Katakana DBCS
-                        advance = 2
+                    if char_set_attr and isinstance(char_set_attr, CharacterSetAttribute):
+                        if char_set_attr.is_dbcs():
+                            advance = 2
                 self.cursor_col += advance
                 if self.cursor_col >= self.cols:
                     self.cursor_col = 0

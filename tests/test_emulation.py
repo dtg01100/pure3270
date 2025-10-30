@@ -204,10 +204,10 @@ class TestEBCDICCodec:
         assert decoded == "\x00\x9f¿"  # Null + \x9f + ¿
 
     def test_encode_surrogate_escape(self, ebcdic_codec):
-        """Test encode with surrogate char defaults to 'z'."""
+        """Test encode with surrogate char defaults to '?'."""
         surrogate = "\ud800"
         encoded, _ = ebcdic_codec.encode(surrogate)
-        assert encoded == b"\x7a"
+        assert encoded == b"\x6f"
 
     def test_round_trip_mapped(self, ebcdic_codec):
         """Test round-trip encode/decode for mapped characters."""

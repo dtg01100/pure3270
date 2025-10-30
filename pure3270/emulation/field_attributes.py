@@ -1084,11 +1084,31 @@ class CharacterSetAttribute(ExtendedAttribute):
     CHARACTER_SETS = {
         0x00: "default",  # Default character set
         0x01: "apl",  # APL character set
-        0x02: "katakana",  # Katakana character set
+        0x02: "katakana",  # Katakana character set (DBCS)
         0x03: "user1",  # User-defined character set 1
         0x04: "user2",  # User-defined character set 2
         0x05: "user3",  # User-defined character set 3
         0x06: "user4",  # User-defined character set 4
+        0x41: "dbcs_katakana",  # DBCS Katakana
+        0x42: "dbcs_hiragana",  # DBCS Hiragana
+        0x43: "dbcs_kanji",  # DBCS Kanji
+        0x44: "dbcs_mixed",  # DBCS Mixed
+        0x45: "dbcs_chinese",  # DBCS Chinese
+        0x46: "dbcs_korean",  # DBCS Korean
+        0xF1: "dbcs_chinese_host",  # DBCS Chinese (Host Supplied)
+        0xF2: "dbcs_japanese_host",  # DBCS Japanese (Host Supplied)
+        0xF3: "dbcs_korean_host",  # DBCS Korean (Host Supplied)
+        0xF4: "dbcs_thai_host",  # DBCS Thai (Host Supplied)
+        0xF5: "dbcs_arabic_host",  # DBCS Arabic (Host Supplied)
+        0xF6: "dbcs_hebrew_host",  # DBCS Hebrew (Host Supplied)
+        0xF7: "dbcs_latin2_host",  # DBCS Latin-2 (Host Supplied)
+        0xF8: "dbcs_latin3_host",  # DBCS Latin-3 (Host Supplied)
+        0xF9: "dbcs_latin4_host",  # DBCS Latin-4 (Host Supplied)
+        0xFA: "dbcs_greek_host",  # DBCS Greek (Host Supplied)
+        0xFB: "dbcs_cyrillic_host",  # DBCS Cyrillic (Host Supplied)
+        0xFC: "dbcs_turkish_host",  # DBCS Turkish (Host Supplied)
+        0xFD: "dbcs_latin5_host",  # DBCS Latin-5 (Host Supplied)
+        0xFE: "dbcs_japanese_extended",  # DBCS Japanese Extended
     }
 
     def __init__(self, value: Union[int, str] = 0) -> None:
@@ -1133,6 +1153,44 @@ class CharacterSetAttribute(ExtendedAttribute):
     def is_user_defined(self) -> bool:
         """Check if this is a user-defined character set."""
         return 0x03 <= self._value <= 0x06
+
+    def is_dbcs(self) -> bool:
+        """Check if this is a Double-Byte Character Set (DBCS).
+
+        DBCS character sets require special handling for cursor advancement
+        and character display, advancing the cursor by 2 positions instead of 1.
+
+        Returns:
+            True if this character set is DBCS, False otherwise
+        """
+        # DBCS character sets in 3270/TN3270E specifications
+        # Extended to include additional DBCS character sets:
+        # 0x02 - Katakana (already included)
+        # 0x41 - DBCS Katakana (already included)
+        # 0x42 - DBCS Hiragana (already included)
+        # 0x43 - DBCS Kanji (already included)
+        # 0x44 - DBCS Mixed (already included)
+        # 0x45 - DBCS Chinese (already included)
+        # 0x46 - DBCS Korean (already included)
+        # Additional DBCS character sets based on IBM specifications:
+        # 0xF1 - DBCS Chinese (Host Supplied)
+        # 0xF2 - DBCS Japanese (Host Supplied)
+        # 0xF3 - DBCS Korean (Host Supplied)
+        # 0xF4 - DBCS Thai (Host Supplied)
+        # 0xF5 - DBCS Arabic (Host Supplied)
+        # 0xF6 - DBCS Hebrew (Host Supplied)
+        # 0xF7 - DBCS Latin-2 (Host Supplied)
+        # 0xF8 - DBCS Latin-3 (Host Supplied)
+        # 0xF9 - DBCS Latin-4 (Host Supplied)
+        # 0xFA - DBCS Greek (Host Supplied)
+        # 0xFB - DBCS Cyrillic (Host Supplied)
+        # 0xFC - DBCS Turkish (Host Supplied)
+        # 0xFD - DBCS Latin-5 (Host Supplied)
+        # 0xFE - DBCS Japanese Extended
+        dbcs_values = {0x02, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46,
+                      0xF1, 0xF2, 0xF3, 0xF4, 0xF5, 0xF6, 0xF7,
+                      0xF8, 0xF9, 0xFA, 0xFB, 0xFC, 0xFD, 0xFE}
+        return self._value in dbcs_values
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert character set attribute to dictionary."""

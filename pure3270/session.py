@@ -1260,6 +1260,9 @@ class AsyncSession:
 
                     if _fp_local is not None:
                         setattr(self, "_fallback_parser", _fp_local)
+                        # Set IND$FILE handler on fallback parser for file transfer support
+                        if self._ind_file:
+                            _fp_local.ind_file_handler = self._ind_file
                         _fp = _fp_local
                 if _fp is not None:
                     parser = _fp
