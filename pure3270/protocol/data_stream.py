@@ -35,14 +35,10 @@
 # Last updated: 2025-10-12
 # =================================================================================
 
-# Relax strict mypy checks for this large legacy parser module which contains
-# many internal helper functions that are difficult to annotate exhaustively
-# in a small fix. We allow untyped defs and skip checking untyped defs here.
+# NOTE: This large legacy parser is being incrementally annotated.
+# We selectively suppress certain strict checks for legacy helper functions
+# while keeping core parsing functions typed.
 # mypy: disallow_untyped_defs=False, disallow_incomplete_defs=False, check_untyped_defs=False
-# Temporarily ignore all mypy errors in this legacy parser module to allow
-# incremental typed refactors without blocking CI. Follow-up: gradually
-# re-enable checking and add precise annotations.
-# mypy: ignore_errors=True
 """Data stream parser and sender for 3270 protocol."""
 
 import logging
@@ -66,6 +62,7 @@ from ..emulation.ebcdic import EBCDICCodec
 from ..emulation.printer_buffer import PrinterBuffer  # Import PrinterBuffer
 from ..emulation.screen_buffer import ScreenBuffer  # Import ScreenBuffer
 from ..utils.logging_utils import log_debug_operation, log_parsing_warning
+from .parser import BaseParser, ParseError
 from .utils import (
     BIND_IMAGE,
     NVT_DATA,
@@ -100,8 +97,6 @@ from .utils import (
     TN3270E_DATA_TYPES,
     TN3270E_REQ_ERR_COND_CLEARED,
     TN3270E_SCS_CTL_CODES,
-    BaseParser,
-    ParseError,
 )
 
 if TYPE_CHECKING:
@@ -156,7 +151,11 @@ class _NullScreenBuffer:
         self._col = max(0, min(col, self.cols - 1))
 
     def set_char(
-        self, b: int, row: Optional[int] = None, col: Optional[int] = None, **kwargs
+        self,
+        b: int,
+        row: Optional[int] = None,
+        col: Optional[int] = None,
+        **kwargs: Any,
     ) -> None:
         # Allow calling with explicit coords or use current cursor
         if row is None or col is None:
@@ -170,32 +169,36 @@ class _NullScreenBuffer:
 
     # write_char is used by some parser codepaths
     def write_char(
-        self, b: int, row: Optional[int] = None, col: Optional[int] = None, **kwargs
+        self,
+        b: int,
+        row: Optional[int] = None,
+        col: Optional[int] = None,
+        **kwargs: Any,
     ) -> None:
         self.set_char(b, row=row, col=col, **kwargs)
 
-    def add_field(self, *args, **kwargs) -> None:
+    def add_field(self, *args: Any, **kwargs: Any) -> None:
         # no-op; parser may mark _field_starts directly
         return None
 
-    def set_attribute(self, *args, **kwargs) -> None:
+    def set_attribute(self, *args: Any, **kwargs: Any) -> None:
         return None
 
-    def snapshot(self, *args, **kwargs) -> None:
+    def snapshot(self, *args: Any, **kwargs: Any) -> None:
         return None
 
-    def restore_snapshot(self, *args, **kwargs) -> None:
+    def restore_snapshot(self, *args: Any, **kwargs: Any) -> None:
         return None
 
-    def clear(self, *args, **kwargs) -> None:
+    def clear(self, *args: Any, **kwargs: Any) -> None:
         # reset buffer and cursor
         self.buffer[:] = b" " * (self.rows * self.cols)
         self.set_position(0, 0)
 
-    def begin_bulk_update(self, *args, **kwargs) -> None:
+    def begin_bulk_update(self, *args: Any, **kwargs: Any) -> None:
         return None
 
-    def end_bulk_update(self, *args, **kwargs) -> None:
+    def end_bulk_update(self, *args: Any, **kwargs: Any) -> None:
         return None
 
 
@@ -1181,8 +1184,8 @@ class DataStreamParser:
 
         # Handle specific TN3270E data types first
         if data_type == SCS_DATA and self.printer:
-            # Route SCS data to printer
-            self._handle_scs_data(data)
+            # Route SCS data to printer (module-level helper expects parser instance)
+            _handle_scs_data(self, data)
             self._pos = len(data)
             return
 
@@ -1247,7 +1250,9 @@ class DataStreamParser:
             logger.info(
                 f"Received TN3270E_SCS_CTL_CODES data type: {data.hex()}. Processing SCS control codes."
             )
-            self._handle_scs_ctl_codes(data)
+            handler = getattr(self, "_handle_scs_ctl_codes", None)
+            if handler:
+                handler(data)
             return
 
         if data_type == NVT_DATA:
@@ -2460,7 +2465,9 @@ class DataStreamParser:
             )
 
         # Process control code similarly to SCS CTL codes for backward compatibility
-        self._handle_scs_ctl_codes(bytes([ctl_code]))
+        handler = getattr(self, "_handle_scs_ctl_codes", None)
+        if handler:
+            handler(bytes([ctl_code]))
 
     def _handle_data_stream_ctl_order(self) -> None:
         """Guarded handler for DATA-STREAM-CTL order (0x40).
@@ -2835,9 +2842,9 @@ class DataStreamParser:
 
         # If this SNA response contains a BIND-IMAGE structured field, attempt
         # to parse it into a BindImage object for easier inspection by callers.
-        if response_type == BIND_SF_TYPE and data_part:
+        if response_type == BIND_SF_TYPE and isinstance(data_part, (bytes, bytearray)):
             try:
-                bind_image = self._parse_bind_image(cast(bytes, data_part))
+                bind_image = self._parse_bind_image(data_part)
                 data_part = bind_image
             except Exception as e:
                 logger.warning(f"Failed to parse BIND-IMAGE in SNA response: {e}")
@@ -3167,6 +3174,7 @@ def _handle_scs_data(self, data: bytes) -> None:
     and emit an explicit routing log including the parser position. This helps
     correlate parser byte offsets with per-byte logs inside PrinterBuffer.
     """
+    logger.debug("_handle_scs_data called with %d bytes", len(data))
     logger.debug("_handle_scs_data called with %d bytes", len(data))
     # Diagnostic: log payload hex and whether it contains the expected marker
     try:
@@ -3748,19 +3756,26 @@ try:
     # attributes are not already present on the class.
     if "DataStreamParser" in globals():
         if not hasattr(DataStreamParser, "build_query_reply_sf"):
-            DataStreamParser.build_query_reply_sf = build_query_reply_sf
+            setattr(
+                DataStreamParser,
+                "build_query_reply_sf",
+                cast(Any, build_query_reply_sf),
+            )
         if not hasattr(DataStreamParser, "build_device_type_query_reply"):
-            DataStreamParser.build_device_type_query_reply = (
-                build_device_type_query_reply
+            setattr(
+                DataStreamParser,
+                "build_device_type_query_reply",
+                cast(Any, build_device_type_query_reply),
             )
         if not hasattr(DataStreamParser, "build_characteristics_query_reply"):
-            DataStreamParser.build_characteristics_query_reply = (
-                build_characteristics_query_reply
+            setattr(
+                DataStreamParser,
+                "build_characteristics_query_reply",
+                cast(Any, build_characteristics_query_reply),
             )
-        if not hasattr(DataStreamParser, "_parse_bind_image"):
-            DataStreamParser._parse_bind_image = DataStreamParser._parse_bind_image
-        if not hasattr(DataStreamParser, "_parse_sna_response"):
-            DataStreamParser._parse_sna_response = DataStreamParser._parse_sna_response
+        # Attach module-level parsing helpers as methods for backwards compatibility
+        if not hasattr(DataStreamParser, "_handle_scs_data"):
+            setattr(DataStreamParser, "_handle_scs_data", cast(Any, _handle_scs_data))
 except Exception:
     # Defensive: if something goes wrong during attachment, don't break import.
     logger.debug(
@@ -3915,7 +3930,7 @@ class DataStreamSender:
         return bytes([SOH, status_code])
 
 
-DataStreamParser._handle_scs_data = _handle_scs_data
+# Module-level SCS handler already attached to DataStreamParser above via setattr
 
 if __name__ == "__main__":
     pass
