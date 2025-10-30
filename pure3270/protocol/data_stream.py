@@ -2811,26 +2811,33 @@ class DataStreamParser:
         return bind_image
 
     def _parse_sna_response(self, data: bytes) -> "SnaResponse":
-        """Parse SNA response structured field/data and return SnaResponse."""
-        parser = BaseParser(data)
+        """Parse SNA response structured field/data and return SnaResponse.
+
+        This function is small and benefits from explicit local typing so the
+        parser and downstream code remain clear during refactors.
+        """
+        parser: BaseParser = BaseParser(data)
         if not parser.has_more():
             logger.warning("Invalid SNA response: too short")
             return SnaResponse(0)
 
-        response_type = parser.read_byte()
-        flags = parser.read_byte() if parser.has_more() else None
-        sense_code = None
+        response_type: int = parser.read_byte()
+        flags: Optional[int] = parser.read_byte() if parser.has_more() else None
+        sense_code: Optional[int] = None
         if parser.remaining() >= 2:
             sense_code = parser.read_u16()
 
+        data_part: Optional[Union[bytes, "BindImage"]]
         if parser.has_more():
             data_part = parser.read_fixed(parser.remaining())
         else:
             data_part = None
 
+        # If this SNA response contains a BIND-IMAGE structured field, attempt
+        # to parse it into a BindImage object for easier inspection by callers.
         if response_type == BIND_SF_TYPE and data_part:
             try:
-                bind_image = self._parse_bind_image(data_part)
+                bind_image = self._parse_bind_image(cast(bytes, data_part))
                 data_part = bind_image
             except Exception as e:
                 logger.warning(f"Failed to parse BIND-IMAGE in SNA response: {e}")
