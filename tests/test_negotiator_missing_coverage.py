@@ -36,7 +36,8 @@ class TestNegotiatorMissingCoverage:
         screen_buffer = ScreenBuffer()
         return Negotiator(None, parser, screen_buffer)
 
-    def test_parse_tn3270e_subnegotiation_edge_cases(
+    @pytest.mark.asyncio
+    async def test_parse_tn3270e_subnegotiation_edge_cases(
         self, negotiator, memory_limit_500mb
     ):
         """Test edge cases in TN3270E subnegotiation parsing."""
@@ -44,23 +45,25 @@ class TestNegotiatorMissingCoverage:
         with patch.object(
             negotiator, "_handle_tn3270e_response", return_value=None
         ) as mock_handle:
-            negotiator._parse_tn3270e_subnegotiation(b"")
+            await negotiator._parse_tn3270e_subnegotiation(b"")
             mock_handle.assert_not_called()
 
         with patch.object(
             negotiator, "_handle_tn3270e_response", return_value=None
         ) as mock_handle:
-            negotiator._parse_tn3270e_subnegotiation(b"\x00")
+            await negotiator._parse_tn3270e_subnegotiation(b"\x00")
             mock_handle.assert_not_called()
 
         with patch.object(
             negotiator, "_handle_tn3270e_response", return_value=None
         ) as mock_handle:
-            negotiator._parse_tn3270e_subnegotiation(b"\xff\xff\xff")
+            await negotiator._parse_tn3270e_subnegotiation(b"\xff\xff\xff")
             mock_handle.assert_not_called()
 
         # Test with invalid TN3270E option
-        negotiator._parse_tn3270e_subnegotiation(b"\x99\x01\x02")  # Invalid option 0x99
+        await negotiator._parse_tn3270e_subnegotiation(
+            b"\x99\x01\x02"
+        )  # Invalid option 0x99
 
     @pytest.mark.asyncio
     async def test_handle_device_type_subnegotiation_invalid_data(
@@ -88,7 +91,7 @@ class TestNegotiatorMissingCoverage:
     ):
         """Test sending device types when writer is None."""
         # This should log an error but not crash
-        negotiator._send_supported_device_types()
+        await negotiator._send_supported_device_types()
 
     @pytest.mark.asyncio
     async def test_send_supported_functions_no_writer(
@@ -182,7 +185,7 @@ class TestNegotiatorMissingCoverage:
         """Test sending device types when supported list is empty."""
         negotiator.writer = MagicMock()
         negotiator.supported_device_types = []
-        negotiator._send_supported_device_types()
+        await negotiator._send_supported_device_types()
 
     @pytest.mark.asyncio
     async def test_send_supported_functions_with_no_functions(

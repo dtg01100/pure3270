@@ -31,4 +31,16 @@
       10
     ]
   }
+  ,
+  "printer": {
+    "print_jobs": [
+      {
+        "job_id": "smoke-1",
+        "content_markers": []
+      }
+    ]
+  },
+  "tn3270e": {
+    "device_type": "IBM-3287-1"
+  }
 }

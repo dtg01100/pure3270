@@ -1303,11 +1303,16 @@ class AsyncSession:
             if parser is not None:
                 try:
                     # Prefer simple signature used by tests' mocks
-                    parser.parse(data)
+                    res = parser.parse(data)
+                    # If parser.parse is async it will return a coroutine — await it.
+                    if asyncio.iscoroutine(res):
+                        await res
                 except TypeError:
                     # Fallback to (data, data_type) signature
                     try:
-                        parser.parse(data, 0x00)
+                        res2 = parser.parse(data, 0x00)
+                        if asyncio.iscoroutine(res2):
+                            await res2
                     except Exception:
                         # Ignore parsing errors in this best-effort path
                         pass
@@ -1618,7 +1623,9 @@ class AsyncSession:
                         # Parse the response to update the screen buffer
                         if self._handler.parser:
                             try:
-                                self._handler.parser.parse(response_data)
+                                _res = self._handler.parser.parse(response_data)
+                                if asyncio.iscoroutine(_res):
+                                    await _res
                             except Exception:
                                 pass  # Ignore parsing errors
                     except asyncio.TimeoutError:
@@ -1634,7 +1641,9 @@ class AsyncSession:
                             # Parse the response to update the screen buffer
                             if self._handler.parser:
                                 try:
-                                    self._handler.parser.parse(response_data)
+                                    _res = self._handler.parser.parse(response_data)
+                                    if asyncio.iscoroutine(_res):
+                                        await _res
                                 except Exception:
                                     pass  # Ignore parsing errors
                         except asyncio.TimeoutError:
@@ -1653,7 +1662,9 @@ class AsyncSession:
                     # Parse the response to update the screen buffer
                     if self._handler.parser:
                         try:
-                            self._handler.parser.parse(response_data)
+                            _res = self._handler.parser.parse(response_data)
+                            if asyncio.iscoroutine(_res):
+                                await _res
                         except Exception:
                             pass  # Ignore parsing errors
                 except asyncio.TimeoutError:

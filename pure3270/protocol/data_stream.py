@@ -864,6 +864,19 @@ class DataStreamParser:
             else:
                 ptr += 1
 
+    def _handle_scs_data(self, data: bytes) -> None:
+        """Instance-level SCS handler that delegates to the module function.
+
+        This exists to satisfy static type checkers and to allow tests to
+        monkey-patch the instance method directly. The actual logic lives in
+        the module-level helper to keep behavior consistent across instances.
+        """
+        try:
+            # Delegate to module-level implementation
+            _handle_scs_data(self, data)
+        except Exception:
+            logger.error("Error in instance _handle_scs_data delegate", exc_info=True)
+
     """Parses incoming 3270 data streams and updates the screen buffer with comprehensive structured field support."""
 
     # Attribute declarations for type checking
@@ -1151,7 +1164,7 @@ class DataStreamParser:
         except ParseError:
             raise ParseError(f"Incomplete {operation} address at position {self._pos}")
 
-    def parse(self, data: bytes, data_type: int = TN3270_DATA) -> None:
+    def parse(self, data: bytes, data_type: int = TN3270_DATA) -> Any:
         """
         Parse 3270 data stream or other data types with enhanced validation and buffer protection.
         """
@@ -1184,8 +1197,13 @@ class DataStreamParser:
 
         # Handle specific TN3270E data types first
         if data_type == SCS_DATA and self.printer:
-            # Route SCS data to printer (module-level helper expects parser instance)
-            _handle_scs_data(self, data)
+            # Route SCS data to printer via instance method so callers/tests can
+            # patch or mock DataStreamParser._handle_scs_data on the instance.
+            try:
+                self._handle_scs_data(data)
+            except AttributeError:
+                # Fallback to module-level helper for backward compatibility
+                _handle_scs_data(self, data)
             self._pos = len(data)
             return
 
@@ -1341,16 +1359,31 @@ class DataStreamParser:
             # Helper to decide which ParseError messages must abort the write.
             # Per tests and s3270 semantics, SA and SBA incompletes must also
             # abort/rollback the write. Preserve WCC/AID/DATA-STREAM-CTL as fatal.
-            def _is_critical_error(err_msg: str) -> bool:
+            def _is_fatal_error(err_msg: str) -> bool:
+                """Errors that should remain fatal and be re-raised to callers.
+
+                These are missing WCC/AID/DATA_STREAM_CTL orders that indicate a
+                malformed stream where continuing is unsafe. SA/SBA incompletes
+                instead must abort the write and rollback but NOT raise (per tests
+                expecting rollback with no exception).
+                """
                 return any(
                     cf in err_msg
                     for cf in (
                         "Incomplete WCC order",
                         "Incomplete AID order",
                         "Incomplete DATA_STREAM_CTL order",
-                        "Incomplete SA order",
-                        "Incomplete SBA order",
                     )
+                )
+
+            def _is_rollback_only_error(err_msg: str) -> bool:
+                """Errors that should abort/rollback the write but not raise.
+
+                SA and SBA incompletes fall into this category.
+                """
+                return any(
+                    cf in err_msg
+                    for cf in ("Incomplete SA order", "Incomplete SBA order")
                 )
 
             # After WCC, proceed to orders and data bytes
@@ -1419,7 +1452,7 @@ class DataStreamParser:
                     pos = getattr(parser, "_pos", getattr(self, "_pos", 0))
                     err_msg = str(e)
                     # Treat only these errors as fatal for the write (per spec + tests)
-                    if _is_critical_error(err_msg):
+                    if _is_fatal_error(err_msg):
                         # Restore write snapshot on fatal/incomplete write errors
                         if write_snapshot is not None and ("Incomplete" in err_msg):
                             self._restore_screen(write_snapshot)
@@ -1439,8 +1472,29 @@ class DataStreamParser:
                         except Exception:
                             self._pos = len(getattr(self, "_data", b""))
                         logger.debug("parser pos after abort=%d", self._pos)
-                        # Re-raise the critical ParseError to preserve previous behavior
+                        # Re-raise the fatal ParseError to preserve previous behavior
                         raise
+                    if _is_rollback_only_error(err_msg):
+                        # Restore snapshot and abort write, but do not raise - tests expect
+                        # rollback without an exception being propagated.
+                        if write_snapshot is not None and ("Incomplete" in err_msg):
+                            self._restore_screen(write_snapshot)
+                        logger.warning(
+                            "ParseError pos=%d: %s; aborting write and rolling back (no raise)",
+                            pos,
+                            e,
+                        )
+                        try:
+                            if parser is not None and hasattr(parser, "_data"):
+                                parser._pos = len(parser._data)
+                                self._pos = parser._pos
+                            else:
+                                self._pos = len(getattr(self, "_data", b""))
+                        except Exception:
+                            self._pos = len(getattr(self, "_data", b""))
+                        logger.debug("parser pos after abort=%d", self._pos)
+                        # Stop parsing further data gracefully
+                        return
                     # Non-critical parse error: warn, skip a single byte, and continue
                     # Prefer to log the parser-local position for machine parsing
                     parser_pos = getattr(parser, "_pos", getattr(self, "_pos", 0))
@@ -1794,11 +1848,13 @@ class DataStreamParser:
                     f"SBA: Set buffer address to ({row}, {col}) [address={address:04x}, mode={self.addressing_mode.value}]",
                 )
             else:
-                logger.warning(
-                    f"Incomplete SBA order: need 2 bytes, have {available}; skipping SBA"
-                )
-                # Instead of raising ParseError (which would abort the write), just log and skip
-                # This allows the data stream to continue with subsequent orders
+                # Missing address bytes - treat as incomplete SBA so the upper
+                # parsing logic can perform an abort+rollback. Raise ParseError
+                # here so parse() can catch it and restore the write snapshot.
+                raise ParseError(f"Incomplete SBA order")
+        except ParseError:
+            # Re-raise ParseError so outer parsing logic can handle rollback.
+            raise
         except Exception as e:
             logger.warning(
                 f"SBA order execution failed: {e}; continuing with data stream"
@@ -2537,18 +2593,39 @@ class DataStreamParser:
         # Need at least 3 bytes: 2-byte length + 1-byte type
         if parser.remaining() < 3:
             logger.debug("Incomplete structured field header, skipping")
+            # Advance past the structured field heuristically to avoid
+            # repeatedly attempting to parse the same malformed bytes.
+            try:
+                self._skip_structured_field()
+            except Exception:
+                logger.debug(
+                    "_skip_structured_field failed during header skip", exc_info=True
+                )
             return
 
         try:
             length_high = self._read_byte()
         except ParseError:
             logger.debug("Could not read SF length high byte, skipping")
+            try:
+                self._skip_structured_field()
+            except Exception:
+                logger.debug(
+                    "_skip_structured_field failed after length high read",
+                    exc_info=True,
+                )
             return
 
         try:
             length_low = self._read_byte()
         except ParseError:
             logger.debug("Could not read SF length low byte, skipping")
+            try:
+                self._skip_structured_field()
+            except Exception:
+                logger.debug(
+                    "_skip_structured_field failed after length low read", exc_info=True
+                )
             return
 
         length = (length_high << 8) | length_low
@@ -2562,11 +2639,25 @@ class DataStreamParser:
             logger.debug(
                 f"SF length {length} exceeds available data {parser.remaining()}, treating as malformed"
             )
+            try:
+                self._skip_structured_field()
+            except Exception:
+                logger.debug(
+                    "_skip_structured_field failed after absurd length check",
+                    exc_info=True,
+                )
             return
 
         # Must have at least one byte for SF type
         if parser.remaining() < 1:
             logger.debug("Structured field missing type byte, skipping")
+            try:
+                self._skip_structured_field()
+            except Exception:
+                logger.debug(
+                    "_skip_structured_field failed when missing type byte",
+                    exc_info=True,
+                )
             return
 
         try:
@@ -2728,10 +2819,11 @@ class DataStreamParser:
     # as instance methods on DataStreamParser for callers/tests that expect
     # to call them directly.
     def _parse_bind_image(self, data: bytes) -> "BindImage":
-        """Parse BIND-IMAGE data as raw SNA BIND RU structure (not structured field).
+        """Parse raw SNA BIND RU (not a structured field) into a BindImage.
 
         This mirrors the s3270 process_bind() function which parses raw BIND RU data
-        directly, not as structured field subfields.
+        directly, not structured-field subfields. For BIND-IMAGE structured fields,
+        use _parse_bind_image_sf instead.
         """
         if len(data) < 1 or data[0] != BIND_RU:
             logger.warning(
@@ -2844,8 +2936,17 @@ class DataStreamParser:
         # to parse it into a BindImage object for easier inspection by callers.
         if response_type == BIND_SF_TYPE and isinstance(data_part, (bytes, bytearray)):
             try:
-                bind_image = self._parse_bind_image(data_part)
-                data_part = bind_image
+                from typing import Callable
+                from typing import Optional as _Optional
+                from typing import cast as _cast
+
+                parse_fn = _cast(
+                    _Optional[Callable[[bytes], BindImage]],
+                    getattr(self, "_parse_bind_image_sf", None),
+                )
+                if parse_fn is not None:
+                    bind_image = parse_fn(data_part)
+                    data_part = bind_image
             except Exception as e:
                 logger.warning(f"Failed to parse BIND-IMAGE in SNA response: {e}")
 
@@ -3159,12 +3260,39 @@ class DataStreamParser:
     def _handle_bind_sf(self, sf_data: bytes) -> None:
         """Handle BIND-IMAGE structured field via a dedicated, patchable handler."""
         try:
-            bind_image = self._parse_bind_image(sf_data)
+            # Prefer instance method if available; fall back to a minimal BindImage
+            from typing import Callable
+            from typing import Optional as _Optional
+            from typing import cast as _cast
+
+            parse_fn = _cast(
+                _Optional[Callable[[bytes], BindImage]],
+                getattr(self, "_parse_bind_image_sf", None),
+            )
+            if parse_fn is not None:
+                bind_image = parse_fn(sf_data)
+            else:
+                # Graceful fallback so callers still receive a bind notification
+                bind_image = BindImage()
+
             if self.negotiator:
                 self.negotiator.handle_bind_image(bind_image)
             logger.debug(f"Handled BIND-IMAGE structured field: {bind_image}")
         except ParseError as e:
             logger.warning(f"_handle_bind_sf failed to parse BIND-IMAGE: {e}")
+        except Exception as e:
+            # Never let BIND-IMAGE handling crash the parser; log and continue
+            logger.warning(
+                f"_handle_bind_sf encountered unexpected error, using minimal BindImage: {e}",
+                exc_info=True,
+            )
+            try:
+                if self.negotiator:
+                    self.negotiator.handle_bind_image(BindImage())
+            except Exception:
+                logger.debug(
+                    "Negotiator.handle_bind_image raised; ignoring", exc_info=True
+                )
 
 
 def _handle_scs_data(self, data: bytes) -> None:
@@ -3352,7 +3480,7 @@ def _handle_scs_data(self, data: bytes) -> None:
                 f"SOH standard status 0x{status:02x} but no printer buffer available"
             )
 
-    def _parse_bind_image(self, data: bytes) -> BindImage:
+    def _parse_bind_image_sf(self, data: bytes) -> BindImage:
         """Parse BIND-IMAGE structured field with enhanced tolerance for malformed data."""
         logger.debug(f"Parsing BIND-IMAGE with {len(data)} bytes: {data.hex()}")
 
@@ -3610,7 +3738,7 @@ def _handle_scs_data(self, data: bytes) -> None:
         # Enhanced parsing for specific types
         if response_type == BIND_SF_TYPE and data_part:
             try:
-                bind_image = self._parse_bind_image(data_part)
+                bind_image = self._parse_bind_image_sf(data_part)
                 data_part = bind_image
                 logger.debug(f"Parsed SNA response as BIND-IMAGE reply: {bind_image}")
             except ParseError as e:
@@ -3776,6 +3904,26 @@ try:
         # Attach module-level parsing helpers as methods for backwards compatibility
         if not hasattr(DataStreamParser, "_handle_scs_data"):
             setattr(DataStreamParser, "_handle_scs_data", cast(Any, _handle_scs_data))
+        # Ensure BIND-IMAGE structured field parser is available as a method
+        # Some tests and code paths call self._parse_bind_image_sf(...), but the
+        # implementation lives at module scope. Attach it to the class for
+        # backwards/forwards compatibility so instances can access it.
+        if (
+            not hasattr(DataStreamParser, "_parse_bind_image_sf")
+            and "_parse_bind_image_sf" in globals()
+        ):
+            try:
+                setattr(
+                    DataStreamParser,
+                    "_parse_bind_image_sf",
+                    cast(Any, globals()["_parse_bind_image_sf"]),
+                )
+            except Exception:
+                # Defensive: never break import if dynamic attachment fails
+                logger.debug(
+                    "Failed to attach _parse_bind_image_sf to DataStreamParser",
+                    exc_info=True,
+                )
 except Exception:
     # Defensive: if something goes wrong during attachment, don't break import.
     logger.debug(

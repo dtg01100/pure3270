@@ -109,8 +109,27 @@ class Pure3270TraceProcessor:
             if len(data) >= 5 and data[0] <= 0x07:  # TN3270E data types
                 data_stream = data[5:]
 
-            # Parse the 3270 data stream
-            self.parser.parse(data_stream, data_type=0x00)  # TN3270_DATA
+            # Split by Telnet IAC EOR (0xFF 0xEF) to process each 3270 record separately
+            # This mirrors real TN3270(E) framing and prevents concatenating multiple
+            # writes into a single parse pass (which can inflate field counts).
+            segments: list[bytes] = []
+            if b"\xff\xef" in data_stream:
+                parts = data_stream.split(b"\xff\xef")
+                # All parts except the last are complete records; the last may be empty or partial
+                for p in parts[:-1]:
+                    if p:
+                        segments.append(p)
+                # If trailing segment has content (no EOR at end), include it too
+                if parts and parts[-1]:
+                    segments.append(parts[-1])
+            else:
+                segments = [data_stream]
+
+            # Parse each 3270 record independently
+            for seg in segments:
+                if not seg:
+                    continue
+                self.parser.parse(seg, data_type=0x00)  # TN3270_DATA
 
             # Ensure field detection runs after parsing
             if hasattr(self.screen_buffer, "_detect_fields"):
@@ -135,7 +154,7 @@ class Pure3270TraceProcessor:
 class TraceComparator:
     """Compare s3270 trace expectations with pure3270 behavior."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.differences: List[Dict[str, Any]] = []
 
     def compare_processing(
@@ -173,8 +192,20 @@ class TraceComparator:
 
         for event in events:
             if event.direction == "send":
-                # Skip pure telnet negotiations (IAC sequences)
+                # Handle Telnet negotiations (IAC sequences)
                 if event.data and event.data[0] == 0xFF:
+                    # Preserve IAC EOR (0xFF 0xEF) markers as record boundaries
+                    # while ignoring other Telnet negotiations that aren't part of the
+                    # 3270 data stream. If multiple EORs are present, include them all.
+                    chunk = event.data
+                    idx = 0
+                    while True:
+                        pos = chunk.find(b"\xff\xef", idx)
+                        if pos == -1:
+                            break
+                        accumulated_data.extend(b"\xff\xef")
+                        idx = pos + 2
+                    # Skip further processing for non-data Telnet bytes
                     continue
 
                 # Accumulate data
@@ -238,6 +269,10 @@ class TraceComparator:
             "screen_text": screen_text,
             "issues": issues,
             "pure3270_errors": pure_proc.errors,
+            # Provide an explicit field_count optimized for semantics: count input fields only
+            "field_count": sum(
+                1 for f in pure_proc.screen_buffer.fields if not f.protected
+            ),
         }
 
         return results
@@ -304,7 +339,7 @@ class TraceComparator:
 
         return issues
 
-    def print_summary(self, results: Dict[str, Any]):
+    def print_summary(self, results: Dict[str, Any]) -> None:
         """Print summary of comparison."""
         print(f"\n{'='*80}")
         print("COMPARISON SUMMARY")
@@ -338,7 +373,7 @@ class TraceComparator:
         print(f"{'='*80}\n")
 
 
-def main():
+def main() -> int:
     """Main comparison workflow."""
 
     # Get trace file from command line or use default

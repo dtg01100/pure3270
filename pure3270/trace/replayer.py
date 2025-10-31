@@ -5,6 +5,7 @@ Trace Replayer Module
 Provides functionality to replay 3270 trace files and extract screen buffer state.
 """
 
+import asyncio
 import logging
 import re
 from pathlib import Path
@@ -67,7 +68,18 @@ class Replayer:
                 logger.debug(
                     f"Processing record {idx + 1}/{len(records)} ({len(record)} bytes)"
                 )
-                self.parser.parse(record)
+                try:
+                    _res = self.parser.parse(record)
+                    if asyncio.iscoroutine(_res):
+                        try:
+                            loop = asyncio.get_running_loop()
+                        except RuntimeError:
+                            asyncio.run(_res)
+                        else:
+                            loop.create_task(_res)
+                except Exception as e:
+                    logger.warning(f"Failed to parse record {idx + 1}: {e}")
+                    continue
             except Exception as e:
                 logger.warning(f"Failed to parse record {idx + 1}: {e}")
                 continue

@@ -30,18 +30,19 @@ class TestNegotiatorEnhancements:
         assert negotiator.supported_device_types is not None
         assert "IBM-DYNAMIC" in negotiator.supported_device_types
 
-    def test_parse_tn3270e_subnegotiation_invalid_data(self, memory_limit_500mb):
+    @pytest.mark.asyncio
+    async def test_parse_tn3270e_subnegotiation_invalid_data(self, memory_limit_500mb):
         """Test parsing invalid TN3270E subnegotiation data."""
         parser = DataStreamParser(ScreenBuffer())
         screen_buffer = ScreenBuffer()
         negotiator = Negotiator(None, parser, screen_buffer)
 
         # Test with too short data
-        negotiator._parse_tn3270e_subnegotiation(b"\x01\x02")
+        await negotiator._parse_tn3270e_subnegotiation(b"\x01\x02")
         # Should not raise exception, just log warning
 
         # Test with invalid TN3270E option
-        negotiator._parse_tn3270e_subnegotiation(b"\x01\x02\x03")
+        await negotiator._parse_tn3270e_subnegotiation(b"\x01\x02\x03")
         # Should not raise exception, just log warning
 
     @pytest.mark.asyncio
@@ -85,14 +86,15 @@ class TestNegotiatorEnhancements:
         await negotiator._parse_tn3270e_subnegotiation(bytes([TELOPT_TN3270E, 0x02]))
         # Should not raise exception
 
-    def test_send_supported_device_types_no_writer(self, memory_limit_500mb):
+    @pytest.mark.asyncio
+    async def test_send_supported_device_types_no_writer(self, memory_limit_500mb):
         """Test sending device types with no writer."""
         parser = DataStreamParser(ScreenBuffer())
         screen_buffer = ScreenBuffer()
         negotiator = Negotiator(None, parser, screen_buffer)
 
         # Should log error but not raise exception
-        negotiator._send_supported_device_types()
+        await negotiator._send_supported_device_types()
 
     @pytest.mark.asyncio
     async def test_send_supported_functions_no_writer(self, memory_limit_500mb):

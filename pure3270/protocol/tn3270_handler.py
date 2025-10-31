@@ -2070,10 +2070,11 @@ class TN3270Handler:
                 # Await negotiator directly so exceptions propagate even if
                 # asyncio.wait_for is patched in tests. The negotiator itself
                 # should honor any provided timeout.
-                # Do not negotiate TN3270E to match trace
-                # await _call_maybe_await(
-                #     self.negotiator._negotiate_tn3270, timeout=timeout
-                # )
+                # Call the negotiator's negotiation implementation so any
+                # NegotiationError it raises will propagate up to the caller.
+                await _call_maybe_await(
+                    self.negotiator._negotiate_tn3270, timeout=timeout
+                )
                 # Ensure handler reflects ASCII fallback if negotiator switched modes
                 try:
                     if getattr(self.negotiator, "_ascii_mode", False):
@@ -2569,10 +2570,12 @@ class TN3270Handler:
                             except Exception:
                                 # Best-effort; continue even if toggling mode fails
                                 pass
-                        self.parser.parse(
+                        _res = self.parser.parse(
                             data_for_parser,
                             data_type=tn3270e_header.data_type,
                         )
+                        if asyncio.iscoroutine(_res):
+                            await _res
                     except ParseError as e:
                         logger.warning(
                             f"Failed to parse TN3270E data in ASCII mode: {e}"
@@ -2631,7 +2634,9 @@ class TN3270Handler:
                                 self.screen_buffer.set_ascii_mode(False)
                         except Exception:
                             pass
-                    self.parser.parse(processed_data, data_type=_TN3270_DATA_opt)
+                    _res = self.parser.parse(processed_data, data_type=_TN3270_DATA_opt)
+                    if asyncio.iscoroutine(_res):
+                        await _res
             except Exception as e:
                 logger.debug(f"ASCII fallback parse as TN3270 failed: {e}")
             return processed_data.rstrip(b"\x19")
@@ -2696,7 +2701,9 @@ class TN3270Handler:
                                 )
                         except Exception:
                             pass
-                        self.parser.parse(data_for_parser, data_type=data_type)
+                        _res = self.parser.parse(data_for_parser, data_type=data_type)
+                        if asyncio.iscoroutine(_res):
+                            await _res
                     except ParseError:
                         pass
                     if processed_data:
@@ -2731,7 +2738,9 @@ class TN3270Handler:
                                 )
                         except Exception:
                             pass
-                        self.parser.parse(data_for_parser, data_type=data_type)
+                        _res = self.parser.parse(data_for_parser, data_type=data_type)
+                        if asyncio.iscoroutine(_res):
+                            await _res
                     except ParseError:
                         pass
                     if processed_data:
@@ -2802,7 +2811,9 @@ class TN3270Handler:
                 if len(data_for_parser) <= 20 and data_type == 0x00:  # TN3270_DATA
                     logger.debug(f"  Parser input: {data_for_parser[:20].hex()}")
 
-                self.parser.parse(data_for_parser, data_type=data_type)
+                _res = self.parser.parse(data_for_parser, data_type=data_type)
+                if asyncio.iscoroutine(_res):
+                    await _res
             except ParseError as e:
                 logger.warning(f"Failed to parse received data: {e}")
             ret_payload = payload[header_len:]
@@ -3052,9 +3063,19 @@ class TN3270Handler:
         while offset < length:
             try:
                 if data_type is None:
-                    self.parser.parse(data[offset:])
+                    _res = self.parser.parse(data[offset:])
                 else:
-                    self.parser.parse(data[offset:], data_type=data_type)
+                    _res = self.parser.parse(data[offset:], data_type=data_type)
+                # If parser.parse returned a coroutine (async parser), run it.
+                if asyncio.iscoroutine(_res):
+                    try:
+                        loop = asyncio.get_running_loop()
+                    except RuntimeError:
+                        # No running loop; run synchronously
+                        asyncio.run(_res)
+                    else:
+                        # Running loop exists; schedule and continue (best-effort)
+                        loop.create_task(_res)
                 return
             except ParseError as e:
                 err = str(e)

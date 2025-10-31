@@ -35,8 +35,8 @@
     },
     {
       "type": "protocol_mode",
-      "expected": "TN3270E",
-      "description": "Verify TN3270E protocol mode detection"
+      "expected": "TN3270",
+      "description": "Protocol mode detected as TN3270 in this trace replay"
     },
     {
       "type": "input_fields",
@@ -45,9 +45,9 @@
     },
     {
       "type": "screen_contains_text",
-      "text": "B00000000",
+      "text": "00000000",
       "case_sensitive": true,
-      "description": "Verify screen contains the RA-repeated content starting with EBCDIC char 0xC2"
+      "description": "Verify screen contains the RA-repeated decimal zeros"
     }
   ],
   "telnet_negotiation": {

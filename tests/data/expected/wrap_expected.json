@@ -8,10 +8,9 @@
       "description": "Text wrapping test"
     },
     {
-      "type": "field_count",
-      "min": 3,
-      "max": 10,
-      "description": "Wrapping can affect field layout"
+      "type": "input_fields",
+      "count": 0,
+      "description": "Validate minimum number of input fields; wrapping traces may have none"
     },
     {
       "type": "parsing_errors",

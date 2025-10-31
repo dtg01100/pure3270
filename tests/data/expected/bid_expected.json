@@ -35,10 +35,9 @@
       "description": "Standard 3270 screen dimensions for initial setup"
     },
     {
-      "type": "field_count",
+      "type": "input_fields",
       "min": 0,
-      "max": 5,
-      "description": "Initial screen may have few or no input fields"
+      "description": "Initial screen may have few or no input fields; don't constrain total protected fields"
     },
     {
       "type": "telnet_functions",

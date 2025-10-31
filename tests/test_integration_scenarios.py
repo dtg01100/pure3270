@@ -65,7 +65,8 @@ class TestIntegrationScenarios:
             [0x11, 0x00, 0x0A]
         )  # SBA to position (0, 10) - 12-bit addressing
         text = b"HELLO WORLD"
-        full_data = sba_cmd + text
+        # Prepend WCC (Write Control Character) 0x00 so parser treats following bytes as orders
+        full_data = b"\x00" + sba_cmd + text
 
         parser.parse(full_data)
 
@@ -110,7 +111,8 @@ class TestIntegrationScenarios:
         assert tn3270e_supported
 
         # Simulate data parsing phase
-        test_data = b"\x11\x00\x00" + b"WELCOME TO TN3270"  # SBA to (0,0) + text
+        # Prepend WCC 0x00 so SBA is processed as an order rather than being interpreted as WCC
+        test_data = b"\x00\x11\x00\x00" + b"WELCOME TO TN3270"  # SBA to (0,0) + text
         parser.parse(test_data)
 
         # Verify the complete workflow worked
@@ -124,7 +126,8 @@ class TestIntegrationScenarios:
 
         # Test with malformed data that should be handled gracefully
         try:
-            parser.parse(b"\x28")  # Incomplete SBA command
+            # include WCC so the following byte is treated as an order
+            parser.parse(b"\x00\x28")  # Incomplete SBA command
         except Exception as e:
             # Should handle gracefully
             assert parser._pos <= 1  # Should not advance beyond input
@@ -143,7 +146,8 @@ class TestIntegrationScenarios:
         initial_parser_state = parser._pos
 
         # Perform operations
-        parser.parse(b"\x28\x00\x05" + b"TEST")  # SBA + text
+        # include WCC before SBA
+        parser.parse(b"\x00\x28\x00\x05" + b"TEST")  # SBA + text
 
         # Verify states are still consistent
         assert screen.rows == 24
