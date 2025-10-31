@@ -1,0 +1,566 @@
+{
+  "trace_file": "ibmlink.trc",
+  "description": "IBM Link trace with screen buffer validation",
+  "screen": {
+    "rows": 24,
+    "cols": 80,
+    "num_fields": 37,
+    "field_details": [
+      {
+        "index": 0,
+        "start": [
+          0,
+          0
+        ],
+        "end": [
+          0,
+          1
+        ],
+        "protected": true,
+        "content": "8L",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 1,
+        "start": [
+          0,
+          2
+        ],
+        "end": [
+          0,
+          2
+        ],
+        "protected": true,
+        "content": "P",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 2,
+        "start": [
+          0,
+          3
+        ],
+        "end": [
+          0,
+          3
+        ],
+        "protected": true,
+        "content": " ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 3,
+        "start": [
+          0,
+          4
+        ],
+        "end": [
+          0,
+          5
+        ],
+        "protected": true,
+        "content": "ke",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 4,
+        "start": [
+          0,
+          6
+        ],
+        "end": [
+          0,
+          6
+        ],
+        "protected": true,
+        "content": "y",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 5,
+        "start": [
+          0,
+          7
+        ],
+        "end": [
+          0,
+          11
+        ],
+        "protected": true,
+        "content": " (PF1",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 6,
+        "start": [
+          0,
+          12
+        ],
+        "end": [
+          0,
+          14
+        ],
+        "protected": true,
+        "content": ") f",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 7,
+        "start": [
+          0,
+          15
+        ],
+        "end": [
+          0,
+          16
+        ],
+        "protected": true,
+        "content": "or",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 8,
+        "start": [
+          0,
+          17
+        ],
+        "end": [
+          0,
+          20
+        ],
+        "protected": true,
+        "content": " ass",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 9,
+        "start": [
+          0,
+          21
+        ],
+        "end": [
+          0,
+          22
+        ],
+        "protected": true,
+        "content": "is",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 10,
+        "start": [
+          0,
+          23
+        ],
+        "end": [
+          0,
+          26
+        ],
+        "protected": true,
+        "content": "tanc",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 11,
+        "start": [
+          0,
+          27
+        ],
+        "end": [
+          0,
+          79
+        ],
+        "protected": true,
+        "content": "e.--IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 12,
+        "start": [
+          1,
+          0
+        ],
+        "end": [
+          1,
+          62
+        ],
+        "protected": true,
+        "content": "-SYSIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 13,
+        "start": [
+          1,
+          63
+        ],
+        "end": [
+          1,
+          68
+        ],
+        "protected": true,
+        "content": "-DATE:",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 14,
+        "start": [
+          1,
+          69
+        ],
+        "end": [
+          1,
+          79
+        ],
+        "protected": true,
+        "content": "-19/1IIIIII",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 15,
+        "start": [
+          2,
+          0
+        ],
+        "end": [
+          2,
+          7
+        ],
+        "protected": true,
+        "content": "0TERMID:",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 16,
+        "start": [
+          2,
+          8
+        ],
+        "end": [
+          2,
+          16
+        ],
+        "protected": true,
+        "content": "-IBM0TEQO",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 17,
+        "start": [
+          2,
+          17
+        ],
+        "end": [
+          2,
+          79
+        ],
+        "protected": true,
+        "content": "0IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 18,
+        "start": [
+          3,
+          0
+        ],
+        "end": [
+          3,
+          79
+        ],
+        "protected": true,
+        "content": "0CUSTOMEIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 19,
+        "start": [
+          4,
+          0
+        ],
+        "end": [
+          6,
+          29
+        ],
+        "protected": true,
+        "content": "0-------IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 20,
+        "start": [
+          6,
+          30
+        ],
+        "end": [
+          8,
+          17
+        ],
+        "protected": true,
+        "content": "YW E L C O M E   TIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 21,
+        "start": [
+          8,
+          18
+        ],
+        "end": [
+          9,
+          15
+        ],
+        "protected": true,
+        "content": "Y===     ===============  IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 22,
+        "start": [
+          9,
+          16
+        ],
+        "end": [
+          10,
+          14
+        ],
+        "protected": true,
+        "content": "Y=====IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 23,
+        "start": [
+          10,
+          15
+        ],
+        "end": [
+          12,
+          12
+        ],
+        "protected": true,
+        "content": "Y===   ===      IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIII",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 24,
+        "start": [
+          12,
+          13
+        ],
+        "end": [
+          13,
+          12
+        ],
+        "protected": true,
+        "content": "Y============IIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIIBM0TEQO\u009f\u00d5            ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 25,
+        "start": [
+          13,
+          13
+        ],
+        "end": [
+          14,
+          12
+        ],
+        "protected": true,
+        "content": "Y===       ===      ===                                                         ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 26,
+        "start": [
+          14,
+          13
+        ],
+        "end": [
+          15,
+          12
+        ],
+        "protected": true,
+        "content": "Y===                                                                            ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 27,
+        "start": [
+          15,
+          13
+        ],
+        "end": [
+          17,
+          18
+        ],
+        "protected": true,
+        "content": "Y===       ===                                                                                                                                                        ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 28,
+        "start": [
+          17,
+          19
+        ],
+        "end": [
+          17,
+          79
+        ],
+        "protected": true,
+        "content": "Y                                                            ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 29,
+        "start": [
+          18,
+          0
+        ],
+        "end": [
+          20,
+          59
+        ],
+        "protected": true,
+        "content": "YWARNING: Restricted                                                                                                                                                                                                        ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 30,
+        "start": [
+          20,
+          60
+        ],
+        "end": [
+          20,
+          79
+        ],
+        "protected": true,
+        "content": "0                   ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 31,
+        "start": [
+          21,
+          0
+        ],
+        "end": [
+          22,
+          79
+        ],
+        "protected": true,
+        "content": "0Enter desired p                                                                                                                                                ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 32,
+        "start": [
+          23,
+          0
+        ],
+        "end": [
+          23,
+          4
+        ],
+        "protected": true,
+        "content": "8===>",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 33,
+        "start": [
+          23,
+          5
+        ],
+        "end": [
+          23,
+          65
+        ],
+        "protected": true,
+        "content": "I                                                            ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 34,
+        "start": [
+          23,
+          66
+        ],
+        "end": [
+          23,
+          68
+        ],
+        "protected": true,
+        "content": "0  ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 35,
+        "start": [
+          23,
+          69
+        ],
+        "end": [
+          23,
+          77
+        ],
+        "protected": true,
+        "content": "A        ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 36,
+        "start": [
+          23,
+          78
+        ],
+        "end": [
+          23,
+          79
+        ],
+        "protected": true,
+        "content": "0 ",
+        "numeric": false,
+        "modified": false
+      }
+    ]
+  }
+}

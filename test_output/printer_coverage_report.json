@@ -5,9 +5,9 @@
     "total_eoj_markers": 4,
     "total_responses": 27,
     "scs_features": [
-      "end_of_medium",
       "form_feed",
-      "newline"
+      "newline",
+      "end_of_medium"
     ],
     "print_jobs": [
       {
@@ -18,9 +18,9 @@
         "line_count": 53,
         "has_eoj_marker": true,
         "scs_codes": [
-          "FF",
+          "NL",
           "EM",
-          "NL"
+          "FF"
         ],
         "sequence_numbers": [
           0
@@ -34,9 +34,9 @@
         "line_count": 53,
         "has_eoj_marker": true,
         "scs_codes": [
-          "FF",
+          "NL",
           "EM",
-          "NL"
+          "FF"
         ],
         "sequence_numbers": [
           0

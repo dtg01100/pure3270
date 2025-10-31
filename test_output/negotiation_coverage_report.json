@@ -1,13 +1,13 @@
 {
   "login_trace": {
     "telnet_options_count": 27,
-    "tn3270e_events_count": 1,
+    "tn3270e_events_count": 0,
     "device_types": [],
     "functions": []
   },
   "smoke_trace": {
     "telnet_options_count": 52,
-    "tn3270e_events_count": 8,
+    "tn3270e_events_count": 5,
     "device_types": [
       "IBM-3287-1"
     ],
@@ -18,6 +18,6 @@
       "SCS-CTL-CODES",
       "SYSREQ"
     ],
-    "bind_images": 3
+    "bind_images": 0
   }
 }

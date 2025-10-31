@@ -1013,13 +1013,21 @@ class ScreenBuffer(BufferWriter):
         """
         row, col = self.get_position()
         attr_map = {
-            0x41: "highlight",
-            0x42: "color",
-            0x43: "character_set",
-            0x44: "validation",
-            0x45: "outlining",  # XA_OUTLINING = 0x45 (RFC, some impls use background)
-            0xC1: "validation",  # XA_VALIDATION = 0xc1
-            0xC2: "outlining",  # XA_OUTLINING = 0xc2
+            0x00: "default",  # XA_DEFAULT - reset to default attributes
+            0x02: "background",  # XA_BACKGROUND - background color
+            0x03: "transparency",  # XA_TRANSPARENCY - transparency setting
+            0x08: "light_pen",  # XA_LIGHT_PEN - light pen selectable
+            0x41: "highlight",  # XA_HIGHLIGHT - highlighting effects
+            0x42: "color",  # XA_COLOR - foreground color
+            0x43: "character_set",  # XA_CHARSET - character set selection
+            0x44: "validation",  # XA_VALIDATION - input validation rules
+            0x45: "outlining",  # XA_OUTLINING - field outlining/borders
+            0x54: "extended_color",  # Extended color attribute
+            0x6D: "extended_highlight",  # Extended highlight attribute
+            0xC1: "validation",  # XA_VALIDATION (alternate encoding)
+            0xC2: "outlining",  # XA_OUTLINING (alternate encoding)
+            0xF1: "dbcs_charset",  # DBCS character set (host supplied)
+            0xFF: "all_attributes",  # XA_ALL - all attributes
         }
         key = attr_map.get(attr_type)
         if key:

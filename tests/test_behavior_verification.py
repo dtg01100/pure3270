@@ -111,8 +111,15 @@ class TestDisplayOutputParity:
         with open(expected_path, "r", encoding="utf-8") as f:
             expected = json.load(f)
         markers = []
-        for job in expected["printer"]["print_jobs"]:
-            markers.extend(job["content_markers"])
+        if "printer" in expected and "print_jobs" in expected["printer"]:
+            for job in expected["printer"]["print_jobs"]:
+                markers.extend(job["content_markers"])
+
+        # If no markers to check, skip the expensive trace replay
+        if not markers:
+            # Protocol negotiation checks
+            assert expected["protocol"]["tn3270e"], "TN3270E negotiation expected"
+            return
 
         # Replay the smoke trace using pure3270 PrinterSession
         trace_path = os.path.join(

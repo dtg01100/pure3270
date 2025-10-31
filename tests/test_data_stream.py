@@ -715,3 +715,29 @@ def test_parse_sample_write(data_stream_parser, sample_write_stream):
             assert sna_response.response_type == SNA_COMMAND_RESPONSE
             assert sna_response.sense_code == SNA_SENSE_CODE_SUCCESS
             assert sna_response.data == b""
+
+    def test_parse_rmf_marks_field_modified(self, data_stream_parser):
+        """Test that RMF operations mark the current field as modified."""
+        # Create a field at position (0, 0) with some content
+        from pure3270.emulation.screen_buffer import Field
+
+        test_field = Field(
+            start=(0, 0), end=(0, 4), content=b"TEST ", protected=False, modified=False
+        )
+        data_stream_parser.screen.fields.append(test_field)
+
+        # RMF order: 0x2C (RMF), repeat_count=1, attr_byte=0x40 (space)
+        rmf_data = b"\x2c\x01\x40"
+
+        # Parse the RMF order
+        data_stream_parser.parse(rmf_data)
+
+        # Verify the field was marked as modified
+        assert len(data_stream_parser.screen.fields) == 1
+        field = data_stream_parser.screen.fields[0]
+        assert field.modified, "RMF operation should mark the current field as modified"
+
+        # Verify the content was updated (space inserted)
+        assert (
+            field.content == b"TEST  "
+        ), "RMF should insert the attribute byte into field content"

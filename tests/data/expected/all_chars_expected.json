@@ -1,0 +1,191 @@
+{
+  "trace_file": "all_chars.trc",
+  "description": "All characters test trace",
+  "screen": {
+    "rows": 24,
+    "cols": 80,
+    "num_fields": 12,
+    "field_details": [
+      {
+        "index": 0,
+        "start": [
+          0,
+          0
+        ],
+        "end": [
+          0,
+          79
+        ],
+        "protected": true,
+        "content": "\u00d9\u00da\u009f\u009fWXYZ\u00b2\u00d4\u00d6\u00d2\u00d3\u00d5\u00d7;\u00ac\u00e8\u009f0                                                            ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 1,
+        "start": [
+          1,
+          0
+        ],
+        "end": [
+          2,
+          79
+        ],
+        "protected": true,
+        "content": "Y \u00a0\u00e2\u00e4\u00e0\u00e1\u00e3\u00e5\u00e7\u00f1\u00a2.<(+|                                                                                                                                               ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 2,
+        "start": [
+          3,
+          0
+        ],
+        "end": [
+          3,
+          79
+        ],
+        "protected": true,
+        "content": "Y-/\u00c2\u00c4\u00c0\u00c1\u00c3\u00c5\u00c7                                                                      ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 3,
+        "start": [
+          4,
+          0
+        ],
+        "end": [
+          6,
+          79
+        ],
+        "protected": true,
+        "content": "Y\u00f8\u00c9\u00ca\u00cb\u00c8\u00cd\u00ce\u00cf\u00cc`:#@'=\"                                                                                                                                                                                                                               ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 4,
+        "start": [
+          7,
+          0
+        ],
+        "end": [
+          7,
+          79
+        ],
+        "protected": true,
+        "content": "Y\u00b5~stuvwxyz\u00a1\u00bf\u00d0\u00dd\u00de\u00ae                                                               ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 5,
+        "start": [
+          8,
+          0
+        ],
+        "end": [
+          8,
+          79
+        ],
+        "protected": true,
+        "content": "Y                                                                               ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 6,
+        "start": [
+          9,
+          0
+        ],
+        "end": [
+          9,
+          79
+        ],
+        "protected": true,
+        "content": "Y{ABCDEFGHI\u00ad                                                                    ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 7,
+        "start": [
+          10,
+          0
+        ],
+        "end": [
+          10,
+          79
+        ],
+        "protected": true,
+        "content": "Y}JKLMNOPQR\u00b9\u00fb\u00fc\u00f9\u00fa\u00ff                                                               ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 8,
+        "start": [
+          11,
+          0
+        ],
+        "end": [
+          11,
+          79
+        ],
+        "protected": true,
+        "content": "Y\\                                                                              ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 9,
+        "start": [
+          12,
+          0
+        ],
+        "end": [
+          12,
+          79
+        ],
+        "protected": true,
+        "content": "Y0123456789\u00b3\u00db                                                                   ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 10,
+        "start": [
+          13,
+          0
+        ],
+        "end": [
+          13,
+          79
+        ],
+        "protected": true,
+        "content": "A                                                                               ",
+        "numeric": false,
+        "modified": false
+      },
+      {
+        "index": 11,
+        "start": [
+          14,
+          0
+        ],
+        "end": [
+          23,
+          79
+        ],
+        "protected": true,
+        "content": "-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               ",
+        "numeric": false,
+        "modified": false
+      }
+    ]
+  }
+}

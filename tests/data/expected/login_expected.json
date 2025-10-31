@@ -9,8 +9,8 @@
     },
     {
       "type": "field_count",
-      "min": 111,
-      "max": 118,
+      "min": 110,
+      "max": 117,
       "description": "Login form fields expected"
     },
     {

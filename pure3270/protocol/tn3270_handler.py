@@ -2692,15 +2692,6 @@ class TN3270Handler:
                         data_for_parser = processed_data[header_len:]
                         if data_for_parser.startswith(b"\xf5"):
                             data_for_parser = data_for_parser[1:]
-                        try:
-                            if data_for_parser and all(
-                                b == 0x40 for b in data_for_parser
-                            ):
-                                self.screen_buffer.buffer[:] = b"\x40" * len(
-                                    self.screen_buffer.buffer
-                                )
-                        except Exception:
-                            pass
                         _res = self.parser.parse(data_for_parser, data_type=data_type)
                         if asyncio.iscoroutine(_res):
                             await _res
@@ -2729,15 +2720,6 @@ class TN3270Handler:
                         data_for_parser = processed_data[header_len:]
                         if data_for_parser.startswith(b"\xf5"):
                             data_for_parser = data_for_parser[1:]
-                        try:
-                            if data_for_parser and all(
-                                b == 0x40 for b in data_for_parser
-                            ):
-                                self.screen_buffer.buffer[:] = b"\x40" * len(
-                                    self.screen_buffer.buffer
-                                )
-                        except Exception:
-                            pass
                         _res = self.parser.parse(data_for_parser, data_type=data_type)
                         if asyncio.iscoroutine(_res):
                             await _res
@@ -2796,13 +2778,10 @@ class TN3270Handler:
                         f"  Stripped WCC byte, remaining {len(data_for_parser)} bytes"
                     )
 
-                try:
-                    if data_for_parser and all(b == 0x40 for b in data_for_parser):
-                        self.screen_buffer.buffer[:] = b"\x40" * len(
-                            self.screen_buffer.buffer
-                        )
-                except Exception:
-                    pass
+                # Do not globally overwrite the screen buffer with spaces; let the
+                # parser handle space-only payloads according to current addressing
+                # and WCC. Overwriting causes loss of previously rendered content
+                # in some traces (e.g., login screens).
 
                 # Debug: Log what we're parsing
                 logger.debug(

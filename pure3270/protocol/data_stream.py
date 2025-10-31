@@ -2035,7 +2035,19 @@ class DataStreamParser:
             else:
                 current_col += 1
         self.screen.set_position(current_row, current_col)
-        # TODO: Mark current field as modified in screen_buffer
+
+        # Mark current field as modified in screen_buffer
+        # RMF operations modify field content, so mark the field as modified
+        field = self.screen.get_field_at_position(current_row, current_col)
+        if field is not None:
+            # Update the field in the fields list to mark it as modified
+            for idx, f in enumerate(self.screen.fields):
+                if f is field:
+                    self.screen.fields[idx] = field._replace(modified=True)
+                    logger.debug(
+                        f"Marked field at ({current_row}, {current_col}) as modified due to RMF operation"
+                    )
+                    break
 
     def _handle_eua(self) -> None:
 
@@ -2255,14 +2267,63 @@ class DataStreamParser:
         log_debug_operation(logger, f"Program tab [mode={self.addressing_mode.value}]")
 
     def _handle_scs(self) -> None:
+        """Handle SCS (SNA Character String) control codes.
 
+        SCS control codes are used in printer sessions to control formatting
+        and printer operations. Common codes include:
+        - 0x01 (SOH): Start of Header - printer status
+        - 0x09 (HT): Horizontal Tab
+        - 0x0A (LF): Line Feed
+        - 0x0C (FF): Form Feed
+        - 0x0D (CR): Carriage Return
+        - And others for printer control
+        """
         parser = self._ensure_parser()
-        if parser.has_more():
-            code = self._read_byte()
-            logger.debug(f"SCS control code: 0x{code:02x} - stub implementation")
-            # TODO: Implement SCS handling if needed
-        else:
+        if not parser.has_more():
             raise ParseError("Incomplete SCS order")
+
+        code = self._read_byte()
+        logger.debug(f"SCS control code: 0x{code:02x}")
+
+        # Dispatch to appropriate handler based on control code
+        if code == 0x01:  # SOH - Start of Header
+            if hasattr(self, "_handle_soh"):
+                self._handle_soh()
+            else:
+                logger.warning("SOH handler not available, skipping")
+        elif code == 0x09:  # HT - Horizontal Tab
+            if self.printer:
+                self.printer.write_scs_data(bytes([code]))
+        elif code == 0x0A:  # LF - Line Feed
+            if self.printer:
+                self.printer.write_scs_data(bytes([code]))
+        elif code == 0x0C:  # FF - Form Feed
+            if self.printer:
+                self.printer.write_scs_data(bytes([code]))
+        elif code == 0x0D:  # CR - Carriage Return
+            if self.printer:
+                self.printer.write_scs_data(bytes([code]))
+        elif code in (0x0B, 0x84):  # VT - Vertical Tab (multiple codes)
+            if self.printer:
+                self.printer.write_scs_data(bytes([code]))
+        elif code == 0x08:  # BS - Backspace
+            if self.printer:
+                self.printer.write_scs_data(bytes([code]))
+        elif code in (0x0E, 0x0F):  # SO/SI - Shift Out/In
+            if self.printer:
+                self.printer.write_scs_data(bytes([code]))
+        elif code == 0x07:  # BEL - Bell
+            # Bell is typically ignored in printer output
+            logger.debug("SCS BEL (bell) - ignored")
+        elif code == 0x05:  # ENQ - Enquiry
+            # Enquiry is typically ignored or handled by protocol layer
+            logger.debug("SCS ENQ (enquiry) - ignored")
+        elif code == 0x06:  # ACK - Acknowledge
+            # Acknowledge is typically handled by protocol layer
+            logger.debug("SCS ACK (acknowledge) - ignored")
+        else:
+            # Unknown SCS control code - log but don't fail
+            logger.warning(f"Unknown SCS control code: 0x{code:02x} - continuing")
 
     def _handle_write(self, clear: bool = True) -> None:
 

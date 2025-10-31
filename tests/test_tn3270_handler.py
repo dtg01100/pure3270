@@ -127,7 +127,7 @@ class TestTN3270Handler:
         # Update negotiator's writer as well
         tn3270_handler.negotiator.writer = tn3270_handler.writer
 
-        # Mock failure response - WONT TN3270E, then empty to stop the loop
+        # Mock responses: WONT TN3270E
         # Return WONT once, then empty bytes to signal end of negotiation data
         tn3270_handler.reader.read.side_effect = [
             b"\xff\xfc\x24",  # WONT TN3270E (0x24)
@@ -597,3 +597,563 @@ class TestTN3270Handler:
             mock_logger.debug.assert_called_with("Received IAC BRK")
             assert cleaned_data == b""
             assert not ascii_mode
+
+    # --- Additional tests for improved coverage ---
+
+    @pytest.mark.asyncio
+    async def test_send_sysreq_command_tn3270e_negotiated(self, tn3270_handler):
+        """Test SYSREQ command when TN3270E is negotiated."""
+        from pure3270.protocol.utils import TN3270E_SYSREQ_ATTN
+
+        tn3270_handler._connected = True
+        tn3270_handler.writer = AsyncMock()
+        tn3270_handler.writer.drain = AsyncMock()
+        tn3270_handler.negotiator.negotiated_functions = TN3270E_SYSREQ_ATTN
+
+        await tn3270_handler.send_sysreq_command(TN3270E_SYSREQ_ATTN)
+
+        # Should send TN3270E subnegotiation
+        tn3270_handler.writer.write.assert_called()
+        tn3270_handler.writer.drain.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_send_sysreq_command_fallback(self, tn3270_handler):
+        """Test SYSREQ command fallback when TN3270E not negotiated."""
+        from pure3270.protocol.utils import TN3270E_SYSREQ_ATTN
+
+        tn3270_handler._connected = True
+        tn3270_handler.writer = AsyncMock()
+        tn3270_handler.writer.drain = AsyncMock()
+        tn3270_handler.negotiator.negotiated_functions = 0  # No TN3270E functions
+
+        await tn3270_handler.send_sysreq_command(TN3270E_SYSREQ_ATTN)
+
+        # Should send IAC IP fallback
+        from pure3270.protocol.utils import IAC, IP
+
+        tn3270_handler.writer.write.assert_called_with(bytes([IAC, IP]))
+        tn3270_handler.writer.drain.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_send_sysreq_command_not_connected(self, tn3270_handler):
+        """Test SYSREQ command when not connected."""
+        from pure3270.protocol.utils import TN3270E_SYSREQ_ATTN
+
+        tn3270_handler._connected = False
+
+        with pytest.raises(ProtocolError, match="Not connected"):
+            await tn3270_handler.send_sysreq_command(TN3270E_SYSREQ_ATTN)
+
+    @pytest.mark.asyncio
+    async def test_send_sysreq_command_no_fallback(self, tn3270_handler):
+        """Test SYSREQ command with no fallback available."""
+        from pure3270.protocol.utils import TN3270E_SYSREQ_BREAK
+
+        tn3270_handler._connected = True
+        tn3270_handler.negotiator.negotiated_functions = 0  # No TN3270E functions
+
+        with pytest.raises(ProtocolError, match="SYSREQ function not negotiated"):
+            await tn3270_handler.send_sysreq_command(TN3270E_SYSREQ_BREAK)
+
+    @pytest.mark.asyncio
+    async def test_negotiate_addressing_mode(self, tn3270_handler):
+        """Test addressing mode negotiation."""
+        with (
+            patch.object(
+                tn3270_handler._addressing_negotiator, "get_client_capabilities_string"
+            ) as mock_caps,
+            patch.object(
+                tn3270_handler._addressing_negotiator, "parse_server_capabilities"
+            ) as mock_parse,
+            patch.object(
+                tn3270_handler._addressing_negotiator, "negotiate_mode"
+            ) as mock_negotiate,
+        ):
+
+            mock_caps.return_value = "test capabilities"
+            mock_negotiate.return_value = MagicMock(value="14-bit")
+
+            await tn3270_handler.negotiate_addressing_mode()
+
+            mock_caps.assert_called_once()
+            mock_parse.assert_called_once_with("test capabilities")
+            mock_negotiate.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_negotiate_addressing_mode_exception(self, tn3270_handler):
+        """Test addressing mode negotiation with exception."""
+        with patch.object(
+            tn3270_handler._addressing_negotiator, "get_client_capabilities_string"
+        ) as mock_caps:
+            mock_caps.side_effect = Exception("Test exception")
+
+            await tn3270_handler.negotiate_addressing_mode()
+
+            # Should fall back to 12-bit mode
+            assert (
+                tn3270_handler._addressing_negotiator._negotiated_mode.value == "12-bit"
+            )
+
+    @pytest.mark.asyncio
+    async def test_handle_bind_image(self, tn3270_handler):
+        """Test BIND-IMAGE handling."""
+        bind_data = b"\x00\x00\x00\x00\x01\x02\x03"
+
+        with (
+            patch(
+                "pure3270.protocol.tn3270_handler.BindImageParser.parse_addressing_mode"
+            ) as mock_parse,
+            patch.object(
+                tn3270_handler._addressing_negotiator, "update_from_bind_image"
+            ) as mock_update,
+        ):
+
+            mock_parse.return_value = MagicMock(value="14-bit")
+
+            await tn3270_handler.handle_bind_image(bind_data)
+
+            mock_parse.assert_called_once_with(bind_data)
+            mock_update.assert_called_once_with(bind_data)
+
+    @pytest.mark.asyncio
+    async def test_handle_bind_image_no_mode(self, tn3270_handler):
+        """Test BIND-IMAGE handling when no addressing mode detected."""
+        bind_data = b"\x00\x00\x00\x00\x01\x02\x03"
+
+        with patch(
+            "pure3270.protocol.tn3270_handler.BindImageParser.parse_addressing_mode"
+        ) as mock_parse:
+            mock_parse.return_value = None
+
+            await tn3270_handler.handle_bind_image(bind_data)
+
+            mock_parse.assert_called_once_with(bind_data)
+
+    @pytest.mark.asyncio
+    async def test_validate_addressing_mode_transition(self, tn3270_handler):
+        """Test addressing mode transition validation."""
+        from pure3270.emulation.addressing import AddressingMode
+
+        # Test with None from_mode (initial state)
+        result = await tn3270_handler.validate_addressing_mode_transition(
+            None, AddressingMode.MODE_14_BIT
+        )
+        assert result is True
+
+        # Test with valid transition
+        result = await tn3270_handler.validate_addressing_mode_transition(
+            AddressingMode.MODE_12_BIT, AddressingMode.MODE_14_BIT
+        )
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_transition_addressing_mode(self, tn3270_handler):
+        """Test addressing mode transition."""
+        from pure3270.emulation.addressing import AddressingMode
+
+        # Test successful transition
+        await tn3270_handler.transition_addressing_mode(AddressingMode.MODE_14_BIT)
+
+        assert (
+            tn3270_handler._addressing_negotiator._negotiated_mode
+            == AddressingMode.MODE_14_BIT
+        )
+
+    @pytest.mark.asyncio
+    async def test_transition_addressing_mode_invalid(self, tn3270_handler):
+        """Test invalid addressing mode transition."""
+        from pure3270.emulation.addressing import AddressingMode
+
+        # First set a current mode
+        await tn3270_handler.transition_addressing_mode(AddressingMode.MODE_12_BIT)
+
+        # Mock invalid transition from 12-bit to 14-bit
+        with patch.object(
+            tn3270_handler._addressing_negotiator, "validate_mode_transition"
+        ) as mock_validate:
+            mock_validate.return_value = False
+
+            with pytest.raises(ValueError, match="Invalid addressing mode transition"):
+                await tn3270_handler.transition_addressing_mode(
+                    AddressingMode.MODE_14_BIT
+                )
+
+    @pytest.mark.asyncio
+    async def test_get_addressing_negotiation_summary(self, tn3270_handler):
+        """Test getting addressing negotiation summary."""
+        with patch.object(
+            tn3270_handler._addressing_negotiator, "get_negotiation_summary"
+        ) as mock_summary:
+            mock_summary.return_value = {"test": "summary"}
+
+            result = tn3270_handler.get_addressing_negotiation_summary()
+
+            assert result == {"test": "summary"}
+
+    @pytest.mark.asyncio
+    async def test_sequence_number_management(self, tn3270_handler):
+        """Test sequence number management methods."""
+        # Test recording sequence number
+        tn3270_handler._record_sequence_number(123, "sent")
+        assert len(tn3270_handler._sequence_number_history) == 1
+
+        # Test wraparound detection
+        result = tn3270_handler._detect_sequence_wraparound(100, 65530)
+        assert result is True
+
+        # Test sequence validation
+        result = tn3270_handler._validate_sequence_number(124, 123)
+        assert result is True
+
+        # Test next sequence number
+        seq = tn3270_handler._get_next_sent_sequence_number()
+        assert seq == 1
+
+        # Test update received sequence
+        tn3270_handler._update_received_sequence_number(125)
+
+        # Test synchronization
+        tn3270_handler._synchronize_sequence_numbers(200)
+
+        # Test info retrieval
+        info = tn3270_handler.get_sequence_number_info()
+        assert "last_sent" in info
+
+        # Test window setting
+        tn3270_handler.set_sequence_window(1024)
+        assert tn3270_handler._sequence_number_window == 1024
+
+        # Test reset
+        tn3270_handler.reset_sequence_numbers()
+        assert tn3270_handler._last_sent_seq_number == 0
+
+    @pytest.mark.asyncio
+    async def test_negotiation_timeout_methods(self, tn3270_handler):
+        """Test negotiation timeout handling."""
+        # Test marking timeout
+        tn3270_handler._mark_negotiation_timeout()
+        assert tn3270_handler._is_negotiation_timeout() is True
+
+        # Test cleanup performed
+        tn3270_handler._mark_cleanup_performed()
+        assert tn3270_handler._is_cleanup_performed() is True
+
+        # Test deadline setting
+        tn3270_handler._set_negotiation_deadline(10.0)
+        assert tn3270_handler._negotiation_deadline > 0
+
+        # Test timeout check
+        result = tn3270_handler._has_negotiation_timed_out()
+        assert isinstance(result, bool)
+
+        # Test cleanup
+        await tn3270_handler._perform_timeout_cleanup()
+
+        # Test state reset
+        tn3270_handler._reset_negotiation_state()
+        assert tn3270_handler._negotiation_timeout_occurred is False
+
+        # Test status
+        status = tn3270_handler.get_negotiation_status()
+        assert "timeout_occurred" in status
+
+    @pytest.mark.asyncio
+    async def test_state_management(self, tn3270_handler):
+        """Test enhanced state management."""
+        from pure3270.protocol.tn3270_handler import HandlerState
+
+        # Test state transition recording
+        await tn3270_handler._record_state_transition(HandlerState.CONNECTED, "test")
+
+        # Test validation
+        result = tn3270_handler._validate_state_transition(
+            HandlerState.DISCONNECTED, HandlerState.CONNECTING
+        )
+        assert result is True
+
+        # Test invalid transition
+        result = tn3270_handler._validate_state_transition(
+            HandlerState.CONNECTED, HandlerState.DISCONNECTED
+        )
+        assert result is False
+
+        # Test state change
+        await tn3270_handler._change_state(HandlerState.CONNECTING, "test transition")
+        assert tn3270_handler._current_state == HandlerState.CONNECTING
+
+        # Test state consistency validation
+        await tn3270_handler._validate_state_consistency(
+            HandlerState.DISCONNECTED, HandlerState.CONNECTING
+        )
+
+        # Test state change handling
+        await tn3270_handler._handle_state_change(
+            HandlerState.DISCONNECTED, HandlerState.CONNECTING
+        )
+
+        # Test transition timeout
+        timeout = tn3270_handler._get_transition_timeout(
+            HandlerState.DISCONNECTED, HandlerState.CONNECTING
+        )
+        assert timeout > 0
+
+        # Test safe operation
+        async def test_func():
+            return "success"
+
+        result = await tn3270_handler._safe_state_operation("test", test_func)
+        assert result == "success"
+
+        # Test state snapshot
+        snapshot = tn3270_handler._create_state_snapshot()
+        assert "state" in snapshot
+
+        # Test atomic update
+        await tn3270_handler._update_state_atomically(
+            {"_current_state": HandlerState.CONNECTED}, "test"
+        )
+
+        # Test recovery
+        await tn3270_handler._attempt_state_recovery()
+
+        # Test recovery strategies
+        result = await tn3270_handler._recovery_reconnect()
+        assert isinstance(result, bool)
+
+        result = await tn3270_handler._recovery_renegotiate()
+        assert isinstance(result, bool)
+
+        result = await tn3270_handler._recovery_reset_mode()
+        assert isinstance(result, bool)
+
+        result = await tn3270_handler._recovery_full_reset()
+        assert isinstance(result, bool)
+
+        # Test recovery conditions
+        result = tn3270_handler._can_attempt_recovery()
+        assert isinstance(result, bool)
+
+        # Test failure cleanup
+        await tn3270_handler._cleanup_on_failure(Exception("test"))
+
+        # Test state info
+        info = await tn3270_handler._get_state_info_async()
+        assert "current_state" in info
+
+        # Test validation enable/disable
+        tn3270_handler.enable_state_validation(False)
+        assert tn3270_handler._state_validation_enabled is False
+
+        # Test history size setting
+        tn3270_handler.set_max_state_history(200)
+        assert tn3270_handler._max_state_history == 200
+
+    @pytest.mark.asyncio
+    async def test_event_signaling(self, tn3270_handler):
+        """Test event signaling methods."""
+        from pure3270.protocol.tn3270_handler import HandlerState
+
+        # Test callback addition
+        callback = MagicMock()
+        tn3270_handler.add_state_change_callback(HandlerState.CONNECTED, callback)
+
+        # Test callback removal
+        tn3270_handler.remove_state_change_callback(HandlerState.CONNECTED, callback)
+
+        # Test entry callback
+        entry_callback = MagicMock()
+        tn3270_handler.add_state_entry_callback(HandlerState.CONNECTED, entry_callback)
+
+        # Test exit callback
+        exit_callback = MagicMock()
+        tn3270_handler.add_state_exit_callback(HandlerState.CONNECTED, exit_callback)
+
+        # Test callback triggering
+        await tn3270_handler._trigger_state_change_callbacks(
+            HandlerState.DISCONNECTED, HandlerState.CONNECTED, "test"
+        )
+
+        # Test event waiting
+        event = tn3270_handler.wait_for_state(HandlerState.CONNECTED)
+        assert isinstance(event, asyncio.Event)
+
+        # Test event signaling enable/disable
+        tn3270_handler.enable_event_signaling(False)
+        assert tn3270_handler._event_signaling_enabled is False
+
+        # Test event retrieval
+        event = tn3270_handler.get_state_change_event(HandlerState.CONNECTED)
+        assert isinstance(event, asyncio.Event)
+
+        # Test state change signaling
+        await tn3270_handler._signal_state_change(
+            HandlerState.DISCONNECTED, HandlerState.CONNECTED, "test"
+        )
+
+    @pytest.mark.asyncio
+    async def test_timing_configuration(self, tn3270_handler):
+        """Test timing configuration methods."""
+        # Test timing profile configuration
+        tn3270_handler.configure_timing_profile("fast")
+
+        # Test timing metrics
+        metrics = tn3270_handler.get_timing_metrics()
+        assert isinstance(metrics, dict)
+
+        # Test current profile
+        profile = tn3270_handler.get_current_timing_profile()
+        assert isinstance(profile, str)
+
+        # Test monitoring enable/disable
+        tn3270_handler.enable_timing_monitoring(True)
+
+        # Test step delays
+        tn3270_handler.enable_step_delays(True)
+
+    @pytest.mark.asyncio
+    async def test_data_processing_edge_cases(self, tn3270_handler):
+        """Test data processing edge cases."""
+        # Test VT100 sequence detection
+        result = tn3270_handler._detect_vt100_sequences(b"\x1b[H")
+        assert result is True
+
+        result = tn3270_handler._detect_vt100_sequences(b"plain text")
+        assert result is False
+
+        # Test ANSI stripping
+        result = tn3270_handler._strip_ansi_sequences(b"\x1b[31mred\x1b[0m")
+        assert result == b"red"
+
+        # Test fixture header length
+        result = tn3270_handler._get_fixture_header_len(b"\x00\x00\x00\x00\xf5", 5)
+        assert result == 4
+
+        # Test resilient parsing
+        tn3270_handler._parse_resilient(b"test data")
+
+    @pytest.mark.asyncio
+    async def test_properties_and_setters(self, tn3270_handler):
+        """Test property getters and setters."""
+        # Test negotiated_tn3270e property
+        tn3270_handler.negotiated_tn3270e = True
+        assert tn3270_handler.negotiated_tn3270e is True
+
+        # Test lu_name property
+        tn3270_handler.lu_name = "TESTLU"
+        assert tn3270_handler.lu_name == "TESTLU"
+
+        # Test screen dimensions
+        assert tn3270_handler.screen_rows > 0
+        assert tn3270_handler.screen_cols > 0
+
+        # Test printer session
+        tn3270_handler.is_printer_session = True
+        assert tn3270_handler.is_printer_session is True
+
+        # Test printer status
+        status = tn3270_handler.printer_status
+        assert status is None or isinstance(status, int)
+
+        # Test sna session state
+        state = tn3270_handler.sna_session_state
+        assert isinstance(state, str)
+
+        # Test connected property
+        tn3270_handler.connected = True
+        assert tn3270_handler.connected is True
+
+    @pytest.mark.asyncio
+    async def test_error_scenarios(self, tn3270_handler):
+        """Test various error scenarios."""
+        # Test connection with invalid parameters
+        with pytest.raises(Exception):
+            await tn3270_handler.connect(host="", port=0)
+
+        # Test send_data with invalid data
+        tn3270_handler.writer = AsyncMock()
+        tn3270_handler.writer.drain = AsyncMock()
+        await tn3270_handler.send_data(b"")  # Should not raise
+
+        # Test receive_data timeout
+        tn3270_handler.reader = AsyncMock()
+        tn3270_handler.reader.read.side_effect = asyncio.TimeoutError()
+
+        with pytest.raises(asyncio.TimeoutError):
+            await tn3270_handler.receive_data(timeout=0.1)
+
+        # Test close with cleanup
+        await tn3270_handler.close()  # Should not raise even if not connected
+
+    @pytest.mark.asyncio
+    async def test_concurrent_access(self, tn3270_handler):
+        """Test concurrent access scenarios."""
+        import asyncio
+
+        # Test concurrent state changes - set up proper state first
+        tn3270_handler._connected = True
+        tn3270_handler.reader = AsyncMock()
+        tn3270_handler.writer = AsyncMock()
+
+        async def change_state(state, reason):
+            try:
+                await tn3270_handler._change_state(state, reason)
+            except Exception:
+                pass  # Expected for invalid transitions
+
+        from pure3270.protocol.tn3270_handler import HandlerState
+
+        tasks = [
+            change_state(HandlerState.CONNECTING, "test1"),
+            change_state(HandlerState.NEGOTIATING, "test2"),
+            change_state(HandlerState.CONNECTED, "test3"),
+        ]
+
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Test concurrent data operations
+        tn3270_handler.writer = AsyncMock()
+        tn3270_handler.writer.drain = AsyncMock()
+        tn3270_handler.reader = AsyncMock()
+        tn3270_handler.reader.read.return_value = b"test\xff\x19"
+
+        async def send_receive():
+            await tn3270_handler.send_data(b"test")
+            try:
+                await tn3270_handler.receive_data(timeout=0.1)
+            except Exception:
+                pass
+
+        tasks = [send_receive() for _ in range(5)]
+        await asyncio.gather(*tasks, return_exceptions=True)
+
+    @pytest.mark.asyncio
+    async def test_timeout_handling(self, tn3270_handler):
+        """Test timeout handling in various operations."""
+        # Test negotiation timeout
+        tn3270_handler._set_negotiation_deadline(0.1)
+        await asyncio.sleep(0.2)  # Wait for timeout
+
+        assert tn3270_handler._has_negotiation_timed_out() is True
+
+        # Test reader timeout
+        tn3270_handler.reader = AsyncMock()
+        tn3270_handler.reader.read.side_effect = asyncio.TimeoutError()
+
+        with pytest.raises(asyncio.TimeoutError):
+            await tn3270_handler.receive_data(timeout=0.1)
+
+        # Test connection timeout
+        with patch("asyncio.wait_for", side_effect=asyncio.TimeoutError()):
+            with pytest.raises(asyncio.TimeoutError):
+                await tn3270_handler.connect()
+
+    @pytest.mark.asyncio
+    async def test_mode_transitions(self, tn3270_handler):
+        """Test ASCII/TN3270 mode transitions."""
+        # Test set_ascii_mode
+        tn3270_handler.set_ascii_mode()
+        assert tn3270_handler._ascii_mode is True
+
+        # Test mode detection in processing
+        vt100_data = b"\x1b[Htest"
+        result = tn3270_handler._detect_vt100_sequences(vt100_data)
