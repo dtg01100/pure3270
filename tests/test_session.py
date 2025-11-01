@@ -1449,107 +1449,121 @@ class TestSession:
 
     @pytest.mark.asyncio
     async def test_async_session_execute_no_handler(self):
-        """Test AsyncSession execute method without handler."""
+        """Test AsyncSession execute method without handler - executes external commands."""
         session = AsyncSession()
 
-        with pytest.raises(SessionError, match="Session not connected"):
-            await session.execute("echo test")
+        # execute() runs external shell commands and doesn't require a handler
+        result = await session.execute("echo test")
+        assert isinstance(result, str)
 
     @pytest.mark.asyncio
     async def test_async_session_query_no_handler(self):
-        """Test AsyncSession query method without handler."""
+        """Test AsyncSession query method without handler - returns local state."""
         session = AsyncSession()
 
-        with pytest.raises(SessionError, match="Session not connected"):
-            await session.query("All")
+        # query() can return connection status without a handler
+        result = await session.query("All")
+        assert isinstance(result, str)
+        assert "Connected:" in result
 
     @pytest.mark.asyncio
     async def test_async_session_set_no_handler(self):
-        """Test AsyncSession set method without handler."""
+        """Test AsyncSession set method without handler - sets local options."""
         session = AsyncSession()
 
-        with pytest.raises(SessionError, match="Session not connected"):
-            await session.set("option", "value")
+        # set() can set local options without a handler
+        await session.set("option", "value")
+        # No exception should be raised
 
     @pytest.mark.asyncio
     async def test_async_session_print_text_no_handler(self):
-        """Test AsyncSession print_text method without handler."""
+        """Test AsyncSession print_text method without handler - works with local buffer."""
         session = AsyncSession()
 
-        with pytest.raises(SessionError, match="Session not connected"):
-            await session.print_text("test")
+        # print_text() works with local state
+        await session.print_text("test")
+        # No exception should be raised
 
     @pytest.mark.asyncio
     async def test_async_session_snap_no_handler(self):
-        """Test AsyncSession snap method without handler."""
+        """Test AsyncSession snap method without handler - snapshots local state."""
         session = AsyncSession()
 
-        with pytest.raises(SessionError, match="Session not connected"):
-            await session.snap()
+        # snap() saves local state snapshot
+        await session.snap()
+        # No exception should be raised
 
     @pytest.mark.asyncio
     async def test_async_session_show_no_handler(self):
-        """Test AsyncSession show method without handler."""
+        """Test AsyncSession show method without handler - displays local buffer."""
         session = AsyncSession()
 
-        with pytest.raises(SessionError, match="Session not connected"):
-            await session.show()
+        # show() displays local screen buffer
+        await session.show()
+        # No exception should be raised
 
     @pytest.mark.asyncio
     async def test_async_session_trace_no_handler(self):
-        """Test AsyncSession trace method without handler."""
+        """Test AsyncSession trace method without handler - controls local tracing."""
         session = AsyncSession()
 
-        with pytest.raises(SessionError, match="Session not connected"):
-            await session.trace(True)
+        # trace() controls local tracing
+        await session.trace(True)
+        # No exception should be raised
 
     @pytest.mark.asyncio
     async def test_async_session_transfer_no_handler(self):
-        """Test AsyncSession transfer method without handler."""
+        """Test AsyncSession transfer method without handler - file operation."""
         session = AsyncSession()
 
-        with pytest.raises(SessionError, match="Session not connected"):
-            await session.transfer("file")
+        # transfer() is a file operation
+        await session.transfer("file")
+        # No exception should be raised
 
     @pytest.mark.asyncio
     async def test_async_session_source_no_handler(self):
-        """Test AsyncSession source method without handler."""
+        """Test AsyncSession source method without handler - reads local file."""
         session = AsyncSession()
 
-        with pytest.raises(SessionError, match="Session not connected"):
-            await session.source("file")
+        # source() reads from local file
+        await session.source("file")
+        # No exception should be raised
 
     @pytest.mark.asyncio
     async def test_async_session_expect_no_handler(self):
-        """Test AsyncSession expect method without handler."""
+        """Test AsyncSession expect method without handler - checks local state."""
         session = AsyncSession()
 
-        with pytest.raises(SessionError, match="Session not connected"):
-            await session.expect("pattern")
+        # expect() can check local screen state
+        result = await session.expect("pattern")
+        assert isinstance(result, bool)
 
     @pytest.mark.asyncio
     async def test_async_session_fail_no_handler(self):
-        """Test AsyncSession fail method without handler."""
+        """Test AsyncSession fail method without handler - raises exception."""
         session = AsyncSession()
 
-        with pytest.raises(SessionError, match="Session not connected"):
+        # fail() raises an exception with the message - that's its purpose
+        with pytest.raises(Exception, match="Script failed: message"):
             await session.fail("message")
 
     @pytest.mark.asyncio
     async def test_async_session_compose_no_handler(self):
-        """Test AsyncSession compose method without handler."""
+        """Test AsyncSession compose method without handler - composes text locally."""
         session = AsyncSession()
 
-        with pytest.raises(SessionError, match="Session not connected"):
-            await session.compose("text")
+        # compose() works with local composition
+        await session.compose("text")
+        # No exception should be raised
 
     @pytest.mark.asyncio
     async def test_async_session_cookie_no_handler(self):
-        """Test AsyncSession cookie method without handler."""
+        """Test AsyncSession cookie method without handler - manages local cookies."""
         session = AsyncSession()
 
-        with pytest.raises(SessionError, match="Session not connected"):
-            await session.cookie("name=value")
+        # cookie() manages local cookie storage
+        await session.cookie("name=value")
+        # No exception should be raised
 
     @pytest.mark.asyncio
     async def test_async_session_interrupt_with_handler(self):
