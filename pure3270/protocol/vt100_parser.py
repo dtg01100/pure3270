@@ -398,41 +398,54 @@ class VT100Parser:
                 # Ignore bell character
                 pass
             else:
-                # Regular character - use safe buffer access
-                pos = self._safe_buffer_access(self.current_row, self.current_col)
-                if pos >= 0:
-                    try:
-                        # In ASCII mode, store ASCII characters directly without EBCDIC conversion
-                        if getattr(self.screen_buffer, "_ascii_mode", False):
-                            # ASCII mode: store ASCII bytes directly
-                            ascii_byte = ord(char) if isinstance(char, str) else char
-                            self.screen_buffer.buffer[pos] = ascii_byte
-                        else:
-                            # EBCDIC mode: convert ASCII to EBCDIC for storage in screen buffer
-                            try:
-                                # Try to use the existing EBCDIC translation utilities
-                                from ..emulation.ebcdic import translate_ascii_to_ebcdic
+                # Regular character - attempt to write to buffer
+                # Cursor should advance regardless of buffer write success
+                try:
+                    pos = self._safe_buffer_access(self.current_row, self.current_col)
+                    if pos >= 0:
+                        try:
+                            # In ASCII mode, store ASCII characters directly without EBCDIC conversion
+                            if getattr(self.screen_buffer, "_ascii_mode", False):
+                                # ASCII mode: store ASCII bytes directly
+                                ascii_byte = (
+                                    ord(char) if isinstance(char, str) else char
+                                )
+                                self.screen_buffer.buffer[pos] = ascii_byte
+                            else:
+                                # EBCDIC mode: convert ASCII to EBCDIC for storage in screen buffer
+                                try:
+                                    # Try to use the existing EBCDIC translation utilities
+                                    from ..emulation.ebcdic import (
+                                        translate_ascii_to_ebcdic,
+                                    )
 
-                                ebcdic_bytes = translate_ascii_to_ebcdic(char)
-                                if ebcdic_bytes:
-                                    ebcdic_byte = ebcdic_bytes[0]
-                                    self.screen_buffer.buffer[pos] = ebcdic_byte
-                                else:
-                                    # Fallback to space if conversion fails
+                                    ebcdic_bytes = translate_ascii_to_ebcdic(char)
+                                    if ebcdic_bytes:
+                                        ebcdic_byte = ebcdic_bytes[0]
+                                        self.screen_buffer.buffer[pos] = ebcdic_byte
+                                    else:
+                                        # Fallback to space if conversion fails
+                                        self.screen_buffer.buffer[pos] = (
+                                            0x40  # Space in EBCDIC
+                                        )
+                                except Exception as e:
+                                    logger.debug(
+                                        f"Error converting character '{char}' to EBCDIC: {e}"
+                                    )
+                                    # Store as space if conversion fails
                                     self.screen_buffer.buffer[pos] = (
                                         0x40  # Space in EBCDIC
                                     )
-                            except Exception as e:
-                                logger.debug(
-                                    f"Error converting character '{char}' to EBCDIC: {e}"
-                                )
-                                # Store as space if conversion fails
-                                self.screen_buffer.buffer[pos] = 0x40  # Space in EBCDIC
-                    except (AttributeError, IndexError, TypeError) as e:
-                        logger.warning(f"Error writing character to screen buffer: {e}")
-                        # Don't crash on buffer write errors
+                        except (AttributeError, IndexError, TypeError) as e:
+                            logger.warning(
+                                f"Error writing character to screen buffer: {e}"
+                            )
+                            # Don't crash on buffer write errors
+                except Exception as e:
+                    logger.error(f"Unexpected error accessing buffer: {e}")
+                    # Continue to advance cursor even if buffer access fails
 
-                # Move cursor
+                # Always move cursor for printable characters, even if buffer write failed
                 self.current_col += 1
                 if self.current_col >= self.screen_buffer.cols:
                     self.current_col = 0
