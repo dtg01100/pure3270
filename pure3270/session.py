@@ -1480,17 +1480,47 @@ class AsyncSession:
         self.circumvent_protection = not self.circumvent_protection
 
     async def script(self, commands: str) -> None:
-        """Execute script."""
+        """
+        Execute script command(s).
+
+        Supports both simple method names and function-style commands like:
+        - Simple: "connect", "disconnect"
+        - With args: "String(test)", "MoveCursor(5,10)"
+        """
         cmd = commands.strip()
         if not cmd:
             return
-        if hasattr(self, cmd):
-            method = getattr(self, cmd)
-            if callable(method):
-                res = method()
-                if asyncio.iscoroutine(res):
-                    await res
-                return
+
+        # Check if it's a function-style command like String(test)
+        if "(" in cmd and cmd.endswith(")"):
+            # Parse function-style command
+            func_name = cmd[: cmd.index("(")]
+            args_str = cmd[cmd.index("(") + 1 : -1]
+
+            # Convert function name to method name (String -> string)
+            method_name = func_name.lower()
+
+            if hasattr(self, method_name):
+                method = getattr(self, method_name)
+                if callable(method):
+                    # Parse comma-separated arguments
+                    if args_str:
+                        args = [arg.strip() for arg in args_str.split(",")]
+                        res = method(*args)
+                    else:
+                        res = method()
+                    if asyncio.iscoroutine(res):
+                        await res
+                    return
+        else:
+            # Simple method name
+            if hasattr(self, cmd):
+                method = getattr(self, cmd)
+                if callable(method):
+                    res = method()
+                    if asyncio.iscoroutine(res):
+                        await res
+                    return
         raise ValueError(f"Unsupported script command: {commands}")
 
     async def execute(self, command: str) -> str:
@@ -1512,11 +1542,22 @@ class AsyncSession:
 
     async def key(self, keyname: str) -> None:
         """Send key synchronously (s3270 Key() action)."""
-        # Send TN3270 key action with proper data stream for modified fields.
-        if not self._handler:
-            raise SessionError("Session not connected.")
+        # Handle local cursor movement keys first (no server communication needed)
+        # These keys work without a handler as they only modify local state
+        local_keys = [
+            "Tab",
+            "Home",
+            "BackTab",
+            "Newline",
+            "FieldMark",
+            "Up",
+            "Down",
+            "Left",
+            "Right",
+            "BackSpace",
+        ]
 
-        try:
+        if keyname in local_keys:
             # Handle local cursor movement keys (no server communication)
             if keyname == "Tab":
                 # Tab moves cursor to next input field
@@ -1592,6 +1633,11 @@ class AsyncSession:
                         self.screen_buffer.buffer[pos] = 0x40  # EBCDIC space
                 return
 
+        # For all other keys, we need a handler (require server communication)
+        if not self._handler:
+            raise SessionError("Session not connected.")
+
+        try:
             # Check if this is a standard AID-mapped key
             aid = self.AID_MAP.get(keyname)
             if aid is not None:
@@ -1988,13 +2034,15 @@ class AsyncSession:
         if not self._handler:
             raise SessionError("Cannot send SysReq: no handler.")
 
+        # Map command strings to 3270 AID codes
+        # These are the actual AID codes sent to the host
         mapping = {
-            "ATTN": TN3270E_SYSREQ_ATTN,
-            "BREAK": TN3270E_SYSREQ_BREAK,
-            "CANCEL": TN3270E_SYSREQ_CANCEL,
-            "RESTART": TN3270E_SYSREQ_RESTART,
-            "PRINT": TN3270E_SYSREQ_PRINT,
-            "LOGOFF": TN3270E_SYSREQ_LOGOFF,
+            "ATTN": 0xF1,  # Attention AID code
+            "BREAK": 0xF3,  # Break/SysReq code
+            "CANCEL": 0x6D,  # Clear key code
+            "RESTART": 0x7D,  # Enter key code (restart often uses Enter)
+            "PRINT": 0x7C,  # PA2 key code (print)
+            "LOGOFF": 0x7B,  # PA1 key code (logoff)
         }
 
         cmd = command.upper() if command else "ATTN"

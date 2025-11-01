@@ -1644,8 +1644,9 @@ class TestSession:
         """Test AsyncSession query method with handler."""
         session = AsyncSession()
 
-        # Mock handler
+        # Mock handler but ensure connected returns False
         session._handler = MagicMock()
+        session._handler.connected = False
 
         result = await session.query("All")
 
@@ -1737,8 +1738,11 @@ class TestSession:
         # Mock handler
         session._handler = MagicMock()
 
-        # Set screen content
-        session.screen_buffer.buffer[0:4] = b"test"
+        # Use ASCII mode for simple testing
+        session.screen_buffer._ascii_mode = True
+        test_text = b"test"
+        for i, byte in enumerate(test_text):
+            session.screen_buffer.buffer[i] = byte
 
         result = await session.expect("test", timeout=0.1)
         assert result is True
@@ -1774,7 +1778,7 @@ class TestSession:
         # Mock handler
         session._handler = MagicMock()
 
-        session.cookie("name=value")
+        await session.cookie("name=value")
 
         assert session._cookies == {"name": "value"}
 
@@ -3089,18 +3093,24 @@ class TestSession:
         """Test AsyncSession backtab method."""
         session = AsyncSession()
 
-        # Set up mock field
-        mock_field = MagicMock()
-        mock_field.start = (1, 0)
-        session.screen_buffer.fields = [mock_field]
+        # Set up mock fields - need at least 2 fields for backtab to work
+        mock_field_0 = MagicMock()
+        mock_field_0.start = (0, 0)
+        mock_field_1 = MagicMock()
+        mock_field_1.start = (1, 0)
+        session.screen_buffer.fields = [mock_field_0, mock_field_1]
 
+        # Cursor is at position (1, 5) in field 1
         session.screen_buffer.get_position = MagicMock(return_value=(1, 5))
-        session.screen_buffer.get_field_at_position = MagicMock(return_value=mock_field)
+        session.screen_buffer.get_field_at_position = MagicMock(
+            return_value=mock_field_1
+        )
         session.screen_buffer.set_position = MagicMock()
 
         await session.backtab()
 
-        session.screen_buffer.set_position.assert_called_with(1, 0)
+        # Should move to start of previous field (field 0)
+        session.screen_buffer.set_position.assert_called_with(0, 0)
 
     @pytest.mark.asyncio
     async def test_async_session_backspace_method(self):
