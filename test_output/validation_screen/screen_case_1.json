@@ -5,55 +5,29 @@
   "fields": [
     {
       "start": [
-        9,
-        47
+        18,
+        59
       ],
       "end": [
-        8,
-        53
-      ],
-      "protected": false,
-      "numeric": true,
-      "content": "6M814RBY"
-    },
-    {
-      "start": [
-        10,
-        33
-      ],
-      "end": [
-        12,
-        70
+        11,
+        52
       ],
       "protected": true,
       "numeric": true,
-      "content": "PQ9PTTA9"
+      "content": "E5VOMCF1"
     },
     {
       "start": [
-        8,
-        27
-      ],
-      "end": [
-        22,
-        53
-      ],
-      "protected": true,
-      "numeric": true,
-      "content": "FDK9BEW9"
-    },
-    {
-      "start": [
-        14,
-        63
+        7,
+        11
       ],
       "end": [
         4,
-        0
+        31
       ],
-      "protected": false,
+      "protected": true,
       "numeric": true,
-      "content": "VAIVGO5F"
+      "content": "RERBC5L1"
     }
   ]
 }
