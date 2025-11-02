@@ -133,6 +133,10 @@ s3270_*.py
 !tests/test_screen_buffer.py
 !tests/property/test_negotiation_properties.py
 
+# Allow specific tool scripts required by CI offline validation
+!tools/test_trace_replay.py
+!tools/screen_buffer_regression_test.py
+
 VT100_*.md
 CONNECTION_TEST_RESULTS.md
 TESTING_*.md
