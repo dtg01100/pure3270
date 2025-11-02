@@ -67,7 +67,7 @@ jobs:
 
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
             echo "Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
-            if PYTHONPATH="${PYTHONPATH}:$(pwd)" python -m pytest tests/test_trace_replay.py \
+            if python -m pytest tests/test_trace_replay.py \
                            --junitxml=test_output/pytest_results.xml \
                            --tb=short \
                            -x; then
