@@ -298,7 +298,7 @@ Use this short checklist whenever you change tests, add new checks, or adjust to
     - Local: `pytest tests/ -v -m "not integration"`
     - GA: same invocation in `ci.yml` and `quick-ci.yml`
 - Integration tests alignment:
-    - Local: `integration_test.py` via `run_full_ci.py` (skippable)
+    - Local: `examples/trace_integration_test.py` via `run_full_ci.py` (skippable)
     - GA: executed in `ci.yml` when present
 - Static analysis parity:
     - Tools: `mypy`, `pylint`, `flake8`, `bandit`

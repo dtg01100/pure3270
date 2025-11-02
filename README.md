@@ -574,15 +574,6 @@ class Session:
         :raises SessionError: If read fails.
         """
 
-    def execute_macro(self, macro: str, vars: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
-        """
-        Execute a macro (sync).
-
-        :param macro: Macro to execute.
-        :param vars: Variables for macro execution.
-        :return: Macro execution results.
-        """
-
     def close(self) -> None:
         """
         Close the session (sync).
@@ -660,15 +651,6 @@ class AsyncSession:
         :param timeout: Read timeout in seconds.
         :return: Data received from host.
         :raises SessionError: If read fails.
-        """
-
-    async def execute_macro(self, macro: str, vars: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
-        """
-        Execute a macro.
-
-        :param macro: Macro to execute.
-        :param vars: Variables for macro execution.
-        :return: Macro execution results.
         """
 
     async def close(self) -> None:
