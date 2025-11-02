@@ -615,6 +615,12 @@ async def main() -> int:
         default=None,
         help="Minimum average match percentage required to return zero (e.g., 95.0). If omitted, only failure count is considered.",
     )
+    parser.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        help="Exclude specific trace files (can be used multiple times, use glob patterns like 'ft_*.trc')",
+    )
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 
     args = parser.parse_args()
@@ -640,6 +646,23 @@ async def main() -> int:
     else:
         # Default: test all available traces
         trace_files = tester.get_available_traces()
+
+    # Apply exclusions
+    if args.exclude:
+        from fnmatch import fnmatch
+
+        excluded_patterns = args.exclude
+        original_count = len(trace_files)
+        trace_files = [
+            tf
+            for tf in trace_files
+            if not any(fnmatch(tf.name, pattern) for pattern in excluded_patterns)
+        ]
+        excluded_count = original_count - len(trace_files)
+        if excluded_count > 0:
+            print(
+                f"Excluded {excluded_count} traces matching patterns: {excluded_patterns}"
+            )
 
     # Validate trace files exist
     valid_traces = []
