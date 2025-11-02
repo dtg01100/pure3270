@@ -67,7 +67,7 @@ jobs:
 
           while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
             echo "Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
-            if python -m pytest tests/test_trace_replay.py \
+            if PYTHONPATH="${PYTHONPATH}:$(pwd)" python -m pytest tests/test_trace_replay.py \
                            --junitxml=test_output/pytest_results.xml \
                            --tb=short \
                            -x; then
@@ -96,7 +96,7 @@ jobs:
             output_file="test_output/$(basename "$trace_file" .trc)_trace_report.json"
             echo "▶️  Replaying $(basename "$trace_file") with expectations $(basename "$expected_file")"
             # Do not fail the job on mismatch; produce report for inspection
-            if python tools/enhanced_trace_replay.py "$trace_file" --expected "$expected_file" --json > "$output_file" 2>&1; then
+            if PYTHONPATH="${PYTHONPATH}:$(pwd)" python tools/enhanced_trace_replay.py "$trace_file" --expected "$expected_file" --json > "$output_file" 2>&1; then
               echo "✅ Trace replay successful for $(basename "$trace_file")"
             else
               echo "⚠️  Trace replay reported issues for $(basename "$trace_file"); see $output_file"
