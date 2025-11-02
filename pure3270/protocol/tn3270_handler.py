@@ -40,9 +40,18 @@
 # Last updated: 2025-10-12
 # =================================================================================
 
+"""
+TN3270 protocol handler for pure3270.
+Handles negotiation, data sending/receiving, and protocol specifics.
+"""
+
+import asyncio
+import contextlib
+import inspect
+import logging
 import ssl as std_ssl
 import time
-from typing import cast
+from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional, Tuple, cast
 
 from ..emulation.addressing import AddressingMode
 from ..emulation.printer_buffer import PrinterBuffer
@@ -80,17 +89,6 @@ from .utils import (
     send_subnegotiation,
 )
 from .vt100_parser import VT100Parser
-
-"""
-TN3270 protocol handler for pure3270.
-Handles negotiation, data sending/receiving, and protocol specifics.
-"""
-
-import asyncio
-import contextlib
-import inspect
-import logging
-from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -295,12 +293,12 @@ class TN3270Handler:
         # patch methods like .read and .drain without AttributeError.
         class _MockReader:
             async def read(
-                self, n: int = 4096
+                self, n: int = 4096  # noqa: ARG002
             ) -> bytes:  # pragma: no cover - test helper
                 return b""
 
             async def readexactly(
-                self, n: int
+                self, n: int  # noqa: ARG002
             ) -> bytes:  # pragma: no cover - test helper
                 return b""
 
@@ -308,7 +306,9 @@ class TN3270Handler:
                 return False
 
         class _MockWriter:
-            def write(self, data: bytes) -> None:  # pragma: no cover - test helper
+            def write(
+                self, data: bytes
+            ) -> None:  # pragma: no cover - test helper  # noqa: ARG002
                 return None
 
             async def drain(self) -> None:  # pragma: no cover - test helper
@@ -1771,7 +1771,9 @@ class TN3270Handler:
                 except Exception as e:
                     logger.error(f"[EVENT] State exit callback failed: {e}")
 
-    def wait_for_state(self, state: str, timeout: float = 30.0) -> asyncio.Event:
+    def wait_for_state(
+        self, state: str, timeout: float = 30.0
+    ) -> asyncio.Event:  # noqa: ARG002
         """Get an event that will be set when entering the specified state."""
         if state not in self._state_change_events:
             self._state_change_events[state] = asyncio.Event()
@@ -1805,7 +1807,7 @@ class TN3270Handler:
         self,
         host: Optional[str] = None,
         port: Optional[int] = None,
-        ssl_context: Optional[std_ssl.SSLContext] = None,
+        ssl_context: Optional[std_ssl.SSLContext] = None,  # noqa: ARG002
     ) -> None:
         """Connect the handler with enhanced state management and x3270 timing."""
         # Check if already connected
@@ -3300,7 +3302,7 @@ class TN3270Handler:
         # Convert to string for regex processing
         try:
             text = data.decode("ascii", errors="ignore")
-        except:
+        except (UnicodeDecodeError, AttributeError):
             return data
 
         # Strip ANSI escape sequences using regex

@@ -257,6 +257,7 @@ class Negotiator:
         )
         self.negotiated_functions: int = 0
         self.negotiated_response_mode: int = 0
+        self._functions: Optional[bytes] = None  # Raw functions data from negotiation
         # Bind image activity is derived from negotiated_functions bitmask
         self._next_seq_number: int = 0  # For outgoing SEQ-NUMBER
         self._pending_requests: Dict[int, Any] = (

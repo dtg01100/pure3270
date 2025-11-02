@@ -177,28 +177,28 @@ class _NullScreenBuffer:
     ) -> None:
         self.set_char(b, row=row, col=col, **kwargs)
 
-    def add_field(self, *args: Any, **kwargs: Any) -> None:
+    def add_field(self, *args: Any, **kwargs: Any) -> None:  # noqa: ARG002
         # no-op; parser may mark _field_starts directly
         return None
 
-    def set_attribute(self, *args: Any, **kwargs: Any) -> None:
+    def set_attribute(self, *args: Any, **kwargs: Any) -> None:  # noqa: ARG002
         return None
 
-    def snapshot(self, *args: Any, **kwargs: Any) -> None:
+    def snapshot(self, *args: Any, **kwargs: Any) -> None:  # noqa: ARG002
         return None
 
-    def restore_snapshot(self, *args: Any, **kwargs: Any) -> None:
+    def restore_snapshot(self, *args: Any, **kwargs: Any) -> None:  # noqa: ARG002
         return None
 
-    def clear(self, *args: Any, **kwargs: Any) -> None:
+    def clear(self, *args: Any, **kwargs: Any) -> None:  # noqa: ARG002
         # reset buffer and cursor
         self.buffer[:] = b" " * (self.rows * self.cols)
         self.set_position(0, 0)
 
-    def begin_bulk_update(self, *args: Any, **kwargs: Any) -> None:
+    def begin_bulk_update(self, *args: Any, **kwargs: Any) -> None:  # noqa: ARG002
         return None
 
-    def end_bulk_update(self, *args: Any, **kwargs: Any) -> None:
+    def end_bulk_update(self, *args: Any, **kwargs: Any) -> None:  # noqa: ARG002
         return None
 
 
