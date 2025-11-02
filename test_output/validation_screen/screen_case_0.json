@@ -5,55 +5,16 @@
   "fields": [
     {
       "start": [
-        7,
-        75
+        9,
+        14
       ],
       "end": [
-        4,
-        76
-      ],
-      "protected": true,
-      "numeric": false,
-      "content": "7X46AUJ0"
-    },
-    {
-      "start": [
         6,
-        28
-      ],
-      "end": [
-        5,
-        77
-      ],
-      "protected": true,
-      "numeric": false,
-      "content": "ZU3AVTDR"
-    },
-    {
-      "start": [
-        7,
         54
       ],
-      "end": [
-        15,
-        55
-      ],
       "protected": false,
-      "numeric": false,
-      "content": "AGZ783EU"
-    },
-    {
-      "start": [
-        6,
-        79
-      ],
-      "end": [
-        2,
-        36
-      ],
-      "protected": false,
-      "numeric": false,
-      "content": "E2FC6TUR"
+      "numeric": true,
+      "content": "5RMSJ9EK"
     }
   ]
 }
