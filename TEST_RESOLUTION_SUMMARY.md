@@ -3,6 +3,8 @@
 ## Overview
 Successfully resolved the majority of failing tests in `tests/test_session.py`, improving the pass rate from **84% to 95%**.
 
+> Note: Macro DSL support (e.g., public `execute_macro`, `load_macro`, `MacroError`) was permanently removed and is enforced by `tools/forbid_macros.py`. Any occurrences of "execute_macro" in test names refer to the internal script-command executor used for s3270-style command parsing and do not represent a public macro API.
+
 ## Progress Metrics
 - **Initial State**: 206 passed, ~37 failed (84% pass rate)
 - **Final State**: 218 passed, 12 failed (95% pass rate)

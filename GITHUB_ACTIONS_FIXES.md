@@ -28,6 +28,9 @@ These tests were expecting `SessionError` but the methods work without a handler
 
 ## Remaining Failures (24 tests)
 
+> Note: The macro DSL was permanently removed and is blocked by CI (`tools/forbid_macros.py`).
+> Any test names referencing "execute_macro" reflect the internal script-command executor (historical naming) and do not imply a public macro API.
+
 ### Cursor Movement Tests
 - `test_async_session_key_method_cursor_movement`
 - `test_async_session_key_method_basic_cursor_keys`
