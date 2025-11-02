@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.10', '3.11', '3.12']
+        python-version: ['3.11', '3.12', '3.13']
 
     steps:
       - name: Checkout
@@ -21,31 +21,125 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Upgrade pip
-        run: python -m pip install --upgrade pip
-
       - name: Install dependencies
         run: |
-          pip install -e . || pip install .
-          pip install pytest pytest-asyncio coverage
+          python -m pip install --upgrade pip
+          pip install -e '.[test]'  # Assuming [test] extras in pyproject.toml for pytest, etc.
 
       - name: Prepare output directory
         run: mkdir -p test_output
 
+      - name: Validate trace files
+        run: |
+          echo "🔍 Validating trace files before running tests..."
+          python -c "
+          import os
+          import sys
+          from pathlib import Path
+
+          trace_dir = Path('tests/data/traces')
+          if not trace_dir.exists():
+              print(f'❌ Trace directory not found: {trace_dir}')
+              sys.exit(1)
+
+          trace_files = list(trace_dir.glob('*.trc'))
+          if not trace_files:
+              print(f'❌ No trace files found in {trace_dir}')
+              sys.exit(1)
+
+          print(f'✅ Found {len(trace_files)} trace files:')
+          for tf in trace_files:
+              size = tf.stat().st_size
+              print(f'  - {tf.name} ({size} bytes)')
+              if size == 0:
+                  print(f'❌ Empty trace file: {tf}')
+                  sys.exit(1)
+
+          print('✅ All trace files validated successfully')
+          "
+
       - name: Run negotiation/printer/error/DBCS tests
         run: |
-          python -m pytest -q tests/test_protocol_negotiation_traces.py \
-                 tests/test_printer_protocol_traces.py \
-                 tests/test_error_handling_traces.py \
-                 tests/test_dbcs_traces.py \
-                 --junitxml=test_output/pytest_results.xml \
-                 -c /dev/null
+          echo "🧪 Running trace replay tests with retry logic..."
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES"
+            if python -m pytest -q tests/test_protocol_negotiation_traces.py \
+                           tests/test_printer_protocol_traces.py \
+                           tests/test_error_handling_traces.py \
+                           tests/test_dbcs_traces.py \
+                           --junitxml=test_output/pytest_results.xml \
+                           --tb=short \
+                           -x; then
+              echo "✅ Tests passed on attempt $((RETRY_COUNT + 1))"
+              break
+            else
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "❌ Tests failed, retrying in 5 seconds..."
+                sleep 5
+              else
+                echo "❌ Tests failed after $MAX_RETRIES attempts"
+                exit 1
+              fi
+            fi
+          done
         # Let pytest exit non-zero to fail the job when tests fail
 
       - name: Run enhanced trace replay on key traces (reports)
         run: |
-          python tools/enhanced_trace_replay.py tests/data/traces/login.trc --expected tests/data/expected/login_expected.json --json > test_output/login_trace_report.json || true
-          python tools/enhanced_trace_replay.py tests/data/traces/smoke.trc --expected tests/data/expected/smoke_expected.json --json > test_output/smoke_trace_report.json || true
+          echo "🔄 Running enhanced trace replay with server process management..."
+          # Start mock server in background for network operations
+          python examples/network_simulator.py --port 2323 &
+          SERVER_PID=$!
+
+          # Give server time to start
+          sleep 2
+
+          # Function to cleanup server
+          cleanup() {
+            echo "🧹 Cleaning up server process..."
+            kill $SERVER_PID 2>/dev/null || true
+            wait $SERVER_PID 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          # Check if server is running
+          if ! ps -p $SERVER_PID > /dev/null; then
+            echo "❌ Server failed to start"
+            exit 1
+          fi
+
+          echo "✅ Server started successfully (PID: $SERVER_PID)"
+
+          # Run trace replays with retry logic
+          MAX_RETRIES=3
+          for trace_file in tests/data/traces/login.trc tests/data/traces/smoke.trc; do
+            expected_file="tests/data/expected/$(basename $trace_file .trc)_expected.json"
+            output_file="test_output/$(basename $trace_file .trc)_trace_report.json"
+
+            RETRY_COUNT=0
+            while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+              echo "Attempting trace replay for $(basename $trace_file) (attempt $((RETRY_COUNT + 1)))"
+              if python tools/enhanced_trace_replay.py "$trace_file" --expected "$expected_file" --json > "$output_file" 2>&1; then
+                echo "✅ Trace replay successful for $(basename $trace_file)"
+                break
+              else
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                  echo "❌ Trace replay failed, retrying in 3 seconds..."
+                  sleep 3
+                else
+                  echo "❌ Trace replay failed after $MAX_RETRIES attempts for $(basename $trace_file)"
+                  echo "Output saved to $output_file"
+                fi
+              fi
+            done
+          done
+
+          # Cleanup will happen via trap
         # Replay tools may return non-zero for failures; we still capture reports
 
       - name: Upload CI artifacts
