@@ -17,9 +17,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: 'pip'
 
       - name: Install dependencies
         run: |
@@ -87,57 +88,21 @@ jobs:
 
       - name: Run enhanced trace replay on key traces (reports)
         run: |
-          echo "🔄 Running enhanced trace replay with server process management..."
-          # Start mock server in background for network operations
-          python examples/network_simulator.py --port 2323 &
-          SERVER_PID=$!
-
-          # Give server time to start
-          sleep 2
-
-          # Function to cleanup server
-          cleanup() {
-            echo "🧹 Cleaning up server process..."
-            kill $SERVER_PID 2>/dev/null || true
-            wait $SERVER_PID 2>/dev/null || true
-          }
-          trap cleanup EXIT
-
-          # Check if server is running
-          if ! ps -p $SERVER_PID > /dev/null; then
-            echo "❌ Server failed to start"
-            exit 1
-          fi
-
-          echo "✅ Server started successfully (PID: $SERVER_PID)"
-
-          # Run trace replays with retry logic
-          MAX_RETRIES=3
+          echo "🔄 Running enhanced trace replay and generating JSON reports..."
+          mkdir -p test_output
+          set -e
           for trace_file in tests/data/traces/login.trc tests/data/traces/smoke.trc; do
-            expected_file="tests/data/expected/$(basename $trace_file .trc)_expected.json"
-            output_file="test_output/$(basename $trace_file .trc)_trace_report.json"
-
-            RETRY_COUNT=0
-            while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-              echo "Attempting trace replay for $(basename $trace_file) (attempt $((RETRY_COUNT + 1)))"
-              if python tools/enhanced_trace_replay.py "$trace_file" --expected "$expected_file" --json > "$output_file" 2>&1; then
-                echo "✅ Trace replay successful for $(basename $trace_file)"
-                break
-              else
-                RETRY_COUNT=$((RETRY_COUNT + 1))
-                if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                  echo "❌ Trace replay failed, retrying in 3 seconds..."
-                  sleep 3
-                else
-                  echo "❌ Trace replay failed after $MAX_RETRIES attempts for $(basename $trace_file)"
-                  echo "Output saved to $output_file"
-                fi
-              fi
-            done
+            expected_file="tests/data/expected/$(basename "$trace_file" .trc)_expected.json"
+            output_file="test_output/$(basename "$trace_file" .trc)_trace_report.json"
+            echo "▶️  Replaying $(basename "$trace_file") with expectations $(basename "$expected_file")"
+            # Do not fail the job on mismatch; produce report for inspection
+            if python tools/enhanced_trace_replay.py "$trace_file" --expected "$expected_file" --json > "$output_file" 2>&1; then
+              echo "✅ Trace replay successful for $(basename "$trace_file")"
+            else
+              echo "⚠️  Trace replay reported issues for $(basename "$trace_file"); see $output_file"
+            fi
           done
-
-          # Cleanup will happen via trap
-        # Replay tools may return non-zero for failures; we still capture reports
+          set +e
 
       - name: Upload CI artifacts
         if: always()
