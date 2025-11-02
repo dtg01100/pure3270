@@ -38,7 +38,8 @@ jobs:
                  tests/test_printer_protocol_traces.py \
                  tests/test_error_handling_traces.py \
                  tests/test_dbcs_traces.py \
-                 --junitxml=test_output/pytest_results.xml
+                 --junitxml=test_output/pytest_results.xml \
+                 -c /dev/null
         # Let pytest exit non-zero to fail the job when tests fail
 
       - name: Run enhanced trace replay on key traces (reports)
