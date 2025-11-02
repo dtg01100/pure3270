@@ -186,7 +186,7 @@ def main() -> int:
         "tests/data/traces/target.trc",
         "tests/data/traces/login.trc",
         "tests/data/traces/apl.trc",
-        "tests/data/traces/empty.trc",
+        "tests/data/traces/empty-user.trc",
     ]
 
     trace_tests_passed = 0
