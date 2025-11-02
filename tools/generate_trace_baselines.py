@@ -129,8 +129,14 @@ def main() -> int:
     import argparse
 
     parser = argparse.ArgumentParser(description="Generate trace baselines")
-    parser.add_argument(
-        "trace_files", nargs="+", type=Path, help="Trace files to process"
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument(
+        "trace_files", nargs="*", type=Path, help="Trace files to process"
+    )
+    group.add_argument(
+        "--all",
+        action="store_true",
+        help="Process all traces under tests/data/traces (skips existing baselines)",
     )
     parser.add_argument(
         "--output-dir",
@@ -144,10 +150,33 @@ def main() -> int:
     # Create output directory
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
+    # Build list of traces to process
+    traces: list[Path] = []
+    traces_dir = Path("tests/data/traces")
+    if args.all:
+        traces = sorted(traces_dir.glob("*.trc"))
+    else:
+        traces = list(args.trace_files or [])
+
     # Process each trace
-    for trace_file in args.trace_files:
+    for trace_file in traces:
         if not trace_file.exists():
-            print(f"Warning: {trace_file} not found, skipping")
+            # If using --all, the paths are relative to traces_dir
+            if args.all:
+                candidate = traces_dir / trace_file
+                if candidate.exists():
+                    trace_file = candidate
+                else:
+                    print(f"Warning: {trace_file} not found, skipping")
+                    continue
+            else:
+                print(f"Warning: {trace_file} not found, skipping")
+            continue
+
+        # Skip if baseline already exists
+        output_file = args.output_dir / f"{trace_file.stem}.json"
+        if output_file.exists():
+            print(f"Skipping {trace_file.name} (baseline exists)")
             continue
 
         try:

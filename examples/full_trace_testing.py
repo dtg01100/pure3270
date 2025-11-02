@@ -201,9 +201,8 @@ class TraceTester:
                 screen_lines, expected_screen
             )
 
-            success = (
-                len(errors) == 0 and match_percentage >= 95.0
-            )  # 95% match threshold
+            # Strict success criterion: exact match required
+            success = len(errors) == 0 and match_percentage == 100.0
 
         except Exception as e:
             errors.append(f"Test failed: {str(e)}")
