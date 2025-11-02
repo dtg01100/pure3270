@@ -90,7 +90,7 @@ class TestSession:
         # Mock the Session's send method to avoid connection errors
         original_send = session.send
 
-        def mock_send(data):
+        def mock_send(data):  # noqa: ARG001
             pass  # Do nothing
 
         session.send = mock_send
@@ -99,7 +99,7 @@ class TestSession:
         for _ in range(1000):
             try:
                 session.send(b"test data")
-            except:
+            except Exception:  # Catch specific exception types
                 pass  # Ignore connection errors
         end = time.time()
 
@@ -564,7 +564,7 @@ class TestSession:
             await session.connect()
 
     @pytest.mark.asyncio
-    async def test_async_session_send_not_connected(self):
+    async def test_async_session_send_not_connected_raises_error(self):
         """Test AsyncSession send when not connected."""
         session = AsyncSession()
 
@@ -3128,8 +3128,8 @@ class TestSession:
             mock_key.assert_called_once_with("BackSpace")
 
     @pytest.mark.asyncio
-    async def test_async_session_clear_method(self):
-        """Test AsyncSession clear method."""
+    async def test_async_session_clear_method_with_buffer(self):
+        """Test AsyncSession clear method with buffer clearing."""
         session = AsyncSession()
 
         session.screen_buffer.clear = MagicMock()
@@ -3139,7 +3139,7 @@ class TestSession:
         session.screen_buffer.clear.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_async_session_erase_method(self):
+    async def test_async_session_erase_method_alias(self):
         """Test AsyncSession erase method (alias for clear)."""
         session = AsyncSession()
 

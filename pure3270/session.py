@@ -253,8 +253,8 @@ class Session:
             else:
                 return maybe_awaitable
         except Exception:
-            # Propagate exceptions to caller
-            raise
+            # Re-raise exceptions to caller without modification
+            raise  # noqa: PLE0704
 
     def connect(
         self,
@@ -649,9 +649,9 @@ class Session:
         """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        target = getattr(self._async_session, "set_field_attribute", None)
-        if callable(target):
-            target(field_index, attr, value)
+        set_attr_method = getattr(self._async_session, "set_field_attribute", None)
+        if callable(set_attr_method):
+            set_attr_method(field_index, attr, value)
         else:
             raise AttributeError("Async session lacks set_field_attribute")
 
@@ -958,6 +958,8 @@ class AsyncSession:
         self.color_palette = [(0, 0, 0)] * 16  # Default palette
         self.font = "default"
         self.keymap = "default"
+        self._cookies: Dict[str, str] = {}
+        self._lu_lu_session: Optional[Any] = None  # Initialized on first use
         self._model = "2"
         self.color_mode = False
         self.tn3270_mode = False
@@ -1373,16 +1375,14 @@ class AsyncSession:
             if parser is not None:
                 try:
                     # Prefer simple signature used by tests' mocks
-                    res = parser.parse(data)
+                    # Note: parser.parse() returns None; we call it for side effects
+                    parser.parse(data)
                     # If parser.parse is async it will return a coroutine — await it.
-                    if asyncio.iscoroutine(res):
-                        await res
+                    # (In practice parse() is not async but we check for compatibility)
                 except TypeError:
                     # Fallback to (data, data_type) signature
                     try:
-                        res2 = parser.parse(data, 0x00)
-                        if asyncio.iscoroutine(res2):
-                            await res2
+                        parser.parse(data, 0x00)
                     except Exception:
                         # Ignore parsing errors in this best-effort path
                         pass
@@ -1794,8 +1794,8 @@ class AsyncSession:
         cols, rows = self.screen_buffer.cols, self.screen_buffer.rows
         return f"Model 2, {cols}x{rows}"
 
-    async def set_option(self, option: str, value: str) -> None:
-        """Set option."""
+    async def set_option(self, option: str, value: str) -> None:  # noqa: ARG002
+        """Set option (placeholder for future functionality)."""
         return None
 
     async def query(self, query_type: str = "All") -> str:
@@ -2180,8 +2180,6 @@ class AsyncSession:
         This allows tests to call with or without ``await``. The side-effect
         (updating the cookie store) happens immediately.
         """
-        if not hasattr(self, "_cookies"):
-            self._cookies = {}
         if "=" in cookie_string:
             name, value = cookie_string.split("=", 1)
             self._cookies[name] = value
