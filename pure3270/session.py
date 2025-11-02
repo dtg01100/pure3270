@@ -243,8 +243,15 @@ class Session:
         assert self._loop is not None
         try:
             # Submit coroutine to the worker loop and wait for the result
-            fut = asyncio.run_coroutine_threadsafe(maybe_awaitable, self._loop)
-            return fut.result()
+            import concurrent.futures
+
+            if asyncio.iscoroutine(maybe_awaitable):
+                fut: "concurrent.futures.Future[Any]" = (
+                    asyncio.run_coroutine_threadsafe(maybe_awaitable, self._loop)
+                )
+                return fut.result()
+            else:
+                return maybe_awaitable
         except Exception:
             # Propagate exceptions to caller
             raise
@@ -312,7 +319,10 @@ class Session:
             SessionError: If read fails.
         """
         assert self._async_session is not None  # Ensured by decorator
-        return self._run_async(self._async_session.read(timeout))
+        result = self._run_async(self._async_session.read(timeout))
+        if not isinstance(result, bytes):
+            return b""
+        return result
 
     def get_aid(self) -> Optional[int]:
         """Get AID synchronously (last known AID value)."""
@@ -542,13 +552,19 @@ class Session:
         """Get session information synchronously."""
         if not self._async_session:
             return "pure3270 session: not initialized"
-        return self._run_async(self._async_session.info())
+        result = self._run_async(self._async_session.info())
+        if not isinstance(result, str):
+            return "pure3270 session: info unavailable"
+        return result
 
     def query(self, query_type: str = "All") -> str:
         """Query session information synchronously."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        return self._run_async(self._async_session.query(query_type))
+        result = self._run_async(self._async_session.query(query_type))
+        if not isinstance(result, str):
+            return ""
+        return result
 
     def set(self, option: str, value: str) -> None:
         """Set option synchronously."""
@@ -608,7 +624,10 @@ class Session:
         """Expect pattern synchronously."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        return self._run_async(self._async_session.expect(pattern, timeout))
+        result = self._run_async(self._async_session.expect(pattern, timeout))
+        if not isinstance(result, bool):
+            return False
+        return result
 
     def fail(self, message: str) -> None:
         """Fail with message synchronously."""
@@ -961,27 +980,6 @@ class AsyncSession:
         return self._port
 
     @property
-    def connected(self) -> bool:
-        """Check if session is connected.
-
-        Compatibility rules for tests:
-        - Respect explicit flag set via setter
-        - Consider injected transport.connected when present
-        - Consider handler.connected when present
-        """
-        if self._connected:
-            return True
-        # Transport-based connection flag (used in tests)
-        transport = getattr(self, "_transport", None)
-        if transport is not None and getattr(transport, "connected", False):
-            return True
-        # Handler-based connection flag
-        if self._handler is not None and getattr(self._handler, "connected", False):
-            return True
-        return False
-
-    # Model/color mode management
-    @property
     def model(self) -> str:
         return self._model
 
@@ -991,11 +989,6 @@ class AsyncSession:
         self._model = str(value)
         # Per tests, model "3" enables color mode
         self.color_mode = self._model == "3"
-
-    @connected.setter
-    def connected(self, value: bool) -> None:
-        """Set connection status (for testing purposes)."""
-        self._connected = value
 
     @property
     def screen_buffer(self) -> ScreenBuffer:
@@ -1029,6 +1022,30 @@ class AsyncSession:
         if self._handler and hasattr(self._handler, "negotiated_tn3270e"):
             return self._handler.negotiated_tn3270e
         return False
+
+    @property
+    def connected(self) -> bool:
+        """Check if session is connected."""
+        # Check direct connection flag first
+        if hasattr(self, "_connected") and self._connected:
+            return True
+        # Check handler if available
+        if self._handler and hasattr(self._handler, "connected"):
+            return self._handler.connected
+        # Check transport if available
+        if (
+            hasattr(self, "_transport")
+            and self._transport
+            and hasattr(self._transport, "connected")
+        ):
+            return getattr(self._transport, "connected", False)
+        return False
+
+    @connected.setter
+    def connected(self, value: bool) -> None:
+        """Set connection state."""
+        if hasattr(self, "_connected"):
+            self._connected = bool(value)
 
     async def connect(
         self,
