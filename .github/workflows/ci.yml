@@ -116,7 +116,7 @@ jobs:
 
     - name: Run comprehensive trace testing
       run: |
-        python examples/full_trace_testing.py --all-traces --output-dir test_output/ci_trace_tests
+        python examples/full_trace_testing.py --all-traces --output-dir test_output/ci_trace_tests --min-average 95.0 --max-failures 5
 
     - name: Run fuzz testing
       run: |

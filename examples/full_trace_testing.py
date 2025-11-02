@@ -571,7 +571,7 @@ class TraceTester:
             f.write(html)
 
 
-async def main():
+async def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
         description="Full trace-based testing for Pure3270"
@@ -602,6 +602,18 @@ async def main():
     )
     parser.add_argument(
         "--parallel", type=int, default=1, help="Number of parallel tests"
+    )
+    parser.add_argument(
+        "--max-failures",
+        type=int,
+        default=0,
+        help="Maximum number of allowed failed traces before returning non-zero (default: 0)",
+    )
+    parser.add_argument(
+        "--min-average",
+        type=float,
+        default=None,
+        help="Minimum average match percentage required to return zero (e.g., 95.0). If omitted, only failure count is considered.",
     )
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 
@@ -657,8 +669,15 @@ async def main():
     print(f"Average match: {suite_result.average_match_percentage:.1f}%")
     print(f"Results saved to: {args.output_dir}")
 
-    # Return success/failure
-    return 0 if suite_result.failed_tests == 0 else 1
+    # Return success/failure with threshold support
+    should_pass = True
+    if args.max_failures is not None:
+        if suite_result.failed_tests > args.max_failures:
+            should_pass = False
+    if args.min_average is not None:
+        if suite_result.average_match_percentage < args.min_average:
+            should_pass = False
+    return 0 if should_pass else 1
 
 
 if __name__ == "__main__":
