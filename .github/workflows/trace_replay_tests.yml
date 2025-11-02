@@ -34,7 +34,7 @@ jobs:
 
       - name: Run negotiation/printer/error/DBCS tests
         run: |
-          pytest -q tests/test_protocol_negotiation_traces.py \
+          python -m pytest -q tests/test_protocol_negotiation_traces.py \
                  tests/test_printer_protocol_traces.py \
                  tests/test_error_handling_traces.py \
                  tests/test_dbcs_traces.py \
