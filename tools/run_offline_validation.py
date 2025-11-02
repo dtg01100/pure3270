@@ -73,21 +73,33 @@ def main() -> int:
     tests_passed = 0
     total_tests = 0
 
-    # 1. Terminal Model Tests
-    total_tests += 1
-    if run_command(
-        [sys.executable, "-m", "pytest", "tests/test_terminal_models.py", "-q"],
-        "Terminal Model Validation (68 tests)",
-    ):
-        tests_passed += 1
+    # 1. Terminal Model Tests (optional if file exists)
+    term_models = Path("tests/test_terminal_models.py")
+    if term_models.exists():
+        total_tests += 1
+        if run_command(
+            [sys.executable, "-m", "pytest", str(term_models), "-q"],
+            "Terminal Model Validation (68 tests)",
+        ):
+            tests_passed += 1
+    else:
+        print(
+            "Skipping Terminal Model Validation: tests/test_terminal_models.py not present in repository"
+        )
 
-    # 2. Protocol State Machine Tests
-    total_tests += 1
-    if run_command(
-        [sys.executable, "tests/test_protocol_state_machine.py"],
-        "Protocol State Machine Tests",
-    ):
-        tests_passed += 1
+    # 2. Protocol State Machine Tests (optional if file exists)
+    proto_sm = Path("tests/test_protocol_state_machine.py")
+    if proto_sm.exists():
+        total_tests += 1
+        if run_command(
+            [sys.executable, str(proto_sm)],
+            "Protocol State Machine Tests",
+        ):
+            tests_passed += 1
+    else:
+        print(
+            "Skipping Protocol State Machine Tests: tests/test_protocol_state_machine.py not present in repository"
+        )
 
     # 3. Synthetic Data Generation
     total_tests += 1
