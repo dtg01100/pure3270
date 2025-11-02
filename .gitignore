@@ -126,11 +126,19 @@ s3270_*.py
 # Allow new comprehensive test files
 !tests/test_behavior_verification.py
 !tests/test_component_initialization.py
+!tests/test_comprehensive_trace_testing.py
+!tests/test_dbcs_traces.py
 !tests/test_error_handling.py
+!tests/test_error_handling_traces.py
 !tests/test_integration_scenarios.py
 !tests/test_integration_workflows.py
+!tests/test_printer_protocol_traces.py
 !tests/test_protocol_negotiation.py
+!tests/test_protocol_negotiation_traces.py
 !tests/test_screen_buffer.py
+!tests/test_trace_integration.py
+!tests/test_trace_replay.py
+!tests/test_trace_semantic_validation.py
 !tests/property/test_negotiation_properties.py
 
 # Allow specific tool scripts required by CI offline validation
