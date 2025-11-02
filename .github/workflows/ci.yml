@@ -106,9 +106,9 @@ jobs:
       run: |
         pytest tests/ -v --tb=short -m "not integration"
 
-    - name: Run integration tests
+    - name: Run integration test (trace replay)
       run: |
-        pytest tests/test_integration.py -v --tb=short
+        python examples/trace_integration_test.py tests/data/traces/login.trc -c 1
 
     - name: Run offline validation
       run: |
@@ -160,22 +160,10 @@ jobs:
           test_output/ci_trace_tests/
           test_output/fuzz_test_results.txt
 
-    - name: Report new version test results
-      if: needs.setup.outputs.is-new-version-test == 'true'
-      id: new_version_result
-      run: |
-        if [[ $? -eq 0 ]]; then
-          echo "✅ SUCCESS: Python ${{ matrix.python-version }} compatibility test PASSED"
-          echo "The project is compatible with Python ${{ matrix.python-version }}"
-          echo "test_status=success" >> $GITHUB_OUTPUT
-        else
-          echo "❌ FAILURE: Python ${{ matrix.python-version }} compatibility test FAILED"
-          echo "Manual investigation required for Python ${{ matrix.python-version }} compatibility"
-          echo "test_status=failure" >> $GITHUB_OUTPUT
-        fi
-
+    # If we're running a new-version compatibility test, and any prior step failed in this job,
+    # trigger a Copilot fix task. This accurately reflects the job's failure state without relying on `$?`.
     - name: Trigger Copilot fix for new version failures
-      if: needs.setup.outputs.is-new-version-test == 'true' && steps.new_version_result.outputs.test_status == 'failure'
+      if: needs.setup.outputs.is-new-version-test == 'true' && failure()
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
