@@ -163,3 +163,6 @@ test_output/local_trace_tests/trace_test_summary_*.json
 # End of .gitignore
 batch_comparison_results.json
 kilo_code_task_oct-26-2025_*.md
+
+# Test output
+test_output/
