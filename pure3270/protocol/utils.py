@@ -495,13 +495,9 @@ def _schedule_if_awaitable(maybe_awaitable: Any) -> None:
                 try:
                     asyncio.run(maybe_awaitable)  # type: ignore[arg-type]
                 except Exception as e:
-                    import logging
-
-                    logging.error(f"Error in _call_maybe_await: {e}")
+                    logger.error(f"Error in _call_maybe_await: {e}")
     except Exception as e:
-        import logging
-
-        logging.error(f"Error in _call_maybe_await outer: {e}")
+        logger.error(f"Error in _call_maybe_await outer: {e}")
 
 
 def _safe_writer_write(writer: Optional[Any], data: bytes) -> None:

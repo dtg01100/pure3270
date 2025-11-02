@@ -2146,17 +2146,13 @@ class TN3270Handler:
                                 self.negotiator.infer_tn3270e_from_trace(trace)
                             )
                         except Exception as e:
-                            import logging
-
-                            logging.error(f"Error inferring TN3270E from trace: {e}")
+                            logger.error(f"Error inferring TN3270E from trace: {e}")
                             self.negotiator.negotiated_tn3270e = False
                     # Store trace for potential inspection
                     self._negotiation_trace = trace
                     return
             except Exception as e:
-                import logging
-
-                logging.error(f"Error in mock negotiator negotiation: {e}")
+                logger.error(f"Error in mock negotiator negotiation: {e}")
                 # Fall through to normal path if any issue
 
             # Create a tracked background reader task so we can cancel it
@@ -2191,9 +2187,7 @@ class TN3270Handler:
                         )
                         self.negotiator.negotiated_tn3270e = False
                 except Exception as e:
-                    import logging
-
-                    logging.error(f"Error clearing negotiated_tn3270e: {e}")
+                    logger.error(f"Error clearing negotiated_tn3270e: {e}")
             finally:
                 if not reader_task.done():
                     try:
