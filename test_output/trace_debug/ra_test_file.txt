@@ -1,1 +1,0 @@
-tests/data/traces/ra_test.trc: ASCII text
