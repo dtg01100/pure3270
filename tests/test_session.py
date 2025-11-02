@@ -1322,6 +1322,12 @@ class TestSession:
             await session.macro(["key Enter"])
             mock_key.assert_called_once_with("Enter")
 
+    # Note on naming: The project permanently removed any public macro DSL
+    # (e.g., execute_macro/load_macro/MacroError). References to
+    # "_execute_macro_command" here exercise the internal s3270-style
+    # script-command parser for compatibility, not a public macro API.
+    # CI enforces the removal via tools/forbid_macros.py.
+
     @pytest.mark.asyncio
     async def test_async_session__execute_macro_command_invalid(self):
         """Test AsyncSession _execute_macro_command with invalid command."""
