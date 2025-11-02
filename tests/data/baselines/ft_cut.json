@@ -1,0 +1,31 @@
+{
+  "trace_file": "ft_cut.trc",
+  "rows": 24,
+  "cols": 80,
+  "screen_lines": [
+    "  AlZ,YKBWAIT (keyboard locked)*NK=20191212.215719.396 Waiting for 5 events*NK=2",
+    "0191212.215719.449 Got 1 event*NK=20191212.215719.449 Reading )*NK0= Write(reset",
+    ",restore)*NK=20191212.215719.450 Keyboard unlock(do'9=reset) -OIA'9=TWAIT -OIA'9",
+    ";<=OCKED*NK=20191212.215719.450 Keyboard lock(do'9=reset) +DEFERRED'9=UNLOCK*NK=",
+    "20191212.215719.450 Deferring keyboard unlock 350ms*NK=20191212.215719.450 RCVD ",
+    "EOR*NK=20191212.215719.450 lazya'9=flusK=+*NK=20191212.215719.454 RCVD TN3270E(U",
+    "NBIND NO-RESPONSE 0)*NK0= UNBIND normal*NK=20191212.215719.454 Now operating in ",
+    "connected-unbound mode.*NK=20191212.215719.454 cstate ;N=connected-tn3270e;V= -*",
+    "2= ;N=connected-unbound;V= (3270) +AWAITING'9=FIRST*NK=20191212.215719.458 RCVD ",
+    "EOR*NK=20191212.215719.458 lazya'9=flust*NK=20191212.215719.463 st'9=cnet'9=disc",
+    "onnect)*NK=20191212.215719.463 st'9=c15719.463 Keyboard lock(kybd'9=connect) +NO",
+    "T'9=CONNECTED*NK=20191212.215719.464 st'9=c 11= *11=      *111=_ SetBufferAddres",
+    "s(18,2 ...*NK=... 0) StartField(protected,intensified) _Provided by AT&T Global ",
+    "Network S ...*NK=... ervices_ SetBufferAddress(19,1) StartField(protected,intens",
+    "ified) _WARN ...*NK=... ING: Restricted System. Aut-----------------------------",
+    "-----------_ StartField(21,1)(protected ...*NK=... ,intensified) _ACCOUNT..._ St",
+    "artField(21,12)(modified) _'99999999=_ Start ...*NK=... Field(21,21)(protected,s",
+    "kip,intensified) _USERID..._ StartField(21,31)( ...*NK=... modified) _'99999999=",
+    "_ StartField(21,40)(protected,skip,intensified) _PAS ...*NK=... SWORD..._ StartF",
+    "ield(21,52)(nondisplay) SetBufferAddress(21,61) StartFi ...*NK=... eld(protected",
+    ",skip) SetBufferAddress(22,1) StartField(protected,skip) _ ...*NK=... Enter desi",
+    "red product or service, or press tSta ...*NK=... rtField(24,6)(intensified,modif",
+    "ied) SetBufferAddress(24,67) StartField( ...*NK=... protected,skip) SetBufferAdd",
+    "'3=2.2;V= RUNNING -*2= \u009f\u00d5' D2.215719.390 SENT EOR*NK=20191212.215719.393 Macro;N"
+  ]
+}

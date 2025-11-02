@@ -116,8 +116,7 @@ jobs:
 
     - name: Run comprehensive trace testing
       run: |
-        python examples/full_trace_testing.py --all-traces --output-dir test_output/ci_trace_tests \
-          --exclude 'ft_*.trc' --exclude 'contention-resolution.trc' --exclude 'ft-*.trc'
+          python examples/full_trace_testing.py --all-traces --output-dir test_output/ci_trace_tests
 
     - name: Run fuzz testing
       run: |

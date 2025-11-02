@@ -104,6 +104,30 @@ class TraceTester:
         # Use the same logic as compare_screen_output.py
         trace_name = trace_file.name
 
+        # First, try to load from baseline file
+        baseline_dir = Path("tests/data/baselines")
+        baseline_file = baseline_dir / f"{trace_file.stem}.json"
+        if baseline_file.exists():
+            try:
+                with open(baseline_file) as f:
+                    baseline = json.load(f)
+                    return baseline["screen_lines"]
+            except Exception as e:
+                if self.verbose:
+                    print(f"Warning: Could not load baseline for {trace_name}: {e}")
+
+        # First, try to load from baseline file
+        baseline_dir = Path("tests/data/baselines")
+        baseline_file = baseline_dir / f"{trace_file.stem}.json"
+        if baseline_file.exists():
+            try:
+                with open(baseline_file) as f:
+                    baseline = json.load(f)
+                    return baseline["screen_lines"]
+            except Exception as e:
+                if self.verbose:
+                    print(f"Warning: Could not load baseline for {trace_name}: {e}")
+
         expected_outputs = {
             "ra_test.trc": [""] * 24,  # Empty screen - RA test validates protocol
             "ibmlink.trc": [

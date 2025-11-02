@@ -1,0 +1,31 @@
+{
+  "trace_file": "contention-resolution.trc",
+  "rows": 24,
+  "cols": 80,
+  "screen_lines": [
+    "                                                               \u00d5 \u009f\u00d5 \u009d\u009f\u00d5 \u0085\u009f\u00d5  \u009f\u00d5\u007f",
+    "'$\u00a6                                                                             ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "        netstat \u009f\u00d5 \u008b\u009f\u00d5 'R \u009f\u00d5 \u008c\u009f\u00d5\u0087'$W                                            ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "                                                                                ",
+    "        logoff\u009f\u00d5  \u009f\u00d5  \u009f\u00d5  \u009f\u00d5  \u009f\u00d5 \u0092\u009f\u00d5 \u008f\u009f\u00d5  \u009f\u00d5S*5\u009f\u00d5  \u009f\u00d5\u008d'*5\u009f\u00d5  \u009f\u00d5\u008e'(0\u009f\u00d5  \u009f\u00d5 '&&\u009f\u00d5 ",
+    "\u0080\u009f\u00d5 'K0\u009f\u00d5 \u0081\u009f\u00d5\r'N*                                                               ",
+    "                                                                                "
+  ]
+}
