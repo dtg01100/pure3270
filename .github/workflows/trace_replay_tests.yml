@@ -72,7 +72,8 @@ jobs:
                            tests/test_dbcs_traces.py \
                            --junitxml=test_output/pytest_results.xml \
                            --tb=short \
-                           -x; then
+                           -x \
+                           --rootdir=/workspaces/pure3270; then
               echo "✅ Tests passed on attempt $((RETRY_COUNT + 1))"
               break
             else
