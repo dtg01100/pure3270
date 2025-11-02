@@ -3,9 +3,9 @@ repos:
      rev: v4.6.0
      hooks:
        - id: trailing-whitespace
-         exclude: 'tests/data/traces/.*'
+         exclude: '(tests/data/traces/.*|test_output/.*)'
        - id: end-of-file-fixer
-         exclude: 'tests/data/traces/.*'
+         exclude: '(tests/data/traces/.*|test_output/.*)'
        - id: check-yaml
        - id: check-added-large-files
    - repo: https://github.com/psf/black

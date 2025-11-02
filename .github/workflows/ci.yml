@@ -65,7 +65,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ${{ fromJson(needs.setup.outputs.python-versions) }}
+        # Use the dynamic matrix from the setup job when available; fall back to defaults for local runners like act
+        python-version: ${{ fromJSON(needs.setup.outputs['python-versions'] || '["3.11","3.12","3.13"]') }}
       fail-fast: false  # Don't cancel other jobs if one fails, especially for new version testing
     steps:
     - name: Configure git default branch
