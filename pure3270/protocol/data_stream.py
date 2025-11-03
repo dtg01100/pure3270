@@ -1176,7 +1176,7 @@ class DataStreamParser:
 
         # Diagnostic: log incoming parse invocation and a short hex preview.
         # This helps correlate direct-write vs parser routing for SCS payloads.
-        try:
+        if logger.isEnabledFor(logging.DEBUG):
             dt = f"0x{data_type:02x}"
             data_hex = data.hex()
             preview = data_hex[:256] + ("..." if len(data_hex) > 256 else "")
@@ -1188,12 +1188,6 @@ class DataStreamParser:
             )
             if data_type == SCS_DATA:
                 logger.debug("parse: data_type indicates SCS_DATA branch")
-        except Exception:
-            logger.debug(
-                "parse invoked: data_type=0x%02x len=%d (hex preview failed)",
-                data_type,
-                len(data),
-            )
 
         # Handle specific TN3270E data types first
         if data_type == SCS_DATA and self.printer:
@@ -1379,11 +1373,15 @@ class DataStreamParser:
             def _is_rollback_only_error(err_msg: str) -> bool:
                 """Errors that should abort/rollback the write but not raise.
 
-                SA and SBA incompletes fall into this category.
+                SA, SBA, and EUA incompletes fall into this category.
                 """
                 return any(
                     cf in err_msg
-                    for cf in ("Incomplete SA order", "Incomplete SBA order")
+                    for cf in (
+                        "Incomplete SA order",
+                        "Incomplete SBA order",
+                        "Incomplete EUA order",
+                    )
                 )
 
             # After WCC, proceed to orders and data bytes
@@ -1425,11 +1423,19 @@ class DataStreamParser:
                         else:
                             # Log handler invocation; handlers are expected to consume any
                             # additional bytes they require and update parser._pos accordingly.
-                            logger.debug(
-                                "invoking handler for order 0x%02x (%s)",
-                                byte,
-                                getattr(handler, "__name__", repr(handler)),
-                            )
+                            try:
+                                handler_name = getattr(handler, "__name__", "<lambda>")
+                                logger.debug(
+                                    "invoking handler for order 0x%02x (%s)",
+                                    byte,
+                                    handler_name,
+                                )
+                            except (NameError, Exception):
+                                logger.debug(
+                                    "invoking handler for order 0x%02x (handler name unavailable)",
+                                    byte,
+                                )
+                            handler()
                             handler()
                             logger.debug(
                                 "handler for order 0x%02x returned, parser pos=%d",
