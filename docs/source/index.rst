@@ -13,9 +13,20 @@ external dependencies.
 
    installation
    usage
+   developer_guide
+   protocol_examples
+   advanced_patterns
+   integration_scenarios
    examples
    terminal_models
    api
+   advanced
+   session
+   patching
+   emulation
+   protocol
+   warnings
+   contributing
 
 Indices and tables
 ==================

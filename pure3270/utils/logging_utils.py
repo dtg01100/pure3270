@@ -60,6 +60,154 @@ def log_parsing_warning(logger: logging.Logger, operation: str, reason: str) -> 
     logger.warning(f"{operation}: {reason}")
 
 
+# Categorized warning support
+try:
+    from pure3270.warnings import CategorizedLogger, WarningCategory
+
+    def log_categorized_warning(
+        logger: logging.Logger,
+        category: WarningCategory,
+        operation: str,
+        reason: str,
+        filters: Optional[Any] = None,
+    ) -> None:
+        """Log parsing warnings with category support."""
+        if filters is not None:
+            # Use categorized logger if filters provided
+            categorized_logger = CategorizedLogger(logger, filters)
+            categorized_logger.log_parsing_warning(f"{operation}: {reason}")
+        else:
+            # Fallback to regular warning
+            logger.warning(f"[{category.value.upper()}] {operation}: {reason}")
+
+    def log_protocol_warning(
+        logger: logging.Logger,
+        operation: str,
+        reason: str,
+        filters: Optional[Any] = None,
+    ) -> None:
+        """Log protocol-related warnings."""
+        log_categorized_warning(
+            logger, WarningCategory.PROTOCOL_NEGOTIATION, operation, reason, filters
+        )
+
+    def log_data_stream_warning(
+        logger: logging.Logger,
+        operation: str,
+        reason: str,
+        filters: Optional[Any] = None,
+    ) -> None:
+        """Log data stream warnings."""
+        log_categorized_warning(
+            logger, WarningCategory.DATA_STREAM, operation, reason, filters
+        )
+
+    def log_configuration_warning(
+        logger: logging.Logger,
+        operation: str,
+        reason: str,
+        filters: Optional[Any] = None,
+    ) -> None:
+        """Log configuration warnings."""
+        log_categorized_warning(
+            logger, WarningCategory.CONFIGURATION, operation, reason, filters
+        )
+
+    def log_performance_warning(
+        logger: logging.Logger,
+        operation: str,
+        reason: str,
+        filters: Optional[Any] = None,
+    ) -> None:
+        """Log performance warnings."""
+        log_categorized_warning(
+            logger, WarningCategory.PERFORMANCE, operation, reason, filters
+        )
+
+    def log_state_warning(
+        logger: logging.Logger,
+        operation: str,
+        reason: str,
+        filters: Optional[Any] = None,
+    ) -> None:
+        """Log state management warnings."""
+        log_categorized_warning(
+            logger, WarningCategory.STATE_MANAGEMENT, operation, reason, filters
+        )
+
+    def log_network_warning(
+        logger: logging.Logger,
+        operation: str,
+        reason: str,
+        filters: Optional[Any] = None,
+    ) -> None:
+        """Log network warnings."""
+        log_categorized_warning(
+            logger, WarningCategory.NETWORK, operation, reason, filters
+        )
+
+    def log_ssl_warning(
+        logger: logging.Logger,
+        operation: str,
+        reason: str,
+        filters: Optional[Any] = None,
+    ) -> None:
+        """Log SSL/TLS warnings."""
+        log_categorized_warning(
+            logger, WarningCategory.SSL_TLS, operation, reason, filters
+        )
+
+    def log_security_warning(
+        logger: logging.Logger,
+        operation: str,
+        reason: str,
+        filters: Optional[Any] = None,
+    ) -> None:
+        """Log security warnings."""
+        log_categorized_warning(
+            logger, WarningCategory.SECURITY, operation, reason, filters
+        )
+
+    # Export categorized warning functions
+    __all__ = [
+        "log_command_handling",
+        "log_command_error",
+        "log_session_action",
+        "log_session_error",
+        "log_protocol_event",
+        "log_negotiation_event",
+        "log_parsing_warning",
+        "log_debug_operation",
+        "log_connection_event",
+        "log_data_processing",
+        # Categorized warnings
+        "log_categorized_warning",
+        "log_protocol_warning",
+        "log_data_stream_warning",
+        "log_configuration_warning",
+        "log_performance_warning",
+        "log_state_warning",
+        "log_network_warning",
+        "log_ssl_warning",
+        "log_security_warning",
+    ]
+
+except ImportError:
+    # If warnings module not available, use regular warnings
+    __all__ = [
+        "log_command_handling",
+        "log_command_error",
+        "log_session_action",
+        "log_session_error",
+        "log_protocol_event",
+        "log_negotiation_event",
+        "log_parsing_warning",
+        "log_debug_operation",
+        "log_connection_event",
+        "log_data_processing",
+    ]
+
+
 def log_debug_operation(
     logger: logging.Logger, operation: str, details: Any = None
 ) -> None:

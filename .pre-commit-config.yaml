@@ -1,51 +1,75 @@
 repos:
-   - repo: https://github.com/pre-commit/pre-commit-hooks
-     rev: v4.6.0
-     hooks:
-       - id: trailing-whitespace
-         exclude: '(tests/data/traces/.*|test_output/.*)'
-       - id: end-of-file-fixer
-         exclude: '(tests/data/traces/.*|test_output/.*)'
-       - id: check-yaml
-       - id: check-added-large-files
-   - repo: https://github.com/psf/black
-     rev: 24.8.0
-     hooks:
-       - id: black
-         name: black (auto-format)
-         args: [--line-length=88]
-         exclude: 'tests/data/traces/.*'
-   - repo: https://github.com/pycqa/isort
-     rev: 5.13.2
-     hooks:
-       - id: isort
-         name: isort (auto-format)
-         args: [--profile=black]
-         exclude: 'tests/data/traces/.*'
-   - repo: https://github.com/pycqa/flake8
-     rev: 7.1.1
-     hooks:
-       - id: flake8
-         exclude: 'tests/data/traces/.*'
-   - repo: https://github.com/pre-commit/mirrors-mypy
-     rev: v1.11.1
-     hooks:
-       - id: mypy
-         args: [--config-file=mypy.ini, --ignore-missing-imports]
-         files: '^(pure3270/|tests/|setup.py|pyproject.toml)'
-         exclude: '^(archive/|tools/|scripts/|tests/data/traces/|examples/)'
-   - repo: https://github.com/PyCQA/bandit
-     rev: 1.8.1
-     hooks:
-       - id: bandit
-         args: [-c, .bandit, --quiet]
-         exclude: 'tests/data/traces/.*'
-   - repo: local
-     hooks:
-       - id: pylint
-         name: pylint
-         entry: pylint
-         language: system
-         types: [python]
-         args: [--exit-zero, pure3270/]
-         exclude: 'tests/data/traces/.*'
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '(tests/data/traces/.*|test_output/.*)'
+      - id: end-of-file-fixer
+        exclude: '(tests/data/traces/.*|test_output/.*)'
+      - id: check-yaml
+      - id: check-added-large-files
+      - id: check-merge-conflict
+      - id: check-toml
+  - repo: https://github.com/psf/black
+    rev: 24.8.0
+    hooks:
+      - id: black
+        name: black (auto-format)
+        args: [--line-length=88]
+        exclude: 'tests/data/traces/.*'
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: isort (auto-format)
+        args: [--profile=black]
+        exclude: 'tests/data/traces/.*'
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.1.1
+    hooks:
+      - id: flake8
+        exclude: 'tests/data/traces/.*'
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.11.1
+    hooks:
+      - id: mypy
+        args: [--config-file=mypy.ini, --ignore-missing-imports]
+        files: '^(pure3270/|tests/|setup.py|pyproject.toml)'
+        exclude: '^(archive/|tools/|scripts/|tests/data/traces/|examples/)'
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.1
+    hooks:
+      - id: bandit
+        args: [-c, .bandit, --quiet]
+        exclude: 'tests/data/traces/.*'
+  - repo: local
+    hooks:
+      - id: pylint
+        name: pylint
+        entry: pylint
+        language: system
+        types: [python]
+        args: [--exit-zero, pure3270/]
+        exclude: 'tests/data/traces/.*'
+      - id: radon-complexity
+        name: radon complexity check
+        entry: radon
+        language: system
+        types: [python]
+        args: [cc, --show-complexity, --total-average]
+        files: 'pure3270/.*\.py$'
+        exclude: 'tests/data/traces/.*'
+      - id: cohesion-analysis
+        name: cohesion analysis
+        entry: python
+        language: system
+        types: [python]
+        args: [-m, cohesion, -d, pure3270]
+        pass_filenames: false
+      - id: code-analyzer
+        name: code quality analysis
+        entry: python
+        language: system
+        types: [python]
+        args: [tools/code_analyzer.py, --duplication-only]
+        pass_filenames: false

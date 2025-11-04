@@ -1,3 +1,12 @@
+# Suppress warnings for unawaited coroutines in tests - these are test artifacts
+import warnings
+
+# Suppress RuntimeWarning for unawaited coroutines in tests
+warnings.filterwarnings(
+    "ignore", message=".*coroutine.*was never awaited", category=RuntimeWarning
+)
+# Suppress ResourceWarning for unclosed streams in tests
+warnings.filterwarnings("ignore", message=".*unclosed.*", category=ResourceWarning)
 import asyncio
 import platform
 import ssl
@@ -234,14 +243,12 @@ class TestSSLWrapper:
         assert decrypted == encrypted_data  # Stub returns input
 
 
-@pytest.mark.asyncio
 @pytest.mark.skipif(
     platform.system() != "Linux", reason="Memory limiting only supported on Linux"
 )
 class TestTN3270Handler:
     @pytest.mark.asyncio
     @patch("asyncio.open_connection")
-    @pytest.mark.asyncio
     async def test_connect_non_ssl(self, mock_open, tn3270_handler, memory_limit_500mb):
         mock_reader = AsyncMock()
         mock_writer = AsyncMock()

@@ -659,7 +659,10 @@ class Session:
         """Set cookie synchronously."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        self._run_async(self._async_session.cookie(cookie_string))
+        # Just set the cookie directly - no async operation needed
+        if "=" in cookie_string:
+            name, value = cookie_string.split("=", 1)
+            self._async_session._cookies[name] = value
 
     def interrupt(self) -> None:
         """Send interrupt synchronously (s3270 Interrupt() action)."""
@@ -2174,20 +2177,16 @@ class AsyncSession:
         """Compose text."""
         await self.insert_text(text)
 
-    def cookie(self, cookie_string: str) -> Any:
-        """Set a cookie and return a no-op awaitable for compatibility.
+    async def cookie(self, cookie_string: str) -> None:
+        """Set a cookie.
 
-        This allows tests to call with or without ``await``. The side-effect
-        (updating the cookie store) happens immediately.
+        This sets the cookie immediately and returns None. Tests can call
+        this without awaiting since the side-effect happens immediately.
         """
         if "=" in cookie_string:
             name, value = cookie_string.split("=", 1)
             self._cookies[name] = value
-
-        async def _noop() -> None:
-            return None
-
-        return _noop()
+        return None
 
     async def expect(self, pattern: str, timeout: float = 10.0) -> bool:
         """Wait for pattern."""

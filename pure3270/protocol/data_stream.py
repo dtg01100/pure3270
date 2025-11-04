@@ -1123,6 +1123,15 @@ class DataStreamParser:
             # following byte is a recognized control code; otherwise insert it
             # as data. This prevents common misparses where EBCDIC spaces in
             # text are erroneously interpreted as DATA-STREAM-CTL orders.
+            #
+            # CRITICAL FIX: Also handle SBA ambiguity - 0x40 can be:
+            # 1. SBA order (0x11) followed by address bytes (ambiguous with spaces)
+            # 2. EBCDIC space (0x40) as actual screen content
+            # 3. DATA-STREAM-CTL order (0x40) only if followed by known control code
+            #
+            # The parser currently handles case 3 above, but we need to ensure
+            # case 2 (EBCDIC space) works correctly by being more tolerant about
+            # when to treat 0x40 as an order vs data.
             DATA_STREAM_CTL: cast(
                 Callable[..., None], lambda: self._handle_data_stream_ctl_order()
             ),
@@ -1245,7 +1254,7 @@ class DataStreamParser:
                 sna_response = self._parse_sna_response(data)
                 if self.negotiator:
                     handler = getattr(self.negotiator, "_handle_sna_response", None)
-                    if handler:
+                    if handler and callable(handler):
                         try:
                             handler(sna_response)
                         except Exception:
@@ -1436,12 +1445,25 @@ class DataStreamParser:
                                     byte,
                                 )
                             handler()
-                            handler()
                             logger.debug(
                                 "handler for order 0x%02x returned, parser pos=%d",
                                 byte,
                                 getattr(parser, "_pos", getattr(self, "_pos", 0)),
                             )
+                            # Additional debug: log screen position after handler
+                            try:
+                                screen_row, screen_col = self.screen.get_position()
+                                logger.debug(
+                                    "screen position after order 0x%02x: (%d, %d)",
+                                    byte,
+                                    screen_row,
+                                    screen_col,
+                                )
+                            except Exception:
+                                logger.debug(
+                                    "failed to get screen position after order 0x%02x",
+                                    byte,
+                                )
                     else:
                         # Data byte: write to screen buffer and advance position
                         logger.debug("parser treating 0x%02x as data byte", byte)
@@ -1792,74 +1814,85 @@ class DataStreamParser:
         logger.debug(f"Set WCC to 0x{wcc:02x}")
 
     def _handle_sba(self) -> None:
+        """Handle Set Buffer Address (SBA) order with proper rollback support.
 
+        SBA requires exactly 2 address bytes. If incomplete, raises ParseError
+        to trigger write rollback as per s3270 semantics.
+        """
         try:
-            # Try to ensure at least 2 bytes are available, but be more tolerant
+            # Enhanced debugging for connected-3270 SBA parsing
+            logger.debug("SBA handler called - examining data stream position")
+
+            # SBA requires exactly 2 address bytes for proper operation
             parser = self._ensure_parser()
             available = parser.remaining()
+            logger.debug(f"SBA: parser has {available} bytes remaining")
 
-            if available >= 2:
-                # Read address bytes based on addressing mode
-                if self.addressing_mode == AddressingMode.MODE_14_BIT:
-                    # 14-bit addressing: 2 bytes (big-endian)
-                    addr_high = self._read_byte()
-                    addr_low = self._read_byte()
-                    address = (addr_high << 8) | addr_low
-                else:
-                    # 12-bit addressing uses the lower 6 bits of each of the two bytes.
-                    addr_high = self._read_byte()
-                    addr_low = self._read_byte()
-                    address = ((addr_high & 0x3F) << 6) | (addr_low & 0x3F)
-
-                # Validate address against addressing mode
-                from ..emulation.addressing import AddressCalculator
-
-                if not AddressCalculator.validate_address(
-                    address, self.addressing_mode
-                ):
-                    logger.debug(
-                        f"Invalid SBA address {address:04x} for {self.addressing_mode.value} mode"
-                    )
-                    # Continue with clamped address for backward compatibility
-                    max_addr = (
-                        AddressCalculator.get_max_positions(self.addressing_mode) - 1
-                    )
-                    address = min(address, max_addr)
-
-                # Convert address to coordinates
-                cols = self.screen.cols if self.screen else 80
-                coords = AddressCalculator.address_to_coords(
-                    address, cols, self.addressing_mode
+            if available < 2:
+                # Incomplete SBA - raise ParseError to trigger rollback
+                raise ParseError(
+                    f"Incomplete SBA order: need 2 address bytes, have {available}"
                 )
 
-                if coords is None:
-                    logger.debug(
-                        f"Failed to convert SBA address {address} to coordinates"
-                    )
-                    return
-
-                row, col = coords
-
-                # Clamp to screen bounds (additional safety check)
-                if self.screen:
-                    row = min(row, self.screen.rows - 1)
-                    col = min(col, self.screen.cols - 1)
-                    self.screen.set_position(row, col)
-
-                # Sync tracked position using ensured parser (avoids Optional access)
-                parser = self._ensure_parser()
-                self._pos = parser._pos
-                log_debug_operation(
-                    logger,
-                    f"SBA: Set buffer address to ({row}, {col}) [address={address:04x}, mode={self.addressing_mode.value}]",
-                )
+            # Read address bytes based on addressing mode
+            if self.addressing_mode == AddressingMode.MODE_14_BIT:
+                # 14-bit addressing: 2 bytes (big-endian)
+                addr_high = self._read_byte()
+                addr_low = self._read_byte()
+                address = (addr_high << 8) | addr_low
             else:
-                # Missing address bytes - treat as incomplete SBA so the upper
-                # parsing logic can perform an abort+rollback. Raise ParseError
-                # here so parse() can catch it and restore the write snapshot.
-                raise ParseError(f"Incomplete SBA order")
+                # 12-bit addressing uses the lower 6 bits of each of the two bytes.
+                addr_high = self._read_byte()
+                addr_low = self._read_byte()
+                address = ((addr_high & 0x3F) << 6) | (addr_low & 0x3F)
+
+            logger.debug(
+                f"SBA: read address bytes 0x{addr_high:02x} 0x{addr_low:02x} -> address={address} (0x{address:04x})"
+            )
+
+            # Validate address against addressing mode
+            from ..emulation.addressing import AddressCalculator
+
+            if not AddressCalculator.validate_address(address, self.addressing_mode):
+                logger.debug(
+                    f"Invalid SBA address {address:04x} for {self.addressing_mode.value} mode"
+                )
+                # Continue with clamped address for backward compatibility
+                max_addr = AddressCalculator.get_max_positions(self.addressing_mode) - 1
+                address = min(address, max_addr)
+
+            # Convert address to coordinates
+            cols = self.screen.cols if self.screen else 80
+            coords = AddressCalculator.address_to_coords(
+                address, cols, self.addressing_mode
+            )
+
+            if coords is None:
+                logger.debug(f"Failed to convert SBA address {address} to coordinates")
+                return
+
+            row, col = coords
+
+            # Clamp to screen bounds (additional safety check)
+            if self.screen:
+                row = min(row, self.screen.rows - 1)
+                col = min(col, self.screen.cols - 1)
+                logger.debug(f"SBA: setting screen position to ({row}, {col})")
+                self.screen.set_position(row, col)
+
+            # Sync tracked position using ensured parser (avoids Optional access)
+            parser = self._ensure_parser()
+            self._pos = parser._pos
+
+            logger.debug(
+                f"SBA SUCCESS: Set buffer address to ({row}, {col}) [address={address:04x}, mode={self.addressing_mode.value}]"
+            )
+            log_debug_operation(
+                logger,
+                f"SBA: Set buffer address to ({row}, {col}) [address={address:04x}, mode={self.addressing_mode.value}]",
+            )
         except ParseError:
-            # Re-raise ParseError so outer parsing logic can handle rollback.
+            # Re-raise ParseError to trigger rollback mechanism
             raise
         except Exception as e:
             logger.warning(
@@ -2589,17 +2622,24 @@ class DataStreamParser:
 
         # Process control code similarly to SCS CTL codes for backward compatibility
         handler = getattr(self, "_handle_scs_ctl_codes", None)
-        if handler:
+        if handler and callable(handler):
             handler(bytes([ctl_code]))
+        else:
+            logger.debug(
+                f"No callable _handle_scs_ctl_codes found for code 0x{ctl_code:02x}"
+            )
 
     def _handle_data_stream_ctl_order(self) -> None:
         """Guarded handler for DATA-STREAM-CTL order (0x40).
 
-        Peeks the next byte and only treats the sequence as a DATA-STREAM-CTL
-        when the following byte is a known control code. Otherwise the 0x40
-        is treated as ordinary data (EBCDIC space) and inserted into the
-        screen buffer. This avoids misparsing common EBCDIC space bytes as
-        control orders.
+        CRITICAL FIX for connected-3270 parsing: Be extremely conservative about
+        treating 0x40 as DATA-STREAM-CTL. Since 0x40 is EBCDIC space (0x40), it
+        commonly appears as actual screen content. Only treat as DATA-STREAM-CTL
+        when we have CLEAR evidence it's a control code, not just hoped-for evidence.
+
+        The original logic was too aggressive, causing EBCDIC spaces in text to be
+        misinterpreted as control orders, leading to empty screen buffers during
+        connected-3270 trace replay.
         """
         parser = self._ensure_parser()
         # If there's no following byte, treat the 0x40 as ordinary data (space).
@@ -2609,16 +2649,35 @@ class DataStreamParser:
             self._insert_data(DATA_STREAM_CTL)
             return
 
-        # Peek without consuming to decide behavior
+        # ENHANCED: Be much more conservative about DATA-STREAM-CTL detection
+        # Only treat 0x40 as DATA-STREAM-CTL when we have STRONG evidence:
+        # 1. The following byte is a KNOWN, WELL-DOCUMENTED control code
+        # 2. The context strongly suggests a control sequence, not text content
         next_byte = parser.peek_byte()
-        known_ctl_codes = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09}
-        if next_byte in known_ctl_codes:
-            # Consume the control code byte and handle it
+
+        # Only treat as DATA-STREAM-CTL for the most common, well-documented codes
+        # that appear in actual TN3270/TN3270E protocol contexts
+        definitely_ctl_codes = {0x01}  # BIND-IMAGE - most common DATA-STREAM-CTL
+
+        if next_byte in definitely_ctl_codes:
+            # Strong evidence this is actually a DATA-STREAM-CTL sequence
             ctl = parser.read_byte()
             self._handle_data_stream_ctl(ctl)
+            logger.debug(
+                "Conservative DATA-STREAM-CTL detection: treated 0x40 as order"
+            )
         else:
-            # Not a real DATA-STREAM-CTL; treat 0x40 as ordinary data (space)
+            # Default to treating 0x40 as EBCDIC space (screen content)
+            # This fixes the connected-3270 parsing issue where EBCDIC spaces
+            # were being misinterpreted as control orders
             self._insert_data(DATA_STREAM_CTL)
+            if next_byte not in {0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09}:
+                # Log when we conservatively treat 0x40 as data instead of order
+                # This helps debug cases where aggressive DATA-STREAM-CTL detection
+                # was causing screen content to be lost
+                logger.debug(
+                    f"Conservative DATA-STREAM-CTL: treated 0x40 as EBCDIC space (next_byte=0x{next_byte:02x})"
+                )
 
     def _handle_sfe_or_sba_fallback(self) -> None:
         self._handle_sfe()
@@ -2763,8 +2822,13 @@ class DataStreamParser:
         try:
             if sf_type in self.sf_handlers:
                 handler = self.sf_handlers[sf_type]
-                handler(sf_data)  # type: ignore[operator]
-                logger.debug(f"Handled structured field type 0x{sf_type:02x}")
+                if callable(handler):
+                    handler(sf_data)
+                    logger.debug(f"Handled structured field type 0x{sf_type:02x}")
+                else:
+                    logger.debug(
+                        f"SF handler for 0x{sf_type:02x} is not callable, skipping"
+                    )
             else:
                 logger.debug(
                     f"Unknown structured field type 0x{sf_type:02x}, continuing"

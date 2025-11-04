@@ -86,7 +86,7 @@ jobs:
 
     - name: Install CI tools
       run: |
-        pip install mypy pylint bandit pre-commit isort pytest-cov
+        pip install mypy pylint bandit pre-commit isort pytest-cov pytest-xdist
 
     - name: Display Python and package versions
       run: |
@@ -102,9 +102,18 @@ jobs:
       run: |
         python quick_test.py
 
-    - name: Run unit and property tests
+    - name: Run unit and property tests (parallel execution)
       run: |
-        pytest tests/ -v --tb=short -m "not integration"
+        echo "🚀 Running tests in parallel with pytest-xdist..."
+        # Use 4 workers for parallel execution, faster pytest settings
+        pytest tests/ -v --tb=short -m "not integration" -n 4 --dist worksteal \
+          --durations=10 --maxfail=3 --disable-warnings
+
+    - name: Run specific slow tests (if enabled)
+      if: ${{ github.event.inputs.run_slow_tests == 'true' }}
+      run: |
+        echo "🐌 Running slow tests separately..."
+        pytest tests/ -v -m "slow" --tb=short
 
     - name: Run integration test (trace replay)
       run: |
@@ -146,9 +155,11 @@ jobs:
       run: |
         pre-commit run --all-files
 
-    - name: Generate coverage report
+    - name: Generate coverage report (parallel)
       run: |
-        pytest --cov=pure3270 --cov-report=xml tests/ -m "not integration"
+        echo "📊 Generating coverage report with parallel execution..."
+        pytest --cov=pure3270 --cov-report=xml tests/ -m "not integration" -n 2 --tb=short \
+          --maxfail=3 --disable-warnings
 
     - name: Upload test results
       if: always()

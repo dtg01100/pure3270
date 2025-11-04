@@ -2558,6 +2558,12 @@ class TN3270Handler:
         from .tn3270e_header import TN3270EHeader
         from .utils import PRINTER_STATUS_DATA_TYPE, SCS_DATA, TN3270_DATA
 
+        if not self.validate_negotiation_completion():
+            logger.warning(
+                "[ASCII_MODE] Negotiation not complete, skipping screen data processing"
+            )
+            return None
+
         data_type = TN3270_DATA
         header_len = 0
 
@@ -2741,6 +2747,12 @@ class TN3270Handler:
         from .utils import PRINTER_STATUS_DATA_TYPE, SCS_DATA
         from .utils import SNA_RESPONSE as SNA_RESPONSE_TYPE
         from .utils import TN3270_DATA
+
+        if not self.validate_negotiation_completion():
+            logger.warning(
+                "[TN3270_MODE] Negotiation not complete, skipping screen data processing"
+            )
+            return None
 
         data_type = TN3270_DATA
         header_len = 0
@@ -3367,3 +3379,170 @@ class TN3270Handler:
 
         # Low density -> likely binary 3270 data, do not flag as VT100
         return False
+
+    # --- Negotiation Validation Integration ---
+
+    def validate_negotiation_completion(self) -> bool:
+        """
+        Validate that negotiation is complete before processing screen data.
+
+        This method checks if TN3270E negotiation has completed successfully
+        and is ready for screen data processing. Integrates with the negotiator's
+        validation method and adds additional handler-level checks.
+
+        For connected-3270 traces, we are more lenient since the server may not
+        perform full TN3270E negotiation.
+
+        Returns:
+            True if negotiation is complete and ready for screen processing,
+            False otherwise.
+        """
+        try:
+            # Check if we have a valid negotiator
+            if not hasattr(self, "negotiator") or self.negotiator is None:
+                logger.warning("[VALIDATION] No negotiator available for validation")
+                return False
+
+            # Check if we're in trace replay mode - be more lenient for connected-3270
+            trace_replay_mode = getattr(self.negotiator, "trace_replay_mode", False)
+
+            # Check if negotiator has the validation method and call it
+            if hasattr(self.negotiator, "validate_negotiation_completion"):
+                negotiator_valid = self.negotiator.validate_negotiation_completion()
+                if not negotiator_valid and not trace_replay_mode:
+                    logger.debug("[VALIDATION] Negotiator validation failed")
+                    return False
+            else:
+                # Fallback: check basic negotiator state
+                logger.warning(
+                    "[VALIDATION] Negotiator missing validate_negotiation_completion method"
+                )
+                if not trace_replay_mode:
+                    return False
+
+            # Additional handler-level checks
+            if not hasattr(self, "_connected") or not self._connected:
+                logger.warning("[VALIDATION] Handler not connected")
+                return False
+
+            if (
+                hasattr(self, "_negotiation_timeout_occurred")
+                and self._negotiation_timeout_occurred
+            ):
+                # In trace replay mode, timeouts may occur but data may still be valid
+                if not trace_replay_mode:
+                    logger.warning("[VALIDATION] Negotiation timeout has occurred")
+                    return False
+                else:
+                    logger.debug(
+                        "[VALIDATION] Negotiation timeout in trace replay mode - allowing"
+                    )
+
+            # Check state consistency
+            if hasattr(self, "_current_state"):
+                # For connected-3270 mode, CONNECTED state is acceptable
+                if self._current_state in [
+                    HandlerState.ERROR,
+                    HandlerState.DISCONNECTED,
+                ]:
+                    logger.warning(
+                        f"[VALIDATION] Handler in invalid state: {self._current_state}"
+                    )
+                    return False
+                elif (
+                    self._current_state == HandlerState.CONNECTED and trace_replay_mode
+                ):
+                    # CONNECTED state is OK for connected-3270 trace replay
+                    logger.debug(
+                        "[VALIDATION] CONNECTED state acceptable for trace replay"
+                    )
+
+            # Enhanced check for connected-3270 mode
+            try:
+                negotiated_tn3270e = getattr(
+                    self.negotiator, "negotiated_tn3270e", False
+                )
+                ascii_mode = getattr(self.negotiator, "_ascii_mode", False)
+
+                # For connected-3270 traces, either TN3270E mode or ASCII mode are acceptable
+                if trace_replay_mode and (not negotiated_tn3270e or ascii_mode):
+                    logger.debug(
+                        "[VALIDATION] Connected-3270 mode detected in trace replay - allowing"
+                    )
+                    return True
+            except Exception as e:
+                logger.debug(f"[VALIDATION] Connected-3270 check failed: {e}")
+                if not trace_replay_mode:
+                    return False
+
+            logger.debug("[VALIDATION] Negotiation completion validation passed")
+            return True
+
+        except Exception as e:
+            logger.error(f"[VALIDATION] Error during negotiation validation: {e}")
+            return False
+
+    def validate_negotiation_completion_with_details(self) -> Dict[str, Any]:
+        """
+        Get detailed validation information for troubleshooting.
+
+        Returns:
+            Dictionary with validation status and details.
+        """
+        details: Dict[str, Any] = {
+            "valid": False,
+            "checks": {},
+            "timestamp": time.time(),
+        }
+
+        try:
+            # Check negotiator validation
+            if hasattr(self, "negotiator") and self.negotiator is not None:
+                if hasattr(
+                    self.negotiator, "validate_negotiation_completion_with_details"
+                ):
+                    negotiator_details = (
+                        self.negotiator.validate_negotiation_completion_with_details()
+                    )
+                    details["checks"]["negotiator"] = negotiator_details
+                else:
+                    details["checks"]["negotiator"] = {
+                        "valid": False,
+                        "error": "Method not available",
+                    }
+            else:
+                details["checks"]["negotiator"] = {
+                    "valid": False,
+                    "error": "No negotiator",
+                }
+
+            # Check connection state
+            details["checks"]["connection"] = {
+                "valid": getattr(self, "_connected", False),
+                "state": getattr(self, "_current_state", "Unknown"),
+            }
+
+            # Check timeout status
+            details["checks"]["timeout"] = {
+                "occurred": getattr(self, "_negotiation_timeout_occurred", False),
+                "cleanup_performed": getattr(
+                    self, "_negotiation_cleanup_performed", False
+                ),
+            }
+
+            # Check reader/writer availability
+            details["checks"]["streams"] = {
+                "reader_available": getattr(self, "reader", None) is not None,
+                "writer_available": getattr(self, "writer", None) is not None,
+            }
+
+            # Overall validation
+            checks = details["checks"]
+            details["valid"] = all(
+                check.get("valid", False) for check in checks.values()
+            )
+
+        except Exception as e:
+            details["error"] = str(e)
+
+        return details

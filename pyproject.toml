@@ -26,6 +26,7 @@ test = [
     "pytest >= 7.0",
     "pytest-asyncio >= 0.21",
     "pytest-benchmark >= 4.0",
+    "pytest-xdist >= 3.0.0",  # For parallel test execution
     "flake8 >= 7.0",
     "black >= 24.0",
     "isort >= 5.13",
@@ -61,15 +62,24 @@ docs = [
 markers = [
     "unit: Unit tests",
     "integration: Integration tests",
-    "slow: Slow running tests",
+    "slow: Slow running tests (over 3 seconds)",
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests requiring external services (deselect with '-m \"not integration\"')",
     "property: property-based tests",
+    "ci_fast: Fast tests suitable for CI (< 3 seconds)",
 ]
 norecursedirs = ["archive", "build", "dist", ".git", ".tox", ".pytest_cache", "mcp-servers"]
 testpaths = ["tests", "examples", "quick_test.py", "test_*.py", "mcp-servers"]
- timeout = 30
- timeout_method = "thread"
+timeout = 30
+timeout_method = "thread"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--tb=short",
+    "-ra",
+]
+# Parallel execution configuration (will be enabled via pytest-xdist)
+junit_family = "xunit2"
 
  [tool.setuptools.packages.find]
 include = ["pure3270"]

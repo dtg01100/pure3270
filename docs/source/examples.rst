@@ -3,8 +3,14 @@ Examples
 
 This section provides practical examples of using Pure3270 in various scenarios.
 
-For comprehensive examples demonstrating all API modes and advanced usage patterns,
-see the example files in the ``examples/`` directory:
+.. note::
+   **For comprehensive protocol examples and advanced patterns**, see the new dedicated sections:
+
+   * :doc:`protocol_examples` - Complete TN3270/TN3270E protocol examples with detailed explanations
+   * :doc:`advanced_patterns` - Advanced usage patterns and optimization techniques
+   * :doc:`integration_scenarios` - Real-world enterprise integration examples
+
+For basic examples demonstrating API usage patterns, see the example files in the ``examples/`` directory:
 
 Core Usage Patterns
 -------------------
@@ -13,7 +19,7 @@ Core Usage Patterns
 
 **P3270 Compatibility** - Drop-in replacement for p3270 applications
 
-**Advanced Screen Operations** - Screen buffer manipulation and field operations
+**Screen Operations** - Basic screen buffer manipulation and field operations
 
 **Error Handling** - Connection errors, timeouts, and recovery patterns
 
@@ -111,8 +117,14 @@ See :doc:`terminal_models` for the full list of supported terminal types and det
 Advanced Examples
 -----------------
 
-Advanced Screen Operations
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+.. note::
+   **For comprehensive protocol examples and advanced patterns**, see:
+
+   * :doc:`protocol_examples` - Complete TN3270/TN3270E protocol examples
+   * :doc:`advanced_patterns` - Advanced patterns and optimization
+
+Basic Screen Operations
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``examples/example_advanced_screen_operations.py`` file demonstrates:
 
@@ -124,8 +136,8 @@ The ``examples/example_advanced_screen_operations.py`` file demonstrates:
 
 Run with: ``python examples/example_advanced_screen_operations.py``
 
-Error Handling and Recovery
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Basic Error Handling
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``examples/example_error_handling.py`` file demonstrates:
 
@@ -138,7 +150,7 @@ The ``examples/example_error_handling.py`` file demonstrates:
 
 Run with: ``python examples/example_error_handling.py``
 
-Protocol-Level Operations
+Basic Protocol Operations
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``examples/example_protocol_operations.py`` file demonstrates:
@@ -151,10 +163,13 @@ The ``examples/example_protocol_operations.py`` file demonstrates:
 
 Run with: ``python examples/example_protocol_operations.py``
 
+.. note::
+   **For comprehensive protocol implementation examples**, see :doc:`protocol_examples`
+
 Real-World Usage Examples
 ------------------------
 
-Several comprehensive examples are available in the ``examples/`` directory:
+Several examples are available in the ``examples/`` directory:
 
 - ``example_end_to_end.py`` - Complete session lifecycle with login
 - ``example_pub400*.py`` - Real TN3270 host interactions
@@ -186,3 +201,13 @@ Pure3270 supports file transfer using the IND$FILE protocol:
     asyncio.run(file_transfer_example())
 
 All example files are executable and include detailed comments explaining the functionality demonstrated.
+
+.. note::
+   **For comprehensive real-world integration scenarios**, see :doc:`integration_scenarios` which includes:
+
+   * Enterprise banking system integration
+   * Multi-session management patterns
+   * Printer emulation scenarios
+   * MCP server integration for AI systems
+   * Network resilience patterns
+   * Production deployment configurations

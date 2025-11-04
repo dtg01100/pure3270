@@ -52,7 +52,15 @@ class TraceIntegrationTest:
 
     async def start_server(self):
         """Start the trace replay server."""
-        self.server = TraceReplayServer(str(self.trace_file), loop_mode=False)
+        # Enable trace replay mode for deterministic negotiation timing
+        # NOTE: Use compat_handshake=False for connected-3270 traces like login.trc
+        # which don't use TN3270E negotiation
+        self.server = TraceReplayServer(
+            str(self.trace_file),
+            loop_mode=False,
+            trace_replay_mode=True,
+            compat_handshake=False,  # Use False for connected-3270 mode
+        )
 
         # Start server in background task
         self.server_task = asyncio.create_task(
@@ -75,7 +83,9 @@ class TraceIntegrationTest:
 
     async def connect_session(self, timeout: int = 10) -> Session:
         """Connect a pure3270 session to the replay server."""
-        self.session = Session()
+        self.session = Session(
+            enable_trace=self.server.trace_replay_mode if self.server else False
+        )
 
         try:
             # Connect expects separate host and port parameters, not a combined string
@@ -83,6 +93,20 @@ class TraceIntegrationTest:
                 asyncio.to_thread(self.session.connect, "127.0.0.1", self.port),
                 timeout=timeout,
             )
+
+            # Enable trace replay mode on the negotiator if the server is in trace replay mode
+            if (
+                self.server
+                and self.server.trace_replay_mode
+                and hasattr(self.session, "_async_session")
+                and self.session._async_session
+                and hasattr(self.session._async_session, "_handler")
+                and self.session._async_session._handler
+                and hasattr(self.session._async_session._handler, "negotiator")
+            ):
+                self.session._async_session._handler.negotiator.trace_replay_mode = True
+                logger.info("Enabled trace replay mode on client negotiator")
+
             logger.info("Session connected")
             return self.session
         except asyncio.TimeoutError:
@@ -172,15 +196,89 @@ async def test_login_trace_screen_data():
         interval_s = 0.2
         elapsed = 0.0
         screen_text = ""
-        while elapsed < max_wait_s:
-            screen_text = session.screen_buffer.to_text()
-            screen_lower = screen_text.lower()
-            if screen_text.strip() and (
-                "user" in screen_lower or "uzivatel" in screen_lower
-            ):
-                break
-            await asyncio.sleep(interval_s)
-            elapsed += interval_s
+        try:
+            while elapsed < max_wait_s:
+                screen_text = session.screen_buffer.to_text()
+                # Enhanced debugging: show raw buffer bytes and EBCDIC decoding
+                if elapsed < 1.0:  # Log first 5 iterations for debugging
+                    # Show raw buffer content (first 200 bytes as hex)
+                    raw_buffer_hex = session.screen_buffer.buffer[:200].hex()
+                    logger.info(f"Raw buffer (first 200 bytes hex): {raw_buffer_hex}")
+
+                    # Try EBCDIC decoding of the first 100 bytes
+                    try:
+                        from pure3270.emulation.ebcdic import EBCDICCodec
+
+                        codec = EBCDICCodec()
+                        decoded_text, _ = codec.decode(
+                            bytes(session.screen_buffer.buffer[:100])
+                        )
+                        logger.info(
+                            f"EBCDIC decoded (first 100 bytes): '{decoded_text}'"
+                        )
+                    except Exception as e:
+                        logger.info(f"EBCDIC decode failed: {e}")
+
+                    # Show raw bytes that aren't spaces
+                    non_space_chars = []
+                    for i, byte_val in enumerate(session.screen_buffer.buffer[:200]):
+                        if byte_val not in (
+                            0x00,
+                            0x20,
+                            0x40,
+                        ):  # Skip null, space, EBCDIC space
+                            char_repr = (
+                                chr(byte_val)
+                                if 32 <= byte_val < 127
+                                else f"0x{byte_val:02x}"
+                            )
+                            non_space_chars.append(f"pos{i}:{char_repr}")
+                    logger.info(
+                        f"Non-space chars in first 200 bytes: {non_space_chars[:10]}"
+                    )  # Show first 10
+                # Use improved content detection that handles whitespace and control characters
+                has_visible_content = any(
+                    c.isprintable() and not c.isspace() for c in screen_text
+                )
+                screen_lower = screen_text.lower()
+                logger.info(
+                    f"Polling iteration: elapsed={elapsed:.1f}s, screen_len={len(screen_text)}, has_visible_content={has_visible_content}, has_user={'user' in screen_lower or 'uzivatel' in screen_lower}"
+                )
+
+                # Debug: show what we're actually getting
+                if elapsed < 2.0:  # Log first 10 iterations for debugging
+                    # Extract visible characters only for debugging
+                    visible_chars = "".join(
+                        c if c.isprintable() else "?" for c in screen_text[:100]
+                    )
+                    logger.info(
+                        f"Raw screen text (first 100 chars, ? for control): '{visible_chars}'"
+                    )
+
+                # Check for actual login screen content
+                if has_visible_content and (
+                    "user" in screen_lower
+                    or "uzivatel" in screen_lower
+                    or "global payments" in screen_lower
+                    or "password" in screen_lower
+                ):
+                    logger.info("Login screen content detected!")
+                    break
+                # Also break if we have substantial screen content even without specific text
+                elif len(screen_text) > 1000 and has_visible_content:
+                    logger.info(
+                        "Substantial screen content detected, proceeding with test"
+                    )
+                    break
+
+                await asyncio.sleep(interval_s)
+                elapsed += interval_s
+        except Exception as e:
+            logger.error(f"Exception in polling loop: {e}")
+            raise
+
+        if elapsed >= max_wait_s:
+            logger.info("Timed out waiting for screen data")
 
         # Verify we received the login screen
         assert len(screen_text) > 0, "Should have received screen data"
@@ -196,6 +294,7 @@ async def test_login_trace_screen_data():
 
 
 @pytest.mark.asyncio
+@pytest.mark.slow
 async def test_smoke_trace_tn3270e_negotiation():
     """Test TN3270E protocol negotiation using smoke.trc."""
     trace_file = TRACE_DIR / "smoke.trc"
@@ -220,6 +319,7 @@ async def test_smoke_trace_tn3270e_negotiation():
 
 
 @pytest.mark.asyncio
+@pytest.mark.slow
 async def test_smoke_trace_printer_data():
     """Test printer protocol data flow using smoke.trc."""
     trace_file = TRACE_DIR / "smoke.trc"
@@ -244,6 +344,7 @@ async def test_smoke_trace_printer_data():
 
 
 @pytest.mark.asyncio
+@pytest.mark.slow
 async def test_smoke_trace_bind_image():
     """Test BIND image reception using smoke.trc."""
     trace_file = TRACE_DIR / "smoke.trc"
@@ -268,6 +369,7 @@ async def test_smoke_trace_bind_image():
 
 
 @pytest.mark.asyncio
+@pytest.mark.slow
 async def test_multiple_sequential_connections():
     """Test multiple sequential connections to the same trace."""
     trace_file = TRACE_DIR / "login.trc"
@@ -290,6 +392,7 @@ async def test_multiple_sequential_connections():
 
 
 @pytest.mark.asyncio
+@pytest.mark.slow
 async def test_trace_replay_bidirectional_flow():
     """Test bidirectional data flow (send and receive)."""
     trace_file = TRACE_DIR / "login.trc"

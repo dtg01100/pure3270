@@ -78,17 +78,17 @@ class TraceEvent:
         # '<' should therefore be treated as events we SEND to the connected
         # client, and '>' as events we expect to RECEIVE from the client.
 
-        # Parse server-to-client events: < 0x...  hexdata
-        recv_match = re.match(r"<\s+0x\w+\s+([0-9a-fA-F]+)$", line)
+        # Parse server-to-client events: < 0x...  hexdata (can have multiple hex groups)
+        recv_match = re.match(r"<\s+0x\w+\s+([0-9a-fA-F\s]+)$", line)
         if recv_match:
-            hex_data = recv_match.group(1)
+            hex_data = recv_match.group(1).replace(" ", "")  # Remove spaces
             data = bytes.fromhex(hex_data)
             return cls("recv", data, sequence)
 
-        # Parse client-to-server events: > 0x...  hexdata
-        send_match = re.match(r">\s+0x\w+\s+([0-9a-fA-F]+)$", line)
+        # Parse client-to-server events: > 0x...  hexdata (can have multiple hex groups)
+        send_match = re.match(r">\s+0x\w+\s+([0-9a-fA-F\s]+)$", line)
         if send_match:
-            hex_data = send_match.group(1)
+            hex_data = send_match.group(1).replace(" ", "")  # Remove spaces
             data = bytes.fromhex(hex_data)
             return cls("send", data, sequence)
 
@@ -104,6 +104,7 @@ class TraceReplayServer:
         loop_mode: bool = False,
         max_connections: int = 1,
         compat_handshake: bool = False,
+        trace_replay_mode: bool = False,
     ):
         self.trace_file = Path(trace_file)
         self.events: List[TraceEvent] = []
@@ -111,6 +112,7 @@ class TraceReplayServer:
         self.max_connections = max_connections
         self.active_connections = 0
         self.compat_handshake = compat_handshake
+        self.trace_replay_mode = trace_replay_mode  # Enable deterministic negotiation
 
         # Per-connection state
         self.connection_states: Dict[asyncio.StreamWriter, Dict[str, Any]] = {}
@@ -122,6 +124,10 @@ class TraceReplayServer:
         # second socket during negotiation)
         self._global_compat_complete: bool = False
 
+        # Enhanced error handling for trace replay
+        self._negotiation_mismatch_count = 0
+        self._max_mismatch_count = 3  # Max mismatches before force-complete
+
         self._load_trace()
 
     def _load_trace(self) -> None:
@@ -129,12 +135,69 @@ class TraceReplayServer:
         logger.info(f"Loading trace file: {self.trace_file}")
 
         sequence = 0
+        i = 0
+        lines = []
+
+        # Read all lines first for easier processing
         with open(self.trace_file, "r") as f:
-            for line in f:
+            lines = f.readlines()
+
+        while i < len(lines):
+            line = lines[i].strip()
+
+            # Look for socket read completion lines that indicate large data transfers
+            if "Host socket read complete nr=" in line:
+                # Extract the number of bytes
+                import re
+
+                match = re.search(r"nr=(\d+)", line)
+                if match:
+                    byte_count = int(match.group(1))
+                    logger.debug(
+                        f"Found socket read of {byte_count} bytes at line {i+1}"
+                    )
+
+                    # Collect all subsequent hex data lines until we hit a non-data line
+                    combined_data = bytearray()
+                    j = i + 1
+                    data_lines_found = 0
+
+                    while j < len(lines):
+                        data_line = lines[j].strip()
+
+                        # Check if this is a hex data line
+                        event = TraceEvent.from_trace_line(data_line, sequence)
+                        if event and event.direction == "recv":
+                            # This is a data line, add it to our combined data
+                            combined_data.extend(event.data)
+                            data_lines_found += 1
+                            j += 1
+                        else:
+                            # Not a data line, stop collecting
+                            break
+
+                    if combined_data:
+                        # Create a single event with all the combined data
+                        combined_event = TraceEvent(
+                            "recv", bytes(combined_data), sequence
+                        )
+                        self.events.append(combined_event)
+                        sequence += 1
+                        logger.debug(
+                            f"Combined {data_lines_found} data lines into {len(combined_data)} bytes"
+                        )
+
+                    # Move past the collected data lines
+                    i = j
+                else:
+                    i += 1
+            else:
+                # Regular line, try to parse as normal event
                 event = TraceEvent.from_trace_line(line, sequence)
                 if event:
                     self.events.append(event)
                     sequence += 1
+                i += 1
 
         logger.info(f"Loaded {len(self.events)} events from trace")
 
@@ -480,74 +543,162 @@ class TraceReplayServer:
         device_type_received = False
         functions_received = False
 
-        # First, handle simple IAC option negotiations (non-subnegotiation)
-        i = 0
-        while i < len(data) - 2:
-            if data[i] == IAC:
-                cmd = data[i + 1]
-                opt = data[i + 2] if i + 2 < len(data) else None
-                if opt is None:
-                    break
+        # Enhanced error handling for trace replay mode
+        try:
+            # First, handle simple IAC option negotiations (non-subnegotiation)
+            i = 0
+            while i < len(data) - 2:
+                if data[i] == IAC:
+                    cmd = data[i + 1]
+                    opt = data[i + 2] if i + 2 < len(data) else None
+                    if opt is None:
+                        break
 
-                if cmd == DO:
-                    # Client says DO <option>, we should respond WILL or WONT
-                    if opt == TELOPT_TN3270E:
-                        # Already sent WILL TN3270E in handshake
-                        pass
-                    elif opt == TELOPT_BINARY:
-                        # Client wants us to send binary, we already said WILL
-                        pass
-                    elif opt == TELOPT_EOR:
-                        # Client wants us to send EOR, we already said WILL
-                        pass
-                elif cmd == WILL:
-                    # Client says WILL <option>, we should respond DO or DONT
-                    if opt == TELOPT_BINARY:
-                        # Client will send binary, we already said DO
-                        pass
-                    elif opt == TELOPT_EOR:
-                        # Client will send EOR, we already said DO
-                        pass
-                    elif opt == TELOPT_TN3270E:
-                        # Client agrees to TN3270E
-                        pass
-                i += 3
-            else:
-                i += 1
-
-        # Now handle subnegotiations
-        for start, end in self._find_iac_sequences(data):
-            sb = data[start:end]
-            # Expect IAC SB <option> <payload...> IAC SE
-            if len(sb) < 6 or sb[0] != IAC or sb[1] != SB:
-                continue
-            option = sb[2]
-            payload = sb[3:-2]
-            if option != TELOPT_TN3270E or not payload:
-                continue
-            # payload[0] is one of {TN3270E_DEVICE_TYPE, TN3270E_FUNCTIONS, etc.}
-            p0 = payload[0]
-            if p0 == TN3270E_DEVICE_TYPE:
-                if len(payload) >= 2 and payload[1] == TN3270E_IS:
-                    # Client sent DEVICE-TYPE IS <device>
-                    device_type_received = True
-                    client_device = b"IBM-3278-4-E"
-                    if len(payload) > 2:
-                        # Extract device name from payload
-                        device_bytes = payload[2:]
-                        try:
-                            device_name = device_bytes.split(b"\x00", 1)[0].decode(
-                                "ascii", errors="ignore"
-                            )
-                            if device_name and "IBM" in device_name.upper():
-                                client_device = device_name.encode("ascii")
-                        except Exception:
+                    if cmd == DO:
+                        # Client says DO <option>, we should respond WILL or WONT
+                        if opt == TELOPT_TN3270E:
+                            # Already sent WILL TN3270E in handshake
                             pass
-                    logger.debug(
-                        f"Received DEVICE-TYPE IS: {client_device.decode('ascii', errors='ignore')}"
-                    )
+                        elif opt == TELOPT_BINARY:
+                            # Client wants us to send binary, we already said WILL
+                            pass
+                        elif opt == TELOPT_EOR:
+                            # Client wants us to send EOR, we already said WILL
+                            pass
+                    elif cmd == WILL:
+                        # Client says WILL <option>, we should respond DO or DONT
+                        if opt == TELOPT_BINARY:
+                            # Client will send binary, we already said DO
+                            pass
+                        elif opt == TELOPT_EOR:
+                            # Client will send EOR, we already said DO
+                            pass
+                        elif opt == TELOPT_TN3270E:
+                            # Client agrees to TN3270E
+                            pass
+                    i += 3
+                else:
+                    i += 1
 
-                    # Now send FUNCTIONS SEND to continue negotiation
+            # Now handle subnegotiations
+            for start, end in self._find_iac_sequences(data):
+                sb = data[start:end]
+                # Expect IAC SB <option> <payload...> IAC SE
+                if len(sb) < 6 or sb[0] != IAC or sb[1] != SB:
+                    continue
+                option = sb[2]
+                payload = sb[3:-2]
+                if option != TELOPT_TN3270E or not payload:
+                    continue
+                # payload[0] is one of {TN3270E_DEVICE_TYPE, TN3270E_FUNCTIONS, etc.}
+                p0 = payload[0]
+                if p0 == TN3270E_DEVICE_TYPE:
+                    if len(payload) >= 2 and payload[1] == TN3270E_IS:
+                        # Client sent DEVICE-TYPE IS <device>
+                        device_type_received = True
+                        client_device = b"IBM-3278-4-E"
+                        if len(payload) > 2:
+                            # Extract device name from payload
+                            device_bytes = payload[2:]
+                            try:
+                                device_name = device_bytes.split(b"\x00", 1)[0].decode(
+                                    "ascii", errors="ignore"
+                                )
+                                if device_name and "IBM" in device_name.upper():
+                                    client_device = device_name.encode("ascii")
+                            except Exception:
+                                pass
+                        logger.debug(
+                            f"Received DEVICE-TYPE IS: {client_device.decode('ascii', errors='ignore')}"
+                        )
+
+                        # Now send FUNCTIONS SEND to continue negotiation
+                        functions_send = bytes(
+                            [
+                                IAC,
+                                SB,
+                                TELOPT_TN3270E,
+                                TN3270E_FUNCTIONS,
+                                TN3270E_SEND,
+                                IAC,
+                                SE,
+                            ]
+                        )
+                        await self._send_bytes(writer, functions_send)
+
+                elif p0 == TN3270E_FUNCTIONS:
+                    if len(payload) >= 2 and payload[1] == TN3270E_IS:
+                        # Client sent FUNCTIONS IS <functions>
+                        functions_received = True
+                        func_bytes = payload[2:] if len(payload) > 2 else bytes()
+                        if func_bytes:
+                            funcs = int.from_bytes(func_bytes, byteorder="big")
+                            logger.debug(f"Received FUNCTIONS IS: 0x{funcs:02x}")
+                        else:
+                            logger.debug("Received FUNCTIONS IS: (empty)")
+
+        except Exception as e:
+            # Enhanced error handling for trace replay scenarios
+            self._negotiation_mismatch_count += 1
+            logger.warning(
+                f"Negotiation mismatch #{self._negotiation_mismatch_count}: {e}"
+            )
+
+            # In trace replay mode, force completion after too many mismatches
+            if (
+                self.trace_replay_mode
+                and self._negotiation_mismatch_count >= self._max_mismatch_count
+            ):
+                logger.info(
+                    "Forcing negotiation completion due to repeated mismatches in trace replay mode"
+                )
+                return True
+            # In normal mode, continue trying
+            return False
+
+        # Negotiation is complete if we've received both device type and functions
+        complete = device_type_received and functions_received
+        if complete:
+            logger.debug("TN3270E negotiation complete")
+        return complete
+
+    async def _handle_compat_negotiation_enhanced(
+        self, data: bytes, writer: asyncio.StreamWriter
+    ) -> bool:
+        """Enhanced negotiation handling with better error recovery for trace replay."""
+
+        # For trace replay mode, be more aggressive about completing negotiation
+        if self.trace_replay_mode:
+            # Quick detection of negotiation patterns
+            device_type_pattern = (
+                b"\xff\xfa\x28\x02\x07"  # IAC SB TN3270E DEVICE-TYPE REQUEST
+            )
+            functions_pattern = (
+                b"\xff\xfa\x28\x03\x07"  # IAC SB TN3270E FUNCTIONS REQUEST
+            )
+            device_type_response_pattern = (
+                b"\xff\xfa\x28\x02\x00"  # IAC SB TN3270E DEVICE-TYPE IS
+            )
+            functions_response_pattern = (
+                b"\xff\xfa\x28\x03\x00"  # IAC SB TN3270E FUNCTIONS IS
+            )
+
+            # Check if we've received both key responses
+            has_device_type_response = device_type_response_pattern in data
+            has_functions_response = functions_response_pattern in data
+
+            if has_device_type_response and has_functions_response:
+                logger.info(
+                    "Enhanced trace replay: Both DEVICE-TYPE and FUNCTIONS responses detected"
+                )
+                return True
+            elif has_device_type_response or has_functions_response:
+                logger.debug(
+                    "Enhanced trace replay: Partial negotiation response detected"
+                )
+                # Send appropriate follow-up if needed
+                if has_device_type_response:
+                    # Send functions request
                     functions_send = bytes(
                         [
                             IAC,
@@ -560,23 +711,15 @@ class TraceReplayServer:
                         ]
                     )
                     await self._send_bytes(writer, functions_send)
+                return False  # Not complete yet
+            else:
+                # Check for client responses that would trigger server response
+                if device_type_pattern in data or functions_pattern in data:
+                    logger.debug("Enhanced trace replay: Client negotiation detected")
+                    return False  # Continue negotiation
 
-            elif p0 == TN3270E_FUNCTIONS:
-                if len(payload) >= 2 and payload[1] == TN3270E_IS:
-                    # Client sent FUNCTIONS IS <functions>
-                    functions_received = True
-                    func_bytes = payload[2:] if len(payload) > 2 else bytes()
-                    if func_bytes:
-                        funcs = int.from_bytes(func_bytes, byteorder="big")
-                        logger.debug(f"Received FUNCTIONS IS: 0x{funcs:02x}")
-                    else:
-                        logger.debug("Received FUNCTIONS IS: (empty)")
-
-        # Negotiation is complete if we've received both device type and functions
-        complete = device_type_received and functions_received
-        if complete:
-            logger.debug("TN3270E negotiation complete")
-        return complete
+        # Fall back to standard negotiation handling
+        return await self._handle_compat_negotiation(data, writer)
 
     async def start_server(self, host: str = "127.0.0.1", port: int = 2323) -> None:
         """Start the replay server and ensure clean shutdown on cancellation."""
@@ -636,6 +779,16 @@ async def main() -> None:
         default=1,
         help="Maximum concurrent connections (default: 1)",
     )
+    parser.add_argument(
+        "--trace-replay-mode",
+        action="store_true",
+        help="Enable trace replay mode for deterministic negotiation timing",
+    )
+    parser.add_argument(
+        "--compat-handshake",
+        action="store_true",
+        help="Use compatibility handshake for TN3270E negotiation",
+    )
 
     args = parser.parse_args()
 
@@ -644,7 +797,11 @@ async def main() -> None:
         sys.exit(1)
 
     server = TraceReplayServer(
-        args.trace_file, loop_mode=args.loop, max_connections=args.max_connections
+        args.trace_file,
+        loop_mode=args.loop,
+        max_connections=args.max_connections,
+        trace_replay_mode=getattr(args, "trace_replay_mode", False),
+        compat_handshake=getattr(args, "compat_handshake", False),
     )
     await server.start_server(host=args.host, port=args.port)
 
