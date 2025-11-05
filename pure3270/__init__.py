@@ -9,28 +9,129 @@ import json
 import logging
 import os
 import sys
+from typing import Any, Dict, Optional
 
 from .p3270_client import P3270Client
 from .session import AsyncSession, Session
 
 
 class JSONFormatter(logging.Formatter):
+    """Enhanced JSON formatter with structured logging support."""
+
     def format(self, record: logging.LogRecord) -> str:
         log_entry = {
             "timestamp": datetime.datetime.now().isoformat(),
             "level": record.levelname,
             "module": record.module,
+            "function": record.funcName,
+            "line": record.lineno,
             "message": record.getMessage(),
         }
-        if hasattr(record, "session_id"):
-            log_entry["session_id"] = record.session_id
+
+        # Add session correlation
+        session_id = getattr(record, "session_id", None)
+        if session_id:
+            log_entry["session_id"] = session_id
+
+        correlation_id = getattr(record, "correlation_id", None)
+        if correlation_id:
+            log_entry["correlation_id"] = correlation_id
+
+        # Add operation timing
+        operation_start = getattr(record, "operation_start", None)
+        if operation_start:
+            duration = (
+                datetime.datetime.now() - operation_start
+            ).total_seconds() * 1000
+            log_entry["duration_ms"] = round(duration, 2)
+
+        # Add protocol-specific fields
+        protocol_phase = getattr(record, "protocol_phase", None)
+        if protocol_phase:
+            log_entry["protocol_phase"] = protocol_phase
+
+        packet_type = getattr(record, "packet_type", None)
+        if packet_type:
+            log_entry["packet_type"] = packet_type
+
+        sequence_number = getattr(record, "sequence_number", None)
+        if sequence_number is not None:
+            log_entry["sequence_number"] = sequence_number
+
+        # Add extra structured data
         extra = getattr(record, "pure3270_extra", {})
-        log_entry.update(extra)
+        if extra:
+            log_entry.update(extra)
+
+        # Handle exceptions
         if record.exc_info:
             log_entry["exception"] = self.formatException(record.exc_info)
-            if "context" in extra:
-                log_entry["context"] = extra["context"]
-        return json.dumps(log_entry, ensure_ascii=False)
+            context = extra.get("context") if extra else None
+            if context:
+                log_entry["context"] = context
+
+        return json.dumps(log_entry, ensure_ascii=False, default=str)
+
+
+class StructuredLogger:
+    """Enhanced logger with structured logging capabilities."""
+
+    def __init__(self, name: str):
+        self.logger = logging.getLogger(name)
+
+    def log_operation(
+        self,
+        level: int,
+        operation: str,
+        details: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> None:
+        """Log an operation with structured data."""
+        extra: Dict[str, Any] = {"pure3270_extra": {"operation": operation}}
+        if details is not None:
+            extra["pure3270_extra"].update(details)
+        extra.update(kwargs)
+
+        self.logger.log(level, f"Operation: {operation}", extra=extra)
+
+    def log_protocol_event(
+        self,
+        level: int,
+        event: str,
+        phase: Optional[str] = None,
+        packet_type: Optional[str] = None,
+        sequence: Optional[int] = None,
+        **kwargs: Any,
+    ) -> None:
+        """Log protocol-specific events."""
+        extra: Dict[str, Any] = {"pure3270_extra": {"event": event}}
+        if phase is not None:
+            extra["protocol_phase"] = phase
+        if packet_type is not None:
+            extra["packet_type"] = packet_type
+        if sequence is not None:
+            extra["sequence_number"] = sequence
+        extra.update(kwargs)
+
+        self.logger.log(level, f"Protocol event: {event}", extra=extra)
+
+    def log_performance(
+        self,
+        operation: str,
+        start_time: datetime.datetime,
+        success: bool = True,
+        **kwargs: Any,
+    ) -> None:
+        """Log performance metrics."""
+        extra: Dict[str, Any] = {
+            "operation_start": start_time,
+            "pure3270_extra": {"operation": operation, "success": success},
+        }
+        extra.update(kwargs)
+
+        level = logging.INFO if success else logging.WARNING
+        status = "completed" if success else "failed"
+        self.logger.log(level, f"Performance: {operation} {status}", extra=extra)
 
 
 def setup_logging(level: str = "INFO") -> None:
@@ -86,8 +187,9 @@ def main() -> None:
             )
 
     except Exception as e:
-        if hasattr(e, "context") and e.context:
-            print(f"Connection failed: {e} (Context: {e.context})")
+        context = getattr(e, "context", None)
+        if context:
+            print(f"Connection failed: {e} (Context: {context})")
         else:
             print(f"Connection failed: {e}")
     finally:

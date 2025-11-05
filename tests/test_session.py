@@ -2713,7 +2713,7 @@ class TestSession:
         """Test AsyncSession cookie method."""
         session = AsyncSession()
 
-        session.cookie("name=value")
+        await session.cookie("name=value")
 
         assert session._cookies == {"name": "value"}
 
