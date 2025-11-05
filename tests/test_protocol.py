@@ -20,6 +20,7 @@ from pure3270.protocol.data_stream import DataStreamParser, ParseError
 from pure3270.protocol.exceptions import ProtocolError
 from pure3270.protocol.ssl_wrapper import SSLError, SSLWrapper
 from pure3270.protocol.tn3270_handler import (
+    HandlerState,
     NegotiationError,
     ProtocolError,
     TN3270Handler,
@@ -412,9 +413,13 @@ class TestTN3270Handler:
         data = b"\xc1\xc2"
         tn3270_handler.reader = AsyncMock()
         tn3270_handler.reader.read.return_value = data + b"\xff\x19"  # Add EOR marker
-        received = await tn3270_handler.receive_data()
-        # The handler strips EOR markers and returns only the data payload
-        assert received == data
+        # Mock negotiation validation to return True so data processing proceeds
+        with patch.object(
+            tn3270_handler, "validate_negotiation_completion", return_value=True
+        ):
+            received = await tn3270_handler.receive_data()
+            # The handler strips EOR markers and returns only the data payload
+            assert received == data
 
     @pytest.mark.asyncio
     async def test_receive_data_not_connected(self, tn3270_handler, memory_limit_500mb):
@@ -1138,6 +1143,9 @@ class TestEORStripping:
         handler._process_telnet_stream = AsyncMock(
             return_value=(b"\xc1\xc2\x19", False)
         )
+        # Set up handler state for negotiation validation
+        handler._connected = True
+        handler._current_state = HandlerState.CONNECTED
         return handler
 
     @pytest.mark.asyncio
@@ -1502,6 +1510,9 @@ class TestEORStripping:
         handler.parser = MagicMock()
         handler.negotiator = MagicMock()
         handler.negotiator._ascii_mode = False
+        # Set up handler state for negotiation validation
+        handler._connected = True
+        handler._current_state = HandlerState.CONNECTED
         return handler
 
     @pytest.mark.asyncio

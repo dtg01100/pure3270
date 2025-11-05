@@ -252,7 +252,7 @@ def test_performance_buffer_fill(screen_buffer):
 
 # Sample 3270 data stream test
 SAMPLE_3270_STREAM = (
-    b"\x05\xf5\x11\x10\x00\x00\xc1\xc2\xc3\x0d"  # Write, WCC, SBA(0,0), ABC, EOA
+    b"\x05\xf5\x11\x00\x00\xc1\xc2\xc3\x0d"  # Write, WCC, SBA(0,0), ABC, EOA
 )
 
 
