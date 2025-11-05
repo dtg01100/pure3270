@@ -48,7 +48,7 @@ import random
 import sys
 import time
 from enum import Enum  # Import Enum for state management
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, Optional, cast
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional, cast
 
 if TYPE_CHECKING:
     from .tn3270_handler import TN3270Handler
@@ -147,6 +147,12 @@ class SnaSessionState(Enum):
     LU_BUSY = "LU_BUSY"
     INVALID_SEQUENCE = "INVALID_SEQUENCE"
     STATE_ERROR = "STATE_ERROR"
+
+
+class SnaStateTransitionError(Exception):
+    """Raised when an invalid SNA state transition is attempted."""
+
+    pass
 
 
 class Negotiator:
@@ -3249,6 +3255,66 @@ class Negotiator:
         """Get the current SNA session state."""
         return self._sna_session_state
 
+    def _validate_sna_state_transition(self, from_state: str, to_state: str) -> bool:
+        """
+        Validate SNA state transitions to prevent invalid state changes.
+
+        Args:
+            from_state: Current SNA session state
+            to_state: Target SNA session state
+
+        Returns:
+            True if transition is valid, False otherwise
+        """
+        # Define valid transitions for SNA states
+        valid_transitions: Dict[str, List[str]] = {
+            "NORMAL": ["ERROR", "SESSION_DOWN", "LU_BUSY"],
+            "ERROR": ["PENDING_RECOVERY", "SESSION_DOWN"],
+            "PENDING_RECOVERY": ["NORMAL", "ERROR", "SESSION_DOWN"],
+            "SESSION_DOWN": ["NORMAL", "ERROR"],
+            "LU_BUSY": ["NORMAL", "ERROR"],
+            "INVALID_SEQUENCE": ["ERROR", "SESSION_DOWN"],
+            "STATE_ERROR": ["ERROR", "SESSION_DOWN"],
+        }
+
+        allowed_states = valid_transitions.get(from_state, [])
+        if to_state not in allowed_states:
+            logger.error(f"[SNA] Invalid state transition: {from_state} -> {to_state}")
+            return False
+
+        return True
+
+    async def _handle_lu_busy(self) -> None:
+        """
+        Handle LU busy conditions in SNA responses.
+        LU busy typically means the logical unit is temporarily unavailable.
+        """
+        logger.warning("[SNA] Handling LU busy - implementing retry with backoff")
+        # Enter pending recovery state
+        self._sna_session_state = SnaSessionState.PENDING_RECOVERY
+
+        # Implement exponential backoff retry for LU busy
+        max_retries = 3
+        base_delay = 1.0
+
+        for attempt in range(max_retries):
+            try:
+                delay = base_delay * (2**attempt)  # Exponential backoff
+                await asyncio.sleep(delay)
+
+                # Retry BIND if active
+                if hasattr(self, "is_bind_image_active") and self.is_bind_image_active:
+                    await self._resend_request("BIND-IMAGE", self._next_seq_number)
+                    self._sna_session_state = SnaSessionState.NORMAL
+                    return
+
+            except Exception as e:
+                logger.warning(f"[SNA] LU busy retry {attempt + 1} failed: {e}")
+                if attempt == max_retries - 1:
+                    # All retries failed
+                    self._sna_session_state = SnaSessionState.ERROR
+                    break
+
     async def _handle_sna_response(self, sna_response: SnaResponse) -> None:
         """
         Handle SNA response from the mainframe with comprehensive error recovery.
@@ -3263,22 +3329,16 @@ class Negotiator:
             logger.debug("[SNA] SNA response indicates success")
             # Reset session state on success
             self._sna_session_state = SnaSessionState.NORMAL
-            if self.handler and hasattr(
-                self.handler, "_update_session_state_from_sna_response"
-            ):
-                try:
-                    self.handler._update_session_state_from_sna_response(sna_response)
-                except Exception:
-                    pass
 
         elif sna_response.sense_code == SNA_SENSE_CODE_LU_BUSY:
-            logger.warning("[SNA] LU busy, will retry after delay")
-            self._sna_session_state = SnaSessionState.ERROR
+            logger.warning("[SNA] LU busy, entering LU_BUSY state")
+            self._sna_session_state = SnaSessionState.LU_BUSY
 
-            # Wait and retry BIND if active
-            if hasattr(self, "is_bind_image_active") and self.is_bind_image_active:
-                await asyncio.sleep(1)
-                await self._resend_request("BIND-IMAGE", self._next_seq_number)
+            # Handle LU busy with retry logic
+            try:
+                await self._handle_lu_busy()
+            except Exception:
+                pass
 
         elif sna_response.sense_code == SNA_SENSE_CODE_SESSION_FAILURE:
             logger.error("[SNA] Session failure, attempting re-negotiation")
@@ -3310,7 +3370,7 @@ class Negotiator:
 
         elif sna_response.sense_code == SNA_SENSE_CODE_INVALID_SEQUENCE:
             logger.error("[SNA] Invalid sequence in SNA response")
-            self._sna_session_state = SnaSessionState.ERROR
+            self._sna_session_state = SnaSessionState.INVALID_SEQUENCE
             # Sequence errors may require resynchronization
             try:
                 await self._handle_sequence_error()
@@ -3330,7 +3390,7 @@ class Negotiator:
 
         elif sna_response.sense_code == SNA_SENSE_CODE_STATE_ERROR:
             logger.error("[SNA] State error in SNA response")
-            self._sna_session_state = SnaSessionState.ERROR
+            self._sna_session_state = SnaSessionState.STATE_ERROR
             # State errors may require session reset
             try:
                 await self._handle_state_error()
@@ -3355,17 +3415,25 @@ class Negotiator:
         self._pending_requests.clear()
         # Reset sequence number to resynchronize
         self._next_seq_number = 0
-        # Reset any session state that depends on sequence
-        self._sna_session_state = SnaSessionState.NORMAL
+        # Enter pending recovery state for sequence errors
+        self._sna_session_state = SnaSessionState.PENDING_RECOVERY
+        # Attempt recovery after a brief delay
+        try:
+            await asyncio.sleep(0.5)
+            # For sequence errors, just reset and hope for the best
+            self._sna_session_state = SnaSessionState.NORMAL
+        except Exception as e:
+            logger.error(f"[SNA] Sequence error recovery failed: {e}")
+            self._sna_session_state = SnaSessionState.ERROR
 
     async def _handle_state_error(self) -> None:
         """
         Handle state errors in SNA responses.
         State errors may require session reset or re-negotiation.
         """
-        logger.warning("[SNA] Handling state error - resetting session state")
-        # Reset session state
-        self._sna_session_state = SnaSessionState.NORMAL
+        logger.warning("[SNA] Handling state error - entering recovery")
+        # Enter pending recovery state
+        self._sna_session_state = SnaSessionState.PENDING_RECOVERY
         # Clear any cached state
         try:
             # Clear BIND-IMAGE negotiated bit if set
@@ -3375,9 +3443,14 @@ class Negotiator:
                 delattr(self, "_is_bind_image_active_override")
         except Exception:
             pass
-        # Reset parser state if available
-        if hasattr(self, "parser") and self.parser:
-            self.parser.clear_validation_errors()
+        # Attempt recovery through re-negotiation
+        try:
+            await asyncio.sleep(1.0)  # Brief delay before recovery
+            await self.negotiate()
+            self._sna_session_state = SnaSessionState.NORMAL
+        except Exception as e:
+            logger.error(f"[SNA] State error recovery failed: {e}")
+            self._sna_session_state = SnaSessionState.SESSION_DOWN
 
     async def _resend_request(self, request_type: str, seq_number: int) -> None:
         """
