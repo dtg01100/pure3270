@@ -1563,7 +1563,6 @@ class TestSession:
         # No exception should be raised
 
     @pytest.mark.asyncio
-    @pytest.mark.asyncio
     async def test_async_session_cookie_no_handler(self):
         """Test AsyncSession cookie method without handler - manages local cookies."""
         session = AsyncSession()

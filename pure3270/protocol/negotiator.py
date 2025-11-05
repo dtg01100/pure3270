@@ -3166,8 +3166,10 @@ class Negotiator:
             # Handle LU busy with retry logic
             try:
                 await self._handle_lu_busy()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(
+                    f"[SNA] Exception during LU busy handling: {e}", exc_info=True
+                )
 
         elif sna_response.sense_code == SNA_SENSE_CODE_SESSION_FAILURE:
             logger.error("[SNA] Session failure, attempting re-negotiation")

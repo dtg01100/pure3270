@@ -12,14 +12,11 @@ Usage:
 """
 
 import argparse
-import os
-import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 try:
     import radon.complexity as radon_cc
-    import radon.metrics as radon_metrics
 
     RADON_AVAILABLE = True
 except ImportError:
@@ -220,8 +217,8 @@ class CodeAnalyzer:
         print(f"Files analyzed: {results['files_analyzed']}")
         print(f"Total functions: {summary['total_functions']}")
         print(f"Total classes: {summary['total_classes']}")
-        print(".2f")
-        print(".2f")
+        print(f"Average function complexity: {summary['avg_function_complexity']:.2f}")
+        print(f"Average class complexity: {summary['avg_class_complexity']:.2f}")
         print(
             f"High complexity functions (>15): {summary['high_complexity_functions']}"
         )
@@ -250,7 +247,7 @@ class CodeAnalyzer:
             avg_cohesion = sum(s["cohesion"] for s in results["cohesion_scores"]) / len(
                 results["cohesion_scores"]
             )
-            print(".3f")
+            print(f"Average cohesion: {avg_cohesion:.3f}")
 
         if results["low_cohesion_files"]:
             print(
@@ -258,8 +255,7 @@ class CodeAnalyzer:
             )
             for file_info in results["low_cohesion_files"][:5]:  # Show top 5
                 print(
-                    ".3f"
-                    f"({file_info['functions']} functions, {file_info['classes']} classes)"
+                    f"  • {file_info['file']}: {file_info['cohesion']:.3f} ({file_info['functions']} functions, {file_info['classes']} classes)"
                 )
 
     def _display_duplication_results(self, results: Dict):
