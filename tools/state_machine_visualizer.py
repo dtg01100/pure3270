@@ -15,8 +15,7 @@ Usage:
 import argparse
 import json
 import sys
-from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional
 
 try:
     from graphviz import Digraph
@@ -29,7 +28,6 @@ try:
     from rich.console import Console
     from rich.panel import Panel
     from rich.table import Table
-    from rich.text import Text
 
     RICH_AVAILABLE = True
 except ImportError:

@@ -122,14 +122,6 @@ from .utils import (
 
 logger = logging.getLogger(__name__)
 
-# Try to import warning categorization support
-try:
-    from pure3270.warnings import CategorizedLogger, WarningCategory
-
-    _has_warning_categories = True
-except ImportError:
-    _has_warning_categories = False
-
 # TN3270E Telnet option value per RFC 1647 (option 40 decimal = 0x28 hex)
 # This is the only correct value per the RFC specification.
 
@@ -219,9 +211,6 @@ class Negotiator:
             )
         self.allow_fallback = allow_fallback
 
-        # Trace replay mode for deterministic timing in offline validation
-        self.trace_replay_mode = False
-
         # Back-compat: some tests expect these attributes to exist
         # and default to disabled until negotiation sets them.
         self.tn3270_mode = False
@@ -233,17 +222,9 @@ class Negotiator:
         from .utils import DEFAULT_TERMINAL_MODEL, is_valid_terminal_model
 
         if not is_valid_terminal_model(terminal_type):
-            if _has_warning_categories:
-                from pure3270.warnings.infrastructure import get_categorized_logger
-
-                cat_logger = get_categorized_logger(__name__)
-                cat_logger.log_configuration_warning(
-                    f"Invalid terminal type '{terminal_type}', using default '{DEFAULT_TERMINAL_MODEL}'"
-                )
-            else:
-                logger.warning(
-                    f"Invalid terminal type '{terminal_type}', using default '{DEFAULT_TERMINAL_MODEL}'"
-                )
+            logger.warning(
+                f"Invalid terminal type '{terminal_type}', using default '{DEFAULT_TERMINAL_MODEL}'"
+            )
             terminal_type = DEFAULT_TERMINAL_MODEL
         self.terminal_type = terminal_type
         logger.info(f"Negotiator initialized with terminal type: {self.terminal_type}")
@@ -538,12 +519,6 @@ class Negotiator:
 
     def _calculate_backoff_delay(self, attempt: int) -> float:
         """Calculate delay for exponential backoff with jitter."""
-        # In trace replay mode, use fixed delays for deterministic timing
-        if self.trace_replay_mode:
-            # Fixed delays: 0.1s, 0.2s, 0.3s (no exponential backoff in trace replay)
-            return min(0.1 + (attempt * 0.1), 0.5)  # Cap at 0.5s for trace replay
-
-        # Original exponential backoff for normal operation
         base_delay = self._retry_config["base_delay"]
         backoff_factor = self._retry_config["backoff_factor"]
         max_delay = self._retry_config["max_delay"]
@@ -1283,20 +1258,6 @@ class Negotiator:
         Raises:
             NegotiationError: On subnegotiation failure or timeout after retries.
         """
-        # Add maximum timeout bounds to prevent infinite loops
-        if timeout is None:
-            profile = self._get_current_timing_profile()
-            timeout = profile["total_negotiation_timeout"]
-
-        # Cap maximum timeout to prevent infinite loops in trace replay scenarios
-        # More aggressive timeout for trace replay to prevent hanging
-        if self.trace_replay_mode:
-            max_timeout = 5.0  # Reduced timeout for trace replay
-        else:
-            max_timeout = getattr(self, "_max_negotiation_timeout", 15.0)
-        if timeout > max_timeout:
-            timeout = max_timeout
-            logger.debug(f"Negotiation timeout capped at {max_timeout}s")
         # Short-circuit for forced modes that do not require TN3270E negotiation
         if self.force_mode == "ascii":
             logger.info(
@@ -1360,6 +1321,9 @@ class Negotiator:
         self._get_or_create_negotiation_complete().clear()
 
         # Set up timeouts with x3270-compatible values
+        if timeout is None:
+            profile = self._get_current_timing_profile()
+            timeout = profile["total_negotiation_timeout"]
 
         # Update recovery state
         self._recovery_state["is_recovering"] = False
@@ -1389,70 +1353,32 @@ class Negotiator:
 
                 try:
                     negotiation_events_completed = False
-
-                    # For trace replay mode, use more aggressive timeouts and faster completion
-                    if self.trace_replay_mode:
-                        # Use minimal timeouts for trace replay to avoid hanging
-                        device_type_timeout = min(
-                            step_timeout, 1.0
-                        )  # Cap at 1s for trace replay
-                        functions_timeout = min(
-                            step_timeout, 1.0
-                        )  # Cap at 1s for trace replay
-                        remaining_timeout = min(
-                            timeout or 10.0, 2.0
-                        )  # Cap total remaining at 2s
-
-                        logger.debug(
-                            f"[NEGOTIATION] Trace replay mode: DEVICE-TYPE timeout {device_type_timeout}s..."
-                        )
-                        await asyncio.wait_for(
-                            self._get_or_create_device_type_event().wait(),
-                            timeout=device_type_timeout,
-                        )
-
-                        logger.debug(
-                            f"[NEGOTIATION] Trace replay mode: FUNCTIONS timeout {functions_timeout}s..."
-                        )
-                        await asyncio.wait_for(
-                            self._get_or_create_functions_event().wait(),
-                            timeout=functions_timeout,
-                        )
-
-                        logger.debug(
-                            f"[NEGOTIATION] Trace replay mode: Final negotiation timeout {remaining_timeout}s..."
-                        )
-                        await asyncio.wait_for(
-                            self._get_or_create_negotiation_complete().wait(),
-                            timeout=remaining_timeout,
-                        )
-                    else:
-                        # Standard negotiation with regular timeouts
-                        logger.debug(
-                            f"[NEGOTIATION] Waiting for DEVICE-TYPE with per-event timeout {step_timeout}s..."
-                        )
-                        await asyncio.wait_for(
-                            self._get_or_create_device_type_event().wait(),
-                            timeout=step_timeout,
-                        )
-                        logger.debug(
-                            f"[NEGOTIATION] Waiting for FUNCTIONS with per-event timeout {step_timeout}s..."
-                        )
-                        await asyncio.wait_for(
-                            self._get_or_create_functions_event().wait(),
-                            timeout=step_timeout,
-                        )
-                        # Overall wait for completion with remaining timeout
-                        remaining_timeout = (timeout or 10.0) - (2 * step_timeout)
-                        if remaining_timeout <= 0:
-                            remaining_timeout = step_timeout
-                        logger.debug(
-                            f"[NEGOTIATION] Waiting for full TN3270E negotiation with timeout {remaining_timeout}s..."
-                        )
-                        await asyncio.wait_for(
-                            self._get_or_create_negotiation_complete().wait(),
-                            timeout=remaining_timeout,
-                        )
+                    # Wait for each event with calculated per-step timeout
+                    logger.debug(
+                        f"[NEGOTIATION] Waiting for DEVICE-TYPE with per-event timeout {step_timeout}s..."
+                    )
+                    await asyncio.wait_for(
+                        self._get_or_create_device_type_event().wait(),
+                        timeout=step_timeout,
+                    )
+                    logger.debug(
+                        f"[NEGOTIATION] Waiting for FUNCTIONS with per-event timeout {step_timeout}s..."
+                    )
+                    await asyncio.wait_for(
+                        self._get_or_create_functions_event().wait(),
+                        timeout=step_timeout,
+                    )
+                    # Overall wait for completion with remaining timeout
+                    remaining_timeout = (timeout or 10.0) - (2 * step_timeout)
+                    if remaining_timeout <= 0:
+                        remaining_timeout = step_timeout
+                    logger.debug(
+                        f"[NEGOTIATION] Waiting for full TN3270E negotiation with timeout {remaining_timeout}s..."
+                    )
+                    await asyncio.wait_for(
+                        self._get_or_create_negotiation_complete().wait(),
+                        timeout=remaining_timeout,
+                    )
                     # If a forced failure was signaled (e.g., WONT TN3270E with fallback disabled), raise now
                     if getattr(self, "_forced_failure", False):
                         raise NegotiationError(
@@ -3092,73 +3018,6 @@ class Negotiator:
                 break
             i += 1
 
-    def validate_negotiation_completion(self) -> bool:
-        """
-        Validate that negotiation is complete and ready for screen data processing.
-
-        This method ensures that all required negotiation steps have completed before
-        the client attempts to process screen data, preventing timeouts and empty screens.
-
-        Returns:
-            True if negotiation is complete and valid, False otherwise.
-        """
-        logger.debug(
-            "[NEGOTIATION] Validating negotiation completion for screen processing"
-        )
-
-        # Check if negotiation events are available and set
-        device_type_event = self._get_or_create_device_type_event()
-        functions_event = self._get_or_create_functions_event()
-        negotiation_complete_event = self._get_or_create_negotiation_complete()
-
-        # In trace replay mode, be more lenient about event states
-        if self.trace_replay_mode:
-            # For trace replay, if we're in TN3270 mode (not TN3270E), that's acceptable
-            # as long as basic negotiation completed
-            if not self.negotiated_tn3270e and not getattr(self, "_ascii_mode", False):
-                logger.info("[NEGOTIATION] Trace replay: Basic TN3270 mode detected")
-                return True
-            # For TN3270E mode, check that core events are set
-            elif self.negotiated_tn3270e:
-                if not (device_type_event.is_set() and functions_event.is_set()):
-                    logger.warning(
-                        "[NEGOTIATION] Trace replay: TN3270E events not complete"
-                    )
-                    return False
-
-        # Standard validation for normal operation
-        if self.negotiated_tn3270e:
-            # TN3270E negotiation should have all events set
-            if not (
-                device_type_event.is_set()
-                and functions_event.is_set()
-                and negotiation_complete_event.is_set()
-            ):
-                logger.warning("[NEGOTIATION] TN3270E negotiation events incomplete")
-                return False
-
-            # Check that we have negotiated device type and functions
-            if not self.negotiated_device_type:
-                logger.warning("[NEGOTIATION] TN3270E negotiated but no device type")
-                return False
-
-            if self.negotiated_functions == 0:
-                logger.warning("[NEGOTIATION] TN3270E negotiated but no functions")
-                return False
-
-        elif getattr(self, "_ascii_mode", False):
-            # ASCII mode is acceptable
-            logger.debug("[NEGOTIATION] ASCII mode active")
-            return True
-        else:
-            # Basic TN3270 mode should have at least device type negotiation
-            if not device_type_event.is_set():
-                logger.warning("[NEGOTIATION] Basic TN3270 negotiation incomplete")
-                return False
-
-        logger.debug("[NEGOTIATION] Negotiation validation successful")
-        return True
-
     def _validate_negotiation_state(self) -> bool:
         """
         Validate the current negotiation state for consistency.
@@ -3166,36 +3025,6 @@ class Negotiator:
         Returns:
             True if state is valid, False otherwise.
         """
-        # Enhanced validation for trace replay scenarios
-        if self.trace_replay_mode:
-            # In trace replay mode, ensure all required negotiation steps are complete
-            if self.negotiated_tn3270e:
-                # Check that core negotiation events have been set
-                device_type_event = getattr(self, "_device_type_is_event", None)
-                functions_event = getattr(self, "_functions_is_event", None)
-                negotiation_complete_event = getattr(
-                    self, "_negotiation_complete", None
-                )
-
-                if not (
-                    device_type_event and functions_event and negotiation_complete_event
-                ):
-                    logger.warning(
-                        "[NEGOTIATION] Trace replay: missing negotiation events"
-                    )
-                    return False
-
-                # Check that all events are set (negotiation completed)
-                if not (
-                    device_type_event.is_set()
-                    and functions_event.is_set()
-                    and negotiation_complete_event.is_set()
-                ):
-                    logger.warning(
-                        "[NEGOTIATION] Trace replay: incomplete negotiation events"
-                    )
-                    return False
-
         # Check that negotiated values are consistent
         if self.negotiated_tn3270e:
             if not self.negotiated_device_type:
@@ -3337,8 +3166,10 @@ class Negotiator:
             # Handle LU busy with retry logic
             try:
                 await self._handle_lu_busy()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.error(
+                    f"[SNA] Exception during LU busy handling: {e}", exc_info=True
+                )
 
         elif sna_response.sense_code == SNA_SENSE_CODE_SESSION_FAILURE:
             logger.error("[SNA] Session failure, attempting re-negotiation")

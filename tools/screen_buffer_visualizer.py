@@ -14,13 +14,11 @@ Usage:
 import argparse
 import json
 import sys
-from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict
 
 try:
     from rich.console import Console
     from rich.panel import Panel
-    from rich.text import Text
 
     RICH_AVAILABLE = True
 except ImportError:
@@ -124,7 +122,7 @@ class ScreenBufferVisualizer:
                 return char
             else:
                 return "."
-        except:
+        except (ValueError, TypeError):
             return "."
 
     def visualize_from_trace(self, trace_file: str, frame: int = 0):
