@@ -233,7 +233,7 @@ def test_all_trace_files_comprehensive():
         for result in slowest:
             logger.info(".3f")
 
-    # Assert no failures (this will cause the test to fail if there are any)
+    # Assert no failures (skipped traces are acceptable)
     assert (
         len(failures) == 0
     ), f"{len(failures)} trace files failed: {[f.trace_name for f in failures]}"
@@ -249,8 +249,11 @@ def test_individual_trace_file(trace_file: Path):
     """
     result = run_single_trace_file(trace_file)
 
-    # This will fail the test if the trace file doesn't work
-    assert result.success, f"Trace file {trace_file.name} failed: {result.error}"
+    # Allow skipped traces (due to unavailable codepages) but fail on actual errors
+    if result.error and "Skipped:" in result.error:
+        pytest.skip(f"Trace file {trace_file.name} skipped: {result.error}")
+    else:
+        assert result.success, f"Trace file {trace_file.name} failed: {result.error}"
 
 
 def test_trace_file_categories():
