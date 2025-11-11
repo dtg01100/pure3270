@@ -33,9 +33,8 @@
 """Screen buffer management for 3270 emulation."""
 
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-from .addressing import AddressingMode
 from .buffer_writer import BufferWriter
 from .ebcdic import EBCDICCodec, EmulationEncoder
 from .field_attributes import (
@@ -62,8 +61,8 @@ class Field:
 
     def __init__(
         self,
-        start: Tuple[int, int] = (0, 0),
-        end: Tuple[int, int] = (0, 0),
+        start: Tuple[int, int],
+        end: Tuple[int, int],
         protected: bool = False,
         numeric: bool = False,
         modified: bool = False,
@@ -76,7 +75,8 @@ class Field:
         character_set: int = 0,
         sfe_highlight: int = 0,
         light_pen: int = 0,
-        content: bytes = b"",
+        content: Optional[bytes] = None,
+        codepage: str = "cp037",
     ) -> None:
         # Normalize start/end coordinates so that start <= end (lexicographically).
         try:
@@ -106,6 +106,7 @@ class Field:
         self.character_set = int(character_set)
         self.sfe_highlight = int(sfe_highlight)
         self.light_pen = int(light_pen)
+        self.codepage = codepage
         # Ensure content is bytes
         self.content = bytes(content) if content is not None else b""
 
@@ -117,8 +118,9 @@ class Field:
         """
         if codec is None:
             try:
-                codec = EBCDICCodec()
-            except Exception:
+                codec = EBCDICCodec(self.codepage)
+            except (ImportError, ValueError, UnicodeDecodeError) as e:
+                logger.debug(f"EBCDICCodec creation failed: {e}")
                 codec = None
         if codec is not None:
             # Compatibility: some codecs return (text, length)
@@ -126,7 +128,8 @@ class Field:
                 res = codec.decode(self.content)
                 # Handle both tuple and non-tuple results
                 return str(res[0] if isinstance(res, tuple) else res)
-            except Exception:
+            except (ValueError, TypeError, UnicodeDecodeError) as e:
+                logger.debug(f"EBCDICCodec decode failed: {e}")
                 # If codec fails, fall through to fallback below
                 pass
         # Fallback
@@ -142,12 +145,13 @@ class Field:
         try:
             if isinstance(text, str):
                 text = text.upper()
-        except Exception:
-            pass
+        except (TypeError, AttributeError) as e:
+            logger.debug(f"Text normalization failed: {e}")
         if codec is None:
             try:
-                codec = EBCDICCodec()
-            except Exception:
+                codec = EBCDICCodec(self.codepage)
+            except (ImportError, ValueError, UnicodeDecodeError) as e:
+                logger.debug(f"EBCDICCodec creation failed: {e}")
                 codec = None
         if codec is not None:
             try:
@@ -156,7 +160,8 @@ class Field:
                 self.content = bytes(res[0] if isinstance(res, tuple) else res)
                 self.modified = True
                 return
-            except Exception:
+            except (ValueError, TypeError, UnicodeDecodeError) as e:
+                logger.debug(f"EBCDICCodec encode failed: {e}")
                 # If codec fails, fall through to fallback below
                 pass
         self.content = EmulationEncoder.encode(text)
@@ -191,11 +196,49 @@ class Field:
             f"numeric={self.numeric}, modified={self.modified}, intensity={self.intensity}, content={self.content!r})"
         )
 
+    def __getitem__(self, key: Union[int, str]) -> Any:
+        """Support both tuple-like and dict-like access for compatibility with existing code."""
+        if isinstance(key, str):
+            # Dict-like access
+            if key == "row":
+                return self.start[0]
+            elif key == "start_col":
+                return self.start[1]
+            elif key == "end_row":
+                return self.end[0]
+            elif key == "end_col":
+                return self.end[1]
+            elif hasattr(self, key):
+                return getattr(self, key)
+            else:
+                raise KeyError(f"Field has no attribute '{key}'")
+        else:
+            # Tuple-like access
+            field_attrs = [
+                self.start,
+                self.end,
+                self.protected,
+                self.numeric,
+                self.modified,
+                self.selected,
+                self.intensity,
+                self.color,
+                self.background,
+                self.validation,
+                self.outlining,
+                self.character_set,
+                self.sfe_highlight,
+                self.light_pen,
+                self.content,
+            ]
+            return field_attrs[key]
+
 
 logger = logging.getLogger(__name__)
 
 
 class ScreenBuffer(BufferWriter):
+
     def _is_file_transfer_content(self, text: str) -> bool:
         """Check if text contains file transfer patterns that should be suppressed from screen display."""
         # Look for IND$FILE commands and file transfer metadata patterns
@@ -229,56 +272,74 @@ class ScreenBuffer(BufferWriter):
 
     @property
     def ascii_buffer(self) -> str:
-        """Return the entire screen buffer as a decoded ASCII/Unicode string."""
-        lines = []
+        """Return the entire screen buffer as a multi-line ASCII string.
+
+        Tests expect exactly `rows` lines separated by newlines, regardless of
+        trailing blank content. This method converts each row of the EBCDIC
+        buffer to printable ASCII, masking non-printables to spaces, and joins
+        all rows with newlines without trimming.
+        """
+        lines: List[str] = []
         for row in range(self.rows):
-            line_start = row * self.cols
-            line_end = (row + 1) * self.cols
-            line_bytes = bytearray(self.buffer[line_start:line_end])
+            start = row * self.cols
+            end = start + self.cols
+            line_bytes = bytearray(self.buffer[start:end])
 
-            if self._ascii_mode:
-                # In ASCII mode, buffer contains ASCII bytes directly
-                line_text = line_bytes.decode("ascii", errors="replace")
-            else:
-                # In 3270 mode, buffer contains EBCDIC bytes that need conversion
-                # Only mask actual field attribute positions that contain attribute bytes
-                for col in range(self.cols):
-                    pos = line_start + col
-                    byte_value = line_bytes[col]
-                    # Check if this position actually contains a field attribute
-                    # Field attributes are typically in ranges: 0x00, 0xC0-0xFF
-                    # Basic field attributes: 0x00 (unprotected/numeric), 0xC0-0xFF (protected/various)
-                    if pos in self._field_starts:
-                        # Only mask if this looks like a real field attribute byte
-                        # Basic attributes: 0x00 or high-bit set (0xC0-0xFF)
-                        if byte_value == 0x00 or (byte_value & 0x80):
-                            line_bytes[col] = (
-                                0x40  # EBCDIC space for actual field attributes
-                            )
-                    # Also mask cursor position with visible EBCDIC space
-                    elif row == self.cursor_row and col == self.cursor_col:
-                        line_bytes[col] = 0x40  # EBCDIC space
+            # Mask field attribute bytes and hide the cursor with a space
+            for col in range(self.cols):
+                pos = start + col
+                if pos in getattr(self, "_field_starts", set()):
+                    if line_bytes[col] == 0x00 or (
+                        (line_bytes[col] & 0x80) and (line_bytes[col] & 0x40)
+                    ):
+                        line_bytes[col] = 0x40
+                elif row == self.cursor_row and col == self.cursor_col:
+                    line_bytes[col] = 0x40
 
-                decoded, _ = EBCDICCodec().decode(bytes(line_bytes))
-                # Clean any control characters that should not appear in screen text
-                # But preserve printable text that was correctly decoded
-                line_text = "".join(
-                    c if ord(c) >= 32 or c in "\t\n\r" else " " for c in decoded
+            try:
+                from .ebcdic import EBCDICCodec
+
+                codec = EBCDICCodec(self.codepage)
+                decoded_result = codec.decode(bytes(line_bytes))
+                decoded = (
+                    decoded_result[0]
+                    if isinstance(decoded_result, tuple)
+                    else decoded_result
                 )
+                cleaned_chars = [
+                    c if ((ord(c) >= 32 and c != "\x7f") or c in "\t\n\r") else " "
+                    for c in decoded
+                ]
+                line_text = "".join(cleaned_chars)
+            except (ValueError, TypeError, UnicodeDecodeError) as e:
+                logger.debug(f"Primary EBCDIC decode failed: {e}")
+                try:
+                    from .ebcdic import EmulationEncoder
 
-            # Suppress file transfer content from screen display
-            if self._is_file_transfer_content(line_text):
-                logger.debug(
-                    f"Suppressing file transfer content from screen: {line_text!r}"
-                )
-                continue
+                    line_text = EmulationEncoder.decode(bytes(line_bytes))
+                    cleaned_chars = [
+                        c if ((ord(c) >= 32 and c != "\x7f") or c in "\t\n\r") else " "
+                        for c in line_text
+                    ]
+                    line_text = "".join(cleaned_chars)
+                except (ValueError, TypeError, UnicodeDecodeError) as e:
+                    logger.debug(f"EmulationEncoder fallback failed: {e}")
+                    line_text = " " * len(line_bytes)
 
             lines.append(line_text)
+
+        # Always return exactly `rows` lines
         return "\n".join(lines)
 
     """Manages the 3270 screen buffer, including characters, attributes, and fields."""
 
-    def __init__(self, rows: int = 24, cols: int = 80, init_value: int = 0x40):
+    def __init__(
+        self,
+        rows: int = 24,
+        cols: int = 80,
+        init_value: int = 0x40,
+        codepage: str = "cp037",
+    ):
         """
         Initialize the ScreenBuffer.
 
@@ -299,6 +360,7 @@ class ScreenBuffer(BufferWriter):
         self.rows = rows
         self.cols = cols
         self.size = rows * cols
+        self.codepage = codepage  # Store the codepage for EBCDIC conversion
         self._ascii_mode = False  # Track whether we're in ASCII or EBCDIC mode
         # EBCDIC character buffer - initialize to spaces
         self.buffer = bytearray([init_value] * self.size)
@@ -320,6 +382,35 @@ class ScreenBuffer(BufferWriter):
         self._suspend_field_detection: int = 0
         # Dedicated set for field start positions (SFE/SF)
         self._field_starts: set[int] = set()
+        # Field navigation tracking
+        self._ascii_fields: List[Field] = []
+
+        # --- Performance Optimization ---
+        # Field lookup optimization: cache field at position
+        self._field_position_cache: Dict[int, Field] = {}
+        # Navigation cache for input fields
+        self._input_fields_cache: List[Field] = []
+        self._navigation_cache_valid = False
+
+        # EBCDIC codec instance cache
+        self._cached_codec: Optional[EBCDICCodec] = None
+        self._cached_codec_codepage: str = ""
+
+    def set_ascii_mode(self, ascii_mode: bool) -> None:
+        """
+        Set ASCII mode for the screen buffer.
+
+        In ASCII mode, characters are stored as ASCII bytes directly.
+        In EBCDIC mode (default), characters are converted to EBCDIC.
+
+        Args:
+            ascii_mode: True for ASCII mode, False for EBCDIC mode
+        """
+        self._ascii_mode = ascii_mode
+
+    def get_ascii_mode(self) -> bool:
+        """Get current ASCII mode setting."""
+        return self._ascii_mode
 
     def get_field_content(self, field_index: int) -> str:
         """Return the content of the field at the given index as a decoded string."""
@@ -328,7 +419,7 @@ class ScreenBuffer(BufferWriter):
             if hasattr(field, "content") and field.content:
                 from pure3270.emulation.ebcdic import EBCDICCodec
 
-                codec = EBCDICCodec()
+                codec = EBCDICCodec(self.codepage)
                 decoded, _ = codec.decode(field.content)
                 return decoded
         return ""
@@ -348,7 +439,8 @@ class ScreenBuffer(BufferWriter):
         """Suspend field detection until end_bulk_update is called."""
         try:
             self._suspend_field_detection += 1
-        except Exception:
+        except (TypeError, AttributeError) as e:
+            logger.debug(f"Suspend field detection counter error: {e}")
             self._suspend_field_detection = 1
 
     def end_bulk_update(self) -> None:
@@ -356,7 +448,8 @@ class ScreenBuffer(BufferWriter):
         try:
             if self._suspend_field_detection > 0:
                 self._suspend_field_detection -= 1
-        except Exception:
+        except (TypeError, AttributeError) as e:
+            logger.debug(f"Resume field detection counter error: {e}")
             self._suspend_field_detection = 0
         # Only run detection when fully resumed
         if self._suspend_field_detection == 0:
@@ -373,21 +466,6 @@ class ScreenBuffer(BufferWriter):
         self.fields = []
         self._detect_fields()
         self.set_position(0, 0)
-
-    def set_ascii_mode(self, ascii_mode: bool = True) -> None:
-        """
-        Set ASCII mode for the screen buffer.
-
-        Args:
-            ascii_mode: True for ASCII mode, False for EBCDIC mode
-        """
-        logger.debug(f"ScreenBuffer setting ASCII mode: {ascii_mode}")
-        self._ascii_mode = ascii_mode
-        if ascii_mode:
-            # Convert existing EBCDIC spaces to ASCII spaces
-            for i in range(len(self.buffer)):
-                if self.buffer[i] == 0x40:  # EBCDIC space
-                    self.buffer[i] = 0x20  # ASCII space
 
     def is_ascii_mode(self) -> bool:
         """Return True if screen buffer is in ASCII mode."""
@@ -483,6 +561,14 @@ class ScreenBuffer(BufferWriter):
                 )
                 return
 
+            # Critical fix: Ensure attr_offset calculation doesn't overflow
+            # Check that pos calculation is safe and attr_offset is within bounds
+            if pos >= len(self.buffer):
+                logger.error(
+                    f"Buffer position {pos} would cause attribute array overflow"
+                )
+                return
+
             # Check that attr_offset is within bounds of attributes array
             if attr_offset + 2 >= len(self.attributes):
                 logger.error(
@@ -531,6 +617,11 @@ class ScreenBuffer(BufferWriter):
             modified_field_found = self._update_field_content(
                 int(row), int(col), ebcdic_byte
             )
+
+            # Invalidate cache if field was modified to maintain consistency
+            if modified_field_found:
+                self._navigation_cache_valid = False
+
             # Avoid heavy field detection for every byte to improve performance on large writes.
             # Only trigger field detection when we just wrote at column 0 (start of a row)
             # or when no fields exist yet and we're populating the screen for the first time.
@@ -622,6 +713,7 @@ class ScreenBuffer(BufferWriter):
                 from ..protocol.data_stream import DataStreamParser
 
                 # Create a proper parser that can handle all 3270 orders correctly
+                # Create a proper parser that can handle all 3270 orders correctly
                 from .addressing import AddressingMode
 
                 parser = DataStreamParser(
@@ -637,6 +729,9 @@ class ScreenBuffer(BufferWriter):
             except ImportError:
                 # Fallback to naive parser if DataStreamParser is not available
                 logger.warning("DataStreamParser not available, using fallback parser")
+                self._parse_with_fallback(data)
+            except (ImportError, ValueError, TypeError, UnicodeDecodeError) as e:
+                logger.warning(f"DataStreamParser failed: {e}, using fallback parser")
                 self._parse_with_fallback(data)
             except Exception as e:
                 # Graceful degradation on parsing errors
@@ -871,24 +966,25 @@ class ScreenBuffer(BufferWriter):
             end = start + self.cols
             line_bytes = bytearray(self.buffer[start:end])
 
+            line_text = ""
             if self._ascii_mode:
                 try:
-                    text = line_bytes.decode("ascii", errors="replace")
-                except Exception:
-                    text = ""
+                    line_text = line_bytes.decode("ascii", errors="replace")
+                except (ValueError, TypeError) as e:
+                    logger.debug(f"ASCII decode failed: {e}")
+                    line_text = ""
             else:
                 # In 3270 mode, only mask actual field attribute bytes
                 # that were explicitly marked as field starts, preserve printable EBCDIC text
                 for col in range(self.cols):
                     pos = start + col
-                    byte_value = line_bytes[col]
+
                     # Check if this position actually contains a field attribute
                     # Field attributes are typically in ranges: 0x00, 0xC0-0xFF
-                    # Basic field attributes: 0x00 (unprotected/numeric), 0xC0-0xFF (protected/various)
                     if pos in self._field_starts:
                         # Only mask if this looks like a real field attribute byte
                         # Basic attributes: 0x00 or high-bit set (0xC0-0xFF)
-                        if byte_value == 0x00 or (byte_value & 0x80):
+                        if line_bytes[col] == 0x00 or (line_bytes[col] & 0x80):
                             line_bytes[col] = (
                                 0x40  # EBCDIC space for actual field attributes
                             )
@@ -897,35 +993,156 @@ class ScreenBuffer(BufferWriter):
                         line_bytes[col] = 0x40  # EBCDIC space
                 try:
                     # Prefer CP037 decoding to align with s3270 Ascii() behavior
-                    decoded, _ = EBCDICCodec().decode(bytes(line_bytes))
+                    codec = EBCDICCodec(self.codepage)
+                    decoded_result = codec.decode(bytes(line_bytes))
+                    # Handle the tuple return value: (decoded_string, length)
+                    decoded = (
+                        decoded_result[0]
+                        if isinstance(decoded_result, tuple)
+                        else decoded_result
+                    )
                     # Clean any control characters that should not appear in screen text
                     # But preserve printable text that was correctly decoded
-                    text = "".join(
-                        c if ord(c) >= 32 or c in "\t\n\r" else " " for c in decoded
-                    )
-                except Exception:
+                    cleaned_chars = []
+                    for c in decoded:
+                        if (ord(c) >= 32 and c != "\x7f") or c in "\t\n\r":
+                            cleaned_chars.append(c)
+                        else:
+                            cleaned_chars.append(
+                                " "
+                            )  # Use space instead of "?" for non-printable chars
+                    line_text = "".join(cleaned_chars)
+                except (ValueError, TypeError, UnicodeDecodeError) as e:
+                    logger.debug(f"EBCDIC codec decode failed: {e}")
                     # Fallback to emulator mapping if codec fails
-                    text = EmulationEncoder.decode(bytes(line_bytes))
-            lines.append(text)
+                    try:
+                        line_text = EmulationEncoder.decode(bytes(line_bytes))
+                        # Clean the fallback text as well
+                        cleaned_chars = []
+                        for c in line_text:
+                            if (ord(c) >= 32 and c != "\x7f") or c in "\t\n\r":
+                                cleaned_chars.append(c)
+                            else:
+                                cleaned_chars.append(
+                                    " "
+                                )  # Use space instead of "?" for non-printable chars
+                        line_text = "".join(cleaned_chars)
+                    except (ValueError, TypeError, UnicodeDecodeError) as e:
+                        logger.debug(f"EmulationEncoder fallback failed: {e}")
+                        # Last resort: use raw bytes decode with safer approach to avoid "?" characters
+                        try:
+                            # Decode with latin-1 first to preserve byte values, then clean up
+                            decoded_latin1 = bytes(line_bytes).decode("latin-1")
+                            cleaned_chars = []
+                            for c in decoded_latin1:
+                                if (ord(c) >= 32 and c != "\x7f") or c in "\t\n\r":
+                                    # Try to decode this character with cp037 to get proper EBCDIC mapping
+                                    try:
+                                        single_char_bytes = c.encode("latin-1")
+                                        cp037_char = single_char_bytes.decode("cp037")
+                                        if (
+                                            ord(cp037_char) >= 32
+                                            and cp037_char != "\x7f"
+                                        ) or cp037_char in "\t\n\r":
+                                            cleaned_chars.append(cp037_char)
+                                        else:
+                                            cleaned_chars.append(
+                                                " "
+                                            )  # Use space instead of "?" for non-printable chars
+                                    except (ValueError, UnicodeDecodeError):
+                                        # If cp037 decode fails, keep the latin-1 character if printable
+                                        if (
+                                            ord(c) >= 32 and c != "\x7f"
+                                        ) or c in "\t\n\r":
+                                            cleaned_chars.append(c)
+                                        else:
+                                            cleaned_chars.append(
+                                                " "
+                                            )  # Use space instead of "?" for non-printable chars
+                                else:
+                                    cleaned_chars.append(
+                                        " "
+                                    )  # Use space instead of "?" for non-printable chars
+                            line_text = "".join(cleaned_chars)
+                        except (ValueError, TypeError, UnicodeDecodeError):
+                            logger.debug("Complete text conversion fallback failed")
+                            # If all else fails, just use space for the whole line
+                            line_text = " " * len(line_bytes)
+            lines.append(line_text)
         return "\n".join(lines)
 
     def _detect_fields(self) -> None:
+        """Detect fields from field starts with performance optimization."""
         # Only log at debug level when explicitly enabled to avoid performance issues
-        # in property tests with many iterations
         if logger.isEnabledFor(logging.DEBUG):
             logger.debug(f"_detect_fields: _field_starts={sorted(self._field_starts)}")
+
+        # Clear existing caches for field lookup
+        self._field_position_cache.clear()
+        self._input_fields_cache.clear()
+
+        # Clear fields and prepare for detection
         self.fields.clear()
         field_starts = sorted(self._field_starts)
         if not field_starts:
             return
+
+        # Performance optimization: pre-calculate field ranges in one pass
+        field_ranges = []
         for idx, start in enumerate(field_starts):
             end = (
                 field_starts[idx + 1] - 1
                 if idx + 1 < len(field_starts)
                 else self.size - 1
             )
-            # Removed per-field debug log to prevent test hangs in high-volume scenarios
+            field_ranges.append((start, end))
+
+        # Create all fields in one pass
+        for start, end in field_ranges:
             self._create_field_from_range(start, end)
+
+        # Build navigation caches after field creation
+        self._build_field_caches()
+
+        # Mark navigation cache as valid
+        self._navigation_cache_valid = True
+
+    def _build_field_caches(self) -> None:
+        """Build field position and input field caches for faster lookup."""
+        # Build field position cache for O(1) lookups
+        for field in self.fields:
+            start_idx = field.start[0] * self.cols + field.start[1]
+            end_idx = field.end[0] * self.cols + field.end[1]
+
+            # Cache all positions in this field
+            for pos in range(start_idx, end_idx + 1):
+                self._field_position_cache[pos] = field
+
+            # Cache input fields separately for navigation
+            if not field.protected:
+                self._input_fields_cache.append(field)
+
+        # Sort input fields by position for efficient navigation
+        self._input_fields_cache.sort(key=lambda f: f.start[0] * self.cols + f.start[1])
+
+    def _get_cached_codec(self) -> Optional[EBCDICCodec]:
+        """Get cached EBCDIC codec instance for performance optimization."""
+        # Return cached codec if valid
+        if (
+            self._cached_codec is not None
+            and self._cached_codec_codepage == self.codepage
+        ):
+            return self._cached_codec
+
+        # Create and cache new codec
+        try:
+            self._cached_codec = EBCDICCodec(self.codepage)
+            self._cached_codec_codepage = self.codepage
+            return self._cached_codec
+        except (ImportError, ValueError, UnicodeDecodeError) as e:
+            logger.debug(f"Failed to create EBCDICCodec: {e}")
+            # Return None if codec creation fails
+            return None
 
     def __repr__(self) -> str:
         return f"ScreenBuffer({self.rows}x{self.cols}, fields={len(self.fields)})"
@@ -935,8 +1152,18 @@ class ScreenBuffer(BufferWriter):
         return self.to_text()
 
     def get_field_at_position(self, row: int, col: int) -> Optional[Field]:
-        """Get the field containing the given position, if any (by linear range)."""
+        """Get the field containing the given position, if any (optimized with caching)."""
+        # Validate input bounds
+        if not (0 <= row < self.rows and 0 <= col < self.cols):
+            return None
+
         pos = row * self.cols + col
+
+        # Fast path: use cache if valid
+        if self._navigation_cache_valid and pos in self._field_position_cache:
+            return self._field_position_cache[pos]
+
+        # Fallback: linear search (old method) for cases where cache is invalid
         for field in self.fields:
             start_idx = field.start[0] * self.cols + field.start[1]
             end_idx = field.end[0] * self.cols + field.end[1]
@@ -946,17 +1173,19 @@ class ScreenBuffer(BufferWriter):
 
     def move_cursor_to_first_input_field(self) -> None:
         """
-        Moves the cursor to the beginning of the first unprotected, non-skipped, non-autoskip field.
+        Moves the cursor to the beginning of the first unprotected field with performance optimization.
         """
         first_input_field = None
-        for field in self.fields:
-            # An input field is unprotected and not autoskip (auto-skip is usually indicated by a specific attribute bit,
-            # but for simplicity, we'll consider any protected field as non-input for now).
-            # Also, ensure it's not a skipped field (often numeric and protected, or just protected with no data entry)
-            # For now, we'll just check for 'protected' status.
-            if not field.protected:  # Assuming unprotected means input field
-                first_input_field = field
-                break
+
+        # Fast path: use cached input fields if available
+        if self._navigation_cache_valid and self._input_fields_cache:
+            first_input_field = self._input_fields_cache[0]
+        else:
+            # Fallback: scan fields (inefficient but maintains compatibility)
+            for field in self.fields:
+                if not field.protected:
+                    first_input_field = field
+                    break
 
         if first_input_field:
             self.cursor_row, self.cursor_col = first_input_field.start
@@ -965,35 +1194,83 @@ class ScreenBuffer(BufferWriter):
             )
         else:
             # If no input fields are found, move to (0,0) or keep current position.
-            # For now, we'll just log and keep the current position.
             logger.debug("No input fields found for IC order.")
 
     def move_cursor_to_next_input_field(self) -> None:
         """
         Moves the cursor to the beginning of the next unprotected, non-skipped, non-autoskip field.
         Wraps around to the first field if no next field is found.
+
+        In ASCII mode, this also considers ASCII fields detected by VT100 parser.
         """
         current_pos_linear = self.cursor_row * self.cols + self.cursor_col
         next_input_field = None
 
-        # Sort fields by their linear start position to ensure correct traversal
+        # Sort EBCDIC fields by their linear start position to ensure correct traversal
         sorted_fields = sorted(
             self.fields, key=lambda f: f.start[0] * self.cols + f.start[1]
         )
 
-        # Find the next input field after the current cursor position
+        # Find the next EBCDIC input field after the current cursor position
         for field in sorted_fields:
             field_start_linear = field.start[0] * self.cols + field.start[1]
             if not field.protected and field_start_linear > current_pos_linear:
                 next_input_field = field
                 break
 
-        # If no next input field is found, wrap around to the first input field
+        # If no next EBCDIC input field is found, check for ASCII fields
+        if (
+            not next_input_field
+            and hasattr(self, "_ascii_fields")
+            and self._ascii_fields
+        ):
+            # Sort ASCII fields by their position
+            ascii_fields = sorted(
+                self._ascii_fields, key=lambda f: f["row"] * self.cols + f["start_col"]
+            )
+
+            # Find the next ASCII field after current position
+            for ascii_field in ascii_fields:
+                field_row = ascii_field["row"]
+                field_col = ascii_field["start_col"]
+                field_linear = field_row * self.cols + field_col
+
+                if field_linear > current_pos_linear:
+                    # Move to this ASCII field
+                    self.cursor_row = field_row
+                    self.cursor_col = field_col
+                    logger.debug(
+                        f"Cursor moved to next ASCII input field at {self.cursor_row},{self.cursor_col}"
+                    )
+                    return
+
+        # If no next input field is found anywhere, wrap around to the first input field
         if not next_input_field:
+            # Check EBCDIC fields first
             for field in sorted_fields:
                 if not field.protected:
                     next_input_field = field
                     break
+
+            # If no EBCDIC field found, check ASCII fields
+            if (
+                not next_input_field
+                and hasattr(self, "_ascii_fields")
+                and self._ascii_fields
+            ):
+                ascii_fields = sorted(
+                    self._ascii_fields,
+                    key=lambda f: f["row"] * self.cols + f["start_col"],
+                )
+                if ascii_fields:
+                    # Move to first ASCII field
+                    first_ascii = ascii_fields[0]
+                    self.cursor_row = first_ascii["row"]
+                    self.cursor_col = first_ascii["start_col"]
+                    logger.debug(
+                        f"Cursor moved to first ASCII input field at {self.cursor_row},{self.cursor_col}"
+                    )
+                    return
 
         if next_input_field:
             self.cursor_row, self.cursor_col = next_input_field.start
@@ -1016,6 +1293,8 @@ class ScreenBuffer(BufferWriter):
             self.attributes[pos * 3] = attr
             # Mark a field start at this position
             self._field_starts.add(pos)
+            # Invalidate cache since field structure changed
+            self._navigation_cache_valid = False
             # Recompute fields since we changed attributes
             if self._suspend_field_detection == 0:
                 self._detect_fields()
@@ -1147,7 +1426,8 @@ class ScreenBuffer(BufferWriter):
             else:
                 # Unknown types are stored as raw ints for backward compatibility
                 attr_set.set_attribute(attr_type, value)
-        except Exception:
+        except (ValueError, TypeError, AttributeError) as e:
+            logger.debug(f"Extended attribute class construction failed: {e}")
             # If class construction fails, store as raw
             attr_set.set_attribute(attr_type, value)
 
