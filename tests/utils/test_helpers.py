@@ -366,6 +366,19 @@ def resource_manager():
         yield rm
 
 
+@pytest.fixture
+def async_test_helper():
+    """Fixture providing async test helper."""
+    return AsyncTestHelper()
+
+
+@pytest.fixture
+def test_resource_manager():
+    """Fixture providing test resource manager."""
+    with resource_manager_context() as rm:
+        yield rm
+
+
 # Standardized assertion helpers
 class TestAssertions:
     """Standardized assertions for common test patterns."""

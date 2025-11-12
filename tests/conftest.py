@@ -25,6 +25,9 @@ from pure3270.emulation.ebcdic import EBCDICCodec
 from pure3270.emulation.screen_buffer import ScreenBuffer
 from pure3270.session import AsyncSession
 
+# Import test utilities
+from tests.utils.test_helpers import async_test_helper, test_resource_manager
+
 
 class MonkeyPatchManager:
     """No-op monkey patch manager used when patching is disabled.
