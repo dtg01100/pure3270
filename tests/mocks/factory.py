@@ -12,8 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 from pure3270.emulation.screen_buffer import ScreenBuffer
 from pure3270.session import AsyncSession
-
-from .auth_flows import (
+from tests.mocks.auth_flows import (
     MockAuthNegotiator,
     MockAuthScreenGenerator,
     MockAuthSession,
@@ -22,7 +21,7 @@ from .auth_flows import (
     create_mock_auth_screen_generator,
     create_mock_auth_session,
 )
-from .network_handlers import (
+from tests.mocks.network_handlers import (
     MockAsyncReader,
     MockAsyncWriter,
     MockConnection,
@@ -33,14 +32,14 @@ from .network_handlers import (
     create_slow_connection,
     create_tn3270e_connection,
 )
-from .protocol_responses import (
+from tests.mocks.protocol_responses import (
     MockNegotiationHandler,
     MockProtocolResponseGenerator,
     MockScreenUpdateGenerator,
     create_mock_negotiation_handler,
     create_mock_protocol_responses,
 )
-from .tn3270_server import (
+from tests.mocks.tn3270_server import (
     MockTN3270Server,
     MockTN3270ServerWithAuth,
     MockTN3270ServerWithScript,
