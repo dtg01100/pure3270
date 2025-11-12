@@ -12,6 +12,8 @@ from unittest.mock import patch as _patch
 sys.path.insert(
     0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "mcp-servers"))
 )
+# Ensure tests directory is in Python path for imports
+sys.path.insert(0, os.path.dirname(__file__))
 
 import pytest
 import pytest_asyncio
