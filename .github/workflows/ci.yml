@@ -107,7 +107,7 @@ jobs:
         echo "🚀 Running tests in parallel with pytest-xdist..."
         # Use 4 workers for parallel execution, faster pytest settings
         pytest tests/ -v --tb=short -m "not integration" -n 4 --dist worksteal \
-          --durations=10 --maxfail=3 --disable-warnings
+          --import-mode=importlib --durations=10 --maxfail=3 --disable-warnings
 
     - name: Run specific slow tests (if enabled)
       if: ${{ github.event.inputs.run_slow_tests == 'true' }}
@@ -159,7 +159,7 @@ jobs:
       run: |
         echo "📊 Generating coverage report with parallel execution..."
         pytest --cov=pure3270 --cov-report=xml tests/ -m "not integration" -n 2 --tb=short \
-          --maxfail=3 --disable-warnings
+          --import-mode=importlib --maxfail=3 --disable-warnings
 
     - name: Upload test results
       if: always()
