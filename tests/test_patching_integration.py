@@ -11,9 +11,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from pure3270.emulation.screen_buffer import Field, ScreenBuffer
-
-from .mocks.auth_flows import create_mock_auth_negotiator, create_mock_auth_session
-from .mocks.factory import (
+from tests.mocks.auth_flows import create_mock_auth_negotiator, create_mock_auth_session
+from tests.mocks.factory import (
     create_mock_connection,
     create_mock_session,
     create_test_scenario,
@@ -21,15 +20,15 @@ from .mocks.factory import (
     isolation_manager,
     scenario_factory,
 )
-from .mocks.network_handlers import (
+from tests.mocks.network_handlers import (
     create_basic_telnet_connection,
     create_tn3270e_connection,
 )
-from .mocks.protocol_responses import (
+from tests.mocks.protocol_responses import (
     MockScreenUpdateGenerator,
     create_mock_protocol_responses,
 )
-from .mocks.tn3270_server import create_auth_mock_server, create_basic_mock_server
+from tests.mocks.tn3270_server import create_auth_mock_server, create_basic_mock_server
 
 
 @pytest.mark.integration
@@ -197,7 +196,7 @@ class TestPatchingIntegration:
         # Create session with screen buffer
         session = create_mock_session("basic")
         screen_buffer = ScreenBuffer(rows=24, cols=80)
-        session.screen = screen_buffer
+        session.screen_buffer = screen_buffer
 
         # Set up test fields
         session.screen.fields = [
