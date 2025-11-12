@@ -11,30 +11,31 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from pure3270.emulation.screen_buffer import ScreenBuffer
-from tests.mocks.auth_flows import (
+
+from .mocks.auth_flows import (
     MockAuthSession,
     create_mock_auth_screen_generator,
     create_mock_auth_session,
 )
-from tests.mocks.factory import (
+from .mocks.factory import (
     MockAsyncSessionFactory,
     MockScenarioFactory,
     scenario_factory,
 )
-from tests.mocks.network_handlers import (
+from .mocks.network_handlers import (
     MockAsyncReader,
     MockAsyncWriter,
     MockConnection,
     create_basic_telnet_connection,
     create_tn3270e_connection,
 )
-from tests.mocks.protocol_responses import (
+from .mocks.protocol_responses import (
     MockNegotiationHandler,
     MockProtocolResponseGenerator,
     create_mock_negotiation_handler,
     create_mock_protocol_responses,
 )
-from tests.mocks.tn3270_server import (
+from .mocks.tn3270_server import (
     MockTN3270Server,
     create_auth_mock_server,
     create_basic_mock_server,
@@ -165,7 +166,7 @@ class TestMockingInfrastructure:
         screen_buffer = ScreenBuffer(rows=24, cols=80)
 
         # Create generator
-        from tests.mocks.protocol_responses import MockScreenUpdateGenerator
+        from .mocks.protocol_responses import MockScreenUpdateGenerator
 
         generator = MockScreenUpdateGenerator(screen_buffer)
 
@@ -215,7 +216,7 @@ class TestMockingInfrastructure:
 
     async def test_mock_connection_manager(self):
         """Test mock connection manager."""
-        from tests.mocks.network_handlers import MockConnectionManager
+        from .mocks.network_handlers import MockConnectionManager
 
         manager = MockConnectionManager()
 
@@ -236,7 +237,7 @@ class TestMockingInfrastructure:
 
     async def test_factory_functions(self):
         """Test factory functions from factory module."""
-        from tests.mocks.factory import (
+        from .mocks.factory import (
             create_mock_connection,
             create_mock_session,
             create_test_scenario,

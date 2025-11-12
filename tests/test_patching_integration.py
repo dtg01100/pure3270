@@ -11,8 +11,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from pure3270.emulation.screen_buffer import Field, ScreenBuffer
-from tests.mocks.auth_flows import create_mock_auth_negotiator, create_mock_auth_session
-from tests.mocks.factory import (
+
+from .mocks.auth_flows import create_mock_auth_negotiator, create_mock_auth_session
+from .mocks.factory import (
     create_mock_connection,
     create_mock_session,
     create_test_scenario,
@@ -20,15 +21,15 @@ from tests.mocks.factory import (
     isolation_manager,
     scenario_factory,
 )
-from tests.mocks.network_handlers import (
+from .mocks.network_handlers import (
     create_basic_telnet_connection,
     create_tn3270e_connection,
 )
-from tests.mocks.protocol_responses import (
+from .mocks.protocol_responses import (
     MockScreenUpdateGenerator,
     create_mock_protocol_responses,
 )
-from tests.mocks.tn3270_server import create_auth_mock_server, create_basic_mock_server
+from .mocks.tn3270_server import create_auth_mock_server, create_basic_mock_server
 
 
 @pytest.mark.integration
