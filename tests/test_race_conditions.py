@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from pure3270.protocol.tn3270_handler import TN3270Handler
+from pure3270.protocol.tn3270_handler import HandlerState, TN3270Handler
 
 
 @pytest.mark.asyncio
@@ -148,6 +148,7 @@ async def test_concurrent_receive_operations():
 
     handler = TN3270Handler(MockReader(), MockWriter(), host="localhost", port=23)
     handler._connected = True
+    handler._current_state = HandlerState.CONNECTED
     handler.negotiator = Mock()
     handler.negotiator.negotiated_tn3270e = False
     handler.negotiator._ascii_mode = False

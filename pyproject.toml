@@ -75,11 +75,16 @@ markers = [
     "integration: marks tests as integration tests requiring external services (deselect with '-m \"not integration\"')",
     "property: property-based tests",
     "ci_fast: Fast tests suitable for CI (< 3 seconds)",
+    "performance: Performance benchmark tests",
+    "s3270: Tests requiring the external s3270/p3270 binary",
 ]
 norecursedirs = ["archive", "build", "dist", ".git", ".tox", ".pytest_cache", "mcp-servers"]
 testpaths = ["tests", "examples", "quick_test.py", "test_*.py", "mcp-servers"]
 timeout = 30
 timeout_method = "thread"
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
+asyncio_default_test_loop_scope = "function"
 addopts = [
     "--strict-markers",
     "--strict-config",

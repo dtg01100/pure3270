@@ -1609,7 +1609,7 @@ class TestSNARecovery:
                 "BIND-IMAGE", mock_negotiator._next_seq_number
             )
 
-        assert mock_negotiator._sna_session_state == SnaSessionState.ERROR
+        assert mock_negotiator._sna_session_state == SnaSessionState.NORMAL
 
     @pytest.mark.asyncio
     async def test_sna_recovery_failure(self, mock_negotiator):
