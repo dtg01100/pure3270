@@ -114,6 +114,8 @@ from .utils import (
     TN3270E_USABLE_AREA,
     TN3270E_USABLE_AREA_IS,
     TN3270E_USABLE_AREA_SEND,
+    TTYPE_IS,
+    TTYPE_SEND,
     WILL,
     WONT,
     send_iac,
@@ -2770,11 +2772,11 @@ class Negotiator:
 
         if len(payload) >= 1:
             command = payload[0]
-            if command == TN3270E_IS and len(payload) > 1:
+            if command == TTYPE_IS and len(payload) > 1:
                 # Server is announcing its terminal type (rare – typically client sends IS)
                 term_type = payload[1:].decode("ascii", errors="ignore").rstrip("\x00")
                 logger.info(f"[TTYPE] Server terminal type: {term_type}")
-            elif command == TN3270E_SEND:
+            elif command == TTYPE_SEND:
                 # Server requests our terminal type per RFC 1091 (SEND=0x01, IS=0x00)
                 # Heuristic: if this negotiator is attached to a handler that has a
                 # printer buffer (printer session), or if the configured terminal
