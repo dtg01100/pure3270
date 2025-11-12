@@ -135,11 +135,11 @@ s3270_*.py
 !tests/test_printer_protocol_traces.py
 !tests/test_protocol_negotiation.py
 !tests/test_protocol_negotiation_traces.py
+!tests/test_race_conditions_improved.py
 !tests/test_screen_buffer.py
 !tests/test_trace_integration.py
 !tests/test_trace_replay.py
-!tests/test_trace_semantic_validation.py
-!tests/property/test_negotiation_properties.py
+!tests/utils/test_helpers.py
 
 # Allow specific tool scripts required by CI offline validation
 !tools/test_trace_replay.py
