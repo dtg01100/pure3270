@@ -97,7 +97,7 @@ jobs:
         black --check . > black-report.txt 2>&1 || true
 
     - name: Archive coverage report
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: coverage-report
         path: |
@@ -107,7 +107,7 @@ jobs:
         if-no-files-found: ignore
 
     - name: Archive static analysis reports
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: static-analysis-reports
         path: |
@@ -117,7 +117,7 @@ jobs:
         if-no-files-found: ignore
 
     - name: Archive linting reports
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: linting-reports
         path: |
