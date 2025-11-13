@@ -12,18 +12,18 @@ from unittest.mock import AsyncMock, MagicMock
 
 from pure3270.emulation.screen_buffer import ScreenBuffer
 from pure3270.session import AsyncSession
+
+# NOTE: Use absolute import style (tests.mocks.*) consistently across test suite.
+# Only import what is actually referenced in this module to reduce noise and
+# keep pre-commit/flake8 output clean. Review comments highlighted many unused
+# symbols previously imported.
 from tests.mocks.auth_flows import (
-    MockAuthNegotiator,
-    MockAuthScreenGenerator,
-    MockAuthSession,
     MockMultiFactorAuth,
     create_mock_auth_negotiator,
     create_mock_auth_screen_generator,
     create_mock_auth_session,
 )
 from tests.mocks.network_handlers import (
-    MockAsyncReader,
-    MockAsyncWriter,
     MockConnection,
     MockConnectionManager,
     create_basic_telnet_connection,
@@ -33,21 +33,10 @@ from tests.mocks.network_handlers import (
     create_tn3270e_connection,
 )
 from tests.mocks.protocol_responses import (
-    MockNegotiationHandler,
-    MockProtocolResponseGenerator,
     MockScreenUpdateGenerator,
     create_mock_negotiation_handler,
-    create_mock_protocol_responses,
 )
-from tests.mocks.tn3270_server import (
-    MockTN3270Server,
-    MockTN3270ServerWithAuth,
-    MockTN3270ServerWithScript,
-    create_auth_mock_server,
-    create_basic_mock_server,
-    create_error_mock_server,
-    create_scripted_mock_server,
-)
+from tests.mocks.tn3270_server import create_scripted_mock_server
 
 
 class MockScenarioFactory:

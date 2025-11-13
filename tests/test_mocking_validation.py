@@ -1,45 +1,32 @@
 """
 Validation test for the new mocking infrastructure.
 
-This test verifies that all the mock components work correctly
-without requiring complex session setup.
+Verifies that all the mock components work correctly without requiring
+complex session setup. Imports are intentionally kept minimal; remove
+any unused symbols to keep the surface clean for faster review and to
+avoid confusion about implicit test dependencies.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock
+# Removed unused imports (asyncio, AsyncMock, MagicMock) after final nitpick audit.
 
 import pytest
 
 from pure3270.emulation.screen_buffer import ScreenBuffer
-
-from .mocks.auth_flows import (
-    MockAuthSession,
+from tests.mocks.auth_flows import (
     create_mock_auth_screen_generator,
     create_mock_auth_session,
 )
-from .mocks.factory import (
-    MockAsyncSessionFactory,
-    MockScenarioFactory,
-    scenario_factory,
-)
-from .mocks.network_handlers import (
+from tests.mocks.factory import scenario_factory
+from tests.mocks.network_handlers import (
     MockAsyncReader,
     MockAsyncWriter,
-    MockConnection,
     create_basic_telnet_connection,
-    create_tn3270e_connection,
 )
-from .mocks.protocol_responses import (
-    MockNegotiationHandler,
-    MockProtocolResponseGenerator,
+from tests.mocks.protocol_responses import (
     create_mock_negotiation_handler,
     create_mock_protocol_responses,
 )
-from .mocks.tn3270_server import (
-    MockTN3270Server,
-    create_auth_mock_server,
-    create_basic_mock_server,
-)
+from tests.mocks.tn3270_server import create_auth_mock_server, create_basic_mock_server
 
 
 @pytest.mark.integration
@@ -166,7 +153,7 @@ class TestMockingInfrastructure:
         screen_buffer = ScreenBuffer(rows=24, cols=80)
 
         # Create generator
-        from .mocks.protocol_responses import MockScreenUpdateGenerator
+        from tests.mocks.protocol_responses import MockScreenUpdateGenerator
 
         generator = MockScreenUpdateGenerator(screen_buffer)
 
@@ -216,7 +203,7 @@ class TestMockingInfrastructure:
 
     async def test_mock_connection_manager(self):
         """Test mock connection manager."""
-        from .mocks.network_handlers import MockConnectionManager
+        from tests.mocks.network_handlers import MockConnectionManager
 
         manager = MockConnectionManager()
 
@@ -237,7 +224,7 @@ class TestMockingInfrastructure:
 
     async def test_factory_functions(self):
         """Test factory functions from factory module."""
-        from .mocks.factory import (
+        from tests.mocks.factory import (
             create_mock_connection,
             create_mock_session,
             create_test_scenario,

@@ -2,6 +2,7 @@
 """
 Test race condition scenarios to verify async lock effectiveness
 """
+
 import asyncio
 import time
 from typing import List, Tuple
@@ -9,7 +10,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from pure3270.protocol.tn3270_handler import TN3270Handler
+from pure3270.protocol.tn3270_handler import HandlerState, TN3270Handler
 
 
 @pytest.mark.asyncio
@@ -118,7 +119,12 @@ async def test_concurrent_receive_operations():
 
     class MockReader:
         def __init__(self, responses=None):
-            self.responses = responses or [b"data1", b"data2", b"data3"]
+            # Use valid TN3270 data format for testing
+            self.responses = responses or [
+                b"\x00\x00\x00\x04\xf5\x40\x40\x19",
+                b"\x00\x00\x00\x04\xf5\x40\x40\x19",
+                b"\x00\x00\x00\x04\xf5\x40\x40\x19",
+            ]
             self.index = 0
             self.call_count = 0
 
@@ -148,6 +154,7 @@ async def test_concurrent_receive_operations():
 
     handler = TN3270Handler(MockReader(), MockWriter(), host="localhost", port=23)
     handler._connected = True
+    handler._current_state = HandlerState.CONNECTED
     handler.negotiator = Mock()
     handler.negotiator.negotiated_tn3270e = False
     handler.negotiator._ascii_mode = False

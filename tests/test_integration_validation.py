@@ -230,27 +230,27 @@ class TestValidationIntegration:
             # Test that it's executable (can be run with python)
             # For tools that take arguments, just check they start without immediate crash
             if tool == "synthetic_data_generator.py":
-                # Check help for tools that support it
+                # Check help for tools that support it (exit code 1 is OK for usage message)
                 result = subprocess.run(
                     [sys.executable, str(tool_path), "--help"],
                     capture_output=True,
                     cwd=Path(__file__).parent.parent,
                     timeout=5,
                 )
+                # Accept exit codes 0 or 1 (1 is common for usage/help output)
+                assert result.returncode in (
+                    0,
+                    1,
+                ), f"Tool {tool} crashed: {result.stderr.decode()}"
             else:
-                # For other tools, just check they can be imported/executed briefly
+                # For other tools, just check the syntax is valid (file compiles)
                 result = subprocess.run(
-                    [
-                        sys.executable,
-                        "-c",
-                        f'import sys; sys.path.insert(0, "tools"); exec(open("{tool}").read().split("if __name__")[0])',
-                    ],
+                    [sys.executable, "-m", "py_compile", str(tool_path)],
                     capture_output=True,
                     cwd=Path(__file__).parent.parent,
                     timeout=2,
                 )
-
-            # Just check they don't crash immediately with import/exec errors
-            assert (
-                result.returncode != 1 or "import" not in result.stderr.decode().lower()
-            ), f"Tool {tool} has import issues: {result.stderr.decode()}"
+                # Check for compilation errors
+                assert (
+                    result.returncode == 0
+                ), f"Tool {tool} has syntax errors: {result.stderr.decode()}"

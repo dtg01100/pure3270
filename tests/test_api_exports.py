@@ -3,12 +3,12 @@ import importlib
 import pytest
 
 
-def test_asyncsession_not_exported_at_package_root():
+def test_asyncsession_exported_at_package_root():
     import pure3270
 
-    # Accessing AsyncSession at package root should raise AttributeError
-    with pytest.raises(AttributeError):
-        _ = pure3270.AsyncSession  # type: ignore[attr-defined]
+    # Accessing AsyncSession at package root should work since it's in __all__
+    assert hasattr(pure3270, "AsyncSession")
+    assert pure3270.AsyncSession is not None
 
 
 def test_asyncsession_importable_from_module():
@@ -20,12 +20,12 @@ def test_asyncsession_importable_from_module():
 import pytest
 
 
-def test_asyncsession_not_in_package_root():
+def test_asyncsession_in_package_root():
     import pure3270
 
-    # Accessing pure3270.AsyncSession at package root should raise AttributeError
-    with pytest.raises(AttributeError):
-        _ = pure3270.AsyncSession  # type: ignore[attr-defined]
+    # Accessing pure3270.AsyncSession at package root should work since it's exported
+    assert hasattr(pure3270, "AsyncSession")
+    assert pure3270.AsyncSession is not None
 
 
 def test_asyncsession_importable_from_session_module():

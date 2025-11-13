@@ -32,7 +32,9 @@ class TN3270EIntegrationTester:
 
     def test_bind_negotiation_flow(self, trace_name: str) -> Dict[str, Any]:
         """Test complete BIND image negotiation and session establishment."""
-        trace_path = Path(f"/workspaces/pure3270/tests/data/traces/{trace_name}.trc")
+        # Use relative path from test file location
+        test_dir = Path(__file__).parent
+        trace_path = test_dir / "data" / "traces" / f"{trace_name}.trc"
 
         if not trace_path.exists():
             return {"error": f"Trace file {trace_name}.trc not found"}

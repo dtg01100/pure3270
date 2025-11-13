@@ -17,7 +17,7 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 
-from pure3270.protocol.tn3270_handler import TN3270Handler
+from pure3270.protocol.tn3270_handler import HandlerState, TN3270Handler
 
 # Import our test utilities
 from tests.utils.test_helpers import (
@@ -178,6 +178,7 @@ async def test_concurrent_receive_operations_with_isolation(
 
     handler = TN3270Handler(mock_reader, mock_writer, host="localhost", port=23)
     handler._connected = True
+    handler._current_state = HandlerState.CONNECTED
     handler.negotiator = MagicMock()
     handler.negotiator.negotiated_tn3270e = False
     handler.negotiator._ascii_mode = False

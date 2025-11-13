@@ -172,6 +172,11 @@ class TestTN3270Handler:
         data = b"\xc1\xc2"
         tn3270_handler.reader = AsyncMock()
         tn3270_handler.reader.read.return_value = data + b"\xff\x19"  # Add EOR marker
+        # Set up negotiator for trace replay mode to allow data processing
+        tn3270_handler.negotiator.trace_replay_mode = True
+        # Set handler as connected and in proper state
+        tn3270_handler._connected = True
+        tn3270_handler._current_state = "CONNECTED"
         received = await tn3270_handler.receive_data()
         assert received == data
 
@@ -420,6 +425,10 @@ class TestTN3270Handler:
         ):
 
             tn3270_handler.reader = AsyncMock()
+            tn3270_handler._current_state = "CONNECTED"
+            tn3270_handler.negotiator.trace_replay_mode = True
+            tn3270_handler._negotiated_tn3270e = True  # Enable TN3270E processing
+            tn3270_handler._connected = True  # Mark handler as connected
             # Simulate receiving TN3270E header + actual data + IAC EOR
             test_data = mock_header_bytes + b"actual data"
             tn3270_handler.reader.read.return_value = test_data + b"\xff\x19"
