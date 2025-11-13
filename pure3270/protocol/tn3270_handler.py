@@ -2587,7 +2587,13 @@ class TN3270Handler:
             except Exception as e:
                 logger.warning(f"VT100 parsing error in ASCII mode: {e}")
             if processed_data:
-                return processed_data.rstrip(b"\x19")
+                _vt100_payload = processed_data.rstrip(b"\x19")
+                if not self.validate_negotiation_completion():
+                    logger.debug(
+                        "[ASCII_MODE] Early VT100 payload return before negotiation completion (%d bytes)",
+                        len(_vt100_payload),
+                    )
+                return _vt100_payload
             return None
 
         if len(processed_data) >= 5:
@@ -2698,6 +2704,11 @@ class TN3270Handler:
                             )
                         except Exception:
                             pass
+                        if not self.validate_negotiation_completion():
+                            logger.debug(
+                                "[ASCII_MODE] Early TN3270E payload return before negotiation completion (%d bytes)",
+                                len(ret_payload),
+                            )
                         return ret_payload
                     return None
 
@@ -2741,7 +2752,13 @@ class TN3270Handler:
                         await _res
             except Exception as e:
                 logger.debug(f"ASCII fallback parse as TN3270 failed: {e}")
-            return processed_data.rstrip(b"\x19")
+            _ascii_fallback = processed_data.rstrip(b"\x19")
+            if not self.validate_negotiation_completion():
+                logger.debug(
+                    "[ASCII_MODE] Early raw fallback payload return before negotiation completion (%d bytes)",
+                    len(_ascii_fallback),
+                )
+            return _ascii_fallback
         return None
 
     async def _handle_tn3270_mode(self, processed_data: bytes) -> Optional[bytes]:
@@ -2825,6 +2842,11 @@ class TN3270Handler:
                             )
                         except Exception:
                             pass
+                        if not self.validate_negotiation_completion():
+                            logger.debug(
+                                "[TN3270_MODE] Early SCS payload return before negotiation completion (%d bytes)",
+                                len(ret_payload),
+                            )
                         return ret_payload
                     return None
                 elif data_type == PRINTER_STATUS_DATA_TYPE and self.printer_buffer:
@@ -2853,6 +2875,11 @@ class TN3270Handler:
                             )
                         except Exception:
                             pass
+                        if not self.validate_negotiation_completion():
+                            logger.debug(
+                                "[TN3270_MODE] Early PRINTER_STATUS payload return before negotiation completion (%d bytes)",
+                                len(ret_payload),
+                            )
                         return ret_payload
                     return None
 
@@ -2922,6 +2949,11 @@ class TN3270Handler:
                 )
             except Exception:
                 pass
+            if not self.validate_negotiation_completion():
+                logger.debug(
+                    "[TN3270_MODE] Early general TN3270 payload return before negotiation completion (%d bytes)",
+                    len(ret_payload),
+                )
             return ret_payload
         return None
 
