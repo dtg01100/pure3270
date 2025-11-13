@@ -219,6 +219,7 @@ comprehensive_*.py
 action_*.py
 behavior_*.py
 protocol_*.py
+!tests/mocks/protocol_responses.py
 drop_in_*.py
 local_*.py
 p3270_*.py
