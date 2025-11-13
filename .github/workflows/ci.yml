@@ -17,6 +17,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_slow_tests:
+        description: 'Run slow tests during CI run'
+        required: false
+        default: false
+        type: boolean
       focus_version:
         description: 'Focus testing on a specific Python version'
         required: false
