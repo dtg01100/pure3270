@@ -243,7 +243,7 @@ class TestValidationIntegration:
                     [
                         sys.executable,
                         "-c",
-                        f'import sys; sys.path.insert(0, "tools"); exec(open("{tool}").read().split("if __name__")[0])',
+                        f'import sys; sys.path.insert(0, "tools"); exec(open("tools/{tool}").read().split("if __name__")[0])',
                     ],
                     capture_output=True,
                     cwd=Path(__file__).parent.parent,
