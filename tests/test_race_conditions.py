@@ -2,6 +2,7 @@
 """
 Test race condition scenarios to verify async lock effectiveness
 """
+
 import asyncio
 import time
 from typing import List, Tuple
@@ -118,7 +119,12 @@ async def test_concurrent_receive_operations():
 
     class MockReader:
         def __init__(self, responses=None):
-            self.responses = responses or [b"data1", b"data2", b"data3"]
+            # Use valid TN3270 data format for testing
+            self.responses = responses or [
+                b"\x00\x00\x00\x04\xf5\x40\x40\x19",
+                b"\x00\x00\x00\x04\xf5\x40\x40\x19",
+                b"\x00\x00\x00\x04\xf5\x40\x40\x19",
+            ]
             self.index = 0
             self.call_count = 0
 
