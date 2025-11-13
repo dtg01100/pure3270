@@ -43,6 +43,10 @@ import pytest
 logging.getLogger().setLevel(logging.WARNING)
 logging.getLogger("pure3270").setLevel(logging.WARNING)
 
+# CI detection used to guard timing-sensitive tests from running on shared
+# CI runners where performance variability can cause flakes.
+import os
+
 from pure3270.emulation.ebcdic import translate_ascii_to_ebcdic
 from pure3270.emulation.screen_buffer import ScreenBuffer
 from pure3270.protocol.data_stream import DataStreamParser
@@ -57,6 +61,8 @@ from tests.utils.test_helpers import (
     TestTimeouts,
     resource_manager_context,
 )
+
+CI_RUN = os.getenv("GITHUB_ACTIONS") == "true" or os.getenv("CI") == "true"
 
 
 class PerformanceBenchmark:
@@ -237,6 +243,8 @@ def test_screen_buffer_performance(test_resource_manager):
 
 
 @pytest.mark.performance
+@pytest.mark.performance
+@pytest.mark.skipif(CI_RUN, reason="Timing-sensitive test skipped on CI runners")
 def test_data_stream_parsing_performance(test_resource_manager):
     """Benchmark data stream parsing under various loads."""
 
