@@ -1,12 +1,13 @@
 """
 Validation test for the new mocking infrastructure.
 
-This test verifies that all the mock components work correctly
-without requiring complex session setup.
+Verifies that all the mock components work correctly without requiring
+complex session setup. Imports are intentionally kept minimal; remove
+any unused symbols to keep the surface clean for faster review and to
+avoid confusion about implicit test dependencies.
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock
+# Removed unused imports (asyncio, AsyncMock, MagicMock) after final nitpick audit.
 
 import pytest
 
