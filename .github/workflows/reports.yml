@@ -35,7 +35,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install .[test,testing]
+        pip install .[test,testing] mypy bandit pylint flake8 black radon cohesion
 
     - name: Generate coverage report
       run: |
@@ -75,8 +75,7 @@ jobs:
 
     - name: Generate static analysis reports
       run: |
-        # Install static analysis tools if not already installed
-        pip install mypy bandit pylint
+  # All static analysis tools installed above
 
         # Generate mypy report
         python -m mypy pure3270/ > mypy-report.txt 2>&1 || true
@@ -89,8 +88,7 @@ jobs:
 
     - name: Generate linting report
       run: |
-        # Install linting tools if not already installed
-        pip install flake8 black
+  # All linting tools installed above
 
         # Generate flake8 report
         flake8 . > flake8-report.txt 2>&1 || true
