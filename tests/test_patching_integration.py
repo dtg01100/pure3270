@@ -12,23 +12,12 @@ import pytest
 
 from pure3270.emulation.screen_buffer import Field, ScreenBuffer
 from tests.mocks.auth_flows import create_mock_auth_negotiator, create_mock_auth_session
-from tests.mocks.factory import (
-    create_mock_connection,
-    create_mock_session,
-    create_test_scenario,
-    isolated_test,
-    isolation_manager,
-    scenario_factory,
-)
-from tests.mocks.network_handlers import (
-    create_basic_telnet_connection,
-    create_tn3270e_connection,
-)
-from tests.mocks.protocol_responses import (
-    MockScreenUpdateGenerator,
-    create_mock_protocol_responses,
-)
-from tests.mocks.tn3270_server import create_auth_mock_server, create_basic_mock_server
+from tests.mocks.factory import create_mock_session, isolated_test, scenario_factory
+
+# Removed unused imports (create_mock_connection, create_test_scenario, isolation_manager,
+# create_basic_telnet_connection, create_tn3270e_connection, MockScreenUpdateGenerator,
+# create_mock_protocol_responses, create_auth_mock_server, create_basic_mock_server)
+# per PR review nitpicks to keep import surface minimal and consistent.
 
 
 @pytest.mark.integration
