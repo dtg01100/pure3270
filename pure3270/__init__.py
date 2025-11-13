@@ -134,7 +134,7 @@ class StructuredLogger:
         self.logger.log(level, f"Performance: {operation} {status}", extra=extra)
 
 
-def setup_logging(level: str = "INFO") -> None:
+def setup_logging(level: str = "WARNING") -> None:
     """
     Setup basic logging configuration.
 
@@ -166,7 +166,7 @@ def main() -> None:
     parser.add_argument("--script", help="Script file to execute")
     args = parser.parse_args()
 
-    setup_logging("INFO")
+    setup_logging("WARNING")
 
     session = Session()
     try:
