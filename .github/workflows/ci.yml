@@ -87,10 +87,10 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -e ".[test]"
+        python -m pip install -e ".[test]"
     - name: Install CI tools
       run: |
-        pip install mypy pylint bandit pre-commit isort pytest-cov pytest pytest-asyncio pytest-benchmark pytest-sugar pytest-html pytest-timeout hypothesis radon cohesion
+        python -m pip install mypy pylint bandit pre-commit isort pytest-cov pytest pytest-asyncio pytest-benchmark pytest-sugar pytest-html pytest-timeout hypothesis radon cohesion
 
     - name: Display Python and package versions
       run: |
@@ -105,6 +105,15 @@ jobs:
     - name: Quick smoke test
       run: |
         python quick_test.py
+
+    - name: Debug Python environment
+      run: |
+        echo "## Workspace: $GITHUB_WORKSPACE"
+        pwd
+        ls -la
+        ls -la $GITHUB_WORKSPACE || true
+        ls -la $GITHUB_WORKSPACE/pure3270 || true
+        python -c "import os,sys,importlib; print('PYTHONPATH:', os.environ.get('PYTHONPATH')); print('Python:', sys.executable, sys.version); print('Sys.path:'); print('\n'.join(sys.path)); print('find_spec pure3270:', importlib.util.find_spec('pure3270')); print('find_spec pure3270.utils:', importlib.util.find_spec('pure3270.utils')); print('find_spec pure3270.utils.common:', importlib.util.find_spec('pure3270.utils.common')); print('find_spec drop_in_replacement_test:', importlib.util.find_spec('drop_in_replacement_test'))"
 
     - name: Run unit and property tests (parallel execution)
       env:
