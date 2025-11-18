@@ -91,7 +91,7 @@ jobs:
 
     - name: Install CI tools
       run: |
-        pip install mypy pylint bandit pre-commit isort pytest-cov radon cohesion
+        pip install mypy pylint bandit pre-commit isort pytest-cov pytest pytest-asyncio pytest-benchmark pytest-sugar pytest-html pytest-timeout hypothesis radon cohesion
 
     - name: Display Python and package versions
       run: |
