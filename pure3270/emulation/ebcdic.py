@@ -651,8 +651,13 @@ class EBCDICCodec:
     punctuation and other characters fall back to as 'unknown' mapping.
     """
 
-    def __init__(self, codepage: str = "cp037") -> None:
+    def __init__(self, codepage: str = "cp037", compat: str | None = None) -> None:
         self.codepage = codepage
+        # compat mode allows the codec to mimic historical p3270 behaviors
+        # For now, support 'p3270' compat which changes the encoding fallback
+        # for unknown characters to 0x7A (which decodes to 'z'). Default is
+        # None (standard behavior).
+        self.compat = compat
 
         # PERFORMANCE OPTIMIZATION 15: Pre-computed table caching for common operations
         # Cache EBCDIC codecs to avoid repeated creation
@@ -828,7 +833,15 @@ class EBCDICCodec:
                 ):  # Surrogate characters
                     out.append(0x6F)  # Use 0x6f which maps to '?' in CP037
                 else:
-                    out.append(0x40)  # Use EBCDIC space for other unknown characters
+                    # Historical p3270 behavior encoded unknown characters as 0x7A
+                    # which decodes to 'z'. Expose this behavior under compat
+                    # mode to aid comparisons and reproducing p3270 quirks.
+                    if self.compat == "p3270":
+                        out.append(0x7A)
+                    else:
+                        out.append(
+                            0x40
+                        )  # Use EBCDIC space for other unknown characters
             else:
                 out.append(b)
         return (bytes(out), len(out))
@@ -839,8 +852,8 @@ class EBCDICCodec:
         for ch in text:
             b = self._unicode_to_ebcdic_table.get(ch)
             out.append(
-                b if b is not None else 0x40
-            )  # Use EBCDIC space instead of ? code
+                b if b is not None else (0x7A if self.compat == "p3270" else 0x40)
+            )
         return bytes(out)
 
 

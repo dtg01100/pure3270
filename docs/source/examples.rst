@@ -25,6 +25,12 @@ Core Usage Patterns
 
 **Protocol Operations** - Low-level TN3270/TN3270E protocol operations
 
+**Connection Management** - Connection pooling, reuse, and management patterns
+
+**Performance Optimization** - Efficient operations, caching, and optimization techniques
+
+**Binary Data Handling** - EBCDIC/ASCII conversions and binary data processing
+
 **File Transfers** - IND$FILE protocol for uploading/downloading files
 
 Getting Started Examples
@@ -163,8 +169,51 @@ The ``examples/example_protocol_operations.py`` file demonstrates:
 
 Run with: ``python examples/example_protocol_operations.py``
 
+Connection Management and Pooling
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``examples/example_connection_management.py`` file demonstrates:
+
+- Connection pooling implementation for session reuse
+- Load balancing across multiple TN3270 hosts
+- Retry and timeout strategies for reliable connections
+- Resource management and cleanup patterns
+- Connection health monitoring
+- Async connection patterns
+
+Run with: ``python examples/example_connection_management.py``
+
+Performance Optimization Techniques
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``examples/example_performance_optimization.py`` file demonstrates:
+
+- Efficient screen reading and parsing techniques
+- Batch operations and pipelining for improved throughput
+- Connection reuse patterns to reduce overhead
+- Memory optimization strategies
+- Async patterns for high-performance operations
+- Caching strategies for frequently accessed data
+- Profiling and benchmarking techniques
+
+Run with: ``python examples/example_performance_optimization.py``
+
+Binary Data and EBCDIC Handling
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``examples/example_binary_data_handling.py`` file demonstrates:
+
+- EBCDIC/ASCII character encoding conversions
+- Binary file operations and data stream processing
+- Character set detection and intelligent conversion
+- Binary data validation and sanitization
+- Mixed content handling (text and binary data)
+- File transfer scenarios with binary data
+
+Run with: ``python examples/example_binary_data_handling.py``
+
 .. note::
-   **For comprehensive protocol implementation examples**, see :doc:`protocol_examples`
+    **For comprehensive protocol implementation examples**, see :doc:`protocol_examples`
 
 Real-World Usage Examples
 ------------------------
@@ -175,6 +224,9 @@ Several examples are available in the ``examples/`` directory:
 - ``example_pub400*.py`` - Real TN3270 host interactions
 - ``example_terminal_models.py`` - Terminal model configurations
 - ``example_standalone.py`` - Basic standalone usage patterns
+- ``example_connection_management.py`` - Connection pooling and management
+- ``example_performance_optimization.py`` - Performance optimization techniques
+- ``example_binary_data_handling.py`` - Binary data and EBCDIC handling
 
 File Transfer with IND$FILE
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

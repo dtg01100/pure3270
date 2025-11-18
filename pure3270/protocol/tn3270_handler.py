@@ -2394,38 +2394,39 @@ class TN3270Handler:
         Raises:
             ProtocolError: If writer is None or send fails.
         """
-        _, writer = self._require_streams()
+        async with self._async_operation_locks["data_send"]:
+            _, writer = self._require_streams()
 
-        # If DATA-STREAM-CTL is active, prepend TN3270EHeader
-        if self.negotiator.is_data_stream_ctl_active:
-            # For now, default to TN3270_DATA for outgoing messages
-            # In a more complex scenario, this data_type might be passed as an argument
-            next_seq = self._get_next_sent_sequence_number()
-            header = self.negotiator._outgoing_request(
-                "CLIENT_DATA",
-                data_type=TN3270_DATA,
-                seq_number=next_seq,
-            )
-            if hasattr(header, "to_bytes"):
-                try:
-                    data_to_send = header.to_bytes() + data
-                except Exception:
-                    logger.debug("Header to_bytes failed; sending raw data")
+            # If DATA-STREAM-CTL is active, prepend TN3270EHeader
+            if self.negotiator.is_data_stream_ctl_active:
+                # For now, default to TN3270_DATA for outgoing messages
+                # In a more complex scenario, this data_type might be passed as an argument
+                next_seq = self._get_next_sent_sequence_number()
+                header = self.negotiator._outgoing_request(
+                    "CLIENT_DATA",
+                    data_type=TN3270_DATA,
+                    seq_number=next_seq,
+                )
+                if hasattr(header, "to_bytes"):
+                    try:
+                        data_to_send = header.to_bytes() + data
+                    except Exception:
+                        logger.debug("Header to_bytes failed; sending raw data")
+                        data_to_send = data
+                else:
                     data_to_send = data
+                logger.debug(
+                    f"Prepending TN3270E header for outgoing data. Header: {header}"
+                )
             else:
                 data_to_send = data
-            logger.debug(
-                f"Prepending TN3270E header for outgoing data. Header: {header}"
-            )
-        else:
-            data_to_send = data
 
-        async def _perform_send() -> None:
-            await _call_maybe_await(writer.write, data_to_send)
-            await _call_maybe_await(writer.drain)
-            logger.debug("[SEND] writer.drain() called in send_data")
+            async def _perform_send() -> None:
+                await _call_maybe_await(writer.write, data_to_send)
+                await _call_maybe_await(writer.drain)
+                logger.debug("[SEND] writer.drain() called in send_data")
 
-        await _perform_send()
+            await _perform_send()
 
     async def receive_data(self, timeout: float = 5.0) -> bytes:
         """
@@ -2441,117 +2442,118 @@ class TN3270Handler:
             asyncio.TimeoutError: If timeout exceeded.
             ProtocolError: If reader is None.
         """
-        logger.debug(f"receive_data called on handler {id(self)}")
-        reader, _ = self._require_streams()
+        async with self._async_operation_locks["data_receive"]:
+            logger.debug(f"receive_data called on handler {id(self)}")
+            reader, _ = self._require_streams()
 
-        async def _read_and_process_until_payload() -> bytes:
-            deadline = asyncio.get_event_loop().time() + timeout
-            while True:
-                part: bytes
-                if self._pending_payload:
-                    part = bytes(self._pending_payload)
-                    self._pending_payload.clear()
-                else:
-                    remaining = deadline - asyncio.get_event_loop().time()
-                    if remaining <= 0:
-                        raise asyncio.TimeoutError("receive_data timeout expired")
-                    try:
-
-                        async def _compat_read3() -> bytes:
-                            try:
-                                r = reader.read(4096)
-                            except TypeError:
-                                r = reader.read()
-                            if inspect.isawaitable(r):
-                                return await r
-                            return cast(bytes, r)  # type: ignore[unreachable]
-
+            async def _read_and_process_until_payload() -> bytes:
+                deadline = asyncio.get_event_loop().time() + timeout
+                while True:
+                    part: bytes
+                    if self._pending_payload:
+                        part = bytes(self._pending_payload)
+                        self._pending_payload.clear()
+                    else:
+                        remaining = deadline - asyncio.get_event_loop().time()
+                        if remaining <= 0:
+                            raise asyncio.TimeoutError("receive_data timeout expired")
                         try:
-                            part = await asyncio.wait_for(
-                                _compat_read3(), timeout=remaining
+
+                            async def _compat_read3() -> bytes:
+                                try:
+                                    r = reader.read(4096)
+                                except TypeError:
+                                    r = reader.read()
+                                if inspect.isawaitable(r):
+                                    return await r
+                                return cast(bytes, r)  # type: ignore[unreachable]
+
+                            try:
+                                part = await asyncio.wait_for(
+                                    _compat_read3(), timeout=remaining
+                                )
+                            except StopAsyncIteration:
+                                # Reader has no more data in this test scenario; return empty payload
+                                return b""
+                        except asyncio.TimeoutError:
+                            # Propagate timeout so callers can handle it explicitly
+                            raise
+                        except (OSError, std_ssl.SSLError):
+                            # Socket/SSL issues during read: ignore and continue polling until deadline
+                            continue
+                        if not part:
+                            # Empty read indicates connection closed by peer
+                            raise ConnectionResetError(
+                                "Connection closed by peer (empty read)"
                             )
-                        except StopAsyncIteration:
-                            # Reader has no more data in this test scenario; return empty payload
-                            return b""
-                    except asyncio.TimeoutError:
-                        # Propagate timeout so callers can handle it explicitly
-                        raise
-                    except (OSError, std_ssl.SSLError):
-                        # Socket/SSL issues during read: ignore and continue polling until deadline
-                        continue
-                    if not part:
-                        # Empty read indicates connection closed by peer
-                        raise ConnectionResetError(
-                            "Connection closed by peer (empty read)"
-                        )
-                logger.debug(
-                    f"Received {len(part)} bytes of data: {part.hex() if part else ''}"
-                )
-
-                try:
-                    processed_data, ascii_mode_detected = (
-                        await self._process_telnet_stream(part)
-                    )
-                except Exception:
-                    processed_data, ascii_mode_detected = part, False
-
-                # If we buffered an incomplete Telnet sequence, return immediately with no data
-                telnet_buf: bytes = getattr(self, "_telnet_buffer", b"")
-                if not processed_data and telnet_buf:
                     logger.debug(
-                        "Incomplete Telnet sequence buffered; returning to await more data"
+                        f"Received {len(part)} bytes of data: {part.hex() if part else ''}"
                     )
-                    return b""
 
-                if ascii_mode_detected and not self._negotiated_tn3270e:
-                    # Only switch to ASCII mode if not in a negotiated TN3270E session
-                    # TN3270E sessions should remain in EBCDIC mode
                     try:
-                        await _call_maybe_await(self.negotiator.set_ascii_mode)
+                        processed_data, ascii_mode_detected = (
+                            await self._process_telnet_stream(part)
+                        )
                     except Exception:
-                        pass
-                    try:
-                        setattr(self.negotiator, "_ascii_mode", True)
-                    except Exception:
-                        pass
-                    # Ensure handler-level ascii mode; prevents 3270 parser usage further down
-                    self._ascii_mode = True
+                        processed_data, ascii_mode_detected = part, False
 
-                try:
-                    ascii_mode = (
-                        True
-                        if ascii_mode_detected
-                        else getattr(self.negotiator, "_ascii_mode", False)
-                    )
-                except Exception:
-                    ascii_mode = bool(ascii_mode_detected)
-
-                logger.debug(
-                    f"Checking ASCII mode: negotiator._ascii_mode = {ascii_mode} on negotiator object {id(self.negotiator)}"
-                )
-
-                # Refactored: delegate to helper methods
-                logger.debug(
-                    f"Data processing path selection: ascii_mode={ascii_mode}, negotiated_tn3270e={self._negotiated_tn3270e}"
-                )
-                if ascii_mode:
-                    logger.debug("Taking ASCII mode path")
-                    result = await self._handle_ascii_mode(processed_data)
-                    if result is not None:
-                        return result
-                    continue
-                else:
-                    logger.debug("Taking TN3270 mode path")
-                    result = await self._handle_tn3270_mode(processed_data)
-                    if result is not None:
-                        return result
-                    # If this chunk contained only Telnet commands (no 3270 payload),
-                    # return empty bytes to allow caller to drive subsequent reads.
-                    if not processed_data:
+                    # If we buffered an incomplete Telnet sequence, return immediately with no data
+                    telnet_buf: bytes = getattr(self, "_telnet_buffer", b"")
+                    if not processed_data and telnet_buf:
+                        logger.debug(
+                            "Incomplete Telnet sequence buffered; returning to await more data"
+                        )
                         return b""
-                    continue
 
-        return await _read_and_process_until_payload()
+                    if ascii_mode_detected and not self._negotiated_tn3270e:
+                        # Only switch to ASCII mode if not in a negotiated TN3270E session
+                        # TN3270E sessions should remain in EBCDIC mode
+                        try:
+                            await _call_maybe_await(self.negotiator.set_ascii_mode)
+                        except Exception:
+                            pass
+                        try:
+                            setattr(self.negotiator, "_ascii_mode", True)
+                        except Exception:
+                            pass
+                        # Ensure handler-level ascii mode; prevents 3270 parser usage further down
+                        self._ascii_mode = True
+
+                    try:
+                        ascii_mode = (
+                            True
+                            if ascii_mode_detected
+                            else getattr(self.negotiator, "_ascii_mode", False)
+                        )
+                    except Exception:
+                        ascii_mode = bool(ascii_mode_detected)
+
+                    logger.debug(
+                        f"Checking ASCII mode: negotiator._ascii_mode = {ascii_mode} on negotiator object {id(self.negotiator)}"
+                    )
+
+                    # Refactored: delegate to helper methods
+                    logger.debug(
+                        f"Data processing path selection: ascii_mode={ascii_mode}, negotiated_tn3270e={self._negotiated_tn3270e}"
+                    )
+                    if ascii_mode:
+                        logger.debug("Taking ASCII mode path")
+                        result = await self._handle_ascii_mode(processed_data)
+                        if result is not None:
+                            return result
+                        continue
+                    else:
+                        logger.debug("Taking TN3270 mode path")
+                        result = await self._handle_tn3270_mode(processed_data)
+                        if result is not None:
+                            return result
+                        # If this chunk contained only Telnet commands (no 3270 payload),
+                        # return empty bytes to allow caller to drive subsequent reads.
+                        if not processed_data:
+                            return b""
+                        continue
+
+            return await _read_and_process_until_payload()
 
     async def _handle_ascii_mode(self, processed_data: bytes) -> Optional[bytes]:
         """Handle ASCII/VT100 mode data parsing and return payload if available."""

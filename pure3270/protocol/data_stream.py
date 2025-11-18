@@ -1104,6 +1104,7 @@ class DataStreamParser:
         self._order_handlers: Dict[int, Callable[..., None]] = {
             SBA: self._handle_sba,
             SF: self._handle_sf,
+            MF: self._handle_mf,
             RA: self._handle_ra,
             EUA: self._handle_eua,
             GE: self._handle_ge,
@@ -1929,6 +1930,46 @@ class DataStreamParser:
             logger,
             f"Start field with attribute 0x{attr:02x} [mode={self.addressing_mode.value}]",
         )
+
+    def _handle_mf(self) -> None:
+        """Handle Modify Field (MF) order.
+
+        MF modifies the attributes of an existing field without changing its position.
+        Format: MF | attr_type | attr_value [| attr_type | attr_value ...]
+        """
+        self._validate_screen_buffer("MF")
+        self._validate_min_data("MF", 2)  # At least one attr_type/attr_value pair
+
+        # MF operates on the current field position
+        current_row, current_col = self.screen.get_position()
+
+        # Parse attribute pairs: attr_type | attr_value
+        modified_attrs = {}
+        while self._pos < len(self._data):
+            if self._pos + 1 >= len(self._data):
+                # Incomplete pair
+                break
+
+            attr_type = self._read_byte()
+            attr_value = self._read_byte()
+
+            # Apply the attribute modification to the current position
+            try:
+                self.screen.set_extended_attribute_sfe(attr_type, attr_value)
+                modified_attrs[attr_type] = attr_value
+                logger.debug(
+                    f"MF: Modified field attribute 0x{attr_type:02x} = 0x{attr_value:02x} at ({current_row}, {current_col})"
+                )
+            except Exception as e:
+                logger.warning(
+                    f"MF: Failed to set attribute 0x{attr_type:02x} = 0x{attr_value:02x}: {e}"
+                )
+
+        if modified_attrs:
+            log_debug_operation(
+                logger,
+                f"Modify field at ({current_row}, {current_col}): {modified_attrs}",
+            )
 
     def _handle_ra(self) -> None:
 

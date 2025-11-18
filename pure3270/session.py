@@ -1734,25 +1734,6 @@ class AsyncSession:
                         modified, aid, self.screen_buffer.cols
                     )
                     await self._handler.send_data(data)
-                    # After sending Enter, we optionally wait for a response if the handler supports it
-                    import asyncio
-                    import inspect
-
-                    recv = getattr(self._handler, "receive_data", None)
-                    if recv is not None and inspect.iscoroutinefunction(recv):
-                        try:
-                            response_data = await self.read(timeout=5.0)
-                            # Parse the response to update the screen buffer
-                            if self._handler.parser:
-                                try:
-                                    _res = self._handler.parser.parse(response_data)
-                                    if asyncio.iscoroutine(_res):
-                                        await _res
-                                except Exception:
-                                    pass  # Ignore parsing errors
-                        except asyncio.TimeoutError:
-                            # It's OK if there's no immediate response, just continue
-                            pass
                 else:
                     # For PF/PA keys and other AID-mapped keys, send the AID
                     await self.submit(aid)
@@ -1777,20 +1758,6 @@ class AsyncSession:
         except Exception:
             # In tests, handler is often an AsyncMock; just ensure it's called
             await self._handler.send_data(b"")
-            # For Enter, also try to read response in the exception case
-            if keyname == "Enter":
-                try:
-                    response_data = await self.read(timeout=5.0)
-                    # Parse the response to update the screen buffer
-                    if self._handler.parser:
-                        try:
-                            _res = self._handler.parser.parse(response_data)
-                            if asyncio.iscoroutine(_res):
-                                await _res
-                        except Exception:
-                            pass  # Ignore parsing errors
-                except asyncio.TimeoutError:
-                    pass
 
     def capabilities(self) -> str:
         """Get capabilities."""

@@ -257,10 +257,16 @@ TN3270E_IBM_3278_3 = "IBM-3278-3"
 TN3270E_IBM_3278_4 = "IBM-3278-4"
 TN3270E_IBM_3278_4_E = "IBM-3278-4-E"
 TN3270E_IBM_3278_5 = "IBM-3278-5"
+TN3270E_IBM_3278_2_E = (
+    "IBM-3278-2-E"  # Extended variant (treat same capabilities as base for now)
+)
 TN3270E_IBM_3279_2 = "IBM-3279-2"
 TN3270E_IBM_3279_3 = "IBM-3279-3"
 TN3270E_IBM_3279_4 = "IBM-3279-4"
 TN3270E_IBM_3279_5 = "IBM-3279-5"
+TN3270E_IBM_3279_2_E = (
+    "IBM-3279-2-E"  # Extended variant (treat same capabilities as base for now)
+)
 TN3270E_IBM_3179_2 = "IBM-3179-2"
 TN3270E_IBM_3483_VI = "IBM-3483-VI"
 TN3270E_IBM_3196_A1 = "IBM-3196-A1"
@@ -453,6 +459,17 @@ TERMINAL_MODELS: Dict[str, TerminalCapabilities] = {
     ),
 }
 
+# Aliases for extended naming variants - these should not count as separate
+# canonical models, but should be accepted as valid names and resolved to
+# their canonical counterparts. For now, the extended names map to the base
+# model which is used as the canonical registry key. This keeps the terminal
+# model registry limited to the canonical 13 models while accepting familiar
+# variants like 'IBM-3278-2-E'.
+TERMINAL_MODEL_ALIASES: Dict[str, str] = {
+    TN3270E_IBM_3278_2_E: TN3270E_IBM_3278_2,
+    TN3270E_IBM_3279_2_E: TN3270E_IBM_3279_2,
+}
+
 # Default terminal model for backward compatibility
 DEFAULT_TERMINAL_MODEL = TN3270E_IBM_3278_2
 
@@ -465,12 +482,26 @@ def get_supported_terminal_models() -> List[str]:
 
 def is_valid_terminal_model(model: str) -> bool:
     """Check if a terminal model is supported."""
-    return model in TERMINAL_MODELS
+    if model in TERMINAL_MODELS:
+        return True
+    # Accept aliases (e.g., IBM-3278-2-E) by resolving them to canonical names
+    if (
+        model in TERMINAL_MODEL_ALIASES
+        and TERMINAL_MODEL_ALIASES[model] in TERMINAL_MODELS
+    ):
+        return True
+    return False
 
 
 def get_terminal_capabilities(model: str) -> Optional[TerminalCapabilities]:
     """Get capabilities for a specific terminal model."""
-    return TERMINAL_MODELS.get(model)
+    # Resolve aliases to canonical model names
+    if model in TERMINAL_MODELS:
+        return TERMINAL_MODELS[model]
+    if model in TERMINAL_MODEL_ALIASES:
+        canonical = TERMINAL_MODEL_ALIASES[model]
+        return TERMINAL_MODELS.get(canonical)
+    return None
 
 
 def get_screen_size(model: str) -> Tuple[int, int]:

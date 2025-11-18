@@ -253,24 +253,28 @@ class SnapshotComparison:
 
     def print_report(self) -> None:
         """Print a human-readable comparison report."""
-        print("=== Snapshot Comparison Report ===")
-        print(f"Overall: {'IDENTICAL' if self.is_identical else 'DIFFERENCES FOUND'}")
+        logger.info("=== Snapshot Comparison Report ===")
+        logger.info(
+            "Overall: %s",
+            "IDENTICAL" if self.is_identical else "DIFFERENCES FOUND",
+            extra={"pure3270_extra": {"differences_found": not self.is_identical}},
+        )
 
         if self.is_identical:
             return
 
-        print(f"\nDifferences found in {len(self.differences)} areas:")
+        logger.info("\nDifferences found in %d areas:", len(self.differences))
         for diff_type, diff_data in self.differences.items():
-            print(f"\n- {diff_type.upper()}:")
+            logger.info("\n- %s:", diff_type.upper())
             if (
                 isinstance(diff_data, dict)
                 and "before" in diff_data
                 and "after" in diff_data
             ):
-                print(f"  Before: {diff_data['before']}")
-                print(f"  After:  {diff_data['after']}")
+                logger.info("  Before: %s", diff_data["before"])
+                logger.info("  After:  %s", diff_data["after"])
             else:
-                print(f"  {diff_data}")
+                logger.info("  %s", diff_data)
 
 
 def take_snapshot(screen_buffer: ScreenBuffer) -> ScreenSnapshot:

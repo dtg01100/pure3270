@@ -183,6 +183,32 @@ def tn3270_handler():
     return handler
 
 
+@pytest.fixture
+def preserve_root_logger():
+    """Fixture that preserves root logger configuration (handlers and level) during a test.
+
+    Tests that call `setup_logging` or otherwise reconfigure the root logger should use
+    this fixture to avoid leaking logger state to other tests.
+    """
+    root = logging.getLogger()
+    old_handlers = root.handlers[:]
+    old_level = root.level
+    try:
+        yield
+    finally:
+        # Restore level
+        root.setLevel(old_level)
+        # Replace handlers: remove new handlers and re-add the original set
+        current_handlers = root.handlers[:]
+        for h in current_handlers:
+            try:
+                root.removeHandler(h)
+            except Exception:
+                pass
+        for h in old_handlers:
+            root.addHandler(h)
+
+
 @pytest.fixture(autouse=True)
 def suppress_logging():
     logger = logging.getLogger()

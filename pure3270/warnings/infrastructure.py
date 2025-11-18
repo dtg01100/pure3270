@@ -11,6 +11,8 @@ from typing import Any, Dict, List, Optional
 
 from .categories import WarningCategory, WarningFilters, get_warning_filters
 
+logger = logging.getLogger(__name__)
+
 
 class CategorizedLogger:
     """A logger that supports categorized warnings with filtering."""
@@ -308,7 +310,7 @@ def configure_warnings_from_args(args: Any) -> WarningFilters:
             category = WarningCategory(category_name.lower())
             filters.disable_category(category)
         except ValueError:
-            print(f"Unknown warning category: {category_name}")
+            logger.warning(f"Unknown warning category: {category_name}")
 
     # Apply custom category enabling
     enable_categories = getattr(args, "enable_warning_categories", [])
@@ -317,7 +319,7 @@ def configure_warnings_from_args(args: Any) -> WarningFilters:
             category = WarningCategory(category_name.lower())
             filters.enable_category(category)
         except ValueError:
-            print(f"Unknown warning category: {category_name}")
+            logger.warning(f"Unknown warning category: {category_name}")
 
     return filters
 

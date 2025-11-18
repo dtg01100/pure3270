@@ -3,6 +3,8 @@ Integration Scenarios
 
 This section provides real-world integration examples and production deployment scenarios for Pure3270 in enterprise environments.
 
+For basic usage patterns and API examples, see the :doc:`examples` section. For advanced patterns and optimization techniques, see :doc:`advanced_patterns`.
+
 Enterprise Integration Examples
 --------------------------------
 

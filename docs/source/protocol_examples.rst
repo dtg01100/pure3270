@@ -3,6 +3,8 @@ Protocol Examples
 
 This section provides comprehensive examples of TN3270/TN3270E protocol operations, from basic connections to advanced scenarios.
 
+For basic protocol operations and EBCDIC handling examples, see the :doc:`examples` section. For detailed protocol specifications, see the :doc:`protocol` module documentation.
+
 Basic TN3270 Connection Flow
 -----------------------------
 

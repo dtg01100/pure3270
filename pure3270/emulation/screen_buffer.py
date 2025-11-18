@@ -278,29 +278,61 @@ class ScreenBuffer(BufferWriter):
         trailing blank content. This method converts each row of the EBCDIC
         buffer to printable ASCII, masking non-printables to spaces, and joins
         all rows with newlines without trimming.
+
+        In ASCII mode, returns the buffer content directly as ASCII text.
         """
+        # If in ASCII mode, return ASCII text directly
+        if self._ascii_mode:
+            ascii_lines: List[str] = []
+            for row in range(self.rows):
+                start = row * self.cols
+                end = start + self.cols
+                line_bytes = bytes(self.buffer[start:end])
+
+                # Decode as ASCII directly
+                try:
+                    line_text = line_bytes.decode("ascii", errors="replace")
+                    # Clean non-printables
+                    cleaned_chars = [
+                        c if ((ord(c) >= 32 and c != "\x7f") or c in "\t\n\r") else " "
+                        for c in line_text
+                    ]
+                    line_text = "".join(cleaned_chars)
+                except UnicodeDecodeError:
+                    line_text = " " * self.cols
+
+                ascii_lines.append(line_text)
+
+            return "\n".join(ascii_lines)
+
+        # EBCDIC mode - decode from EBCDIC
         lines: List[str] = []
         for row in range(self.rows):
             start = row * self.cols
             end = start + self.cols
-            line_bytes = bytearray(self.buffer[start:end])
+            ebcdic_bytes = bytearray(self.buffer[start:end])
 
             # Mask field attribute bytes and hide the cursor with a space
             for col in range(self.cols):
                 pos = start + col
                 if pos in getattr(self, "_field_starts", set()):
-                    if line_bytes[col] == 0x00 or (
-                        (line_bytes[col] & 0x80) and (line_bytes[col] & 0x40)
+                    if ebcdic_bytes[col] == 0x00 or (
+                        (ebcdic_bytes[col] & 0x80) and (ebcdic_bytes[col] & 0x40)
                     ):
-                        line_bytes[col] = 0x40
+                        ebcdic_bytes[col] = 0x40
                 elif row == self.cursor_row and col == self.cursor_col:
-                    line_bytes[col] = 0x40
+                    ebcdic_bytes[col] = 0x40
 
             try:
                 from .ebcdic import EBCDICCodec
 
-                codec = EBCDICCodec(self.codepage)
-                decoded_result = codec.decode(bytes(line_bytes))
+                # Allow per-buffer compatibility modes (e.g., 'p3270') to be
+                # set on the ScreenBuffer instance. Callers (like the p3270
+                # compatibility wrapper) may set `buffer.compat_mode = 'p3270'`
+                # before invoking `ascii_buffer` to achieve p3270-like output.
+                compat = getattr(self, "compat_mode", None)
+                codec = EBCDICCodec(self.codepage, compat=compat)
+                decoded_result = codec.decode(bytes(ebcdic_bytes))
                 decoded = (
                     decoded_result[0]
                     if isinstance(decoded_result, tuple)
@@ -316,15 +348,15 @@ class ScreenBuffer(BufferWriter):
                 try:
                     from .ebcdic import EmulationEncoder
 
-                    line_text = EmulationEncoder.decode(bytes(line_bytes))
+                    ebcdic_text = EmulationEncoder.decode(bytes(ebcdic_bytes))
                     cleaned_chars = [
                         c if ((ord(c) >= 32 and c != "\x7f") or c in "\t\n\r") else " "
-                        for c in line_text
+                        for c in ebcdic_text
                     ]
                     line_text = "".join(cleaned_chars)
                 except (ValueError, TypeError, UnicodeDecodeError) as e:
                     logger.debug(f"EmulationEncoder fallback failed: {e}")
-                    line_text = " " * len(line_bytes)
+                    line_text = " " * len(ebcdic_bytes)
 
             lines.append(line_text)
 

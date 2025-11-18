@@ -70,7 +70,38 @@ class P3270Client:
         try:
             screen_buffer = getattr(self._pure_session, "screen_buffer", None)
             if screen_buffer is not None and hasattr(screen_buffer, "ascii_buffer"):
+                # Use ascii_buffer and normalize to mimic legacy p3270 CLI output
+                # Expose a 'compat_mode' flag on the buffer so the
+                # ascii_decoder can map characters in a p3270-compatible
+                # way when requested. This doesn't change default behavior
+                # for other users of ScreenBuffer.
+                try:
+                    setattr(screen_buffer, "compat_mode", "p3270")
+                except Exception:
+                    pass
                 screen_text = screen_buffer.ascii_buffer
+                # Clear the temporary flag to avoid accidental leakage
+                try:
+                    delattr(screen_buffer, "compat_mode")
+                except Exception:
+                    pass
+                # Normalize: replace CRLF, trim trailing spaces from each line, and remove leading/trailing empty lines
+                try:
+                    lines = [
+                        ln.rstrip()
+                        for ln in screen_text.replace("\r\n", "\n")
+                        .replace("\r", "\n")
+                        .split("\n")
+                    ]
+                    # Drop leading/trailing empty lines
+                    while lines and not lines[0]:
+                        lines.pop(0)
+                    while lines and not lines[-1]:
+                        lines.pop()
+                    screen_text = "\n".join(lines)
+                except Exception:
+                    # If normalization fails for any reason, fall back to raw ascii_buffer
+                    pass
             elif screen_buffer is not None and hasattr(screen_buffer, "to_text"):
                 screen_text = screen_buffer.to_text()
             else:
@@ -379,9 +410,30 @@ class P3270Client:
                 self._pure_session.send(command.encode("ascii"))
 
             if update_screen:
-                # Immediately read and update the buffer after screen-changing commands
+                # Immediately attempt to refresh the local view of the screen
+                # after screen-changing commands. Avoid calling Session.read()
+                # directly because it may cause a RuntimeError when a concurrent
+                # background reader coroutine is active ("read() called while
+                # another coroutine is already waiting"). Prefer accessing the
+                # in-memory screen buffer when available which doesn't require
+                # an active read operation. Only use read() as a last fallback.
                 try:
-                    self._pure_session.read(timeout=1.0)
+                    sb = getattr(self._pure_session, "screen_buffer", None)
+                    if sb is not None and hasattr(sb, "ascii_buffer"):
+                        # Force property evaluation to refresh any cached values
+                        _ = sb.ascii_buffer
+                    else:
+                        # Fallback: try to perform a read() if the buffer isn't
+                        # exposed (best-effort, handle RuntimeError gracefully)
+                        try:
+                            self._pure_session.read(timeout=1.0)
+                        except RuntimeError as re:
+                            # Expected if a concurrent read is active; log at debug
+                            logger.debug(
+                                "Avoided concurrent read() after command '%s': %s",
+                                command,
+                                re,
+                            )
                 except Exception as e:
                     logger.debug(f"Screen update after command '{command}' failed: {e}")
 

@@ -3,10 +3,16 @@ Advanced Patterns
 
 This section covers advanced usage patterns, optimization techniques, and complex scenarios for Pure3270 implementation.
 
+For practical examples of the patterns described here, see:
+
+* :doc:`examples` - Basic usage examples and API demonstrations
+* :doc:`protocol_examples` - Detailed protocol-level examples
+* :doc:`integration_scenarios` - Real-world enterprise integration patterns
+
 Complex Session Management Patterns
 ------------------------------------
 
-Advanced session lifecycle management with resource pooling and state tracking:
+Advanced session lifecycle management with resource pooling and state tracking. For connection pooling implementations, see :doc:`examples` section on connection management.
 
 .. code-block:: python
 
@@ -329,7 +335,7 @@ Advanced session lifecycle management with resource pooling and state tracking:
 Error Handling and Recovery Strategies
 ---------------------------------------
 
-Comprehensive error handling and recovery patterns for production environments:
+Comprehensive error handling and recovery patterns for production environments. For basic error handling examples, see the :doc:`examples` section on error handling patterns.
 
 .. code-block:: python
 
@@ -756,9 +762,9 @@ Comprehensive error handling and recovery patterns for production environments:
             await session.close()
 
 Performance Optimization Techniques
-------------------------------------
+-----------------------------------
 
-Performance optimization strategies for high-throughput environments:
+Performance optimization strategies for high-throughput environments. For detailed performance examples and benchmarking, see the :doc:`examples` section on performance optimization.
 
 .. code-block:: python
 

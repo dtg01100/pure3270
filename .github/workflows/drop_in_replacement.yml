@@ -1,0 +1,48 @@
+name: Drop-in Replacement Harness
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  run-harness:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        with_s3270: [false, true]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[test]
+
+      - name: Run drop-in replacement harness
+        id: run-harness
+        env:
+          PURE3270_FAIL_ON_PADDING: '1'
+          PURE3270_EARLY_RAW_CAPTURE: '1'
+          PURE3270_CAPTURE_S3270: ${{ matrix.with_s3270 }}
+          PURE3270_TEST_TIMEOUT: '600'
+          # Artifact dir will be under workspace
+          PURE3270_ARTIFACT_DIR: ${{ github.workspace }}/artifacts
+        run: |
+          mkdir -p $PURE3270_ARTIFACT_DIR
+          python drop_in_replacement_test.py --artifact-dir "$PURE3270_ARTIFACT_DIR" --strict || true
+        continue-on-error: true
+
+      - name: Upload harness artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: drop-in-harness-artifacts
+          path: artifacts/**

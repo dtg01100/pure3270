@@ -12,6 +12,7 @@ import sys
 from typing import Any, Dict, Optional
 
 from .p3270_client import P3270Client
+from .protocol.printer import PrinterSession
 from .session import AsyncSession, Session
 
 
@@ -164,37 +165,74 @@ def main() -> None:
     )
     parser.add_argument("--ssl", action="store_true", help="Use SSL/TLS")
     parser.add_argument("--script", help="Script file to execute")
+    parser.add_argument(
+        "--console",
+        action="store_true",
+        help="Force console (stdout) output instead of structured logging",
+    )
     args = parser.parse_args()
 
     setup_logging("WARNING")
 
+    # Set console mode for downstream modules to decide on print vs log
+    console_mode = bool(getattr(args, "console", False))
+    # Preserve existing environment setting and restore it after we exit so
+    # running the CLI in tests doesn't leave a global env var that alters
+    # behavior for subsequent tests. This avoids subtle test ordering flakiness.
+    prev_console_mode = os.environ.get("PURE3270_CONSOLE_MODE", None)
+    if console_mode:
+        os.environ["PURE3270_CONSOLE_MODE"] = "true"
+    else:
+        os.environ.pop("PURE3270_CONSOLE_MODE", None)
+
     session = Session()
     try:
         session.connect(args.host, port=args.port, ssl_context=args.ssl)
-        print(f"Connected to {args.host}:{args.port}")
+        msg = f"Connected to {args.host}:{args.port}"
+        if os.environ.get("PURE3270_CONSOLE_MODE", "false").lower() == "true":
+            print(msg)
+        else:
+            logging.getLogger(__name__).info(msg)
 
         # Interactive CLI macro support has been removed.
         if args.script:
-            print(
+            msg = (
                 "Macro scripting/DSL has been removed from pure3270 and will "
                 "not return. Script execution via macro DSL is permanently "
                 "unsupported."
             )
         else:
-            print(
+            msg = (
                 "Macro scripting/DSL has been removed from pure3270 and will "
                 "not return. Interactive macro DSL is permanently unsupported."
             )
+        if os.environ.get("PURE3270_CONSOLE_MODE", "false").lower() == "true":
+            print(msg)
+        else:
+            logging.getLogger(__name__).info(msg)
 
     except Exception as e:
         context = getattr(e, "context", None)
         if context:
-            print(f"Connection failed: {e} (Context: {context})")
+            msg = f"Connection failed: {e} (Context: {context})"
         else:
-            print(f"Connection failed: {e}")
+            msg = f"Connection failed: {e}"
+        if os.environ.get("PURE3270_CONSOLE_MODE", "false").lower() == "true":
+            print(msg)
+        else:
+            logging.getLogger(__name__).error(msg)
     finally:
         session.close()
-        print("Disconnected.")
+        if os.environ.get("PURE3270_CONSOLE_MODE", "false").lower() == "true":
+            print("Disconnected.")
+        else:
+            logging.getLogger(__name__).info("Disconnected.")
+        # Restore previous environment value to avoid leaking console mode
+        # into other tests or environments that import/execute CLI code.
+        if prev_console_mode is None:
+            os.environ.pop("PURE3270_CONSOLE_MODE", None)
+        else:
+            os.environ["PURE3270_CONSOLE_MODE"] = prev_console_mode
 
 
 if __name__ == "__main__":
@@ -205,7 +243,6 @@ __all__ = [
     "Session",
     "AsyncSession",
     "PrinterSession",
-    "AsyncPrinterSession",
     "P3270Client",
     "setup_logging",
 ]

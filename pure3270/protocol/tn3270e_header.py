@@ -457,7 +457,7 @@ malformed_handler = MalformedDataHandler()
 
 def test_malformed_data_handling() -> None:
     """Test the malformed data handling functionality."""
-    print("Testing malformed TN3270E header handling...")
+    logger.info("Testing malformed TN3270E header handling...")
 
     # Test cases for malformed headers
     test_cases = [
@@ -484,9 +484,9 @@ def test_malformed_data_handling() -> None:
     for data, description in test_cases:
         header = TN3270EHeader.from_bytes(data)
         if header:
-            print(f"✓ {description}: Successfully parsed header")
+            logger.info("✓ %s: Successfully parsed header", description)
         else:
-            print(f"✗ {description}: Failed to parse header (expected)")
+            logger.info("✗ %s: Failed to parse header (expected)", description)
 
     # Test malformed data handler
     handler = MalformedDataHandler()
@@ -496,15 +496,15 @@ def test_malformed_data_handling() -> None:
     recovered_header = handler.handle_malformed_header(malformed_data, "test recovery")
 
     if recovered_header:
-        print(f"✓ Recovery successful: {recovered_header}")
+        logger.info("✓ Recovery successful: %s", recovered_header)
     else:
-        print("✗ Recovery failed (expected for invalid data)")
+        logger.info("✗ Recovery failed (expected for invalid data)")
 
     # Test stats
     stats = handler.get_malformed_data_stats()
-    print(f"✓ Malformed data stats: {stats}")
+    logger.info("✓ Malformed data stats: %s", stats)
 
-    print("Malformed data handling test completed!")
+    logger.info("Malformed data handling test completed!")
 
 
 if __name__ == "__main__":
