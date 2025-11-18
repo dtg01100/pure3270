@@ -117,7 +117,7 @@ jobs:
 
     - name: Run unit and property tests (parallel execution)
       env:
-        PYTHONPATH: ${{ github.workspace }}
+        PYTHONPATH: ${{ github.workspace }}/..
       run: |
         echo "🚀 Running unit and property tests..."
         # Run unit and property tests
