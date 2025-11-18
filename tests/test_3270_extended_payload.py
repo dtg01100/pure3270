@@ -3,13 +3,14 @@ import time
 
 import pytest
 
-from mock_server.tn3270_mock_server import EnhancedTN3270MockServer
 from pure3270 import Session
 from pure3270.utils.common import decode_ebcdic_string
 
 
 @pytest.mark.timeout(8)
 def test_3270_extended_payload_writes_to_screen():
+    from mock_server.tn3270_mock_server import EnhancedTN3270MockServer
+
     server = EnhancedTN3270MockServer()
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
