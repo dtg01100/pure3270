@@ -91,7 +91,7 @@ jobs:
 
     - name: Install CI tools
       run: |
-        pip install mypy pylint bandit pre-commit isort pytest-cov pytest-xdist radon cohesion
+        pip install mypy pylint bandit pre-commit isort pytest-cov radon cohesion
 
     - name: Display Python and package versions
       run: |
@@ -109,10 +109,10 @@ jobs:
 
     - name: Run unit and property tests (parallel execution)
       run: |
-        echo "🚀 Running tests in parallel with pytest-xdist..."
-        # Use 4 workers for parallel execution, faster pytest settings
-        PYTHONPATH=. pytest tests/ -v --tb=short -m "not integration" \
-          --durations=10 --maxfail=3 --disable-warnings --import-mode=importlib
+        echo "🚀 Running unit and property tests..."
+        # Run unit and property tests
+        PYTHONPATH=.. pytest tests/ -v --tb=short -m "not integration" \
+          --durations=10 --maxfail=3 --disable-warnings
 
     - name: Run specific slow tests (if enabled)
       if: ${{ github.event.inputs.run_slow_tests == 'true' }}
