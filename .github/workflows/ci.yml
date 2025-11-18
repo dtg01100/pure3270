@@ -110,7 +110,7 @@ jobs:
       run: |
         echo "🚀 Running unit and property tests..."
         # Run unit and property tests
-        cd .. && PYTHONPATH=$GITHUB_WORKSPACE/.. pytest pure3270/tests/ -v --tb=short -m "not integration" \
+        cd .. && PYTHONPATH=$GITHUB_WORKSPACE/.. python -m pytest pure3270/tests/ -v --tb=short -m "not integration" \
           --durations=10 --maxfail=3 --disable-warnings
 
     - name: Run specific slow tests (if enabled)
