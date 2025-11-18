@@ -111,8 +111,8 @@ jobs:
       run: |
         echo "🚀 Running tests in parallel with pytest-xdist..."
         # Use 4 workers for parallel execution, faster pytest settings
-        pytest tests/ -v --tb=short -m "not integration" \
-          --durations=10 --maxfail=3 --disable-warnings
+        PYTHONPATH=. pytest tests/ -v --tb=short -m "not integration" \
+          --durations=10 --maxfail=3 --disable-warnings --import-mode=importlib
 
     - name: Run specific slow tests (if enabled)
       if: ${{ github.event.inputs.run_slow_tests == 'true' }}
