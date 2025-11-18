@@ -106,7 +106,7 @@ jobs:
 
       - name: Upload CI artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: trace-replay-test-output-${{ matrix.python-version }}
           path: test_output

@@ -42,7 +42,7 @@ jobs:
 
       - name: Upload harness artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: drop-in-harness-artifacts
           path: artifacts/**
