@@ -146,6 +146,7 @@ validate_*.py
 !tests/mocks/
 
 # Allow specific tool scripts required by CI offline validation
+!tools/__init__.py
 !tools/test_trace_replay.py
 !tools/screen_buffer_regression_test.py
 !test_server_harness.py
