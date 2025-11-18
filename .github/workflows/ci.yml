@@ -107,10 +107,12 @@ jobs:
         python quick_test.py
 
     - name: Run unit and property tests (parallel execution)
+      env:
+        PYTHONPATH: ${{ github.workspace }}
       run: |
         echo "🚀 Running unit and property tests..."
         # Run unit and property tests
-        PYTHONPATH=/home/runner/work/pure3270 python -m pytest tests/ -v --tb=short -m "not integration" \
+        python -m pytest pure3270/tests/ -v --tb=short -m "not integration" \
           --durations=10 --maxfail=3 --disable-warnings
 
     - name: Run specific slow tests (if enabled)
