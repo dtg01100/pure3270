@@ -27,6 +27,7 @@ import asyncio
 import logging
 import re
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -105,6 +106,8 @@ class TraceReplayServer:
         max_connections: int = 1,
         compat_handshake: bool = False,
         trace_replay_mode: bool = False,
+        dump_negotiation: bool = False,
+        dump_dir: Optional[str] = None,
     ):
         self.trace_file = Path(trace_file)
         self.events: List[TraceEvent] = []
@@ -114,7 +117,21 @@ class TraceReplayServer:
         self.compat_handshake = compat_handshake
         self.trace_replay_mode = trace_replay_mode  # Enable deterministic negotiation
 
+        # Negotiation dump settings
+        self.dump_negotiation = dump_negotiation
+        self.dump_base_dir = (
+            Path(dump_dir)
+            if dump_dir
+            else Path(tempfile.gettempdir()) / "pure3270_trace_dumps"
+        )  # nosec B108
+        try:
+            self.dump_base_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            # Ignore failures creating the dump directory; dumping is best-effort
+            self.dump_negotiation = False
+
         # Per-connection state
+        self._dump_counter = 0
         self.connection_states: Dict[asyncio.StreamWriter, Dict[str, Any]] = {}
 
         # Track negotiation phase per connection when compat is enabled
@@ -154,7 +171,7 @@ class TraceReplayServer:
                 if match:
                     byte_count = int(match.group(1))
                     logger.debug(
-                        f"Found socket read of {byte_count} bytes at line {i+1}"
+                        f"Found socket read of {byte_count} bytes at line {i + 1}"
                     )
 
                     # Collect all subsequent hex data lines until we hit a non-data line
@@ -239,6 +256,39 @@ class TraceReplayServer:
         }
         self.connection_states[writer] = conn_state
 
+        # Open dump files for this connection if enabled
+        if self.dump_negotiation:
+            try:
+                peer = client_addr or ("unknown", "0")
+                host_part = str(peer[0]).replace(":", "_")
+                port_part = str(peer[1]) if len(peer) > 1 else "0"
+                base_name = (
+                    f"{self.trace_file.stem}_{host_part}_{port_part}_"
+                    f"{int(asyncio.get_event_loop().time() * 1000)}_{self._dump_counter}"
+                )
+                self._dump_counter += 1
+                recv_path = self.dump_base_dir / (base_name + "_recv.hex")
+                send_path = self.dump_base_dir / (base_name + "_send.hex")
+                try:
+                    recv_fh = recv_path.open("a", encoding="utf-8")
+                    send_fh = send_path.open("a", encoding="utf-8")
+                    conn_state["dump_handles"] = {
+                        "recv": recv_fh,
+                        "send": send_fh,
+                        "base": base_name,
+                    }
+                    logger.info(
+                        f"[{client_addr}] Negotiation dump files: {recv_path}, {send_path}"
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"[{client_addr}] Failed to open negotiation dump files: {e}"
+                    )
+            except Exception:
+                logger.warning(
+                    f"[{client_addr}] Failed to initialize dump file info; skipping negotiation dumps"
+                )
+
         try:
             # Optional compatibility handshake: proactively negotiate TN3270E
             if self.compat_handshake:
@@ -297,6 +347,17 @@ class TraceReplayServer:
                     logger.debug(
                         f"[{client_addr}] Received {len(data)} bytes: {data[:50].hex()}..."
                     )
+                    # Dump negotiation bytes for client->server (send) if enabled
+                    if self.dump_negotiation:
+                        try:
+                            conn = self.connection_states.get(writer)
+                            if conn and "dump_handles" in conn:
+                                fh = conn["dump_handles"].get("send")
+                                if fh:
+                                    fh.write(data.hex() + "\n")
+                                    fh.flush()
+                        except Exception as e:
+                            logger.debug(f"Failed to dump received bytes: {e}")
 
                     # Opportunistic compatible negotiation handling
                     if (
@@ -379,6 +440,17 @@ class TraceReplayServer:
                 f"Received: {conn_state['bytes_received']} bytes"
             )
 
+            # Close any open negotiation dump files for this connection
+            dump_handles = conn_state.get("dump_handles")
+            if dump_handles:
+                for k, fh in dump_handles.items():
+                    if k == "base":
+                        continue
+                    try:
+                        fh.close()
+                    except Exception:
+                        pass
+
             # Clean up connection state
             if writer in self.connection_states:
                 del self.connection_states[writer]
@@ -404,6 +476,17 @@ class TraceReplayServer:
         try:
             writer.write(data)
             await writer.drain()
+            # Dump negotiation bytes for server->client (recv) if enabled
+            if self.dump_negotiation:
+                try:
+                    conn_state = self.connection_states.get(writer)
+                    if conn_state and "dump_handles" in conn_state:
+                        fh = conn_state["dump_handles"].get("recv")
+                        if fh:
+                            fh.write(data.hex() + "\n")
+                            fh.flush()
+                except Exception as e:
+                    logger.debug(f"Failed to dump sent bytes: {e}")
         except Exception as e:
             logger.debug(f"Error sending bytes: {e}")
 
@@ -755,6 +838,43 @@ class TraceReplayServer:
             },
         }
 
+    def get_negotiation_dumps(self) -> List[Dict[str, Any]]:
+        """Return list of negotiation dump info for current connections.
+
+        Each entry contains:
+            - peer: client address tuple
+            - base: base dump file name (string)
+            - send: path to send hex dump (Path)
+            - recv: path to recv hex dump (Path)
+            - start_time: connection start timestamp (float)
+        """
+        out: List[Dict[str, Any]] = []
+        for writer, state in self.connection_states.items():
+            dump_handles = state.get("dump_handles")
+            if not dump_handles:
+                continue
+            base = dump_handles.get("base")
+            recv_path = self.dump_base_dir / (base + "_recv.hex")
+            send_path = self.dump_base_dir / (base + "_send.hex")
+            out.append(
+                {
+                    "peer": state.get("client_addr"),
+                    "base": base,
+                    "recv": recv_path,
+                    "send": send_path,
+                    "start_time": state.get("start_time"),
+                }
+            )
+        return out
+
+    def get_negotiation_dumps_since(self, since_ts: float) -> List[Dict[str, Any]]:
+        """Return negotiation dumps for connections that started after since_ts."""
+        return [
+            d
+            for d in self.get_negotiation_dumps()
+            if d.get("start_time", 0) >= since_ts
+        ]
+
 
 async def main() -> None:
     """Main entry point."""
@@ -789,6 +909,16 @@ async def main() -> None:
         action="store_true",
         help="Use compatibility handshake for TN3270E negotiation",
     )
+    parser.add_argument(
+        "--dump-negotiation",
+        action="store_true",
+        help="Dump raw telnet/TN3270 negotiation bytes to files (one per connection)",
+    )
+    parser.add_argument(
+        "--dump-dir",
+        default=None,
+        help="Directory to write negotiation dump files (default: /tmp/pure3270_trace_dumps)",
+    )
 
     args = parser.parse_args()
 
@@ -802,6 +932,8 @@ async def main() -> None:
         max_connections=args.max_connections,
         trace_replay_mode=getattr(args, "trace_replay_mode", False),
         compat_handshake=getattr(args, "compat_handshake", False),
+        dump_negotiation=getattr(args, "dump_negotiation", False),
+        dump_dir=getattr(args, "dump_dir", None),
     )
     await server.start_server(host=args.host, port=args.port)
 

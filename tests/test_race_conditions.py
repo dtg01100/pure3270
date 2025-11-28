@@ -156,7 +156,7 @@ async def test_concurrent_receive_operations():
     handler._connected = True
     handler._current_state = HandlerState.CONNECTED
     handler.negotiator = Mock()
-    handler.negotiator.negotiated_tn3270e = False
+    handler.negotiator.set_negotiated_tn3270e(False)
     handler.negotiator._ascii_mode = False
 
     # Run multiple concurrent receive operations

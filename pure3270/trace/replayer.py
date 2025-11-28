@@ -260,7 +260,9 @@ class Replayer:
                     f"TN3270E detection: has_negotiation={has_tn3270e_negotiation}, is_tn3270e_trace={is_tn3270e_trace}, trace_name={trace_name}"
                 )
 
-                handler.negotiated_tn3270e = has_tn3270e_negotiation or is_tn3270e_trace
+                handler.set_negotiated_tn3270e(
+                    has_tn3270e_negotiation or is_tn3270e_trace
+                )
 
                 logger.debug(
                     f"Set handler.negotiated_tn3270e = {handler.negotiated_tn3270e}"

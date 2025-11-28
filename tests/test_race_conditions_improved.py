@@ -102,7 +102,7 @@ async def test_concurrent_data_operations_with_locks(
     # Set up connected state
     handler._connected = True
     handler.negotiator = MagicMock()
-    handler.negotiator.negotiated_tn3270e = False
+    handler.negotiator.set_negotiated_tn3270e(False)
 
     # Add to resource manager
     test_resource_manager.add_resource(handler)
@@ -180,7 +180,7 @@ async def test_concurrent_receive_operations_with_isolation(
     handler._connected = True
     handler._current_state = HandlerState.CONNECTED
     handler.negotiator = MagicMock()
-    handler.negotiator.negotiated_tn3270e = False
+    handler.negotiator.set_negotiated_tn3270e(False)
     handler.negotiator._ascii_mode = False
 
     # Add to resource manager

@@ -423,11 +423,10 @@ class TestTN3270Handler:
             ),
             patch.object(tn3270_handler.parser, "parse") as mock_parse_data_stream,
         ):
-
             tn3270_handler.reader = AsyncMock()
             tn3270_handler._current_state = "CONNECTED"
             tn3270_handler.negotiator.trace_replay_mode = True
-            tn3270_handler._negotiated_tn3270e = True  # Enable TN3270E processing
+            tn3270_handler.set_negotiated_tn3270e(True)  # Enable TN3270E processing
             tn3270_handler._connected = True  # Mark handler as connected
             # Simulate receiving TN3270E header + actual data + IAC EOR
             test_data = mock_header_bytes + b"actual data"
@@ -457,7 +456,6 @@ class TestTN3270Handler:
             ),
             patch.object(tn3270_handler.parser, "parse") as mock_parse_data_stream,
         ):
-
             tn3270_handler.reader = AsyncMock()
             # Simulate receiving data without TN3270E header + IAC EOR
             test_data = b"plain 3270 data"
@@ -491,7 +489,6 @@ class TestTN3270Handler:
                 tn3270_handler.negotiator, "set_ascii_mode"
             ) as mock_set_ascii_mode,
         ):
-
             await tn3270_handler.receive_data()
 
             mock_set_ascii_mode.assert_called_once()
@@ -678,7 +675,6 @@ class TestTN3270Handler:
                 tn3270_handler._addressing_negotiator, "negotiate_mode"
             ) as mock_negotiate,
         ):
-
             mock_caps.return_value = "test capabilities"
             mock_negotiate.return_value = MagicMock(value="14-bit")
 
@@ -716,7 +712,6 @@ class TestTN3270Handler:
                 tn3270_handler._addressing_negotiator, "update_from_bind_image"
             ) as mock_update,
         ):
-
             mock_parse.return_value = MagicMock(value="14-bit")
 
             await tn3270_handler.handle_bind_image(bind_data)
@@ -1044,8 +1039,25 @@ class TestTN3270Handler:
     async def test_properties_and_setters(self, tn3270_handler):
         """Test property getters and setters."""
         # Test negotiated_tn3270e property
-        tn3270_handler.negotiated_tn3270e = True
+        tn3270_handler.set_negotiated_tn3270e(True)
         assert tn3270_handler.negotiated_tn3270e is True
+
+    def test_handler_set_negotiated_flag_propagates_to_negotiator(self, tn3270_handler):
+        """Handler.set_negotiated_tn3270e should propagate to negotiator.negotiated_tn3270e."""
+        # Ensure initial state is False
+        tn3270_handler.set_negotiated_tn3270e(False)
+        assert tn3270_handler.negotiated_tn3270e is False
+        assert tn3270_handler.negotiator.negotiated_tn3270e is False
+
+        # Set True and verify propagation
+        tn3270_handler.set_negotiated_tn3270e(True)
+        assert tn3270_handler.negotiated_tn3270e is True
+        assert tn3270_handler.negotiator.negotiated_tn3270e is True
+
+        # Set False and verify propagation
+        tn3270_handler.set_negotiated_tn3270e(False)
+        assert tn3270_handler.negotiated_tn3270e is False
+        assert tn3270_handler.negotiator.negotiated_tn3270e is False
 
         # Test lu_name property
         tn3270_handler.lu_name = "TESTLU"

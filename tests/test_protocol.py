@@ -342,9 +342,9 @@ class TestTN3270Handler:
             b"\xff\xfa\x18\x01\x02\x15\xff\xf0",  # FUNCTIONS IS
         ]
         # Set the success flag on negotiator
-        tn3270_handler.negotiator.negotiated_tn3270e = True
+        tn3270_handler.negotiator.set_negotiated_tn3270e(True)
         # Also set it on the handler for proper test behavior
-        tn3270_handler.negotiated_tn3270e = True
+        tn3270_handler.set_negotiated_tn3270e(True)
         # Mock the infer_tn3270e_from_trace method to return True
         tn3270_handler.negotiator.infer_tn3270e_from_trace = MagicMock(
             return_value=True
@@ -375,7 +375,7 @@ class TestTN3270Handler:
                 mock_wait_for.return_value = None
                 with pytest.raises(NegotiationError):
                     await tn3270_handler._negotiate_tn3270(timeout=0.1)
-        tn3270_handler.negotiator.negotiated_tn3270e = False
+        tn3270_handler.negotiator.set_negotiated_tn3270e(False)
         assert tn3270_handler.negotiated_tn3270e is False
 
     @pytest.mark.asyncio
@@ -474,7 +474,7 @@ class TestTN3270Handler:
         with patch("asyncio.wait_for", new_callable=AsyncMock) as mock_wait_for:
             mock_wait_for.return_value = None
             await tn3270_handler._negotiate_tn3270()
-        tn3270_handler.negotiator.negotiated_tn3270e = False
+        tn3270_handler.negotiator.set_negotiated_tn3270e(False)
         assert tn3270_handler.negotiated_tn3270e is False
 
 

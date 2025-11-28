@@ -293,12 +293,14 @@ class TN3270Handler:
         # patch methods like .read and .drain without AttributeError.
         class _MockReader:
             async def read(
-                self, n: int = 4096  # noqa: ARG002
+                self,
+                n: int = 4096,  # noqa: ARG002
             ) -> bytes:  # pragma: no cover - test helper
                 return b""
 
             async def readexactly(
-                self, n: int  # noqa: ARG002
+                self,
+                n: int,  # noqa: ARG002
             ) -> bytes:  # pragma: no cover - test helper
                 return b""
 
@@ -554,7 +556,8 @@ class TN3270Handler:
         """Set the sequence number validation window size with enhanced bounds."""
         # Allow larger windows for better synchronization recovery
         self._sequence_number_window = max(
-            1, min(window_size, 65535)  # Allow up to full 16-bit range
+            1,
+            min(window_size, 65535),  # Allow up to full 16-bit range
         )
         logger.debug(f"Sequence number window set to {self._sequence_number_window}")
 
@@ -971,6 +974,7 @@ class TN3270Handler:
             ],
             HandlerState.CONNECTING: [
                 HandlerState.NEGOTIATING,
+                HandlerState.CLOSING,
                 HandlerState.ERROR,
                 HandlerState.DISCONNECTED,
             ],
@@ -978,6 +982,7 @@ class TN3270Handler:
                 HandlerState.CONNECTED,
                 HandlerState.ASCII_MODE,
                 HandlerState.TN3270_MODE,
+                HandlerState.CLOSING,
                 HandlerState.ERROR,
             ],
             HandlerState.CONNECTED: [
@@ -1464,7 +1469,7 @@ class TN3270Handler:
             self._ascii_mode = False
             if self.negotiator:
                 self.negotiator.set_ascii_mode()
-                self.negotiator.negotiated_tn3270e = False
+                self.negotiator.set_negotiated_tn3270e(False)
 
             # Clear any mode-specific state
             self._pending_payload.clear()
@@ -1981,9 +1986,9 @@ class TN3270Handler:
                     # to fallback logic instead of hanging indefinitely.
                     try:
                         if self.negotiator is not None:
-                            self.negotiator._get_or_create_device_type_event().set()
-                            self.negotiator._get_or_create_functions_event().set()
-                            self.negotiator._get_or_create_negotiation_complete().set()
+                            self.negotiator._signal_device_event()
+                            self.negotiator._signal_functions_event()
+                            self.negotiator._signal_negotiation_complete()
                     except Exception:
                         pass
                     return
@@ -2062,9 +2067,9 @@ class TN3270Handler:
                             setattr(self.negotiator, "_forced_completion", True)
                         except Exception:
                             pass
-                        self.negotiator._get_or_create_device_type_event().set()
-                        self.negotiator._get_or_create_functions_event().set()
-                        self.negotiator._get_or_create_negotiation_complete().set()
+                        self.negotiator._signal_device_event()
+                        self.negotiator._signal_functions_event()
+                        self.negotiator._signal_negotiation_complete()
                 except Exception:
                     pass
 
@@ -2082,9 +2087,9 @@ class TN3270Handler:
                         setattr(self.negotiator, "_forced_completion", True)
                     except Exception:
                         pass
-                    self.negotiator._get_or_create_device_type_event().set()
-                    self.negotiator._get_or_create_functions_event().set()
-                    self.negotiator._get_or_create_negotiation_complete().set()
+                    self.negotiator._signal_device_event()
+                    self.negotiator._signal_functions_event()
+                    self.negotiator._signal_negotiation_complete()
             except Exception:
                 pass
             return
@@ -2142,12 +2147,12 @@ class TN3270Handler:
                             break
                     if hasattr(self.negotiator, "infer_tn3270e_from_trace"):
                         try:
-                            self.negotiator.negotiated_tn3270e = (
+                            self.negotiator.set_negotiated_tn3270e(
                                 self.negotiator.infer_tn3270e_from_trace(trace)
                             )
                         except Exception as e:
                             logger.error(f"Error inferring TN3270E from trace: {e}")
-                            self.negotiator.negotiated_tn3270e = False
+                            self.negotiator.set_negotiated_tn3270e(False)
                     # Store trace for potential inspection
                     self._negotiation_trace = trace
                     return
@@ -2185,7 +2190,7 @@ class TN3270Handler:
                         logger.info(
                             "[HANDLER] Negotiator switched to ASCII mode during TN3270 negotiation; clearing negotiated flag."
                         )
-                        self.negotiator.negotiated_tn3270e = False
+                        self.negotiator.set_negotiated_tn3270e(False)
                 except Exception as e:
                     logger.error(f"Error clearing negotiated_tn3270e: {e}")
             finally:
@@ -2290,10 +2295,12 @@ class TN3270Handler:
             )
         # Reflect on negotiator and handler
         try:
-            self.negotiator.negotiated_tn3270e = negotiated_flag
+            self.negotiator.set_negotiated_tn3270e(negotiated_flag)
         except Exception:
             pass
-        self._negotiated_tn3270e = negotiated_flag
+        # Use the handler API to set negotiation state; when called from negotiator,
+        # set propagate=False to avoid re-propagating.
+        self.set_negotiated_tn3270e(negotiated_flag, propagate=False)
 
         # Post-negotiation grace period: if we fell back to ASCII/NVT mode
         # (common with connected-3270 traces), attempt to read and process a
@@ -2491,9 +2498,10 @@ class TN3270Handler:
                     )
 
                     try:
-                        processed_data, ascii_mode_detected = (
-                            await self._process_telnet_stream(part)
-                        )
+                        (
+                            processed_data,
+                            ascii_mode_detected,
+                        ) = await self._process_telnet_stream(part)
                     except Exception:
                         processed_data, ascii_mode_detected = part, False
 
@@ -3119,7 +3127,21 @@ class TN3270Handler:
         # Use connection lock to prevent race conditions during closing
         async with self._async_operation_locks["connection"]:
             try:
-                await self._change_state(HandlerState.CLOSING, "closing connection")
+                try:
+                    await self._change_state(HandlerState.CLOSING, "closing connection")
+                except StateTransitionError:
+                    # If a transition to CLOSING is considered invalid under the current state,
+                    # force the transition to avoid leaving the connection open in a half-closed
+                    # state during shutdown. Try to record transition and call handlers.
+                    old_state = self._current_state
+                    self._record_state_transition_sync(
+                        HandlerState.CLOSING, "forced closing"
+                    )
+                    self._current_state = HandlerState.CLOSING
+                    await self._handle_state_change(old_state, HandlerState.CLOSING)
+                    await self._signal_state_change(
+                        old_state, HandlerState.CLOSING, "forced closing"
+                    )
 
                 if self._transport:
                     await self._transport.teardown_connection()
@@ -3266,11 +3288,30 @@ class TN3270Handler:
 
     @negotiated_tn3270e.setter
     def negotiated_tn3270e(self, value: bool) -> None:
-        self._negotiated_tn3270e = bool(value)
+        # Ensure we use the centralized setter to keep negotiator and handler in sync
+        self.set_negotiated_tn3270e(value)
 
     # Back-compat helper used by Negotiator to update handler state directly
-    def set_negotiated_tn3270e(self, value: bool) -> None:
+    def set_negotiated_tn3270e(self, value: bool, propagate: bool = True) -> None:
+        """Set negotiated_tn3270e flag on handler and optionally propagate to negotiator.
+
+        Args:
+            value: New negotiated flag value
+            propagate: When True, update negotiator as well (default True). When False,
+                the call is assumed to originate from the negotiator and should not re-propagate.
+        """
         self._negotiated_tn3270e = bool(value)
+        if propagate and getattr(self, "negotiator", None) is not None:
+            try:
+                # Use public setter to maintain synchronization and avoid recursion
+                self.negotiator.set_negotiated_tn3270e(bool(value))
+            except Exception:
+                try:
+                    # Fallback: set negotiator's attribute directly
+                    # Use public setter to keep both sides synchronized and trigger any events
+                    self.negotiator.set_negotiated_tn3270e(bool(value))
+                except Exception:
+                    pass
 
     @property
     def lu_name(self) -> Optional[str]:

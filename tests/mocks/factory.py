@@ -220,7 +220,32 @@ class MockAsyncSessionFactory:
                     self.writer = writer
                     self.screen_buffer = screen_buffer
                     self.connected = True
-                    self.negotiated_tn3270e = True
+                    self._negotiated_tn3270e = False
+                    # Initialize negotiated flag via setter to ensure propagation
+                    try:
+                        self.set_negotiated_tn3270e(True)
+                    except Exception:
+                        # Fallback if setter isn't present
+                        self._negotiated_tn3270e = True
+
+                @property
+                def negotiated_tn3270e(self) -> bool:
+                    return getattr(self, "_negotiated_tn3270e", False)
+
+                @negotiated_tn3270e.setter
+                def negotiated_tn3270e(self, value: bool) -> None:
+                    self.set_negotiated_tn3270e(value)
+
+                def set_negotiated_tn3270e(
+                    self, value: bool, propagate: bool = True
+                ) -> None:
+                    self._negotiated_tn3270e = bool(value)
+                    # Propagate to negotiator if requested and available
+                    if propagate and getattr(self, "negotiator", None) is not None:
+                        try:
+                            self.negotiator.set_negotiated_tn3270e(bool(value))
+                        except Exception:
+                            pass
 
                 async def send_data(self, data: bytes) -> None:
                     try:

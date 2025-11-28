@@ -47,6 +47,7 @@ import logging
 import random
 import sys
 import time
+import traceback
 from enum import Enum  # Import Enum for state management
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Dict, List, Optional, cast
 
@@ -168,6 +169,7 @@ class Negotiator:
         allow_fallback: bool = True,
         recorder: Optional["TraceRecorder"] = None,
         terminal_type: str = "IBM-3278-2",
+        negotiation_mode: str = "strict",
     ):
         """
         Initialize the Negotiator.
@@ -212,6 +214,10 @@ class Negotiator:
                 "force_mode must be one of None, 'ascii', 'tn3270', 'tn3270e'"
             )
         self.allow_fallback = allow_fallback
+        # New negotiation mode: 'strict' (server must fully complete), 'flexible' (allow either device/functions)
+        if negotiation_mode not in ("strict", "flexible"):
+            negotiation_mode = "flexible"
+        self.negotiation_mode = negotiation_mode
 
         # Back-compat: some tests expect these attributes to exist
         # and default to disabled until negotiation sets them.
@@ -231,7 +237,7 @@ class Negotiator:
         self.terminal_type = terminal_type
         logger.info(f"Negotiator initialized with terminal type: {self.terminal_type}")
 
-        self.negotiated_tn3270e = False
+        self._set_negotiated_flag(False)
         self._lu_name: Optional[str] = None
         self._selected_lu_name: Optional[str] = None
         self._lu_selection_complete: bool = False
@@ -279,6 +285,14 @@ class Negotiator:
         self._functions_is_event: asyncio.Event = asyncio.Event()
         self._lu_selection_event: asyncio.Event = asyncio.Event()
         self._negotiation_complete: asyncio.Event = asyncio.Event()
+        # Ensure events are clear at construction to avoid cross-test contamination
+        try:
+            self._device_type_is_event.clear()
+            self._functions_is_event.clear()
+            self._lu_selection_event.clear()
+            self._negotiation_complete.clear()
+        except Exception:
+            pass
         self._query_sf_response_event = (
             asyncio.Event()
         )  # New event for Query SF response
@@ -491,6 +505,131 @@ class Negotiator:
                 self._negotiation_complete = asyncio.Event()
             return self._negotiation_complete
         return self._negotiation_complete
+
+    # Centralized event signaling helpers
+    def _set_negotiated_flag(self, value: bool) -> None:
+        """
+        Centralized setter for negotiated_tn3270e and handler state.
+
+        This avoids duplicated direct attribute manipulation across the codebase
+        and ensures handler state is consistently updated when negotiation flags change.
+        """
+        # Store the internal negotiated flag without triggering handler propagation.
+        self._negotiated_tn3270e = bool(value)
+        if self.handler:
+            try:
+                # Prefer to call the handler API that supports a propagate flag to avoid recursion.
+                try:
+                    self.handler.set_negotiated_tn3270e(bool(value), propagate=False)
+                except TypeError:
+                    # Tests and minimal stubs may only accept a single argument; fall back.
+                    try:
+                        self.handler.set_negotiated_tn3270e(bool(value))
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+    @property
+    def negotiated_tn3270e(self) -> bool:
+        """Backwards-compatible negotiated flag property."""
+        return getattr(self, "_negotiated_tn3270e", False)
+
+    @negotiated_tn3270e.setter
+    def negotiated_tn3270e(self, value: bool) -> None:
+        # setter is simple and does not propagate to avoid recursion. Use set_negotiated_tn3270e for propagation.
+        self._negotiated_tn3270e = bool(value)
+
+    def set_negotiated_tn3270e(self, value: bool) -> None:
+        """
+        Public API: set negotiated_tn3270e flag and propagate state changes.
+        """
+        self._set_negotiated_flag(bool(value))
+
+    def _maybe_finalize_negotiation(self) -> None:
+        """
+        Finalize negotiation if both device-type and functions events are set.
+        """
+        try:
+            device_event = self._get_or_create_device_type_event()
+            functions_event = self._get_or_create_functions_event()
+            complete_event = self._get_or_create_negotiation_complete()
+            # Determine finalization condition based on negotiation_mode
+            mode = getattr(self, "negotiation_mode", "flexible")
+            if mode == "strict":
+                cond = device_event.is_set() and functions_event.is_set()
+            else:  # flexible: either event is sufficient
+                cond = device_event.is_set() or functions_event.is_set()
+            if cond:
+                # Mark server support when any of the events is set
+                self._server_supports_tn3270e = True
+                # Set negotiated flag if not set
+                if not getattr(self, "negotiated_tn3270e", False):
+                    self._set_negotiated_flag(True)
+                # Set completion event
+                try:
+                    complete_event.set()
+                except Exception:
+                    pass
+        except Exception:
+            # Best-effort - do not raise
+            pass
+
+    def _signal_device_event(
+        self, *, on_send: bool = False, force_negotiated: bool = False
+    ) -> None:
+        """
+        Signal the device-type event and optionally trigger negotiated completion.
+
+        If on_send is True, mark the server as supporting TN3270E to align with host
+        behavior where our sent DEVICE-TYPE IS indicates support.
+        """
+        try:
+            ev = self._get_or_create_device_type_event()
+            ev.set()
+            if on_send:
+                self._server_supports_tn3270e = True
+            if force_negotiated:
+                self._set_negotiated_flag(True)
+            # Attempt to finalize if possible
+            self._maybe_finalize_negotiation()
+        except Exception:
+            pass
+
+    def _signal_functions_event(
+        self, *, on_send: bool = False, force_negotiated: bool = False
+    ) -> None:
+        """
+        Signal the functions event and optionally trigger negotiated completion.
+
+        If on_send is True, this suggests we sent FUNCTIONS IS and so set server support.
+        """
+        try:
+            ev = self._get_or_create_functions_event()
+            ev.set()
+            if on_send:
+                self._server_supports_tn3270e = True
+            if force_negotiated:
+                self._set_negotiated_flag(True)
+            # Attempt to finalize if possible
+            self._maybe_finalize_negotiation()
+        except Exception:
+            pass
+
+    def _signal_negotiation_complete(self, success: bool = True) -> None:
+        """
+        Signal negotiation completion and reflect negotiated flags accordingly.
+        """
+        try:
+            complete_event = self._get_or_create_negotiation_complete()
+            if success:
+                self._set_negotiated_flag(True)
+                self._server_supports_tn3270e = True
+            else:
+                self._set_negotiated_flag(False)
+            complete_event.set()
+        except Exception:
+            pass
 
     # --- Negotiation Validation Helper ---
     def validate_negotiation_completion(self) -> bool:
@@ -792,6 +931,12 @@ class Negotiator:
                     time.time() - self._recovery_state["recovery_start_time"]
                 )
                 logger.info(f"Recovery completed in {recovery_duration:.2f}s")
+
+            # Ensure any waiters are unblocked by signaling negotiation complete=False
+            try:
+                self._signal_negotiation_complete(success=False)
+            except Exception:
+                pass
 
             # Log cleanup completion
             logger.debug("Cleanup completed successfully")
@@ -1209,7 +1354,7 @@ class Negotiator:
                         header.handle_negative_response(data)
                 elif header.is_error_response():
                     logger.error("Received error response for DEVICE-TYPE SEND.")
-                self._get_or_create_device_type_event().set()
+                self._signal_device_event()
             elif request_type == "FUNCTIONS SEND":
                 if header.is_positive_response():
                     logger.debug("Received positive response for FUNCTIONS SEND.")
@@ -1235,7 +1380,7 @@ class Negotiator:
                         )
                 elif header.is_error_response():
                     logger.error("Received error response for FUNCTIONS SEND.")
-                self._get_or_create_functions_event().set()
+                self._signal_functions_event()
             else:
                 logger.debug(f"Unhandled correlated response type: {request_type}")
         elif header.data_type == SNA_RESPONSE:
@@ -1353,7 +1498,7 @@ class Negotiator:
                 "[NEGOTIATION] force_mode=ascii specified; skipping TN3270E negotiation and enabling ASCII mode."
             )
             self.set_ascii_mode()
-            self.negotiated_tn3270e = False
+            self._set_negotiated_flag(False)
             self._record_decision("ascii", "ascii", False)
             for ev in (
                 self._get_or_create_device_type_event(),
@@ -1366,7 +1511,7 @@ class Negotiator:
             logger.info(
                 "[NEGOTIATION] force_mode=tn3270 specified; skipping TN3270E negotiation (basic TN3270 only)."
             )
-            self.negotiated_tn3270e = False
+            self._set_negotiated_flag(False)
             self._record_decision("tn3270", "tn3270", False)
             # Events set so upstream waits proceed
             for ev in (
@@ -1388,9 +1533,13 @@ class Negotiator:
             logger.info(
                 "[NEGOTIATION] force_mode=tn3270e specified; forcing TN3270E mode (test/debug only)."
             )
-            self.negotiated_tn3270e = True
+            self._set_negotiated_flag(True)
             if self.handler:
-                self.handler._negotiated_tn3270e = True
+                try:
+                    self.handler.set_negotiated_tn3270e(True)
+                except Exception:
+                    pass
+
             self._record_decision("tn3270e", "tn3270e", False)
             # Events set so upstream waits proceed
             for ev in (
@@ -1404,10 +1553,16 @@ class Negotiator:
         if not self._validate_connection_state():
             raise NotConnectedError("Invalid connection state for TN3270 negotiation")
 
-        # Clear events before starting negotiation
-        self._get_or_create_device_type_event().clear()
-        self._get_or_create_functions_event().clear()
-        self._get_or_create_negotiation_complete().clear()
+        # Clear events before starting negotiation, but preserve if already set (e.g., from compat handshake)
+        device_event = self._get_or_create_device_type_event()
+        functions_event = self._get_or_create_functions_event()
+        complete_event = self._get_or_create_negotiation_complete()
+        if not device_event.is_set():
+            device_event.clear()
+        if not functions_event.is_set():
+            functions_event.clear()
+        if not complete_event.is_set():
+            complete_event.clear()
 
         # Set up timeouts with x3270-compatible values
         if timeout is None:
@@ -1444,19 +1599,58 @@ class Negotiator:
                     negotiation_events_completed = False
                     # Wait for each event with calculated per-step timeout
                     logger.debug(
-                        f"[NEGOTIATION] Waiting for DEVICE-TYPE with per-event timeout {step_timeout}s..."
+                        f"[NEGOTIATION] Waiting for DEVICE-TYPE or FUNCTIONS with per-event timeout {step_timeout}s..."
                     )
-                    await asyncio.wait_for(
-                        self._get_or_create_device_type_event().wait(),
-                        timeout=step_timeout,
-                    )
-                    logger.debug(
-                        f"[NEGOTIATION] Waiting for FUNCTIONS with per-event timeout {step_timeout}s..."
-                    )
-                    await asyncio.wait_for(
-                        self._get_or_create_functions_event().wait(),
-                        timeout=step_timeout,
-                    )
+                    device_ev = self._get_or_create_device_type_event()
+                    functions_ev = self._get_or_create_functions_event()
+
+                    # Strict mode: require both device and functions events before completion
+                    if getattr(self, "negotiation_mode", "flexible") == "strict":
+                        logger.debug(
+                            "[NEGOTIATION] Strict mode: requiring both DEVICE-TYPE and FUNCTIONS"
+                        )
+                        # Wait for device event
+                        if not device_ev.is_set():
+                            await asyncio.wait_for(
+                                device_ev.wait(), timeout=step_timeout
+                            )
+                        # Wait for functions event
+                        if not functions_ev.is_set():
+                            await asyncio.wait_for(
+                                functions_ev.wait(), timeout=step_timeout
+                            )
+                    else:
+                        # Flexible mode: Wait for either device-type or functions event (some servers send only one)
+                        # Fast-path: if either already set, skip waiting
+                        if not (device_ev.is_set() or functions_ev.is_set()):
+                            # Use asyncio.wait to be able to wait for first completed
+                            wait_tasks = {
+                                asyncio.create_task(device_ev.wait()),
+                                asyncio.create_task(functions_ev.wait()),
+                            }
+                            done, pending = await asyncio.wait(
+                                wait_tasks,
+                                timeout=step_timeout,
+                                return_when=asyncio.FIRST_COMPLETED,
+                            )
+                            # Cancel any pending
+                            for t in pending:
+                                t.cancel()
+                            if not done:
+                                raise asyncio.TimeoutError(
+                                    "Device-type/functions event not received in time"
+                                )
+
+                        # If we have functions event but not device event, still proceed
+                        logger.debug(
+                            f"[NEGOTIATION] Waiting for FUNCTIONS with per-event timeout {step_timeout}s..."
+                        )
+                        if not functions_ev.is_set():
+                            await asyncio.wait_for(
+                                functions_ev.wait(),
+                                timeout=step_timeout,
+                            )
+
                     # Overall wait for completion with remaining timeout
                     remaining_timeout = (timeout or 10.0) - (2 * step_timeout)
                     if remaining_timeout <= 0:
@@ -1478,9 +1672,10 @@ class Negotiator:
                     if getattr(self, "_forced_completion", False):
                         # Don't mark success purely due to forced completion; leave decision to
                         # post-conditions below.
-                        self.negotiated_tn3270e = False
+                        pass
+
                     else:
-                        self.negotiated_tn3270e = True
+                        self._set_negotiated_flag(True)
                         # Tests may patch asyncio.wait_for to immediately succeed without
                         # driving the telnet WILL/DO path that flips this flag. When both
                         # negotiation events complete successfully, treat the server as
@@ -1492,7 +1687,7 @@ class Negotiator:
                             self.handler.set_negotiated_tn3270e(True)
                         except Exception:
                             try:
-                                self.handler.negotiated_tn3270e = True
+                                self.handler.set_negotiated_tn3270e(True)
                             except Exception:
                                 pass
                     logger.info(
@@ -1507,7 +1702,7 @@ class Negotiator:
                         "[NEGOTIATION] TN3270E negotiation timed out, falling back to basic TN3270 mode"
                     )
                     # Fall back to basic TN3270 mode (without E extension)
-                    self.negotiated_tn3270e = False
+                    self._set_negotiated_flag(False)
                     # If no handler is present (standalone negotiator in tests), prefer ASCII mode
                     # to match recovery expectations. When a handler is present, remain in TN3270 mode.
                     if self.handler is None:
@@ -1550,7 +1745,7 @@ class Negotiator:
                     logger.info(
                         "[NEGOTIATION] ASCII mode active; skipping TN3270E negotiated flag."
                     )
-                    self.negotiated_tn3270e = False
+                    self._set_negotiated_flag(False)
                     self._record_decision(self.force_mode or "auto", "ascii", True)
                 # Check if server actually supports TN3270E
                 elif not self._server_supports_tn3270e:
@@ -1570,15 +1765,19 @@ class Negotiator:
                         # Either negotiation failed or was forced - check force_mode
                         # If forced to tn3270e mode, honor that (for tests)
                         if self.force_mode == "tn3270e":
-                            self.negotiated_tn3270e = True
+                            self._set_negotiated_flag(True)
                             if self.handler:
-                                # Directly set the private attribute to avoid Python version differences
-                                # with property setters and mocks
-                                self.handler._negotiated_tn3270e = True
+                                try:
+                                    self.handler.set_negotiated_tn3270e(True)
+                                except Exception:
+                                    try:
+                                        self.handler.set_negotiated_tn3270e(True)
+                                    except Exception:
+                                        pass
                                 logger.info(
-                                    f"[NEGOTIATION] Set handler._negotiated_tn3270e = True, "
-                                    f"property value is: {self.handler.negotiated_tn3270e}"
+                                    f"[NEGOTIATION] Set handler.negotiated_tn3270e = True, property value is: {getattr(self.handler, 'negotiated_tn3270e', None)}"
                                 )
+
                             logger.info(
                                 "[NEGOTIATION] TN3270E negotiation successful (forced mode)."
                             )
@@ -1598,7 +1797,7 @@ class Negotiator:
                                 inferred = False
 
                             if inferred:
-                                self.negotiated_tn3270e = True
+                                self._set_negotiated_flag(True)
                                 logger.info(
                                     "[NEGOTIATION] TN3270E negotiation successful via inference."
                                 )
@@ -1609,20 +1808,19 @@ class Negotiator:
                                 logger.info(
                                     "[NEGOTIATION] Server doesn't support TN3270E; marking negotiation as failed."
                                 )
-                                self.negotiated_tn3270e = False
                                 self._record_decision(
                                     self.force_mode or "auto", "tn3270", True
                                 )
                 else:
                     # Mark success after waits completed in tests with server support
-                    self.negotiated_tn3270e = True
+                    self._set_negotiated_flag(True)
                     logger.info(
                         "[NEGOTIATION] TN3270E negotiation successful (test path)."
                     )
                     self._record_decision(self.force_mode or "auto", "tn3270e", False)
 
                 # Ensure events are created and set for completion
-                self._get_or_create_negotiation_complete().set()
+                self._signal_negotiation_complete()
 
             except Exception as e:
                 logger.error(f"TN3270 negotiation operation failed: {e}")
@@ -1856,21 +2054,21 @@ class Negotiator:
                     "[TELNET] Server refused TN3270E, enabling ASCII fallback mode"
                 )
                 self.set_ascii_mode()
-                self.negotiated_tn3270e = False
+                self._set_negotiated_flag(False)
                 self._record_decision(self.force_mode or "auto", "ascii", True)
                 # Set events to unblock any waiting negotiation
-                self._get_or_create_device_type_event().set()
-                self._get_or_create_functions_event().set()
-                self._get_or_create_negotiation_complete().set()
+                self._signal_device_event()
+                self._signal_functions_event()
+                self._signal_negotiation_complete()
             elif not self.allow_fallback and self.force_mode == "tn3270e":
                 # Fallback disabled and TN3270E was forced: flag hard failure and unblock events
                 logger.error(
                     "[TELNET] TN3270E refused by server with fallback disabled; forcing negotiation failure"
                 )
                 self._forced_failure = True
-                self._get_or_create_device_type_event().set()
-                self._get_or_create_functions_event().set()
-                self._get_or_create_negotiation_complete().set()
+                self._signal_device_event()
+                self._signal_functions_event()
+                self._signal_negotiation_complete()
         # Acknowledge with DONT per tests' expectations
         if self.writer:
             try:
@@ -1952,18 +2150,18 @@ class Negotiator:
 
         logger.debug(f"[TELNET] Server DONT 0x{option:02x}")
         if option == TELOPT_TN3270E:
-            self.negotiated_tn3270e = False
+            self._set_negotiated_flag(False)
             if self.handler:
                 try:
                     self.handler.set_negotiated_tn3270e(False)
                 except Exception:
                     try:
-                        self.handler.negotiated_tn3270e = False
+                        self.handler.set_negotiated_tn3270e(False)
                     except Exception:
                         pass
-            self._get_or_create_device_type_event().set()
-            self._get_or_create_functions_event().set()
-            self._get_or_create_negotiation_complete().set()
+            self._signal_device_event()
+            self._signal_functions_event()
+            self._signal_negotiation_complete()
         if self.writer:
             # Acknowledge with WONT per tests' expectations
             send_iac(self.writer, bytes([WONT, option]))
@@ -2379,7 +2577,7 @@ class Negotiator:
                     if device_name:
                         self.negotiated_device_type = device_name
                         logger.info(f"[TN3270E] Negotiated device type: {device_name}")
-                        self._get_or_create_device_type_event().set()
+                        self._signal_device_event()
                         # If IBM-DYNAMIC, send a query for characteristics immediately
                         try:
                             from .utils import QUERY_REPLY_CHARACTERISTICS
@@ -2413,7 +2611,7 @@ class Negotiator:
                     if device_name:
                         self.negotiated_device_type = device_name
                         logger.info(f"[TN3270E] Negotiated device type: {device_name}")
-                        self._get_or_create_device_type_event().set()
+                        self._signal_device_event()
                         # If IBM-DYNAMIC, send a query for characteristics immediately
                         try:
                             from .utils import QUERY_REPLY_CHARACTERISTICS
@@ -2482,7 +2680,7 @@ class Negotiator:
                             logger.debug(
                                 f"[TN3270E] Actual negotiated_functions value: {self.negotiated_functions}"
                             )
-                        self._get_or_create_functions_event().set()
+                        self._signal_functions_event()
 
                         # After receiving FUNCTIONS REQUEST IS, send our own FUNCTIONS IS
                         logger.info(
@@ -2495,7 +2693,7 @@ class Negotiator:
                             logger.info(
                                 "[TN3270E] Setting negotiated_tn3270e True after FUNCTIONS REQUEST IS (test fixture path)"
                             )
-                            self.negotiated_tn3270e = True
+                            self._set_negotiated_flag(True)
                             if self.handler:
                                 self.handler.set_negotiated_tn3270e(True)
                     else:
@@ -2532,7 +2730,7 @@ class Negotiator:
                         logger.debug(
                             f"[TN3270E] Actual negotiated_functions value: {self.negotiated_functions}"
                         )
-                    self._get_or_create_functions_event().set()
+                    self._signal_functions_event()
 
                 elif i < len(payload) and payload[i] == TN3270E_SEND:
                     # Server sent FUNCTIONS SEND - server is advertising supported functions
@@ -2560,7 +2758,7 @@ class Negotiator:
                             f"[TN3270E] Actual negotiated_functions value: {self.negotiated_functions}"
                         )
                     # Set the event so other parts of client know functions are set
-                    self._get_or_create_functions_event().set()
+                    self._signal_functions_event()
                     # Reply with a FUNCTIONS IS back to the server (mirror behavior)
                     logger.info("[TN3270E] Sending FUNCTIONS IS in response to SEND")
                     await self._send_functions_is()
@@ -2569,7 +2767,7 @@ class Negotiator:
                         logger.info(
                             "[TN3270E] Setting negotiated_tn3270e True after FUNCTIONS SEND (test fixture path)"
                         )
-                        self.negotiated_tn3270e = True
+                        self._set_negotiated_flag(True)
                         if self.handler:
                             self.handler.set_negotiated_tn3270e(True)
                     i += 1
@@ -2602,7 +2800,7 @@ class Negotiator:
                         logger.debug(
                             f"[TN3270E] Actual negotiated_functions value: {self.negotiated_functions}"
                         )
-                    self._get_or_create_functions_event().set()
+                    self._signal_functions_event()
 
                     # After receiving FUNCTIONS IS, send REQUEST with the same functions
                     logger.info(
@@ -2614,7 +2812,7 @@ class Negotiator:
                         logger.info(
                             "[TN3270E] Setting negotiated_tn3270e True after FUNCTIONS IS (test fixture path)"
                         )
-                        self.negotiated_tn3270e = True
+                        self._set_negotiated_flag(True)
                         if self.handler:
                             self.handler.set_negotiated_tn3270e(True)
                 else:
@@ -2649,10 +2847,10 @@ class Negotiator:
                 request_data = payload[i + 1 :]
                 logger.info(f"[TN3270E] Received REQUEST: {request_data.hex()}")
                 self.negotiated_functions = request_data[0] if request_data else 0
-                self.negotiated_tn3270e = True
+                self._set_negotiated_flag(True)
                 if self.handler:
                     self.handler.set_negotiated_tn3270e(True)
-                self._get_or_create_negotiation_complete().set()
+                self._signal_negotiation_complete()
                 break  # REQUEST command consumes the rest of the payload
             elif payload[i] == TN3270E_SYSREQ_MESSAGE_TYPE:
                 # SYSREQ subnegotiation - handle separately
@@ -2745,7 +2943,7 @@ class Negotiator:
                         f"[TN3270E] Set device type from IS response: {self.negotiated_device_type}"
                     )
                     # Set the device type event
-                    self._get_or_create_device_type_event().set()
+                    self._signal_device_event()
 
                     # After receiving DEVICE-TYPE IS, send FUNCTIONS REQUEST (s3270 behavior)
                     await self._send_functions_request()
@@ -2858,7 +3056,7 @@ class Negotiator:
                     f"[TN3270E] Negotiated functions: 0x{self.negotiated_functions:02x}"
                 )
                 # Set the functions event
-                self._get_or_create_functions_event().set()
+                self._signal_functions_event()
             else:
                 logger.warning("[TN3270E] Empty functions data in IS response")
         else:
@@ -3224,7 +3422,7 @@ class Negotiator:
         Used for error recovery or re-negotiation.
         """
         logger.debug("[NEGOTIATION] Resetting negotiation state")
-        self.negotiated_tn3270e = False
+        self._set_negotiated_flag(False)
         self._lu_name = None
         self.negotiated_device_type = None
         self.negotiated_functions = 0
@@ -3559,6 +3757,15 @@ class Negotiator:
             send_subnegotiation(self.writer, bytes([TELOPT_TN3270E]), payload)
             await self._safe_drain_writer()
 
+            # After we send our DEVICE-TYPE IS, treat that as device type negotiation completion
+            try:
+                self._signal_device_event()
+                logger.debug(
+                    "[TN3270E] Device type event set after sending DEVICE-TYPE IS"
+                )
+            except Exception:
+                pass
+
             # Record timing for this step
             step_start = time.time()
             self._record_timing_metric("device_type_send", time.time() - step_start)
@@ -3669,6 +3876,39 @@ class Negotiator:
             # Record timing for this step
             step_start = time.time()
             self._record_timing_metric("functions_send", time.time() - step_start)
+
+            # Signal functions event: we have sent our FUNCTIONS IS response
+            try:
+                device_event = self._get_or_create_device_type_event()
+                functions_event = self._get_or_create_functions_event()
+                complete_event = self._get_or_create_negotiation_complete()
+                functions_event.set()
+                logger.debug("[TN3270E] FUNCTIONS IS sent; functions_event set")
+                # If both device and functions are present, mark negotiation complete
+                if device_event.is_set() and functions_event.is_set():
+                    logger.info(
+                        "[TN3270E] Both device and functions present - marking negotiation complete"
+                    )
+                    # Mark negotiator as TN3270E-capable
+                    self._set_negotiated_flag(True)
+                    self._server_supports_tn3270e = True
+                    try:
+                        complete_event.set()
+                    except Exception:
+                        pass
+                    # Reflect on handler if present
+                    if self.handler:
+                        try:
+                            self.handler.set_negotiated_tn3270e(True)
+                        except Exception:
+                            try:
+                                self.handler.set_negotiated_tn3270e(True)
+                            except Exception:
+                                pass
+            except Exception as e:
+                logger.debug(
+                    f"Failed to set functions/device events after FUNCTIONS IS: {e}"
+                )
 
     def handle_bind_image(self, bind_image: BindImage) -> None:
         """

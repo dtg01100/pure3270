@@ -710,7 +710,7 @@ class EBCDICCodec:
                     out_chars.append(" ")
             except (IndexError, TypeError):
                 # Silently handle errors without logging for performance
-                out_chars.append(" ")
+                out_chars.append(" ")  # Use space for unknown EBCDIC bytes
 
         decoded = "".join(out_chars)
         return (decoded, len(decoded))

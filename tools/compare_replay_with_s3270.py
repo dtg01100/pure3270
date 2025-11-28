@@ -32,6 +32,9 @@ import sys
 from pathlib import Path
 from typing import Optional, Tuple
 
+# Import negotiation diff helpers lazily to avoid import-time side-effects
+
+
 # Ensure project root is on sys.path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -187,11 +190,17 @@ async def compare_trace(
     s3270_model: str = "3287-1",
     compat_handshake: bool = False,
     capture_timeout: float = 180.0,
+    dump_negotiation: bool = False,
+    dump_dir: Optional[str] = None,
 ) -> int:
     """Run comparison for a single trace. Returns 0 if identical (or if s3270 missing), 1 if differs."""
     logger.info("Starting TraceReplayServer for %s on port %d", trace_path, port)
     server = TraceReplayServer(
-        str(trace_path), loop_mode=False, compat_handshake=compat_handshake
+        str(trace_path),
+        loop_mode=False,
+        compat_handshake=compat_handshake,
+        dump_negotiation=dump_negotiation or compat_handshake,
+        dump_dir=dump_dir,
     )
 
     # Determine correct s3270 model based on trace
@@ -226,6 +235,9 @@ async def compare_trace(
             is_printer_session,
             pure3270_terminal,
         )
+        # Collect server dump timestamps before the connection
+        loop = asyncio.get_running_loop()
+        pure_start_ts = loop.time()
         try:
             p_screen = await asyncio.wait_for(
                 run_pure3270_capture(
@@ -241,6 +253,27 @@ async def compare_trace(
             logger.error("pure3270 capture timed out")
             return 1
         p_norm = normalize_screen_text(p_screen)
+
+        # After pure capture, collect dumps created since the pure_start_ts
+        try:
+            pure_dumps = server.get_negotiation_dumps_since(pure_start_ts)
+        except Exception:
+            pure_dumps = []
+        pure_send_path = None
+        pure_recv_path = None
+        if pure_dumps:
+            # pick earliest
+            dump_item = sorted(pure_dumps, key=lambda d: d.get("start_time", 0))[0]
+            pure_send_path = dump_item.get("send")
+            pure_recv_path = dump_item.get("recv")
+        if pure_send_path:
+            logger.info(
+                "Captured negotiation send dump for pure3270: %s", pure_send_path
+            )
+        if pure_recv_path:
+            logger.info(
+                "Captured negotiation recv dump for pure3270: %s", pure_recv_path
+            )
 
         # Capture from real s3270 if available
         if s3270_path is None:
@@ -337,6 +370,16 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
         help="Enable RFC-aligned compatibility handshake in replay server",
     )
     ap.add_argument(
+        "--dump-negotiation",
+        action="store_true",
+        help="Enable dumping raw telnet/tn3270 negotiation bytes from the replay server",
+    )
+    ap.add_argument(
+        "--dump-dir",
+        default=None,
+        help="Directory to write negotiation dumps (default: /tmp/pure3270_trace_dumps)",
+    )
+    ap.add_argument(
         "--overall-timeout",
         type=float,
         default=240.0,
@@ -374,6 +417,8 @@ async def amain(ns: argparse.Namespace) -> int:
                 s3270_model=ns.s3270_model,
                 compat_handshake=ns.compat_handshake,
                 capture_timeout=ns.timeout,
+                dump_negotiation=ns.dump_negotiation,
+                dump_dir=ns.dump_dir,
             ),
             timeout=ns.overall_timeout,
         )

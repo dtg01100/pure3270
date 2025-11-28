@@ -1,0 +1,500 @@
+# Enhanced TN3270 Test Server Infrastructure
+
+This document describes the comprehensive enhancements made to the local test server capabilities for the pure3270 project. The enhanced infrastructure provides robust, configurable testing capabilities that can handle edge cases and complex scenarios without requiring external servers.
+
+## Overview
+
+The enhanced test server infrastructure consists of several integrated components:
+
+1. **Enhanced Test Server** (`enhanced_test_server.py`) - Core server with error injection and monitoring
+2. **Multi-Server Coordinator** (`multi_server_coordinator.py`) - Orchestrates multiple test servers
+3. **Protocol Fuzzer** (`protocol_fuzzer.py`) - Comprehensive protocol fuzzing capabilities
+4. **Authentication Testing Suite** (`auth_testing_suite.py`) - Advanced authentication scenario testing
+5. **Network Stress Testing** (`network_stress_testing.py`) - Network interruption and resource stress testing
+6. **Comprehensive Test Suite** (`comprehensive_test_suite.py`) - Validation and integration testing
+
+## Key Features
+
+### 1. Enhanced Error Simulation and Network Failure Scenarios
+
+The enhanced test server provides configurable error injection capabilities:
+
+- **Connection Drop Simulation**: Simulates network disconnections
+- **Protocol Violation Injection**: Tests protocol compliance
+- **Data Corruption**: Tests data integrity handling
+- **Timeout Simulation**: Tests timeout handling
+- **Network Condition Simulation**: High latency, packet loss, bandwidth throttling
+
+### 2. Performance Monitoring and Metrics
+
+Comprehensive performance monitoring includes:
+
+- **Resource Usage Tracking**: CPU, memory, disk usage
+- **Connection Statistics**: Active connections, throughput
+- **Response Time Metrics**: Latency measurements
+- **Error Rate Monitoring**: Error frequency and types
+- **Real-time Dashboard**: Live performance metrics
+
+### 3. Protocol Fuzzing and Edge Case Testing
+
+Advanced fuzzing capabilities for TN3270/TN3270E:
+
+- **Telnet Negotiation Fuzzing**: Malformed IAC sequences
+- **TN3270E Subnegotiation Fuzzing**: Device type and function negotiation
+- **EBCDIC Conversion Fuzzing**: Character encoding edge cases
+- **Field Attribute Corruption**: 3270 field attribute manipulation
+- **AID Code Fuzzing**: Attention identifier testing
+- **Buffer Address Boundary Testing**: Address range validation
+
+### 4. Multi-Server Environment Testing
+
+Distributed testing capabilities:
+
+- **Server Cluster Management**: Multiple server instances
+- **Load Balancing Simulation**: Connection distribution
+- **Failover Testing**: Server failure scenarios
+- **Health Monitoring**: Real-time server status
+- **Distributed Test Execution**: Coordinated multi-server tests
+
+### 5. Enhanced Authentication Scenarios
+
+Comprehensive authentication testing:
+
+- **Multiple Auth Methods**: Userid/password, Kerberos, certificates
+- **Failure Scenario Simulation**: Invalid credentials, expired passwords
+- **Authorization Testing**: Privilege escalation, LU authorization
+- **Session Management**: Concurrent login, timeout testing
+- **Security Vulnerability Testing**: SQL injection, buffer overflow
+
+### 6. Network Interruption and Resource Stress Testing
+
+Network and system resilience testing:
+
+- **Network Interruption Simulation**: Drops, delays, corruption
+- **Memory Pressure Testing**: Resource exhaustion scenarios
+- **CPU Strain Testing**: High load simulation
+- **Connection Flood Testing**: Connection limit testing
+- **Recovery Testing**: System resilience validation
+
+## Installation and Setup
+
+### Prerequisites
+
+```bash
+# Install required dependencies
+pip install psutil aiohttp
+
+# Ensure pure3270 is in Python path
+export PYTHONPATH="${PYTHONPATH}:/path/to/pure3270"
+```
+
+### Quick Start
+
+1. **Basic Enhanced Server**:
+```bash
+python tools/enhanced_test_server.py --host localhost --port 3270 --mode tn3270e
+```
+
+2. **Run Comprehensive Tests**:
+```bash
+python tools/comprehensive_test_suite.py --verbose
+```
+
+3. **Protocol Fuzzing**:
+```bash
+python tools/protocol_fuzzer.py --server-host localhost --server-port 3270 --test-duration 60
+```
+
+## Usage Examples
+
+### Enhanced Test Server
+
+```python
+from tools.enhanced_test_server import EnhancedTN3270TestServer, ErrorType, NetworkCondition
+
+# Create enhanced server
+server = EnhancedTN3270TestServer("localhost", 3270)
+
+# Add error scenarios
+server.add_error_scenario(ErrorScenario(
+    error_type=ErrorType.CONNECTION_DROP,
+    probability=0.1,
+    interval=10.0,
+    description="Test connection drops"
+))
+
+# Set network conditions
+server.set_network_condition(NetworkCondition.HIGH_LATENCY)
+
+# Start monitoring
+server.resource_monitor.start_monitoring()
+
+# Start server
+await server.start()
+```
+
+### Multi-Server Coordination
+
+```python
+from tools.multi_server_coordinator import MultiServerCoordinator, ServerInstance
+
+# Create coordinator
+coordinator = MultiServerCoordinator()
+
+# Add server instances
+server1 = ServerInstance("server1", "localhost", 3270, mode="tn3270e")
+server2 = ServerInstance("server2", "localhost", 3271, mode="tn3270")
+coordinator.add_server(server1)
+coordinator.add_server(server2)
+
+# Start all servers
+await coordinator.start_all_servers()
+
+# Run distributed test
+results = await coordinator.run_distributed_test(
+    test_duration=30.0,
+    target_connections=20
+)
+```
+
+### Protocol Fuzzing
+
+```python
+from tools.protocol_fuzzer import ProtocolFuzzer, FuzzTest, FuzzTarget
+
+# Create fuzzer
+fuzzer = ProtocolFuzzer()
+
+# Add fuzz test
+test = FuzzTest(
+    name="aggressive_fuzz",
+    target=FuzzTarget.TN3270E_SUBNEGOTIATION,
+    iterations=100,
+    mutation_rate=0.6,
+    severity="high",
+    description="Aggressive TN3270E fuzzing"
+)
+fuzzer.add_test_config(test)
+
+# Run fuzzing session
+results = await fuzzer.run_fuzzing_session(server, test_duration=60.0)
+```
+
+### Authentication Testing
+
+```python
+from tools.auth_testing_suite import AuthenticationTestServer, AuthMethod, AuthFailureType
+
+# Create auth test server
+auth_server = AuthenticationTestServer("localhost", 3270)
+
+# Add authentication scenarios
+auth_server.add_scenario(AuthenticationScenario(
+    name="invalid_credentials",
+    description="Test invalid credentials",
+    auth_method=AuthMethod.USERID_PASSWORD,
+    failure_type=AuthFailureType.INVALID_CREDENTIALS,
+    credentials={"username": "testuser", "password": "wrongpass"}
+))
+
+# Run security audit
+test_suite = SecurityTestSuite()
+results = await test_suite.run_security_audit()
+```
+
+### Network Stress Testing
+
+```python
+from tools.network_stress_testing import NetworkInterruptionSimulator, ResourceStressTester
+
+# Create network interruption simulator
+interrupt_sim = NetworkInterruptionSimulator()
+
+# Add interruption scenarios
+interrupt_sim.add_scenario(InterruptionScenario(
+    name="connection_drops",
+    interruption_type=InterruptionType.CONNECTION_DROP,
+    probability=0.1,
+    duration=30.0,
+    interval=10.0
+))
+
+# Create resource stress tester
+stress_tester = ResourceStressTester()
+
+# Add stress test
+stress_tester.add_test_config(StressTestConfig(
+    name="memory_pressure",
+    stress_type=StressType.MEMORY_PRESSURE,
+    intensity=0.7,
+    duration=60.0
+))
+
+# Run stress test
+stress_tester.start_stress_test("memory_pressure")
+```
+
+## Configuration Files
+
+### Multi-Server Configuration
+
+Create a JSON configuration file for multi-server coordination:
+
+```json
+{
+  "servers": [
+    {
+      "name": "primary_server",
+      "host": "localhost",
+      "port": 3270,
+      "mode": "tn3270e",
+      "weight": 2,
+      "health_check_url": "http://localhost:3270/health"
+    },
+    {
+      "name": "backup_server",
+      "host": "localhost",
+      "port": 3271,
+      "mode": "tn3270",
+      "weight": 1,
+      "health_check_url": "http://localhost:3271/health"
+    }
+  ],
+  "coordination_port": 2325,
+  "health_check_interval": 10.0,
+  "load_balancer_enabled": true,
+  "failover_enabled": true
+}
+```
+
+## Testing Scenarios
+
+### 1. Basic Functionality Testing
+
+```bash
+# Test basic server functionality
+python tools/enhanced_test_server.py --mode tn3270e --verbose
+
+# Test with client
+python -c "
+import asyncio
+from pure3270 import Session
+
+async def test():
+    session = Session()
+    await session.connect('localhost', 3270)
+    print('Connection successful')
+    await session.disconnect()
+
+asyncio.run(test())
+"
+```
+
+### 2. Error Injection Testing
+
+```bash
+# Test connection drop simulation
+python tools/enhanced_test_server.py \
+    --error-injection \
+    --error-type connection_drop \
+    --error-probability 0.1 \
+    --error-interval 10.0
+```
+
+### 3. Protocol Fuzzing
+
+```bash
+# Run comprehensive fuzzing
+python tools/protocol_fuzzer.py \
+    --server-host localhost \
+    --server-port 3270 \
+    --test-type comprehensive \
+    --test-duration 120 \
+    --output-file fuzz_results.json
+```
+
+### 4. Authentication Testing
+
+```bash
+# Run authentication security audit
+python tools/auth_testing_suite.py \
+    --audit \
+    --output-file auth_audit.json
+
+# Test specific authentication scenario
+python tools/auth_testing_suite.py \
+    --scenario invalid_credentials \
+    --verbose
+```
+
+### 5. Network Stress Testing
+
+```bash
+# Test network interruptions
+python tools/network_stress_testing.py \
+    --action interrupt \
+    --scenario connection_drops \
+    --duration 60.0
+
+# Test resource stress
+python tools/network_stress_testing.py \
+    --action stress \
+    --scenario memory_pressure \
+    --intensity 0.5 \
+    --duration 30.0
+```
+
+### 6. Multi-Server Testing
+
+```bash
+# Start multi-server coordination
+python tools/multi_server_coordinator.py \
+    --config server_config.json \
+    --action start
+
+# Run distributed test
+python tools/multi_server_coordinator.py \
+    --config server_config.json \
+    --action test \
+    --test-duration 60.0 \
+    --target-connections 50
+```
+
+## Performance Monitoring
+
+### Real-time Metrics
+
+The enhanced server provides real-time performance metrics:
+
+```python
+# Get current server statistics
+stats = server.get_server_stats()
+print(f"Active connections: {stats['server']['active_connections']}")
+print(f"CPU usage: {stats['current_metrics']['cpu_percent']}%")
+print(f"Memory usage: {stats['current_metrics']['memory_percent']}%")
+```
+
+### Performance Analysis
+
+```python
+# Analyze performance trends
+performance_data = server.resource_monitor.get_performance_data()
+latency_stats = performance_data['latency_stats']
+throughput_stats = performance_data['throughput_stats']
+```
+
+## Integration with Existing Tests
+
+The enhanced infrastructure maintains full backward compatibility:
+
+### Legacy Server Compatibility
+
+```python
+# Original test_server.py still works
+from test_server import TN3270ETestServer
+
+# Enhanced features are additive, not breaking
+server = TN3270ETestServer("localhost", 3270)
+await server.start()
+```
+
+### Mock Server Integration
+
+```python
+# Original mock server functionality preserved
+from tools.mock_tn3270_server import MockTN3270Server
+
+# Can be used alongside enhanced features
+mock_server = MockTN3270Server()
+```
+
+### Trace Replay Compatibility
+
+```python
+# Original trace replay functionality preserved
+from tools.trace_replay_server import TraceReplayServer
+
+# Enhanced error injection can be layered on top
+trace_server = TraceReplayServer(trace_file)
+```
+
+## Best Practices
+
+### 1. Test Environment Setup
+
+- Use isolated network namespaces for testing
+- Configure appropriate resource limits
+- Set up monitoring and logging
+- Use temporary directories for test data
+
+### 2. Error Injection Strategy
+
+- Start with low probability scenarios
+- Gradually increase intensity
+- Monitor system resources during testing
+- Document expected vs actual behavior
+
+### 3. Performance Testing
+
+- Establish baseline measurements
+- Test under various load conditions
+- Monitor resource consumption
+- Validate recovery mechanisms
+
+### 4. Security Testing
+
+- Test authentication failure scenarios
+- Validate authorization boundaries
+- Check for injection vulnerabilities
+- Verify session management
+
+### 5. Multi-Server Testing
+
+- Test failover scenarios
+- Validate load balancing
+- Monitor inter-server communication
+- Test recovery from server failures
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Import Errors**: Ensure pure3270 is in Python path
+2. **Port Conflicts**: Use different ports for multiple servers
+3. **Resource Exhaustion**: Monitor system resources during stress testing
+4. **Network Timeouts**: Adjust timeout values for slow systems
+
+### Debug Mode
+
+Enable verbose logging for troubleshooting:
+
+```python
+import logging
+logging.basicConfig(level=logging.DEBUG)
+```
+
+### Health Checks
+
+Monitor server health during testing:
+
+```python
+# Check server status
+status = coordinator.get_server_status()
+if not status['servers']['server1']['healthy']:
+    print("Server health check failed")
+```
+
+## Summary
+
+The enhanced TN3270 test server infrastructure provides comprehensive testing capabilities that significantly improve the robustness and reliability of pure3270 testing. The modular design allows for flexible configuration while maintaining full backward compatibility with existing test infrastructure.
+
+Key benefits:
+- **Comprehensive Error Simulation**: Tests edge cases and failure scenarios
+- **Performance Monitoring**: Real-time metrics and analysis
+- **Protocol Fuzzing**: Automated edge case discovery
+- **Multi-Server Testing**: Distributed testing capabilities
+- **Security Testing**: Authentication and vulnerability testing
+- **Resource Stress Testing**: System resilience validation
+- **Backward Compatibility**: Seamless integration with existing tests
+
+This enhanced infrastructure enables thorough testing of pure3270 in realistic and challenging conditions, ensuring robust operation in production environments.

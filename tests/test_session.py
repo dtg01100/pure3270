@@ -248,7 +248,17 @@ class TestSession:
         # Mock handler
         mock_handler = MagicMock()
         mock_handler.connect = AsyncMock()
-        mock_handler.negotiated_tn3270e = True
+
+        def _set_flag(value, propagate=True):
+            mock_handler.set_negotiated_tn3270e(value)
+            if propagate and hasattr(mock_handler, "negotiator"):
+                try:
+                    mock_handler.negotiator.set_negotiated_tn3270e(value)
+                except Exception:
+                    pass
+
+        mock_handler.set_negotiated_tn3270e = _set_flag
+        mock_handler.set_negotiated_tn3270e(True)
         session._handler = mock_handler
 
         await session.connect()
@@ -267,7 +277,17 @@ class TestSession:
         mock_handler = MagicMock()
         mock_handler.connect = AsyncMock(side_effect=Exception("Negotiation failed"))
         mock_handler.set_ascii_mode = MagicMock()
-        mock_handler.negotiated_tn3270e = False
+
+        def _set_flag_negotiation_failed(value, propagate=True):
+            mock_handler.set_negotiated_tn3270e(value)
+            if propagate and hasattr(mock_handler, "negotiator"):
+                try:
+                    mock_handler.negotiator.set_negotiated_tn3270e(value)
+                except Exception:
+                    pass
+
+        mock_handler.set_negotiated_tn3270e = _set_flag_negotiation_failed
+        mock_handler.set_negotiated_tn3270e(False)
         session._handler = mock_handler
 
         # Mock the real connection path to avoid actual network calls
@@ -283,7 +303,20 @@ class TestSession:
                     side_effect=Exception("Negotiation failed")
                 )
                 mock_handler_instance.set_ascii_mode = MagicMock()
-                mock_handler_instance.negotiated_tn3270e = False
+
+                def _set_flag_instance(value, propagate=True):
+                    mock_handler_instance._negotiated_tn3270e = value
+                    if propagate and hasattr(mock_handler_instance, "negotiator"):
+                        try:
+                            mock_handler_instance.negotiator.set_negotiated_tn3270e(
+                                value
+                            )
+                        except Exception:
+                            pass
+
+                mock_handler_instance.set_negotiated_tn3270e = _set_flag_instance
+                mock_handler_instance.set_negotiated_tn3270e(False)
+
                 mock_handler_class.return_value = mock_handler_instance
 
                 await session.connect()
@@ -352,7 +385,6 @@ class TestSession:
             patch.object(session, "connect") as mock_connect,
             patch.object(session, "close") as mock_close,
         ):
-
             with session:
                 pass
 
@@ -369,7 +401,6 @@ class TestSession:
             patch.object(session, "connect", new_callable=AsyncMock) as mock_connect,
             patch.object(session, "close", new_callable=AsyncMock) as mock_close,
         ):
-
             async with session:
                 pass
 
@@ -791,12 +822,22 @@ class TestSession:
 
         # With handler but no negotiated_tn3270e
         mock_handler = MagicMock()
-        mock_handler.negotiated_tn3270e = False
+
+        def _set_flag(value, propagate=True):
+            mock_handler.set_negotiated_tn3270e(value)
+            if propagate and hasattr(mock_handler, "negotiator"):
+                try:
+                    mock_handler.negotiator.set_negotiated_tn3270e(value)
+                except Exception:
+                    pass
+
+        mock_handler.set_negotiated_tn3270e = _set_flag
+        mock_handler.set_negotiated_tn3270e(False)
         session._handler = mock_handler
         assert session.tn3270e_mode is False
 
         # With negotiated TN3270E
-        mock_handler.negotiated_tn3270e = True
+        mock_handler.set_negotiated_tn3270e(True)
         assert session.tn3270e_mode is True
 
     def test_session_tn3270e_mode_property(self):
@@ -1804,7 +1845,6 @@ class TestSession:
             patch("asyncio.get_running_loop") as mock_loop,
             patch("builtins.input", return_value="test_response") as mock_input,
         ):
-
             mock_loop.return_value.run_in_executor = AsyncMock(
                 return_value="test_response"
             )
@@ -2204,8 +2244,19 @@ class TestSession:
 
         # With handler negotiated TN3270E
         mock_handler = MagicMock()
-        mock_handler.negotiated_tn3270e = True
+
+        def _set_flag_lambda(v, propagate=True):
+            mock_handler._negotiated_tn3270e = v
+            if propagate and hasattr(mock_handler, "negotiator"):
+                try:
+                    mock_handler.negotiator.set_negotiated_tn3270e(v)
+                except Exception:
+                    pass
+
+        mock_handler.set_negotiated_tn3270e = _set_flag_lambda
+        mock_handler.set_negotiated_tn3270e(True)
         session._handler = mock_handler
+
         assert session.tn3270e_mode is True
 
     @pytest.mark.asyncio
@@ -2479,7 +2530,6 @@ class TestSession:
             patch.object(session, "close") as mock_close,
             patch.object(session, "connect") as mock_connect,
         ):
-
             await session.reconnect()
 
             mock_close.assert_called_once()
@@ -2731,7 +2781,6 @@ class TestSession:
             patch("asyncio.get_running_loop") as mock_loop,
             patch("builtins.input", return_value="test_response") as mock_input,
         ):
-
             mock_loop.return_value.run_in_executor = AsyncMock(
                 return_value="test_response"
             )
