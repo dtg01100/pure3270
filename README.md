@@ -858,6 +858,7 @@ Run them in your activated venv: `python examples/example_end_to_end.py`. Replac
 - **Venv Activation Issues**: Ensure the venv is activated (prompt shows `(.venv)`). On Windows, use `Scripts\activate.bat`. If `pip` installs globally, recreate the venv.
 
 - **Connection/Protocol Errors**: Verify host/port (default 23/992 for SSL). Enable DEBUG logging: `pure3270.setup_logging('DEBUG')`. Common: Host doesn't support TN3270; test with tools like `tn3270` client.
+- **Server Type Detection and Fallback**: Pure3270 automatically detects server capabilities during negotiation. If TN3270/TN3270E negotiation times out (typically 5-10 seconds), it falls back to ASCII/VT100 mode for compatibility with non-3270 servers. Check logs for "falling back to ASCII mode" messages. Force specific modes with `force_mode` parameter: `'ascii'`, `'tn3270'`, or `'tn3270e'`.
 - **Screen Read Issues**: Ensure `read()` is called after `send()`. For empty screens, check if BIND negotiation succeeded (logs show).
 - **Async/Sync Mix**: Use `Session` for sync code; `AsyncSession` for async. Don't mix in the same script without `asyncio.run()`.
 
