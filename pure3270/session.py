@@ -247,7 +247,7 @@ class Session:
 
             if asyncio.iscoroutine(maybe_awaitable):
                 fut: "concurrent.futures.Future[Any]" = (
-                    asyncio.run_coroutine_threadsafe(maybe_awaitable, self._loop)
+                    asyncio.run_coroutine_threadsafe(maybe_awaitable, loop=self._loop)
                 )
                 return fut.result()
             else:

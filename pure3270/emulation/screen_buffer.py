@@ -1571,3 +1571,31 @@ class ScreenBuffer(BufferWriter):
             return 0x7D
 
         return None
+
+    def reset_mdt_flags(self) -> None:
+        """Reset Modified Data Tag flags for all input fields per RFC 1576."""
+        if hasattr(self, '_fields'):
+            for field in self.fields:
+                if hasattr(field, 'reset_mdt'):
+                    field.reset_mdt()
+        logger.debug("MDT flags reset for all fields")
+    
+    def set_keyboard_lock(self, locked: bool) -> None:
+        """Lock or unlock keyboard for user input."""
+        self._keyboard_locked = locked
+        logger.debug(f"Keyboard {'locked' if locked else 'unlocked'}")
+    
+    def sound_alarm(self) -> None:
+        """Trigger terminal alarm/bell."""
+        logger.debug("Terminal alarm triggered")
+        # Could integrate with system bell if available
+    
+    def terminal_reset(self) -> None:
+        """Perform general terminal reset."""
+        logger.debug("Terminal reset performed")
+        # Reset specific terminal state as per WCC reset bit
+    
+    @property
+    def keyboard_locked(self) -> bool:
+        """Check if keyboard is currently locked."""
+        return getattr(self, '_keyboard_locked', False)

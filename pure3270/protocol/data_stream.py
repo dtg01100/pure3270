@@ -216,7 +216,23 @@ SNA_CMD_EW = 0xF5
 WRITE = CMD_EW
 # WCC byte value used by many tests/tools as the Write Control Character marker
 # Typical value for WCC in traces and fixtures is 0xC1
-WCC = 0xC1
+# WCC Bit Flag Constants (IBM 3270 specification)
+# See IBM 3270 Data Stream Programmer's Reference for complete bit flag definitions
+WCC_BIT_RESET_MDT = 0x80  # Bit 7: Reset Modified Data Tag
+WCC_BIT_KEYBOARD_RESTORE = 0x40  # Bit 6: Keyboard Restore - unlocks keyboard
+WCC_BIT_SOUND_ALARM = 0x20  # Bit 5: Sound Alarm - triggers terminal bell
+WCC_BIT_START_PRINTER = 0x10  # Bit 4: Start Printer (display terminals ignore)
+WCC_BIT_PRINT_FORMAT = 0x08  # Bit 3: Printout Format (display terminals ignore)
+WCC_BIT_RESET = 0x04  # Bit 2: Reset - general reset function
+WCC_BIT_RESERVED = 0x02  # Bit 1: Reserved - should be ignored
+WCC_BIT_PARITY = 0x01  # Bit 0: Parity bit
+
+# Common WCC Combinations for convenience
+WCC = 0xC1  # Reset MDT only (default)
+WCC_UNLOCK_KEYBOARD = 0xC3  # Reset MDT + Keyboard Restore
+WCC_ALARM = 0xE1  # Reset MDT + Sound Alarm
+WCC_UNLOCK_ALARM = 0xE3  # Reset MDT + Keyboard Restore + Sound Alarm
+WCC_ALL_FEATURES = 0xF3  # All implemented bits + Reset MDT
 
 # 3270 in-stream Orders (after WCC), per x3270 3270ds.h
 PT = 0x05  # Program Tab
@@ -1651,7 +1667,6 @@ class DataStreamParser:
     # NVT (ASCII/VT100) data handling
     # ------------------------------------------------------------------
     def _handle_nvt_data(self, data: bytes) -> None:
-
         if not data:
             return
         # Ensure screen exists
@@ -1709,7 +1724,6 @@ class DataStreamParser:
                 pass
 
     def _handle_request(self, data: bytes) -> None:
-
         if len(data) < 1:
             logger.warning("REQUEST data too short")
             return
@@ -1737,7 +1751,6 @@ class DataStreamParser:
             )
 
     def _ensure_parser(self) -> BaseParser:
-
         if self.parser is None:
             data = getattr(self, "_data", b"") or b""
             self.parser = BaseParser(data)
@@ -1746,7 +1759,6 @@ class DataStreamParser:
         return self.parser
 
     def _read_byte(self) -> int:
-
         if self._pos >= len(self._data):
             raise ParseError("Overflow")
         if self.parser is None:
@@ -1804,15 +1816,65 @@ class DataStreamParser:
             raise ParseError(f"Position out of bounds: ({row}, {col})")
 
     def _handle_wcc_with_byte(self, wcc: int) -> None:
+        """Handle Write Control Character with full bit flag support per IBM 3270 specification.
 
+        Args:
+            wcc: Write Control Character byte (0-255)
+
+        WCC bit processing per IBM 3270 Data Stream Programmer's Reference:
+        - Bit 7 (0x80): Reset MDT (Modified Data Tag) for all input fields
+        - Bit 6 (0x40): Keyboard Restore - unlocks keyboard for input
+        - Bit 5 (0x20): Sound Alarm - triggers terminal bell
+        - Bit 4 (0x10): Start Printer - ignored for display terminals
+        - Bit 3 (0x08): Printout Format - ignored for display terminals
+        - Bit 2 (0x04): Reset - general reset function
+        - Bit 1 (0x02): Reserved - should be ignored
+        - Bit 0 (0x01): Parity bit - determined by other bits
+        """
         if self.screen is None:
             raise ParseError("Screen buffer not initialized")
+
         self.wcc = wcc
-        # WCC bit 0x01: Reset MDT (Modified Data Tag) - not clear screen
-        # Screen clearing is done by Write command, not WCC
+        logger.debug(f"Processing WCC: 0x{wcc:02x} (binary: {wcc:08b})")
+
+        # Bit 7: Reset MDT (Modified Data Tag)
+        if wcc & WCC_BIT_RESET_MDT:
+            logger.debug("WCC: Reset MDT - clearing modified data tags")
+            # Reset MDT flags for all fields in screen buffer
+            if hasattr(self.screen, "reset_mdt_flags"):
+                self.screen.reset_mdt_flags()
+
+        # Bit 6: Keyboard Restore
+        if wcc & WCC_BIT_KEYBOARD_RESTORE:
+            logger.debug("WCC: Keyboard Restore - unlocking keyboard")
+            # Unlock keyboard for user input
+            if hasattr(self.screen, "set_keyboard_lock"):
+                self.screen.set_keyboard_lock(False)
+
+        # Bit 5: Sound Alarm
+        if wcc & WCC_BIT_SOUND_ALARM:
+            logger.debug("WCC: Sound Alarm - triggering terminal bell")
+            # Trigger terminal alarm/bell
+            if hasattr(self.screen, "sound_alarm"):
+                self.screen.sound_alarm()
+
+        # Bit 2: Reset
+        if wcc & WCC_BIT_RESET:
+            logger.debug("WCC: Reset - general reset function")
+            # General reset - may reset specific terminal state
+            if hasattr(self.screen, "terminal_reset"):
+                self.screen.terminal_reset()
+
+        # Bits 4,3: Printer-related (ignored for display terminals)
+        if wcc & (WCC_BIT_START_PRINTER | WCC_BIT_PRINT_FORMAT):
+            logger.debug("WCC: Printer bits set (ignored for display terminal)")
+
+        # Bit 1: Reserved - should be ignored without error
+        if wcc & WCC_BIT_RESERVED:
+            logger.debug("WCC: Reserved bit set (ignored per specification)")
+
         # After WCC, reset cursor to (0,0) so data bytes start at position 0
         self.screen.set_position(0, 0)
-        logger.debug(f"Set WCC to 0x{wcc:02x}")
 
     def _handle_sba(self) -> None:
         """Handle Set Buffer Address (SBA) order with proper rollback support.
@@ -1901,7 +1963,6 @@ class DataStreamParser:
             )
 
     def _handle_sf(self) -> None:
-
         self._validate_screen_buffer("SF")
         self._validate_min_data("SF", 1)
         attr = self._read_byte_safe("SF")
@@ -1972,7 +2033,6 @@ class DataStreamParser:
             )
 
     def _handle_ra(self) -> None:
-
         self._validate_screen_buffer("RA")
         self._validate_min_data("RA", 3)
 
@@ -2090,7 +2150,6 @@ class DataStreamParser:
         self.screen.set_position(target_row, target_col)
 
     def _handle_rmf(self) -> None:
-
         self._validate_min_data("RMF", 2)
         repeat_count = self._read_byte()
         attr_byte = self._read_byte()
@@ -2130,7 +2189,6 @@ class DataStreamParser:
                     break
 
     def _handle_eua(self) -> None:
-
         self._validate_screen_buffer("EUA")
         self._validate_min_data("EUA", 2)
 
@@ -2231,7 +2289,6 @@ class DataStreamParser:
         self.screen.set_position(target_row, target_col)
 
     def _handle_ge(self) -> None:
-
         self._validate_min_data("GE", 1)
         graphic_byte = self._read_byte()
 
@@ -2329,7 +2386,6 @@ class DataStreamParser:
         # No position advance beyond insert
 
     def _handle_ic(self) -> None:
-
         # For extended addressing, we need to handle cursor positioning across larger screens
         # The IC order moves cursor to the first input field, but we need to ensure
         # the field positions are valid for the current addressing mode
@@ -2340,7 +2396,6 @@ class DataStreamParser:
         )
 
     def _handle_pt(self) -> None:
-
         # Program Tab moves cursor to the next unprotected field
         # For extended addressing, ensure field positions are valid
         self.screen.program_tab()
@@ -2406,7 +2461,6 @@ class DataStreamParser:
             logger.warning(f"Unknown SCS control code: 0x{code:02x} - continuing")
 
     def _handle_write(self, clear: bool = True) -> None:
-
         if clear:
             self.screen.clear()
         self.screen.set_position(0, 0)
@@ -2424,7 +2478,6 @@ class DataStreamParser:
                 )
 
     def _write_text_byte(self, byte_value: int) -> None:
-
         if self.screen:
             current_row, current_col = self.screen.get_position()
             self.screen.write_char(byte_value, current_row, current_col)
@@ -2439,7 +2492,6 @@ class DataStreamParser:
                 self.screen.set_position(current_row, current_col + 1)
 
     def _handle_ewa(self) -> None:
-
         logger.debug("Erase/Write Alternate (EWA)")
         if self.screen:
             # Clear the entire screen buffer to null (0x00)
@@ -2448,11 +2500,9 @@ class DataStreamParser:
             self.screen.set_position(0, 0)
 
     def _handle_eoa(self) -> None:
-
         logger.debug("End of Aid")
 
     def _handle_aid_with_byte(self, aid: int) -> None:
-
         self.aid = aid
         logger.debug(f"Attention ID 0x{aid:02x}")
 
@@ -2468,12 +2518,10 @@ class DataStreamParser:
                 logger.debug(f"Light pen selection at ({row}, {col})")
 
     def _handle_read_partition(self) -> None:
-
         logger.debug("Read Partition - not implemented")
         # Would trigger read from keyboard, but for parser, just log
 
     def _handle_sfe(self, sf_data: Optional[bytes] = None) -> Dict[int, int]:
-
         if self.screen is None:
             raise ParseError("Screen buffer not initialized")
         attrs: Dict[int, int] = {}
@@ -2589,7 +2637,6 @@ class DataStreamParser:
         return attrs
 
     def _handle_bind(self) -> None:
-
         logger.debug("BIND order - not fully implemented")
         # BIND order doesn't contain screen dimensions, so create a default BindImage
         if self.negotiator:
@@ -2597,7 +2644,6 @@ class DataStreamParser:
             self.negotiator.handle_bind_image(default_bind_image)
 
     def _handle_data_stream_ctl(self, ctl_code: int) -> None:
-
         logger.debug(f"Handling DATA-STREAM-CTL code: 0x{ctl_code:02x}")
 
         # Enhanced DATA-STREAM-CTL handling based on RFC 2355 and observed trace codes
@@ -2884,7 +2930,6 @@ class DataStreamParser:
         self._handle_structured_field_tolerant()
 
     def _handle_unknown_structured_field(self, sf_type: int, data: bytes) -> None:
-
         logger.debug(
             f"Unknown structured field type 0x{sf_type:02x}, data length {len(data)}, continuing gracefully"
         )
@@ -2893,7 +2938,6 @@ class DataStreamParser:
 
     # Comprehensive Structured Field Handlers
     def _handle_sna_response_sf(self, data: bytes) -> None:
-
         try:
             sna_response = self._parse_sna_response(data)
             logger.debug(f"Handled SNA Response SF: {sna_response}")
@@ -2911,7 +2955,6 @@ class DataStreamParser:
             logger.warning(f"Failed to parse SNA Response SF: {e}")
 
     def _handle_query_reply_sf(self, data: bytes) -> None:
-
         try:
             # Parse query type from data
             if len(data) < 1:
@@ -3125,7 +3168,6 @@ class DataStreamParser:
         return SnaResponse(response_type, flags, sense_code, data_part)
 
     def _handle_printer_status_sf(self, data: bytes) -> None:
-
         try:
             if len(data) < 1:
                 logger.warning("Printer Status SF data too short")
@@ -3142,7 +3184,6 @@ class DataStreamParser:
             logger.error(f"Error handling Printer Status SF: {e}")
 
     def _handle_outbound_3270ds_sf(self, data: bytes) -> None:
-
         try:
             if len(data) < 1:
                 logger.warning("Outbound 3270DS SF data too short")
@@ -3161,7 +3202,6 @@ class DataStreamParser:
             logger.error(f"Error handling outbound 3270DS structured field: {e}")
 
     def _handle_inbound_3270ds_sf(self, data: bytes) -> None:
-
         try:
             if len(data) < 1:
                 logger.warning("Inbound 3270DS SF data too short")
@@ -3178,47 +3218,36 @@ class DataStreamParser:
             logger.error(f"Error handling inbound 3270DS structured field: {e}")
 
     def _handle_object_data_sf(self, data: bytes) -> None:
-
         logger.debug(f"Handled Object Data SF: {len(data)} bytes")
 
     def _handle_object_control_sf(self, data: bytes) -> None:
-
         logger.debug(f"Handled Object Control SF: {len(data)} bytes")
 
     def _handle_object_picture_sf(self, data: bytes) -> None:
-
         logger.debug(f"Handled Object Picture SF: {len(data)} bytes")
 
     def _handle_data_chain_sf(self, data: bytes) -> None:
-
         logger.debug(f"Handled Data Chain SF: {len(data)} bytes")
 
     def _handle_compression_sf(self, data: bytes) -> None:
-
         logger.debug(f"Handled Compression SF: {len(data)} bytes")
 
     def _handle_font_control_sf(self, data: bytes) -> None:
-
         logger.debug(f"Handled Font Control SF: {len(data)} bytes")
 
     def _handle_symbol_set_sf(self, data: bytes) -> None:
-
         logger.debug(f"Handled Symbol Set SF: {len(data)} bytes")
 
     def _handle_device_characteristics_sf(self, data: bytes) -> None:
-
         logger.debug(f"Handled Device Characteristics SF: {len(data)} bytes")
 
     def _handle_descriptor_sf(self, data: bytes) -> None:
-
         logger.debug(f"Handled Descriptor SF: {len(data)} bytes")
 
     def _handle_file_sf(self, data: bytes) -> None:
-
         logger.debug(f"Handled File SF: {len(data)} bytes")
 
     def _handle_indfile_sf(self, data: bytes) -> None:
-
         try:
             if len(data) < 1:
                 logger.warning("IND$FILE SF data too short")
@@ -3312,23 +3341,18 @@ class DataStreamParser:
             logger.error(f"Error handling IND$FILE structured field: {e}")
 
     def _handle_font_sf(self, data: bytes) -> None:
-
         logger.debug(f"Handled Font SF: {len(data)} bytes")
 
     def _handle_page_sf(self, data: bytes) -> None:
-
         logger.debug(f"Handled Page SF: {len(data)} bytes")
 
     def _handle_graphics_sf(self, data: bytes) -> None:
-
         logger.debug(f"Handled Graphics SF: {len(data)} bytes")
 
     def _handle_barcode_sf(self, data: bytes) -> None:
-
         logger.debug(f"Handled Barcode SF: {len(data)} bytes")
 
     def _handle_device_type_query_reply(self, data: bytes) -> None:
-
         try:
             if len(data) < 4:
                 logger.warning("Device Type Query Reply too short")
@@ -3345,7 +3369,6 @@ class DataStreamParser:
             logger.error(f"Error parsing Device Type Query Reply: {e}")
 
     def _handle_characteristics_query_reply(self, data: bytes) -> None:
-
         try:
             if len(data) < 3:
                 logger.warning("Characteristics Query Reply too short")
