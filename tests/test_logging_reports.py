@@ -70,49 +70,17 @@ async def test_async_session_show_and_print_text_logging(
     # Move cursor off the content to avoid the default cursor masking
     s._screen_buffer.set_position(1, 0)
 
-    # Don't rely on direct buffer text presence due to masking or global test
-    # transformations; instead rely on captured log records emitted by show().
-    # Attach a dedicated handler to the session logger to safely capture
-    # emissions during this test run, avoiding interference from global
-    # logging reconfigurations that occur in other tests.
-    # Override the session instance logger with a lightweight collector to
-    # avoid global logging config interference from other tests.
-    class ListLogger:
-        def __init__(self):
-            self.records = []
+    # show() prints to stdout, so we capture stdout output
+    await s.show()
+    captured = capsys.readouterr()
+    # Verify "Ping" appears in the captured stdout output
+    assert "Ping" in captured.out
 
-        def info(self, msg, *args, **kwargs):
-            try:
-                if args:
-                    formatted = msg % args
-                else:
-                    formatted = str(msg)
-            except Exception:
-                formatted = str(msg)
-            self.records.append(formatted)
+    # print_text() prints to stdout
+    await s.print_text("Hello Logging")
+    captured = capsys.readouterr()
+    assert "Hello Logging" in captured.out
 
-    orig_logger = s.logger
-    s.logger = ListLogger()
-    try:
-        await s.show()
-        # Assert the local logger captured the message; wait briefly if needed
-        found_ping = False
-        for _ in range(10):
-            if any("Ping" in r for r in s.logger.records):
-                found_ping = True
-                break
-            await asyncio.sleep(0.01)
-        assert found_ping
-        await s.print_text("Hello Logging")
-        found_hl = False
-        for _ in range(10):
-            if any("Hello Logging" in r for r in s.logger.records):
-                found_hl = True
-                break
-            await asyncio.sleep(0.01)
-        assert found_hl
-    finally:
-        s.logger = orig_logger
     # Just ensure bell doesn't raise; logging/printing of BEL may be filtered
     # by external test configurations and is not deterministic across full
     # test suite runs. A dedicated unit test exists to confirm the method
