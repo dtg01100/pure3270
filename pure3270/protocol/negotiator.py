@@ -1533,7 +1533,18 @@ class Negotiator:
             logger.info(
                 "[NEGOTIATION] force_mode=tn3270e specified; forcing TN3270E mode (test/debug only)."
             )
+            # In forced TN3270E mode attempt to immediately advertise supported
+            # device types and mark negotiation as complete so callers can
+            # proceed without waiting for a full server-driven negotiation.
+            try:
+                await self._send_supported_device_types()
+            except Exception:
+                logger.debug(
+                    "Failed to send supported device types during forced TN3270E mode",
+                    exc_info=True,
+                )
             self._set_negotiated_flag(True)
+            self._server_supports_tn3270e = True
             if self.handler:
                 try:
                     self.handler.set_negotiated_tn3270e(True)

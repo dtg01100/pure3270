@@ -339,9 +339,9 @@ class EnhancedTN3270MockServer(TN3270MockServer):
 
             # 7. Send a minimal TN3270E 3270-DATA record followed by IAC EOR.
             # Create a small, valid 3270 data stream that uses WCC + SBA + SF + text bytes.
-            from pure3270.constants import SBA, SF
+            from pure3270.protocol.data_stream import SBA, SF
             from pure3270.protocol.tn3270e_header import TN3270EHeader
-            from pure3270.utils.common import encode_string_to_ebcdic
+            from pure3270.emulation.ebcdic import translate_ascii_to_ebcdic
 
             header = TN3270EHeader(
                 data_type=TN3270_DATA,
@@ -356,13 +356,13 @@ class EnhancedTN3270MockServer(TN3270MockServer):
             # First field: address 0
             sba_addr_1 = bytes([0x00, 0x00])
             sf_attr_1 = bytes([0xF0])
-            text1 = encode_string_to_ebcdic("HELLO")
+            text1 = translate_ascii_to_ebcdic("HELLO")
             # Second field: row 1, column 0 (address = 80 for 80 cols -> 0x50)
             # For 12-bit addressing, encode as two bytes: high 6 bits, low 6 bits
             # high = 0x01, low = 0x10 -> bytes([0x01, 0x10]) yields address 0x50
             sba_addr_2 = bytes([0x01, 0x10])
             sf_attr_2 = bytes([0xF0])
-            text2 = encode_string_to_ebcdic("WORLD")
+            text2 = translate_ascii_to_ebcdic("WORLD")
             payload = b"".join(
                 [
                     wcc,
