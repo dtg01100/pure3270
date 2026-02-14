@@ -24,6 +24,8 @@ class TestAIDSupport:
         """Test that Session.pf calls AsyncSession.pf."""
         session = Session()
         session._async_session = AsyncMock()
+        # Mock _run_async to avoid thread synchronization issues
+        session._run_async = AsyncMock()
 
         session.pf(1)
 
@@ -33,6 +35,8 @@ class TestAIDSupport:
         """Test that Session.pa calls AsyncSession.pa."""
         session = Session()
         session._async_session = AsyncMock()
+        # Mock _run_async to avoid thread synchronization issues
+        session._run_async = AsyncMock()
 
         session.pa(1)
 

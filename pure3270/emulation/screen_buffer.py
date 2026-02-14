@@ -238,7 +238,6 @@ logger = logging.getLogger(__name__)
 
 
 class ScreenBuffer(BufferWriter):
-
     def _is_file_transfer_content(self, text: str) -> bool:
         """Check if text contains file transfer patterns that should be suppressed from screen display."""
         # Look for IND$FILE commands and file transfer metadata patterns
@@ -443,6 +442,11 @@ class ScreenBuffer(BufferWriter):
     def get_ascii_mode(self) -> bool:
         """Get current ASCII mode setting."""
         return self._ascii_mode
+
+    @property
+    def input_inhibited(self) -> bool:
+        """Get Input Inhibited state (keyboard locked)."""
+        return self.keyboard_locked
 
     def get_field_content(self, field_index: int) -> str:
         """Return the content of the field at the given index as a decoded string."""
@@ -879,7 +883,7 @@ class ScreenBuffer(BufferWriter):
         start_row, start_col = self._calculate_coords(start_idx)
         end_row, end_col = self._calculate_coords(end_idx)
         logger.debug(
-            f"_create_field_from_range: Field start=({start_row},{start_col}), end=({end_row},{end_col}), content={self.buffer[start_idx:end_idx+1].hex()}"
+            f"_create_field_from_range: Field start=({start_row},{start_col}), end=({end_row},{end_col}), content={self.buffer[start_idx : end_idx + 1].hex()}"
         )
 
         # Extract field content
@@ -1574,28 +1578,28 @@ class ScreenBuffer(BufferWriter):
 
     def reset_mdt_flags(self) -> None:
         """Reset Modified Data Tag flags for all input fields per RFC 1576."""
-        if hasattr(self, '_fields'):
+        if hasattr(self, "_fields"):
             for field in self.fields:
-                if hasattr(field, 'reset_mdt'):
+                if hasattr(field, "reset_mdt"):
                     field.reset_mdt()
         logger.debug("MDT flags reset for all fields")
-    
+
     def set_keyboard_lock(self, locked: bool) -> None:
         """Lock or unlock keyboard for user input."""
         self._keyboard_locked = locked
         logger.debug(f"Keyboard {'locked' if locked else 'unlocked'}")
-    
+
     def sound_alarm(self) -> None:
         """Trigger terminal alarm/bell."""
         logger.debug("Terminal alarm triggered")
         # Could integrate with system bell if available
-    
+
     def terminal_reset(self) -> None:
         """Perform general terminal reset."""
         logger.debug("Terminal reset performed")
         # Reset specific terminal state as per WCC reset bit
-    
+
     @property
     def keyboard_locked(self) -> bool:
         """Check if keyboard is currently locked."""
-        return getattr(self, '_keyboard_locked', False)
+        return getattr(self, "_keyboard_locked", False)

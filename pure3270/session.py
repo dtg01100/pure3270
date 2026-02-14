@@ -49,6 +49,7 @@ from typing import (
     List,
     Optional,
     TypeVar,
+    cast,
 )
 
 T = TypeVar("T")
@@ -374,6 +375,13 @@ class Session:
         return self._async_session.screen_buffer
 
     @property
+    def input_inhibited(self) -> bool:
+        """Get Input Inhibited state (keyboard locked)."""
+        if self._async_session is None:
+            return False
+        return self._async_session.input_inhibited
+
+    @property
     def tn3270e_mode(self) -> bool:
         """Check if session is in TN3270E mode.
 
@@ -390,12 +398,9 @@ class Session:
                 pass
 
         # Fallback to handler's negotiated flag
-        if (
-            hasattr(self, "_handler")
-            and self._handler is not None
-            and hasattr(self._handler, "negotiated_tn3270e")
-        ):
-            return bool(self._handler.negotiated_tn3270e)
+        handler = getattr(self, "_handler", None)
+        if handler and hasattr(handler, "negotiated_tn3270e"):
+            return bool(handler.negotiated_tn3270e)
 
         return False
 
@@ -544,9 +549,7 @@ class Session:
         """Execute external command synchronously (s3270 Execute() action)."""
         if not self._async_session:
             raise SessionError("Session not connected.")
-        result = self._run_async(self._async_session.execute(command))
-        assert isinstance(result, str)
-        return result
+        return cast(str, self._run_async(self._async_session.execute(command)))
 
     def info(self) -> str:
         """Get session information synchronously."""
@@ -558,13 +561,47 @@ class Session:
         return result
 
     def query(self, query_type: str = "All") -> str:
-        """Query session information synchronously."""
+        """Query session information synchronously.
+
+        Supported query types (s3270 protocol parity):
+            - All: Summary information
+            - CodePage: Host code page
+            - ConnectionState: Connection state
+            - Cursor: Cursor position
+            - Model: 3270 model information
+            - ScreenCurSize: Current screen dimensions
+            - Tn3270eOptions: Active TN3270E functions
+            - TelnetHostOptions: Host TELNET options
+            - TelnetMyOptions: Client TELNET options
+            - And 30+ more query types...
+
+        """
         if not self._async_session:
             raise SessionError("Session not connected.")
-        result = self._run_async(self._async_session.query(query_type))
+
+        # Dispatch to specific query handler
+        handler = getattr(self, f"_query_{query_type.lower()}", None)
+        if handler:
+            result = handler()
+        else:
+            # Default to generic query for unsupported types
+            result = f"Unknown query type: {query_type}"
+
         if not isinstance(result, str):
             return ""
         return result
+
+    def move_cursor1(self, row: int, col: int) -> None:
+        """Move cursor to specified position (s3270 MoveCursor1 action)."""
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        self._run_async(self._async_session.move_cursor(row, col))
+
+    def hex_string(self, hex_data: str) -> None:
+        """Send raw hex bytes as input (s3270 HexString() action)."""
+        if not self._async_session:
+            raise SessionError("Session not connected.")
+        self._run_async(self._async_session.hex_string(hex_data))
 
     def set(self, option: str, value: str) -> None:
         """Set option synchronously."""
@@ -1010,6 +1047,13 @@ class AsyncSession:
         """Get the screen buffer (alias for screen_buffer)."""
         return self.screen_buffer
 
+    @property
+    def input_inhibited(self) -> bool:
+        """Get Input Inhibited state (keyboard locked)."""
+        if self._screen_buffer:
+            return self._screen_buffer.input_inhibited
+        return False
+
     # Test and integration helpers: expose the handler for injection
     @property
     def handler(self) -> Optional[TN3270Handler]:
@@ -1282,7 +1326,6 @@ class AsyncSession:
                     if hasattr(self._handler, "_bg_tasks") and isinstance(
                         self._handler._bg_tasks, list
                     ):
-
                         self._handler._bg_tasks.append(task)
                 except Exception:
                     pass
@@ -2347,6 +2390,9 @@ class AsyncSession:
         """Submit with AID."""
         if not self._handler:
             raise SessionError("Session not connected.")
+
+        # Lock the keyboard (Input Inhibited) until host response unlocks it
+        self.screen_buffer.set_keyboard_lock(True)
 
         # Send the AID byte
         aid_data = bytes([aid])

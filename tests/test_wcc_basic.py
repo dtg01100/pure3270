@@ -1,1 +1,0 @@
-Basic WCC test passed
