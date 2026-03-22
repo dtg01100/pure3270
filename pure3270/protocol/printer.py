@@ -28,9 +28,7 @@ from .utils import (  # Additional constants for advanced printer support
     TN3270E_RESPONSES,
     TN3270E_RSF_ALWAYS_RESPONSE,
     TN3270E_RSF_ERROR_RESPONSE,
-    TN3270E_RSF_NEGATIVE_RESPONSE,
     TN3270E_RSF_NO_RESPONSE,
-    TN3270E_RSF_POSITIVE_RESPONSE,
     TN3270E_SCS_CTL_CODES,
     TN3270E_SEND,
     TN3270E_SYSREQ,
@@ -552,16 +550,13 @@ class PrinterSession:
                 self.current_job.set_error(
                     f"Error response received for sequence {header.seq_number}"
                 )
-        elif header.response_flag == TN3270E_RSF_NEGATIVE_RESPONSE:
-            logger.warning(
-                f"Received negative response for sequence {header.seq_number}"
-            )
-            # Try to parse negative response details
+            # Parse error response details (sense data)
             if len(data) > 0:
                 code = data[0]
-                logger.warning(f"Negative response code: 0x{code:02x}")
-        elif header.response_flag == TN3270E_RSF_POSITIVE_RESPONSE:
-            logger.debug(f"Received positive response for sequence {header.seq_number}")
+                logger.warning(f"Error response code: 0x{code:02x}")
+        elif header.response_flag == TN3270E_RSF_NO_RESPONSE:
+            # No response expected - this is normal for most messages
+            pass
         elif header.response_flag == TN3270E_RSF_ALWAYS_RESPONSE:
             logger.debug(f"Received always response for sequence {header.seq_number}")
 

@@ -108,7 +108,7 @@ from .utils import (
     TN3270E_RESPONSE_MODE_IS,
     TN3270E_RESPONSE_MODE_SEND,
     TN3270E_RESPONSES,
-    TN3270E_RSF_POSITIVE_RESPONSE,
+    TN3270E_RSF_NO_RESPONSE,
     TN3270E_SCS_CTL_CODES,
     TN3270E_SEND,
     TN3270E_SYSREQ_MESSAGE_TYPE,
@@ -561,11 +561,13 @@ class Negotiator:
             else:  # flexible: either event is sufficient
                 cond = device_event.is_set() or functions_event.is_set()
             if cond:
-                # Mark server support when any of the events is set
-                self._server_supports_tn3270e = True
-                # Set negotiated flag if not set
-                if not getattr(self, "negotiated_tn3270e", False):
-                    self._set_negotiated_flag(True)
+                # Only mark server support if TN3270E hasn't been explicitly refused
+                # (i.e., _server_supports_tn3270e isn't already False from WONT TN3270E)
+                if self._server_supports_tn3270e is not False:
+                    self._server_supports_tn3270e = True
+                    # Set negotiated flag if not set
+                    if not getattr(self, "negotiated_tn3270e", False):
+                        self._set_negotiated_flag(True)
                 # Set completion event
                 try:
                     complete_event.set()
@@ -1275,7 +1277,7 @@ class Negotiator:
         request_type: str,
         data_type: int = TN3270_DATA,
         request_flag: int = 0,
-        response_flag: int = TN3270E_RSF_POSITIVE_RESPONSE,
+        response_flag: int = TN3270E_RSF_NO_RESPONSE,
         seq_number: Optional[int] = None,
     ) -> TN3270EHeader:
         """
@@ -1328,9 +1330,10 @@ class Negotiator:
 
             # Process response based on request type and response flags
             if request_type == "DEVICE-TYPE SEND":
-                if header.is_positive_response():
-                    logger.debug("Received positive response for DEVICE-TYPE SEND.")
-                elif header.is_negative_response():
+                # RFC 2355: NO_RESPONSE (0x00) means no response expected
+                # ERROR_RESPONSE (0x01) means respond only if error
+                # ALWAYS_RESPONSE (0x02) means always respond
+                if header.is_error_response() or header.is_negative_response():
                     # Use enhanced retry logic with stricter cap: initial attempt + 2 retries
                     retry_count = request_info.get("retry_count", 0)
                     device_max_retries = 2
@@ -1356,9 +1359,10 @@ class Negotiator:
                     logger.error("Received error response for DEVICE-TYPE SEND.")
                 self._signal_device_event()
             elif request_type == "FUNCTIONS SEND":
-                if header.is_positive_response():
-                    logger.debug("Received positive response for FUNCTIONS SEND.")
-                elif header.is_negative_response():
+                # RFC 2355: NO_RESPONSE (0x00) means no response expected
+                # ERROR_RESPONSE (0x01) means respond only if error
+                # ALWAYS_RESPONSE (0x02) means always respond
+                if header.is_error_response() or header.is_negative_response():
                     # Use enhanced retry logic
                     retry_count = request_info.get("retry_count", 0)
                     if retry_count < self._retry_config["max_retries"]:
@@ -2070,7 +2074,8 @@ class Negotiator:
                 # Set events to unblock any waiting negotiation
                 self._signal_device_event()
                 self._signal_functions_event()
-                self._signal_negotiation_complete()
+                # Signal failure since TN3270E was refused
+                self._signal_negotiation_complete(success=False)
             elif not self.allow_fallback and self.force_mode == "tn3270e":
                 # Fallback disabled and TN3270E was forced: flag hard failure and unblock events
                 logger.error(

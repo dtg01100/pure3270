@@ -250,7 +250,7 @@ class TestSession:
         mock_handler.connect = AsyncMock()
 
         def _set_flag(value, propagate=True):
-            mock_handler.set_negotiated_tn3270e(value)
+            mock_handler.negotiated_tn3270e = value
             if propagate and hasattr(mock_handler, "negotiator"):
                 try:
                     mock_handler.negotiator.set_negotiated_tn3270e(value)
@@ -279,7 +279,7 @@ class TestSession:
         mock_handler.set_ascii_mode = MagicMock()
 
         def _set_flag_negotiation_failed(value, propagate=True):
-            mock_handler.set_negotiated_tn3270e(value)
+            mock_handler.negotiated_tn3270e = value
             if propagate and hasattr(mock_handler, "negotiator"):
                 try:
                     mock_handler.negotiator.set_negotiated_tn3270e(value)
@@ -824,7 +824,7 @@ class TestSession:
         mock_handler = MagicMock()
 
         def _set_flag(value, propagate=True):
-            mock_handler.set_negotiated_tn3270e(value)
+            mock_handler.negotiated_tn3270e = value
             if propagate and hasattr(mock_handler, "negotiator"):
                 try:
                     mock_handler.negotiator.set_negotiated_tn3270e(value)

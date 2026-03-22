@@ -360,6 +360,13 @@ class TN3270Handler:
         self._ascii_mode = False
         self._auto_recover = False
         self._negotiated_tn3270e = False
+
+        # --- SYSREQ/Suspended Mode State (RFC 2355 10.5) ---
+        # Per RFC 2355, when SYSREQ function is negotiated, server enters "suspended mode"
+        # on receipt of AO (Telnet Abort Output). In suspended mode, SSCP-LU-DATA
+        # messages are accepted. Second SYSREQ or other input exits suspended mode.
+        self._in_suspended_mode = False
+        self._in_3270_mode = True  # Initial state after negotiation is 3270 mode
         # Background tasks created by the handler (reader loops, scheduled
         # callbacks). We keep references so close() can cancel them and
         # avoid orphaned tasks that survive beyond the handler lifecycle.
@@ -869,6 +876,37 @@ class TN3270Handler:
         """
         return self._addressing_negotiator.get_negotiation_summary()
 
+    async def _handle_telnet_command(self, cmd: int) -> None:
+        """
+        Handle a single Telnet command (not including IAC prefix).
+
+        This method handles special Telnet commands that affect protocol state:
+        - AO (Abort Output): Enters suspended mode if SYSREQ negotiated
+        - IP (Interrupt Process): For ATTN key handling
+        - BRK (Break): Break signal
+
+        Args:
+            cmd: The Telnet command byte (not including IAC prefix)
+        """
+        if cmd == AO:
+            # RFC 2355 10.5.2: AO (Abort Output) enters suspended mode
+            # when SYSREQ function is negotiated
+            logger.debug("[TELNET] Received IAC AO (Abort Output)")
+            if self.negotiator.negotiated_functions & TN3270E_SYSREQ:
+                self._in_suspended_mode = True
+                self._in_3270_mode = False
+                logger.info("[TELNET] Entered suspended mode (SYSREQ)")
+            else:
+                logger.debug("[TELNET] SYSREQ not negotiated, ignoring IAC AO")
+        elif cmd == IP:
+            # RFC 2355 Section 11: IP (Interrupt Process) for ATTN key
+            # When SYSREQ not negotiated, client sends IAC IP as fallback
+            logger.debug("[TELNET] Received IAC IP (Interrupt Process)")
+            # Non-SNA servers should ignore IP - we just log it here
+        elif cmd == BRK:
+            logger.debug("Received IAC BRK")
+        # Other commands are handled elsewhere or ignored
+
     async def _process_telnet_stream(self, data: bytes) -> tuple[bytes, bool]:
         """
         Process Telnet stream data, handling IAC commands and subnegotiations.
@@ -927,8 +965,25 @@ class TN3270Handler:
                     i = se_index + 2
                     continue
                 else:
-                    # Handle other IAC commands
-                    if cmd == BRK:
+                    # Handle other IAC commands (AO, IP, BRK, etc.)
+                    if cmd == AO:
+                        # RFC 2355 10.5.2: AO (Abort Output) enters suspended mode
+                        # when SYSREQ function is negotiated
+                        logger.debug("[TELNET] Received IAC AO (Abort Output)")
+                        if self.negotiator.negotiated_functions & TN3270E_SYSREQ:
+                            self._in_suspended_mode = True
+                            self._in_3270_mode = False
+                            logger.info("[TELNET] Entered suspended mode (SYSREQ)")
+                        else:
+                            logger.debug(
+                                "[TELNET] SYSREQ not negotiated, ignoring IAC AO"
+                            )
+                    elif cmd == IP:
+                        # RFC 2355 Section 11: IP (Interrupt Process) for ATTN key
+                        # When SYSREQ not negotiated, client sends IAC IP as fallback
+                        logger.debug("[TELNET] Received IAC IP (Interrupt Process)")
+                        # Non-SNA servers should ignore IP - we just log it here
+                    elif cmd == BRK:
                         logger.debug("Received IAC BRK")
                     i += 2
                     continue
@@ -3016,6 +3071,10 @@ class TN3270Handler:
         """
         Send a SYSREQ command to the host.
 
+        Per RFC 2355 10.5.2:
+        - When in suspended mode, second SYSREQ key press exits suspended mode
+        - SYSREQ with ATTN code while suspended sends LUSTAT and exits suspended mode
+
         Args:
             command_code: The byte code representing the SYSREQ command.
         """
@@ -3024,6 +3083,17 @@ class TN3270Handler:
         _, writer = self._require_streams()
 
         from .utils import AO, BREAK, EOR, IAC, IP
+
+        # RFC 2355 10.5.2: Second SYSREQ key press while in suspended mode
+        # exits suspended mode and sends LUSTAT
+        if self._in_suspended_mode:
+            logger.info(
+                "[TELNET] SYSREQ received in suspended mode, exiting suspended mode"
+            )
+            self._in_suspended_mode = False
+            self._in_3270_mode = True
+            # Note: LUSTAT (0x082D) would be sent to indicate terminal ready
+            # For now, we just exit suspended mode as documented in RFC
 
         # Only ATTN has a Telnet-level fallback (IAC IP). For other SYSREQ commands,
         # when the SYSREQ function is not negotiated we must raise ProtocolError.
@@ -3058,6 +3128,33 @@ class TN3270Handler:
                 logger.debug(f"Sent fallback IAC for SYSREQ 0x{command_code:02x}")
             else:
                 raise_protocol_error("SYSREQ function not negotiated for command")
+
+    async def _handle_sysreq_response(self, sense_data: bytes) -> None:
+        """
+        Handle SYSREQ response from host, specifically LUSTAT (LU Status).
+
+        Per RFC 2355 10.5.2:
+        - LUSTAT (0x082D) indicates LU busy or other status condition
+        - This is received while in suspended mode
+
+        Args:
+            sense_data: SNA sense data indicating the status condition
+        """
+        if len(sense_data) >= 2:
+            # Extract sense code (first 2 bytes typically)
+            sense_code = (sense_data[0] << 8) | sense_data[1]
+            logger.info(f"[SYSREQ] Received LUSTAT sense data: 0x{sense_code:04X}")
+
+            if sense_code == 0x082D:
+                # LU Busy - terminal should wait
+                logger.warning("[SYSREQ] LU Busy - terminal waiting")
+            elif sense_code == 0x1003:
+                # Intervention required
+                logger.warning("[SYSREQ] Intervention required")
+            else:
+                logger.debug(f"[SYSREQ] Unknown LUSTAT code: 0x{sense_code:04X}")
+        else:
+            logger.debug("[SYSREQ] Received LUSTAT with no sense data")
 
     @handle_drain
     async def send_break(self) -> None:

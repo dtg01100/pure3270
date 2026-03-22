@@ -390,10 +390,8 @@ class TestTN3270Handler:
         from pure3270.protocol.tn3270e_header import TN3270EHeader
 
         # Patch _outgoing_request to return a real TN3270EHeader
-        tn3270_handler.negotiator._outgoing_request = (
-            lambda *args, **kwargs: TN3270EHeader(
-                data_type=0, request_flag=0, response_flag=0, seq_number=1
-            )
+        tn3270_handler.negotiator._outgoing_request = lambda *args, **kwargs: (
+            TN3270EHeader(data_type=0, request_flag=0, response_flag=0, seq_number=1)
         )
         expected_header = tn3270_handler.negotiator._outgoing_request(
             "CLIENT_DATA", data_type=0
@@ -571,12 +569,15 @@ from pure3270.protocol.utils import (
     TN3270E_RESPONSES,
     TN3270E_RSF_ALWAYS_RESPONSE,
     TN3270E_RSF_ERROR_RESPONSE,
-    TN3270E_RSF_NEGATIVE_RESPONSE,
     TN3270E_RSF_NO_RESPONSE,
-    TN3270E_RSF_POSITIVE_RESPONSE,
     WILL,
     WONT,
 )
+
+# Note: TN3270E_RSF_NO_RESPONSE and TN3270E_RSF_ERROR_RESPONSE
+# were removed as they don't exist in RFC 2355.
+# Use TN3270E_RSF_NO_RESPONSE (0x00) for cases that used POSITIVE_RESPONSE.
+# Use TN3270E_RSF_ERROR_RESPONSE (0x01) for cases that used NEGATIVE_RESPONSE.
 
 
 @pytest.mark.asyncio
@@ -641,33 +642,29 @@ class TestTN3270EHeader:
 
     def test_tn3270e_header_parse_bind_image(self, memory_limit_500mb):
         """Test parsing BIND-IMAGE header."""
-        # BIND_IMAGE with positive response, seq 1
-        header_bytes = struct.pack(
-            "!BBBH", BIND_IMAGE, 0, TN3270E_RSF_POSITIVE_RESPONSE, 1
-        )
+        # BIND_IMAGE with no response flag, seq 1
+        header_bytes = struct.pack("!BBBH", BIND_IMAGE, 0, TN3270E_RSF_NO_RESPONSE, 1)
         header = TN3270EHeader.from_bytes(header_bytes)
         assert header is not None
         assert header.data_type == BIND_IMAGE
-        assert header.is_positive_response() is True
+        assert header.is_no_response() is True
         assert header.seq_number == 1
         assert (
             repr(header)
-            == "TN3270EHeader(data_type=BIND_IMAGE, request_flag=0x00, response_flag=POSITIVE_RESPONSE, seq_number=1)"
+            == "TN3270EHeader(data_type=BIND_IMAGE, request_flag=0x00, response_flag=NO_RESPONSE, seq_number=1)"
         )
 
     def test_tn3270e_header_ra_response(self, memory_limit_500mb):
-        """Test parsing RA (RESPONSE) header with negative response."""
-        # RESPONSE with negative response, seq 2
-        header_bytes = struct.pack(
-            "!BBBH", RESPONSE, 0, TN3270E_RSF_NEGATIVE_RESPONSE, 2
-        )
+        """Test parsing RA (RESPONSE) header with error response."""
+        # RESPONSE with error response, seq 2
+        header_bytes = struct.pack("!BBBH", RESPONSE, 0, TN3270E_RSF_ERROR_RESPONSE, 2)
         header = TN3270EHeader.from_bytes(header_bytes)
         assert header is not None
         assert header.data_type == RESPONSE
         assert header.is_negative_response() is True
-        assert not header.is_positive_response()
+        assert not header.is_no_response()
         assert header.get_data_type_name() == "RESPONSE"
-        assert header.get_response_flag_name() == "NEGATIVE_RESPONSE"
+        assert header.get_response_flag_name() == "ERROR_RESPONSE"
 
     def test_tn3270e_header_invalid_parsing(self, memory_limit_500mb):
         """Test parsing invalid header bytes."""
@@ -681,7 +678,7 @@ class TestTN3270EHeader:
         assert header is None
 
         # Valid but unknown data_type
-        unknown_bytes = struct.pack("!BBBH", 0xFF, 0, TN3270E_RSF_POSITIVE_RESPONSE, 3)
+        unknown_bytes = struct.pack("!BBBH", 0xFF, 0, TN3270E_RSF_NO_RESPONSE, 3)
         header = TN3270EHeader.from_bytes(unknown_bytes)
         assert header is not None
         assert "UNKNOWN(0xff)" in repr(header)
@@ -690,7 +687,7 @@ class TestTN3270EHeader:
         """Test header to_bytes and back to ensure roundtrip."""
         original = TN3270EHeader(
             data_type=BIND_IMAGE,
-            response_flag=TN3270E_RSF_POSITIVE_RESPONSE,
+            response_flag=TN3270E_RSF_NO_RESPONSE,
             seq_number=42,
         )
         bytes_out = original.to_bytes()
@@ -704,10 +701,10 @@ class TestTN3270EHeader:
         """Test various is_ methods for header flags."""
 
     pos_header = TN3270EHeader(
-        data_type=TN3270_DATA, response_flag=TN3270E_RSF_POSITIVE_RESPONSE
+        data_type=TN3270_DATA, response_flag=TN3270E_RSF_NO_RESPONSE
     )
     neg_header = TN3270EHeader(
-        data_type=TN3270_DATA, response_flag=TN3270E_RSF_NEGATIVE_RESPONSE
+        data_type=TN3270_DATA, response_flag=TN3270E_RSF_ERROR_RESPONSE
     )
     err_header = TN3270EHeader(
         data_type=TN3270_DATA, response_flag=TN3270E_RSF_ERROR_RESPONSE
@@ -719,32 +716,32 @@ class TestTN3270EHeader:
         data_type=TN3270_DATA, response_flag=TN3270E_RSF_ALWAYS_RESPONSE
     )
 
-    # POSITIVE_RESPONSE should be True for is_positive_response
-    assert pos_header.is_positive_response() is True
-    assert pos_header.response_flag == TN3270E_RSF_POSITIVE_RESPONSE
+    # POSITIVE_RESPONSE should be True for is_no_response
+    assert pos_header.is_no_response() is True
+    assert pos_header.response_flag == TN3270E_RSF_NO_RESPONSE
     assert not pos_header.is_negative_response()
     assert not pos_header.is_error_response()
 
     # NEGATIVE_RESPONSE should be True for is_negative_response
     assert neg_header.is_negative_response() is True
-    assert neg_header.response_flag == TN3270E_RSF_NEGATIVE_RESPONSE
-    assert not neg_header.is_positive_response()
+    assert neg_header.response_flag == TN3270E_RSF_ERROR_RESPONSE
+    assert not neg_header.is_no_response()
 
     # ERROR_RESPONSE should be True for is_error_response
     assert err_header.is_error_response() is True
     assert err_header.response_flag == TN3270E_RSF_ERROR_RESPONSE
-    assert not err_header.is_positive_response()
+    assert not err_header.is_no_response()
 
     # ALWAYS_RESPONSE should be True for is_always_response
     assert always_header.is_always_response() is True
     assert always_header.response_flag == TN3270E_RSF_ALWAYS_RESPONSE
-    assert not always_header.is_positive_response()
+    assert not always_header.is_no_response()
 
     # NO_RESPONSE should not be positive, negative, error, or always response
     assert no_resp_header.response_flag == TN3270E_RSF_NO_RESPONSE
     assert (
-        no_resp_header.is_positive_response() is True
-        if TN3270E_RSF_POSITIVE_RESPONSE == TN3270E_RSF_NO_RESPONSE
+        no_resp_header.is_no_response() is True
+        if TN3270E_RSF_NO_RESPONSE == TN3270E_RSF_NO_RESPONSE
         else False
     )
     assert not no_resp_header.is_negative_response()
@@ -986,10 +983,10 @@ class TestNegativeResponses:
     @pytest.fixture
     def mock_header(self):
         from pure3270.protocol.tn3270e_header import TN3270EHeader
-        from pure3270.protocol.utils import TN3270E_RSF_NEGATIVE_RESPONSE
+        from pure3270.protocol.utils import TN3270E_RSF_ERROR_RESPONSE
 
         return TN3270EHeader(
-            data_type=RESPONSE, response_flag=TN3270E_RSF_NEGATIVE_RESPONSE
+            data_type=RESPONSE, response_flag=TN3270E_RSF_ERROR_RESPONSE
         )
 
     def test_negative_segment(self, mock_header):
@@ -1036,10 +1033,10 @@ class TestNegativeResponses:
 
     def test_negative_not_negative(self, mock_header):
         """Test handle_negative_response on non-negative header."""
-        from pure3270.protocol.utils import TN3270E_RSF_POSITIVE_RESPONSE
+        from pure3270.protocol.utils import TN3270E_RSF_NO_RESPONSE
 
         pos_header = TN3270EHeader(
-            data_type=RESPONSE, response_flag=TN3270E_RSF_POSITIVE_RESPONSE
+            data_type=RESPONSE, response_flag=TN3270E_RSF_NO_RESPONSE
         )
         with pytest.raises(ValueError) as exc:
             pos_header.handle_negative_response(b"\x01")
@@ -1062,7 +1059,7 @@ class TestRetries:
     async def test_retry_device_type_negative(self, mock_negotiator):
         """Test retry on negative for DEVICE-TYPE SEND up to 3 times."""
         from pure3270.protocol.tn3270e_header import TN3270EHeader
-        from pure3270.protocol.utils import TN3270E_RSF_NEGATIVE_RESPONSE
+        from pure3270.protocol.utils import TN3270E_RSF_ERROR_RESPONSE
 
         # Simulate pending request
         seq = 1
@@ -1071,9 +1068,7 @@ class TestRetries:
             "retry_count": 0,
         }
 
-        header = TN3270EHeader(
-            seq_number=seq, response_flag=TN3270E_RSF_NEGATIVE_RESPONSE
-        )
+        header = TN3270EHeader(seq_number=seq, response_flag=TN3270E_RSF_ERROR_RESPONSE)
         data = b"\x01"  # SEGMENT negative
 
         # First call: retry 1
@@ -1092,7 +1087,7 @@ class TestRetries:
     async def test_retry_functions_negative(self, mock_negotiator):
         """Similar for FUNCTIONS SEND."""
         from pure3270.protocol.tn3270e_header import TN3270EHeader
-        from pure3270.protocol.utils import TN3270E_RSF_NEGATIVE_RESPONSE
+        from pure3270.protocol.utils import TN3270E_RSF_ERROR_RESPONSE
 
         seq = 2
         mock_negotiator._pending_requests[seq] = {
@@ -1100,9 +1095,7 @@ class TestRetries:
             "retry_count": 0,
         }
 
-        header = TN3270EHeader(
-            seq_number=seq, response_flag=TN3270E_RSF_NEGATIVE_RESPONSE
-        )
+        header = TN3270EHeader(seq_number=seq, response_flag=TN3270E_RSF_ERROR_RESPONSE)
         data = b"\x03"  # REQUEST negative
 
         await mock_negotiator._handle_tn3270e_response(header, data)
@@ -1356,10 +1349,10 @@ class TestNegativeResponses:
     @pytest.fixture
     def mock_header(self):
         from pure3270.protocol.tn3270e_header import TN3270EHeader
-        from pure3270.protocol.utils import TN3270E_RSF_NEGATIVE_RESPONSE
+        from pure3270.protocol.utils import TN3270E_RSF_ERROR_RESPONSE
 
         return TN3270EHeader(
-            data_type=RESPONSE, response_flag=TN3270E_RSF_NEGATIVE_RESPONSE
+            data_type=RESPONSE, response_flag=TN3270E_RSF_ERROR_RESPONSE
         )
 
     def test_negative_segment(self, mock_header):
@@ -1406,10 +1399,10 @@ class TestNegativeResponses:
 
     def test_negative_not_negative(self, mock_header):
         """Test handle_negative_response on non-negative header."""
-        from pure3270.protocol.utils import TN3270E_RSF_POSITIVE_RESPONSE
+        from pure3270.protocol.utils import TN3270E_RSF_NO_RESPONSE
 
         pos_header = TN3270EHeader(
-            data_type=RESPONSE, response_flag=TN3270E_RSF_POSITIVE_RESPONSE
+            data_type=RESPONSE, response_flag=TN3270E_RSF_NO_RESPONSE
         )
         with pytest.raises(ValueError) as exc:
             pos_header.handle_negative_response(b"\x01")
@@ -1432,7 +1425,7 @@ class TestRetries:
     async def test_retry_device_type_negative(self, mock_negotiator):
         """Test retry on negative for DEVICE-TYPE SEND up to 3 times."""
         from pure3270.protocol.tn3270e_header import TN3270EHeader
-        from pure3270.protocol.utils import TN3270E_RSF_NEGATIVE_RESPONSE
+        from pure3270.protocol.utils import TN3270E_RSF_ERROR_RESPONSE
 
         # Simulate pending request
         seq = 1
@@ -1441,9 +1434,7 @@ class TestRetries:
             "retry_count": 0,
         }
 
-        header = TN3270EHeader(
-            seq_number=seq, response_flag=TN3270E_RSF_NEGATIVE_RESPONSE
-        )
+        header = TN3270EHeader(seq_number=seq, response_flag=TN3270E_RSF_ERROR_RESPONSE)
         data = b"\x01"  # SEGMENT negative
 
         # First call: retry 1
@@ -1462,7 +1453,7 @@ class TestRetries:
     async def test_retry_functions_negative(self, mock_negotiator):
         """Similar for FUNCTIONS SEND."""
         from pure3270.protocol.tn3270e_header import TN3270EHeader
-        from pure3270.protocol.utils import TN3270E_RSF_NEGATIVE_RESPONSE
+        from pure3270.protocol.utils import TN3270E_RSF_ERROR_RESPONSE
 
         seq = 2
         mock_negotiator._pending_requests[seq] = {
@@ -1470,9 +1461,7 @@ class TestRetries:
             "retry_count": 0,
         }
 
-        header = TN3270EHeader(
-            seq_number=seq, response_flag=TN3270E_RSF_NEGATIVE_RESPONSE
-        )
+        header = TN3270EHeader(seq_number=seq, response_flag=TN3270E_RSF_ERROR_RESPONSE)
         data = b"\x03"  # REQUEST negative
 
         await mock_negotiator._handle_tn3270e_response(header, data)

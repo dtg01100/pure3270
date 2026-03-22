@@ -1,5 +1,5 @@
 import platform
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -25,7 +25,7 @@ class TestAIDSupport:
         session = Session()
         session._async_session = AsyncMock()
         # Mock _run_async to avoid thread synchronization issues
-        session._run_async = AsyncMock()
+        session._run_async = Mock(side_effect=lambda coro: coro.close())
 
         session.pf(1)
 
@@ -36,7 +36,7 @@ class TestAIDSupport:
         session = Session()
         session._async_session = AsyncMock()
         # Mock _run_async to avoid thread synchronization issues
-        session._run_async = AsyncMock()
+        session._run_async = Mock(side_effect=lambda coro: coro.close())
 
         session.pa(1)
 

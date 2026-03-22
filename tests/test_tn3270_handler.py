@@ -237,9 +237,9 @@ class TestTN3270Handler:
         # Update negotiator's writer as well
         tn3270_handler.negotiator.writer = tn3270_handler.writer
 
-        # Mock responses: WONT TN3270E
+        # Mock responses: WONT TN3270E (0x28)
         tn3270_handler.reader.read.side_effect = [
-            b"\xff\xfc\x24",  # WONT TN3270E
+            b"\xff\xfc\x28",  # WONT TN3270E
             b"\xff\xfb\x19",  # WILL EOR
         ]
 

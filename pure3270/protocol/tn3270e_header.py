@@ -18,9 +18,7 @@ from .utils import (
     TN3270_DATA,
     TN3270E_RSF_ALWAYS_RESPONSE,
     TN3270E_RSF_ERROR_RESPONSE,
-    TN3270E_RSF_NEGATIVE_RESPONSE,
     TN3270E_RSF_NO_RESPONSE,
-    TN3270E_RSF_POSITIVE_RESPONSE,
     UNBIND,
 )
 
@@ -128,7 +126,6 @@ class TN3270EHeader:
                 TN3270E_RSF_NO_RESPONSE,
                 TN3270E_RSF_ERROR_RESPONSE,
                 TN3270E_RSF_ALWAYS_RESPONSE,
-                TN3270E_RSF_NEGATIVE_RESPONSE,
             ):
                 logger.debug(
                     f"TN3270E header parsing failed: invalid response flag 0x{response_flag:02x}"
@@ -176,17 +173,26 @@ class TN3270EHeader:
         """Check if this is RESPONSE type."""
         return self.data_type == RESPONSE
 
+    def is_no_response(self) -> bool:
+        """Check if this is a no-response flag (0x00).
+
+        Per RFC 2355, NO-RESPONSE (0x00) means the sender does not expect
+        the receiver to respond either positively or negatively.
+        """
+        return self.response_flag == TN3270E_RSF_NO_RESPONSE
+
     def is_error_response(self) -> bool:
         """Check if this is an error response."""
         return self.response_flag == TN3270E_RSF_ERROR_RESPONSE
 
     def is_negative_response(self) -> bool:
-        """Check if this is a negative response."""
-        return self.response_flag == TN3270E_RSF_NEGATIVE_RESPONSE
+        """Check if this is a negative response (error response per RFC 2355).
 
-    def is_positive_response(self) -> bool:
-        """Check if this is a positive response."""
-        return self.response_flag == TN3270E_RSF_POSITIVE_RESPONSE
+        Note: RFC 2355 doesn't have a separate 'negative response' flag.
+        ERROR-RESPONSE (0x01) means 'respond only if error'.
+        Negative responses are indicated by ERROR-RESPONSE with sense data.
+        """
+        return self.response_flag == TN3270E_RSF_ERROR_RESPONSE
 
     def is_always_response(self) -> bool:
         """Check if this is an always response."""
@@ -237,8 +243,7 @@ class TN3270EHeader:
             TN3270E_RSF_NO_RESPONSE: "NO_RESPONSE",
             TN3270E_RSF_ERROR_RESPONSE: "ERROR_RESPONSE",
             TN3270E_RSF_ALWAYS_RESPONSE: "ALWAYS_RESPONSE",
-            TN3270E_RSF_POSITIVE_RESPONSE: "POSITIVE_RESPONSE",
-            TN3270E_RSF_NEGATIVE_RESPONSE: "NEGATIVE_RESPONSE",
+            # Note: RFC 2355 does NOT define POSITIVE_RESPONSE or NEGATIVE_RESPONSE as separate flags
         }
         return names.get(
             self.response_flag, f"UNKNOWN_RESPONSE_FLAG(0x{self.response_flag:02x})"
