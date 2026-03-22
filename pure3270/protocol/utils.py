@@ -2,6 +2,12 @@
 TN3270E_IS = 0x04
 # TN3270E Subnegotiation Command: SEND (RFC 1646/2355)
 TN3270E_SEND = 0x08
+# TN3270E Subnegotiation Command: CONNECT (RFC 2355 7.1.2) - connects to specific LU
+TN3270E_CONNECT = 0x03
+# TN3270E Subnegotiation Command: ASSOCIATE (RFC 2355 7.1.3) - printer associates with display
+TN3270E_ASSOCIATE = 0x04
+# TN3270E Subnegotiation Command: REJECT (RFC 2355 7.1.5) - reject with reason code
+TN3270E_REJECT = 0x05
 # TN3270E Subnegotiation Type: DEVICE-TYPE (RFC 1646/2355)
 TN3270E_DEVICE_TYPE = 0x02
 # TN3270E Subnegotiation Type: FUNCTIONS (RFC 1646/2355)
