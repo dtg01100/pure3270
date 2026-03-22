@@ -115,6 +115,10 @@ from .utils import (
     TN3270E_USABLE_AREA,
     TN3270E_USABLE_AREA_IS,
     TN3270E_USABLE_AREA_SEND,
+    # RFC 2355 7.1.2 CONNECT and 7.1.3 ASSOCIATE
+    TN3270E_CONNECT,
+    TN3270E_ASSOCIATE,
+    TN3270E_REJECT,
     TTYPE_IS,
     TTYPE_SEND,
     WILL,
@@ -263,6 +267,13 @@ class Negotiator:
         ]
         self.requested_device_type: Optional[str] = None
         self.negotiated_device_type: Optional[str] = None
+        # RFC 2355 7.1.2 CONNECT - LU name for device pool connection
+        self._connected_lu_name: Optional[str] = None
+        # RFC 2355 7.1.3 ASSOCIATE - display LU name for printer association
+        self._associated_display_lu: Optional[str] = None
+        # RFC 2355 7.1.5 REJECT - device type rejection state
+        self._device_type_rejected: bool = False
+        self._rejection_reason: int = 0
         self.supported_functions: int = (
             TN3270E_BIND_IMAGE
             | TN3270E_DATA_STREAM_CTL
@@ -2607,6 +2618,62 @@ class Negotiator:
                                 self.writer, QUERY_REPLY_CHARACTERISTICS
                             )
                     break
+                if sub == TN3270E_CONNECT:
+                    # RFC 2355 7.1.2: CONNECT command - connect to specific LU in device pool
+                    # Format: CONNECT <lu-name> (padded to 8 bytes)
+                    lu_name_bytes = payload[i + 1 :]
+                    try:
+                        lu_name = lu_name_bytes.split(b"\x00", 1)[0].decode(
+                            "ascii", errors="ignore"
+                        )
+                    except Exception:
+                        lu_name = ""
+                    logger.info(f"[TN3270E] Received CONNECT to LU: '{lu_name}'")
+                    # Store the connected LU name
+                    self._connected_lu_name = lu_name
+                    self._signal_device_event()
+                    break
+                if sub == TN3270E_ASSOCIATE:
+                    # RFC 2355 7.1.3: ASSOCIATE command - printer associates with display
+                    # Format: ASSOCIATE <lu-name> (padded to 8 bytes)
+                    lu_name_bytes = payload[i + 1 :]
+                    try:
+                        lu_name = lu_name_bytes.split(b"\x00", 1)[0].decode(
+                            "ascii", errors="ignore"
+                        )
+                    except Exception:
+                        lu_name = ""
+                    logger.info(
+                        f"[TN3270E] Received ASSOCIATE for display LU: '{lu_name}'"
+                    )
+                    # Store the associated display LU name
+                    self._associated_display_lu = lu_name
+                    self._signal_device_event()
+                    break
+                if sub == TN3270E_REJECT:
+                    # RFC 2355 7.1.5: REJECT command - server rejected device type request
+                    # Format: REJECT <reason-code>
+                    reason_code = payload[i + 1] if i + 1 < len(payload) else 0
+                    reason_names = {
+                        0x01: "INV-DEVICE-TYPE",
+                        0x02: "INV-NAME",
+                        0x03: "DEVICE-IN-USE",
+                        0x04: "TYPE-NAME-ERROR",
+                        0x05: "UNSUPPORTED-REQ",
+                        0x06: "INV-ASSOCIATE",
+                        0x07: "CONN-PARTNER",
+                        0x08: "UNKNOWN-ERROR",
+                    }
+                    reason_name = reason_names.get(
+                        reason_code, f"UNKNOWN(0x{reason_code:02x})"
+                    )
+                    logger.error(
+                        f"[TN3270E] Device type rejected: reason={reason_name} (0x{reason_code:02x})"
+                    )
+                    self._device_type_rejected = True
+                    self._rejection_reason = reason_code
+                    self._signal_device_event()
+                    break
                 else:
                     # Tolerant path: Some implementations (e.g. x3270) use a non-standard
                     # command value (0x07) instead of REQUEST (0x04) or IS (0x05) and then
@@ -3441,6 +3508,10 @@ class Negotiator:
         self._set_negotiated_flag(False)
         self._lu_name = None
         self.negotiated_device_type = None
+        self._connected_lu_name = None
+        self._associated_display_lu = None
+        self._device_type_rejected = False
+        self._rejection_reason = 0
         self.negotiated_functions = 0
         self.negotiated_response_mode = 0
         self._ascii_mode = False
