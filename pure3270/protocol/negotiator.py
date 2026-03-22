@@ -69,7 +69,7 @@ from .data_stream import (  # Import SnaResponse and BindImage
 from .errors import handle_drain, raise_protocol_error, safe_socket_operation
 from .exceptions import NegotiationError, NotConnectedError, ProtocolError
 from .tn3270e_header import TN3270EHeader
-from .utils import (
+from .utils import (  # RFC 2355 7.1.2 CONNECT and 7.1.3 ASSOCIATE
     DO,
     DONT,
     NEW_ENV_ESC,
@@ -94,7 +94,9 @@ from .utils import (
     TELOPT_TERMINAL_LOCATION,
     TELOPT_TN3270E,
     TELOPT_TTYPE,
+    TN3270E_ASSOCIATE,
     TN3270E_BIND_IMAGE,
+    TN3270E_CONNECT,
     TN3270E_DATA_STREAM_CTL,
     TN3270E_DEVICE_TYPE,
     TN3270E_FUNCTIONS,
@@ -102,6 +104,7 @@ from .utils import (
     TN3270E_QUERY,
     TN3270E_QUERY_IS,
     TN3270E_QUERY_SEND,
+    TN3270E_REJECT,
     TN3270E_REQUEST,
     TN3270E_RESPONSE_MODE,
     TN3270E_RESPONSE_MODE_BIND_IMAGE,
@@ -115,10 +118,6 @@ from .utils import (
     TN3270E_USABLE_AREA,
     TN3270E_USABLE_AREA_IS,
     TN3270E_USABLE_AREA_SEND,
-    # RFC 2355 7.1.2 CONNECT and 7.1.3 ASSOCIATE
-    TN3270E_CONNECT,
-    TN3270E_ASSOCIATE,
-    TN3270E_REJECT,
     TTYPE_IS,
     TTYPE_SEND,
     WILL,
@@ -2021,8 +2020,11 @@ class Negotiator:
             DONT,
             TELOPT_BINARY,
             TELOPT_BIND_UNIT,
+            TELOPT_ECHO,
             TELOPT_EOR,
+            TELOPT_SGA,
             TELOPT_TERMINAL_LOCATION,
+            TELOPT_TM,
             TELOPT_TN3270E,
             TELOPT_TTYPE,
         )
@@ -2053,6 +2055,21 @@ class Negotiator:
             logger.debug("[TELNET] Server WILL BIND-UNIT - accepting")
             if self.writer:
                 send_iac(self.writer, bytes([DO, TELOPT_BIND_UNIT]))
+        elif option == TELOPT_ECHO:
+            # RFC 857: Server offering to echo - we accept DO ECHO
+            logger.debug("[TELNET] Server WILL ECHO - accepting (RFC 857)")
+            if self.writer:
+                send_iac(self.writer, bytes([DO, TELOPT_ECHO]))
+        elif option == TELOPT_SGA:
+            # RFC 858: Suppress Go Ahead - we accept DO SGA
+            logger.debug("[TELNET] Server WILL SGA - accepting (RFC 858)")
+            if self.writer:
+                send_iac(self.writer, bytes([DO, TELOPT_SGA]))
+        elif option == TELOPT_TM:
+            # RFC 860: Timing Mark - positive response to DO TIMING-MARK
+            logger.debug("[TELNET] Server WILL TIMING-MARK - accepting (RFC 860)")
+            if self.writer:
+                send_iac(self.writer, bytes([DO, TELOPT_TM]))
         else:
             logger.debug(
                 f"[TELNET] Server WILL unknown option 0x{option:02x} - rejecting"
@@ -2111,10 +2128,13 @@ class Negotiator:
         from .utils import (
             TELOPT_BINARY,
             TELOPT_BIND_UNIT,
+            TELOPT_ECHO,
             TELOPT_EOR,
             TELOPT_NAWS,
             TELOPT_NEW_ENVIRON,
+            TELOPT_SGA,
             TELOPT_TERMINAL_LOCATION,
+            TELOPT_TM,
             TELOPT_TN3270E,
             TELOPT_TTYPE,
             WILL,
@@ -2162,6 +2182,21 @@ class Negotiator:
             logger.debug("[TELNET] Server DO BIND-UNIT - accepting")
             if self.writer:
                 send_iac(self.writer, bytes([WILL, TELOPT_BIND_UNIT]))
+        elif option == TELOPT_ECHO:
+            # RFC 857: Server asking us to echo - we accept and enable echo locally
+            logger.debug("[TELNET] Server DO ECHO - accepting (RFC 857)")
+            if self.writer:
+                send_iac(self.writer, bytes([WILL, TELOPT_ECHO]))
+        elif option == TELOPT_SGA:
+            # RFC 858: Suppress Go Ahead - we accept
+            logger.debug("[TELNET] Server DO SGA - accepting (RFC 858)")
+            if self.writer:
+                send_iac(self.writer, bytes([WILL, TELOPT_SGA]))
+        elif option == TELOPT_TM:
+            # RFC 860: Timing Mark - respond WILL to DO TM (keepalive ack)
+            logger.debug("[TELNET] Server DO TIMING-MARK - responding WILL (RFC 860)")
+            if self.writer:
+                send_iac(self.writer, bytes([WILL, TELOPT_TM]))
         else:
             logger.debug(
                 f"[TELNET] Server DO unknown option 0x{option:02x} - rejecting"

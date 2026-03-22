@@ -600,7 +600,7 @@ class TestTN3270Handler:
         data = bytes([IAC, BRK])
         with patch("pure3270.protocol.tn3270_handler.logger") as mock_logger:
             cleaned_data, ascii_mode = await tn3270_handler._process_telnet_stream(data)
-            mock_logger.debug.assert_called_with("Received IAC BRK")
+            mock_logger.debug.assert_called_with("[TELNET] Received IAC BRK (Break)")
             assert cleaned_data == b""
             assert not ascii_mode
 

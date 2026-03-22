@@ -67,12 +67,18 @@ from .tn3270e_header import TN3270EHeader
 from .trace_recorder import TraceRecorder
 from .utils import (
     AO,
+    AYT,
     BREAK,
     BRK,
+    DM,
     DO,
     DONT,
+    EC,
+    EL,
+    GA,
     IAC,
     IP,
+    NOP,
     SB,
     SE,
     TELOPT_TN3270E,
@@ -884,6 +890,15 @@ class TN3270Handler:
         - AO (Abort Output): Enters suspended mode if SYSREQ negotiated
         - IP (Interrupt Process): For ATTN key handling
         - BRK (Break): Break signal
+        - AYT (Are You There): Visual indication of aliveness
+        - NOP (No Operation): No effect, used as keepalive
+        - DM (Data Mark): Urgent data mark for SYNCH mechanism
+        - GA (Go Ahead): Ignored in TN3270 (half-duplex legacy)
+        - EC (Erase Character): Ignored in TN3270 mode
+        - EL (Erase Line): Ignored in TN3270 mode
+
+        Per RFC 854 Section 3.2.1, commands NOP, DM, GA, EC, EL, AYT
+        should be responded to but don't affect the data stream in TN3270.
 
         Args:
             cmd: The Telnet command byte (not including IAC prefix)
@@ -904,7 +919,43 @@ class TN3270Handler:
             logger.debug("[TELNET] Received IAC IP (Interrupt Process)")
             # Non-SNA servers should ignore IP - we just log it here
         elif cmd == BRK:
-            logger.debug("Received IAC BRK")
+            logger.debug("[TELNET] Received IAC BRK (Break)")
+        elif cmd == AYT:
+            # RFC 854 Section 3.2.2: AYT (Are You There)
+            # Should return some visual evidence that system is alive
+            logger.debug("[TELNET] Received IAC AYT (Are You There)")
+            # Send a simple acknowledgment to indicate we're alive
+            # Use IAC NOP as acknowledgment per RFC 854 minimal compliance
+            # A full implementation might send visual text like "[OK]"
+            if self.writer and self._connected:
+                from .utils import send_iac
+
+                # Send IAC NOP as acknowledgment (RFC 854 minimal response)
+                send_iac(self.writer, bytes([NOP]))
+                # For more robust implementations, could also send:
+                # b"[TN3270 alive]" or similar visual indication
+        elif cmd == NOP:
+            # RFC 854 Section 3.2.1: NOP (No Operation)
+            # Commonly used as keepalive per RFC 2355 13.3
+            logger.debug("[TELNET] Received IAC NOP (No Operation)")
+        elif cmd == DM:
+            # RFC 854 Section 3.2.1: DM (Data Mark)
+            # Part of SYNCH mechanism for urgent data
+            logger.debug("[TELNET] Received IAC DM (Data Mark - Urgent)")
+        elif cmd == GA:
+            # RFC 854 Section 3.2.1: GA (Go Ahead)
+            # Historically for half-duplex, ignored in TN3270
+            logger.debug("[TELNET] Received IAC GA (Go Ahead)")
+        elif cmd == EC:
+            # RFC 854 Section 3.2.1: EC (Erase Character)
+            # In NVT mode: should erase last character from input buffer
+            # In TN3270 mode: ignored since host controls screen editing
+            logger.debug("[TELNET] Received IAC EC (Erase Character) - acknowledged")
+        elif cmd == EL:
+            # RFC 854 Section 3.2.1: EL (Erase Line)
+            # In NVT mode: should erase all characters from input line
+            # In TN3270 mode: ignored since host controls screen editing
+            logger.debug("[TELNET] Received IAC EL (Erase Line) - acknowledged")
         # Other commands are handled elsewhere or ignored
 
     async def _process_telnet_stream(self, data: bytes) -> tuple[bytes, bool]:
@@ -965,26 +1016,9 @@ class TN3270Handler:
                     i = se_index + 2
                     continue
                 else:
-                    # Handle other IAC commands (AO, IP, BRK, etc.)
-                    if cmd == AO:
-                        # RFC 2355 10.5.2: AO (Abort Output) enters suspended mode
-                        # when SYSREQ function is negotiated
-                        logger.debug("[TELNET] Received IAC AO (Abort Output)")
-                        if self.negotiator.negotiated_functions & TN3270E_SYSREQ:
-                            self._in_suspended_mode = True
-                            self._in_3270_mode = False
-                            logger.info("[TELNET] Entered suspended mode (SYSREQ)")
-                        else:
-                            logger.debug(
-                                "[TELNET] SYSREQ not negotiated, ignoring IAC AO"
-                            )
-                    elif cmd == IP:
-                        # RFC 2355 Section 11: IP (Interrupt Process) for ATTN key
-                        # When SYSREQ not negotiated, client sends IAC IP as fallback
-                        logger.debug("[TELNET] Received IAC IP (Interrupt Process)")
-                        # Non-SNA servers should ignore IP - we just log it here
-                    elif cmd == BRK:
-                        logger.debug("Received IAC BRK")
+                    # Handle other IAC commands by delegating to _handle_telnet_command
+                    # This ensures consistent handling for all commands (AO, IP, BRK, AYT, NOP, etc.)
+                    await self._handle_telnet_command(cmd)
                     i += 2
                     continue
             else:
