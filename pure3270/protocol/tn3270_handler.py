@@ -978,7 +978,14 @@ class TN3270Handler:
                     # Lone IAC at end, buffer it for next chunk
                     self._telnet_buffer = data[i:]
                     break
-                cmd = data[i + 1]
+                next_byte = data[i + 1]
+                # RFC 854 Section 3.2.1: IAC IAC represents a single 0xFF data byte
+                if next_byte == IAC:
+                    # Escaped IAC - add single 0xFF to data stream
+                    processed.append(IAC)
+                    i += 2
+                    continue
+                cmd = next_byte
                 if cmd in (DO, DONT, WILL, WONT):
                     if i + 2 >= length:
                         # Incomplete negotiation command, buffer for next chunk

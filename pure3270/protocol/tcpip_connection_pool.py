@@ -497,3 +497,26 @@ class TCPIPConnectionPool:
     ) -> None:
         """Async context manager exit."""
         await self.stop()
+
+    def __del__(self) -> None:
+        """
+        Destructor to ensure background tasks are cancelled on garbage collection.
+
+        This prevents orphaned tasks from running indefinitely if the pool
+        is garbage collected without explicit stop() call.
+        """
+        if self._running and self._health_check_task is None and self._cleanup_task is None:
+            # Already stopped properly
+            return
+        if self._running:
+            # Schedule cleanup in the event loop if running
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                # No running loop - can't schedule cleanup
+                loop = None
+            if loop is not None:
+                try:
+                    loop.create_task(self.stop())
+                except Exception:
+                    pass

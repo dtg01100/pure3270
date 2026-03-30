@@ -357,6 +357,19 @@ class Session:
         """Exit the context manager and ensure cleanup."""
         self.close()
 
+    def __del__(self) -> None:
+        """
+        Destructor to ensure worker thread is cleaned up on garbage collection.
+
+        Note: This only cleans up the synchronous worker thread. To fully
+        clean up async resources (background tasks, connections), users
+        MUST call close() explicitly or use the context manager pattern.
+        """
+        try:
+            self._shutdown_worker_loop()
+        except Exception:
+            pass
+
     def get_trace_events(self) -> List[Any]:
         if not self._async_session:
             return []
@@ -1495,6 +1508,29 @@ class AsyncSession:
     ) -> None:
         """Exit async context manager."""
         await self.close()
+
+    def __del__(self) -> None:
+        """
+        Destructor to ensure cleanup on garbage collection.
+
+        Note: This schedules async cleanup if possible, but the caller
+        MUST explicitly call close() or use the context manager pattern
+        to ensure proper synchronous cleanup of async resources.
+        """
+        if self._handler is None and not self._connected:
+            # Already closed
+            return
+        # Try to schedule cleanup in the event loop
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # No running loop - can't schedule cleanup
+            loop = None
+        if loop is not None and self._handler is not None:
+            try:
+                loop.create_task(self.close())
+            except Exception:
+                pass
 
     @asynccontextmanager
     async def managed(self) -> AsyncIterator["AsyncSession"]:
