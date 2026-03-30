@@ -63,20 +63,18 @@ class TestErrorHandling:
             assert isinstance(e, (Pure3270ParseError, ValueError, IndexError))
 
     def test_negotiator_error_handling(self):
-        """Test that Negotiator properly handles errors."""
-        screen = ScreenBuffer(24, 80)
-        reader = AsyncMock()
-        writer = AsyncMock()
-        negotiator = Negotiator(reader, writer, screen_buffer=screen)
+        """Test that AddressingModeNegotiator raises NegotiationError when no modes match."""
+        from pure3270.protocol.addressing_negotiation import (
+            AddressingCapability,
+            AddressingModeNegotiator,
+        )
 
-        # Test handling of malformed negotiation sequences
-        try:
-            # The exact method name may vary depending on implementation
-            # This is a placeholder for whatever method handles negotiation input
-            pass
-        except NegotiationError:
-            # Should raise appropriate negotiation error
-            pass
+        negotiator = AddressingModeNegotiator()
+        negotiator._client_capabilities = [AddressingCapability.MODE_12_BIT]
+        negotiator._server_capabilities = [AddressingCapability.MODE_14_BIT]
+
+        with pytest.raises(NegotiationError, match="No mutually supported"):
+            negotiator.negotiate_mode()
 
     @pytest.mark.asyncio
     async def test_async_session_error_handling(self):

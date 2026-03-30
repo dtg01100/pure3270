@@ -1,35 +1,37 @@
 import importlib
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
+import pure3270
+from pure3270 import AsyncSession
+
 
 def test_asyncsession_exported_at_package_root():
-    import pure3270
-
-    # Accessing AsyncSession at package root should work since it's in __all__
     assert hasattr(pure3270, "AsyncSession")
     assert pure3270.AsyncSession is not None
 
 
 def test_asyncsession_importable_from_module():
-    # Importing from the implementation module should work
     mod = importlib.import_module("pure3270.session")
     assert hasattr(mod, "AsyncSession")
 
 
-import pytest
+def test_asyncsession_has_required_methods():
+    assert hasattr(AsyncSession, "connect")
+    assert hasattr(AsyncSession, "read")
+    assert hasattr(AsyncSession, "send")
+    assert hasattr(AsyncSession, "close")
 
 
-def test_asyncsession_in_package_root():
-    import pure3270
-
-    # Accessing pure3270.AsyncSession at package root should work since it's exported
-    assert hasattr(pure3270, "AsyncSession")
-    assert pure3270.AsyncSession is not None
+def test_asyncsession_can_be_instantiated():
+    session = AsyncSession()
+    assert session is not None
+    assert not session.connected
 
 
-def test_asyncsession_importable_from_session_module():
-    # Ensure AsyncSession can still be imported from the internal module
-    from pure3270.session import AsyncSession
-
-    assert hasattr(AsyncSession, "connect") or True
+@pytest.mark.asyncio
+async def test_asyncsession_connect_raises_when_no_host():
+    session = AsyncSession()
+    with pytest.raises(Exception):
+        await session.connect("invalid.host.that.does.not.exist", 23)
