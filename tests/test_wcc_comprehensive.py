@@ -21,11 +21,12 @@ Common WCC Values:
 - 0xE3 (11100011) = Reset MDT + Keyboard Restore + Sound Alarm
 """
 
-import pytest
-from unittest.mock import Mock, patch, call
+from unittest.mock import Mock, call, patch
 
-from pure3270.protocol.data_stream import DataStreamParser
+import pytest
+
 from pure3270.emulation.screen_buffer import ScreenBuffer
+from pure3270.protocol.data_stream import DataStreamParser
 
 
 class TestWCCImplementation:
@@ -138,9 +139,10 @@ class TestWCCImplementation:
         for wcc_value in test_values:
             parser._handle_wcc_with_byte(wcc_value)
             assert parser.wcc == wcc_value, f"WCC 0x{wcc_value:02X} should be handled"
-            assert screen.get_position() == (0, 0), (
-                "Cursor should always reset to (0,0)"
-            )
+            assert screen.get_position() == (
+                0,
+                0,
+            ), "Cursor should always reset to (0,0)"
 
     def test_wcc_logging(self, memory_limit_500mb, caplog):
         """Test that WCC processing generates appropriate debug logs."""
@@ -171,9 +173,10 @@ class TestWCCImplementation:
 
         # WCC should reset cursor to (0,0)
         parser._handle_wcc_with_byte(0xC1)
-        assert screen.get_position() == (0, 0), (
-            "WCC should reset cursor to home position"
-        )
+        assert screen.get_position() == (
+            0,
+            0,
+        ), "WCC should reset cursor to home position"
 
     def test_wcc_write_command_integration(self, memory_limit_500mb):
         """Test WCC integration with Write command."""

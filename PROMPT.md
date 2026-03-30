@@ -1,0 +1,1 @@
+this project is to be a pure python replacement for the combination of the p3270 python library and the s3270 cli. this is to be a drop in replacement. packages can be installed via brew if needed, all python code is to be run in a virtual environment, no exceptions.

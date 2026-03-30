@@ -110,9 +110,21 @@ class TCPIPConnectionPool:
             self._running = True
             self._loop = asyncio.get_running_loop()
 
-            # Start background tasks
-            self._health_check_task = asyncio.create_task(self._health_check_loop())
-            self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+            # Start background tasks with error handling to prevent leaks on failure
+            try:
+                self._health_check_task = asyncio.create_task(self._health_check_loop())
+            except Exception as e:
+                logger.error(f"Failed to create health check task: {e}")
+                self._running = False
+                raise
+
+            try:
+                self._cleanup_task = asyncio.create_task(self._cleanup_loop())
+            except Exception as e:
+                logger.error(f"Failed to create cleanup task: {e}")
+                self._health_check_task.cancel()
+                self._running = False
+                raise
 
             logger.info("Connection pool started")
 

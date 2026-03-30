@@ -10,7 +10,7 @@ def test_ebcdic_codec_p3270_encode_decode():
 
     # Choose a character outside CP037 (e.g., EURO SIGN) -- likely to be treated
     # differently by the default codec vs the p3270 compat mapping.
-    char = "\u20AC"  # EURO SIGN
+    char = "\u20ac"  # EURO SIGN
     # When encoding an unknown or control character, p3270 compat should
     # return a different fallback byte value than default.
     b_default, _ = codec_default.encode(char)

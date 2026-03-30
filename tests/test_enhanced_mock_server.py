@@ -18,6 +18,7 @@ def test_session_negotiates_tn3270e_with_mock_server():
     asyncio.set_event_loop(loop)
     # start server (await the async start coroutine to ensure server binds before connecting)
     loop.run_until_complete(server.start())
+    s = None
     try:
         s = Session()
         s.open(server.host, server.port)
@@ -62,8 +63,10 @@ def test_session_negotiates_tn3270e_with_mock_server():
         assert (
             negotiated_functions != 0
         ), f"TN3270E FUNCTIONS negotiation failed or empty (value={negotiated_functions:#x})"
-        s.close()
     finally:
+        # Ensure session is always closed to prevent memory leaks
+        if s is not None:
+            s.close()
         loop.run_until_complete(server.stop())
         loop.close()
 
@@ -103,6 +106,7 @@ def test_last_negotiated_functions_persistence_on_reset():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(server.start())
+    s = None
     try:
         s = Session()
         s.open(server.host, server.port)
@@ -151,7 +155,9 @@ def test_last_negotiated_functions_persistence_on_reset():
         # After reset, negotiated_functions should be zero but last_negotiated_functions should persist
         assert getattr(negotiator, "negotiated_functions", 0) == 0
         assert getattr(negotiator, "last_negotiated_functions", 0) == last_before
-        s.close()
     finally:
+        # Ensure session is always closed to prevent memory leaks
+        if s is not None:
+            s.close()
         loop.run_until_complete(server.stop())
         loop.close()

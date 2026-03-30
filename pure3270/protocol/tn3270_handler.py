@@ -3296,6 +3296,14 @@ class TN3270Handler:
                         except (asyncio.CancelledError, Exception):
                             pass
                 self._bg_tasks.clear()
+
+                # Clear all callback dictionaries to prevent memory leaks
+                # These may hold references to large objects (screen buffers, etc.)
+                self._state_change_callbacks.clear()
+                self._state_entry_callbacks.clear()
+                self._state_exit_callbacks.clear()
+                self._state_change_events.clear()
+
                 self._connected = False
 
                 await self._change_state(

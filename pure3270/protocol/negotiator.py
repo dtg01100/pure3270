@@ -1899,8 +1899,13 @@ class Negotiator:
         """
         try:
             if data:
-                existing = getattr(self, "_negotiation_trace", b"") or b""
+                existing: bytes = getattr(self, "_negotiation_trace", None) or b""
                 self._negotiation_trace = existing + bytes(data)
+                # Prevent unbounded growth - truncate to 64KB max
+                max_trace_size = 65536
+                trace = self._negotiation_trace
+                if trace is not None and len(trace) > max_trace_size:
+                    self._negotiation_trace = trace[-max_trace_size:]
         except Exception:
             # Intentionally ignore errors to satisfy 'no crash' behavior
             pass
@@ -3561,6 +3566,9 @@ class Negotiator:
         ]:
             if event:
                 event.clear()
+
+        # Clear negotiation trace to prevent memory leaks
+        self._negotiation_trace = None
 
         # Reset SNA session state
         self._sna_session_state = SnaSessionState.NORMAL

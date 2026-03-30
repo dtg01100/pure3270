@@ -14,6 +14,7 @@ def test_pure3270_server_trace_contains_expected_sequence():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(server.start())
+    s = None
     try:
         s = Session()
         s.open(server.host, server.port)
@@ -30,8 +31,10 @@ def test_pure3270_server_trace_contains_expected_sequence():
         assert (
             b"\xff\xfa(\x03\x07\x01\x02\x03" in combined
         )  # FUNCTIONS REQUEST with advertised bit flags
-        s.close()
     finally:
+        # Ensure session is always closed to prevent memory leaks
+        if s is not None:
+            s.close()
         loop.run_until_complete(server.stop())
         loop.close()
 

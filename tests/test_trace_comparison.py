@@ -17,15 +17,18 @@ def test_trace_comparison_pure3270_vs_s3270():
     # Start server for pure3270
     server_pure = EnhancedTN3270MockServer(port=23270)
     server_pure.start_threaded()
+    s = None
     try:
         s = Session()
         s.open(server_pure.host, server_pure.port)
         deadline = time.time() + 5
         while time.time() < deadline and not s.tn3270e_mode:
             time.sleep(0.05)
-        s.close()
         pure_received = b"".join(server_pure.get_received_trace())
     finally:
+        # Ensure session is always closed to prevent memory leaks
+        if s is not None:
+            s.close()
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         loop.run_until_complete(server_pure.stop())

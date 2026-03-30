@@ -15,6 +15,7 @@ def test_3270_extended_payload_writes_to_screen():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(server.start())
+    s = None
     try:
         s = Session()
         s.open(server.host, server.port)
@@ -34,7 +35,9 @@ def test_3270_extended_payload_writes_to_screen():
         decoded = decode_ebcdic_string(raw)
         assert "HELLO" in decoded, f"HELLO not found in screen: '{decoded}'"
         assert "WORLD" in decoded, f"WORLD not found in screen: '{decoded}'"
-        s.close()
     finally:
+        # Ensure session is always closed to prevent memory leaks
+        if s is not None:
+            s.close()
         loop.run_until_complete(server.stop())
         loop.close()

@@ -63,6 +63,10 @@ class TraceRecorder:
         evt = BaseEvent(ts=self._now(), kind=kind, details=details)
         self._events.append(evt)
 
+    def clear(self) -> None:
+        """Clear all recorded events to prevent memory leaks during long-running sessions."""
+        self._events.clear()
+
     # Public API ---------------------------------------------------------------
     def events(self) -> List[BaseEvent]:  # shallow copy for safety
         return list(self._events)

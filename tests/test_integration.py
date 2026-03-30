@@ -65,10 +65,10 @@ class TestIntegration:
 
             def parse(self, data, data_type=0x00):
                 # Simulate parsing IC order
-                if b"\x0F" in data:  # Assuming 0x0F is IC
+                if b"\x0f" in data:  # Assuming 0x0F is IC
                     self.screen.move_cursor_to_first_input_field()
                 # Simulate parsing PT order
-                if b"\x0E" in data:  # Assuming 0x0E is PT
+                if b"\x0e" in data:  # Assuming 0x0E is PT
                     self.screen.move_cursor_to_next_input_field()
 
         with patch("pure3270.session.DataStreamParser", new=MockDataStreamParser):
@@ -81,19 +81,19 @@ class TestIntegration:
             ]
 
             # Test IC order: move to first input field (1,0)
-            mock_handler.receive_data.return_value = b"\x05\x0F"  # Write + IC
+            mock_handler.receive_data.return_value = b"\x05\x0f"  # Write + IC
             await real_async_session.read()
             assert real_async_session.screen.cursor_row == 1
             assert real_async_session.screen.cursor_col == 0
 
             # Test PT order: move from (1,0) to next input field (3,0)
-            mock_handler.receive_data.return_value = b"\x05\x0E"  # Write + PT
+            mock_handler.receive_data.return_value = b"\x05\x0e"  # Write + PT
             await real_async_session.read()
             assert real_async_session.screen.cursor_row == 3
             assert real_async_session.screen.cursor_col == 0
 
             # Test PT order: wrap around from (3,0) to first input field (1,0)
-            mock_handler.receive_data.return_value = b"\x05\x0E"  # Write + PT
+            mock_handler.receive_data.return_value = b"\x05\x0e"  # Write + PT
             await real_async_session.read()
             assert real_async_session.screen.cursor_row == 1
             assert real_async_session.screen.cursor_col == 0

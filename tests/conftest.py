@@ -146,7 +146,17 @@ async def real_async_session():
     # Set up session with real handler
     session._handler = handler
 
-    return session
+    try:
+        yield session
+    finally:
+        # Ensure proper cleanup to prevent memory leaks
+        if session._handler is not None:
+            try:
+                await session._handler.close()
+            except Exception:
+                pass
+            session._handler = None
+        session._connected = False
 
 
 @pytest.fixture
@@ -396,10 +406,17 @@ async def mock_tn3270e_server():
     try:
         yield server
     finally:
-        serve_task.cancel()
+        # Close server first to signal serve_forever to stop
         server.close()
+        # Wait for server to actually stop accepting
         await server.wait_closed()
-        await serve_task
+        # Cancel the task if it's still running
+        if not serve_task.done():
+            serve_task.cancel()
+            try:
+                await serve_task
+            except asyncio.CancelledError:
+                pass
 
 
 @pytest_asyncio.fixture
@@ -412,10 +429,17 @@ async def mock_tn3270e_server_fallback():
     try:
         yield server
     finally:
-        serve_task.cancel()
+        # Close server first to signal serve_forever to stop
         server.close()
+        # Wait for server to actually stop accepting
         await server.wait_closed()
-        await serve_task
+        # Cancel the task if it's still running
+        if not serve_task.done():
+            serve_task.cancel()
+            try:
+                await serve_task
+            except asyncio.CancelledError:
+                pass
 
 
 @pytest.fixture
@@ -438,3 +462,38 @@ def mock_negotiator_handler():
 
 # Import x3270 trace fixtures so they're available to all test modules
 # pytest_plugins = ["tests.test_x3270_trace_fixtures"]  # Disabled due to import issues
+
+
+@pytest.fixture(autouse=True)
+def reset_mock_factory_globals():
+    """Auto-use fixture to reset global mock factory state between tests.
+
+    This prevents memory leaks and test pollution from accumulated state
+    in global MockScenarioFactory and TestIsolationManager instances.
+    """
+    # Import here to avoid circular imports
+    from tests.mocks.factory import isolation_manager, scenario_factory
+
+    # Clean up any accumulated sessions and scenarios before each test
+    try:
+        scenario_factory.cleanup_all_sessions()
+    except Exception:
+        pass
+
+    try:
+        isolation_manager.cleanup_all_scenarios()
+    except Exception:
+        pass
+
+    yield
+
+    # Clean up after test as well to ensure no残留 state
+    try:
+        scenario_factory.cleanup_all_sessions()
+    except Exception:
+        pass
+
+    try:
+        isolation_manager.cleanup_all_scenarios()
+    except Exception:
+        pass

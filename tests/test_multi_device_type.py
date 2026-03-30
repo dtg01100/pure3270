@@ -17,6 +17,7 @@ def test_requested_device_type_negotiation(requested):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(server.start())
+    s = None
     try:
         s = Session()
         s.open(server.host, server.port)
@@ -43,7 +44,9 @@ def test_requested_device_type_negotiation(requested):
             assert (
                 negotiated_device in supported
             ), f"Negotiated device type {negotiated_device} not in supported list"
-        s.close()
     finally:
+        # Ensure session is always closed to prevent memory leaks
+        if s is not None:
+            s.close()
         loop.run_until_complete(server.stop())
         loop.close()

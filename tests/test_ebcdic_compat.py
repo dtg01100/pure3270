@@ -8,7 +8,7 @@ def test_ebcdic_codec_p3270_compat_fallback():
     codec_p = EBCDICCodec(compat="p3270")
 
     # Choose a character outside CP037 (e.g., EURO SIGN)
-    char = "\u20AC"
+    char = "\u20ac"
     b_default, _ = codec_default.encode(char)
     b_compat, _ = codec_p.encode(char)
 

@@ -1462,6 +1462,8 @@ class AsyncSession:
             except Exception:
                 pass
         self._connected = False
+        # Clear trace events to prevent memory leaks
+        self._trace_events.clear()
 
     async def close_script(self) -> None:
         """Close script (s3270 CloseScript() action)."""

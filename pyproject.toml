@@ -77,6 +77,7 @@ markers = [
     "ci_fast: Fast tests suitable for CI (< 3 seconds)",
     "performance: Performance benchmark tests",
     "s3270: Tests requiring the external s3270/p3270 binary",
+    "hercules: Tests requiring external Hercules MVS environment",
 ]
 norecursedirs = ["archive", "build", "dist", ".git", ".tox", ".pytest_cache", "mcp-servers"]
 testpaths = ["tests", "examples", "quick_test.py", "test_*.py", "mcp-servers"]
