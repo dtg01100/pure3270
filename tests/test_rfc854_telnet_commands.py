@@ -531,24 +531,21 @@ class TestTelnetCommandProcessing:
             await tn3270_handler._handle_telnet_command(cmd)
 
     @pytest.mark.asyncio
-    async def test_iac_iac_in_data_not_telnet_command(self, tn3270_handler):
-        """IAC IAC (0xFF 0xFF) in data is processed as two separate IAC commands.
+    async def test_iac_iac_in_data_is_escaped_byte(self, tn3270_handler):
+        """IAC IAC (0xFF 0xFF) in data represents a single 0xFF data byte.
 
-        Per RFC 854, within the data stream, 0xFF must be doubled (IAC IAC)
-        to indicate a data byte of 0xFF. However, this byte de-doubling
-        happens in the DataStreamParser layer, not in TN3270Handler's
-        telnet stream processing.
+        Per RFC 854 Section 3.2.1, within the data stream, 0xFF must be doubled
+        (IAC IAC) to indicate a data byte of 0xFF. The TN3270Handler must properly
+        handle IAC escaping at the telnet stream processing layer.
 
-        TN3270Handler strips out Telnet IAC commands from the stream.
-        The DataStreamParser then handles the de-doubling of IAC bytes
-        in the actual 3270 data.
+        IAC IAC in the telnet stream should produce a single 0xFF byte in the
+        cleaned data, not be treated as two separate IAC commands.
         """
-        # 0xFF 0xFF in telnet stream: first IAC followed by IAC command
-        # Both bytes are consumed as IAC commands, resulting in no data output
-        data = bytes([0xFF, 0xFF, 0x41, 0x42])  # IAC IAC AB
+        # IAC IAC in telnet stream = single 0xFF data byte, followed by AB
+        data = bytes([0xFF, 0xFF, 0x41, 0x42])  # IAC IAC AB = 0xFF AB
         cleaned_data, ascii_mode = await tn3270_handler._process_telnet_stream(data)
-        # Both IAC commands are consumed, leaving AB
-        assert cleaned_data == bytes([0x41, 0x42])
+        # IAC IAC should produce single 0xFF, leaving 0xFF AB
+        assert cleaned_data == bytes([0xFF, 0x41, 0x42])
 
     @pytest.mark.asyncio
     async def test_lone_iac_at_end_buffered(self, tn3270_handler):
