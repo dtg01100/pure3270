@@ -10,23 +10,24 @@ According to RFC 2355:
 - Impasse detection when client/server can't agree
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from pure3270.protocol.tn3270_handler import TN3270Handler
-from pure3270.protocol.negotiator import Negotiator
-from pure3270.protocol.data_stream import DataStreamParser
+import pytest
+
 from pure3270.emulation.screen_buffer import ScreenBuffer
+from pure3270.protocol.data_stream import DataStreamParser
+from pure3270.protocol.negotiator import Negotiator
+from pure3270.protocol.tn3270_handler import TN3270Handler
 from pure3270.protocol.utils import (
-    TN3270E_FUNCTIONS,
-    TN3270E_REQUEST,
-    TN3270E_SEND,
-    TN3270E_IS,
-    TN3270E_SYSREQ,
-    TN3270E_SCS_CTL_CODES,
-    TN3270E_DATA_STREAM_CTL,
-    TN3270E_RESPONSES,
     TN3270E_BIND_IMAGE,
+    TN3270E_DATA_STREAM_CTL,
+    TN3270E_FUNCTIONS,
+    TN3270E_IS,
+    TN3270E_REQUEST,
+    TN3270E_RESPONSES,
+    TN3270E_SCS_CTL_CODES,
+    TN3270E_SEND,
+    TN3270E_SYSREQ,
 )
 
 

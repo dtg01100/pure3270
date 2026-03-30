@@ -10,11 +10,12 @@ This test suite verifies that pure3270 correctly handles IAC escaping in
 both inbound (host→terminal) and outbound (terminal→host) data streams.
 """
 
-import pytest
 from unittest.mock import AsyncMock, patch
 
-from pure3270.protocol.tn3270_handler import TN3270Handler
+import pytest
+
 from pure3270.emulation.screen_buffer import ScreenBuffer
+from pure3270.protocol.tn3270_handler import TN3270Handler
 from pure3270.protocol.utils import IAC
 
 
@@ -44,13 +45,13 @@ class TestIACEscaping:
     @pytest.mark.asyncio
     async def test_iac_iac_represents_single_0xff_data_byte(self, tn3270_handler):
         """RFC 854: IAC IAC (0xFF 0xFF) in data stream = single 0xFF data byte.
-        
+
         This is the core IAC escaping requirement from RFC 854 Section 3.2.1.
         """
         # Data stream with IAC IAC (escaped 0xFF) followed by normal data
         data = bytes([0x41, 0x42, IAC, IAC, 0x43, 0x44])  # AB (0xFF) CD
         cleaned_data, ascii_mode = await tn3270_handler._process_telnet_stream(data)
-        
+
         # Should have 5 bytes: A B 0xFF C D
         assert len(cleaned_data) == 5
         assert cleaned_data == bytes([0x41, 0x42, 0xFF, 0x43, 0x44])
@@ -62,7 +63,7 @@ class TestIACEscaping:
         # Multiple escaped IAC bytes
         data = bytes([IAC, IAC, 0x41, IAC, IAC, 0x42, IAC, IAC])
         cleaned_data, ascii_mode = await tn3270_handler._process_telnet_stream(data)
-        
+
         # Should be: 0xFF A 0xFF B 0xFF
         assert len(cleaned_data) == 5
         assert cleaned_data == bytes([0xFF, 0x41, 0xFF, 0x42, 0xFF])
@@ -73,7 +74,7 @@ class TestIACEscaping:
         # IAC DO ECHO - this is a command, not escaped data
         data = bytes([IAC, 0xFD, 0x01])  # IAC DO ECHO
         cleaned_data, ascii_mode = await tn3270_handler._process_telnet_stream(data)
-        
+
         # Commands should be stripped, no cleaned data
         assert cleaned_data == b""
 
@@ -83,7 +84,7 @@ class TestIACEscaping:
         # IAC NOP (command) + A + IAC IAC (escaped 0xFF) + B + IAC GA (command)
         data = bytes([IAC, 0xF1, 0x41, IAC, IAC, 0x42, IAC, 0xF9])
         cleaned_data, ascii_mode = await tn3270_handler._process_telnet_stream(data)
-        
+
         # Should be: A 0xFF B (commands stripped)
         assert len(cleaned_data) == 3
         assert cleaned_data == bytes([0x41, 0xFF, 0x42])
@@ -94,15 +95,17 @@ class TestIACEscaping:
         # Data ending with lone IAC
         data = bytes([0x41, 0x42, IAC])
         cleaned_data, ascii_mode = await tn3270_handler._process_telnet_stream(data)
-        
+
         # Should buffer the IAC and return only AB
         assert cleaned_data == bytes([0x41, 0x42])
         assert tn3270_handler._telnet_buffer == bytes([IAC])
-        
+
         # Next chunk should combine buffered IAC with new data
         next_data = bytes([IAC, 0x43])  # IAC IAC + C = escaped 0xFF + C
-        cleaned_data2, ascii_mode2 = await tn3270_handler._process_telnet_stream(next_data)
-        
+        cleaned_data2, ascii_mode2 = await tn3270_handler._process_telnet_stream(
+            next_data
+        )
+
         # Should produce: 0xFF C
         assert cleaned_data2 == bytes([0xFF, 0x43])
         assert tn3270_handler._telnet_buffer == b""
@@ -113,14 +116,14 @@ class TestIACEscaping:
         # First chunk ends with IAC
         data1 = bytes([0x41, IAC])
         cleaned1, _ = await tn3270_handler._process_telnet_stream(data1)
-        
+
         assert cleaned1 == bytes([0x41])
         assert tn3270_handler._telnet_buffer == bytes([IAC])
-        
+
         # Second chunk starts with IAC (completing IAC IAC)
         data2 = bytes([IAC, 0x42])
         cleaned2, _ = await tn3270_handler._process_telnet_stream(data2)
-        
+
         # Should produce: 0xFF B
         assert cleaned2 == bytes([0xFF, 0x42])
         assert tn3270_handler._telnet_buffer == b""
@@ -131,7 +134,7 @@ class TestIACEscaping:
         # Four IAC bytes = two escaped 0xFF bytes
         data = bytes([IAC, IAC, IAC, IAC])
         cleaned_data, ascii_mode = await tn3270_handler._process_telnet_stream(data)
-        
+
         # Should produce: 0xFF 0xFF
         assert cleaned_data == bytes([0xFF, 0xFF])
 
@@ -142,7 +145,7 @@ class TestIACEscaping:
         # Write (0xF5) + WCC (0xC1) + data with 0xFF
         data = bytes([0xF5, 0xC1, 0x40, IAC, IAC, 0x50, 0x60])
         cleaned_data, ascii_mode = await tn3270_handler._process_telnet_stream(data)
-        
+
         # Should preserve all bytes with IAC IAC converted to single 0xFF
         assert cleaned_data == bytes([0xF5, 0xC1, 0x40, 0xFF, 0x50, 0x60])
 
@@ -152,7 +155,7 @@ class TestIACEscaping:
         # Data with bytes that look like commands but aren't IAC-prefixed
         data = bytes([0xFD, 0xFB, 0xFC, 0xFE])  # DO, WILL, WONT, DONT without IAC
         cleaned_data, ascii_mode = await tn3270_handler._process_telnet_stream(data)
-        
+
         # All bytes should pass through unchanged
         assert cleaned_data == data
         assert len(cleaned_data) == 4
@@ -182,11 +185,12 @@ class TestIACEscapingEdgeCases:
         # This tests that subnegotiation extraction works correctly
         # IAC SB TN3270E ... IAC SE
         # The negotiator handles IAC escaping within subnegotiations
-        with patch.object(tn3270_handler.negotiator, 'handle_subnegotiation', 
-                         return_value=None) as mock_handle:
+        with patch.object(
+            tn3270_handler.negotiator, "handle_subnegotiation", return_value=None
+        ) as mock_handle:
             data = bytes([IAC, 0xFA, 0x18, 0x41, 0x42, IAC, 0xF0])  # SB TTYPE AB SE
             cleaned_data, ascii_mode = await tn3270_handler._process_telnet_stream(data)
-            
+
             # Subnegotiation should be stripped
             assert cleaned_data == b""
             mock_handle.assert_called_once()
@@ -200,7 +204,7 @@ class TestIACEscapingWithRealScenarios:
         """Binary 3270 data streams may contain 0xFF bytes that must be escaped."""
         # Simulate binary data with multiple 0xFF bytes
         binary_data = bytes([0x00, 0xFF, 0x80, 0xFF, 0xFF, 0xFF])
-        
+
         # In telnet stream, 0xFF must be escaped as IAC IAC
         telnet_stream = bytearray()
         for byte in binary_data:
@@ -208,9 +212,11 @@ class TestIACEscapingWithRealScenarios:
                 telnet_stream.extend([IAC, IAC])
             else:
                 telnet_stream.append(byte)
-        
-        cleaned_data, _ = await tn3270_handler._process_telnet_stream(bytes(telnet_stream))
-        
+
+        cleaned_data, _ = await tn3270_handler._process_telnet_stream(
+            bytes(telnet_stream)
+        )
+
         # Should recover original binary data
         assert cleaned_data == binary_data
 
@@ -221,7 +227,7 @@ class TestIACEscapingWithRealScenarios:
         # In telnet: 0xF5 0xC1 0x11 0x00 0x00 0x41 IAC IAC 0x42
         data = bytes([0xF5, 0xC1, 0x11, 0x00, 0x00, 0x41, IAC, IAC, 0x42])
         cleaned_data, _ = await tn3270_handler._process_telnet_stream(data)
-        
+
         assert cleaned_data == bytes([0xF5, 0xC1, 0x11, 0x00, 0x00, 0x41, 0xFF, 0x42])
 
 

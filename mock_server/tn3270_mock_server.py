@@ -339,9 +339,9 @@ class EnhancedTN3270MockServer(TN3270MockServer):
 
             # 7. Send a minimal TN3270E 3270-DATA record followed by IAC EOR.
             # Create a small, valid 3270 data stream that uses WCC + SBA + SF + text bytes.
+            from pure3270.emulation.ebcdic import translate_ascii_to_ebcdic
             from pure3270.protocol.data_stream import SBA, SF
             from pure3270.protocol.tn3270e_header import TN3270EHeader
-            from pure3270.emulation.ebcdic import translate_ascii_to_ebcdic
 
             header = TN3270EHeader(
                 data_type=TN3270_DATA,

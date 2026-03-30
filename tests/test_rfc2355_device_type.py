@@ -11,22 +11,23 @@ According to RFC 2355:
 - 7.1.5 REJECT Command: Reason codes for rejected requests
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from pure3270.protocol.tn3270_handler import TN3270Handler
-from pure3270.protocol.negotiator import Negotiator
-from pure3270.protocol.data_stream import DataStreamParser
+import pytest
+
 from pure3270.emulation.screen_buffer import ScreenBuffer
+from pure3270.protocol.data_stream import DataStreamParser
+from pure3270.protocol.negotiator import Negotiator
+from pure3270.protocol.tn3270_handler import TN3270Handler
 from pure3270.protocol.utils import (
-    TN3270E_DEVICE_TYPE,
-    TN3270E_CONNECT,
+    TELOPT_TN3270E,
     TN3270E_ASSOCIATE,
+    TN3270E_CONNECT,
+    TN3270E_DEVICE_TYPE,
     TN3270E_IS,
     TN3270E_REJECT,
     TN3270E_REQUEST,
     TN3270E_SEND,
-    TELOPT_TN3270E,
 )
 
 

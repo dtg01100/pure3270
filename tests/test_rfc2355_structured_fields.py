@@ -9,12 +9,13 @@ According to RFC 2355:
 - Clients with -E suffix, DYNAMIC, or printer types MUST respond to Read Partition Query
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
-from pure3270.protocol.tn3270_handler import TN3270Handler
-from pure3270.protocol.data_stream import DataStreamParser
+import pytest
+
 from pure3270.emulation.screen_buffer import ScreenBuffer
+from pure3270.protocol.data_stream import DataStreamParser
+from pure3270.protocol.tn3270_handler import TN3270Handler
 
 
 class TestReadPartitionQuery:

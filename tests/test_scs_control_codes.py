@@ -145,9 +145,9 @@ class TestSCSControlCodes:
         scs_data = bytes([0x0D, 0x41])
         parser.parse(scs_data, data_type=SCS_DATA)
 
-        assert printer.cursor_col == 0, (
-            "CR should reset column before writing next char"
-        )
+        assert (
+            printer.cursor_col == 0
+        ), "CR should reset column before writing next char"
 
     def test_scs_text_with_lf(self):
         """Test text followed by LF creates output with line advancement."""

@@ -21,9 +21,9 @@ from typing import Any, Dict, List, Optional
 ROOT = Path(__file__).parent
 sys.path.insert(0, str(ROOT))
 
-from pure3270.protocol.trace_recorder import TraceRecorder
 from pure3270.emulation.screen_buffer import ScreenBuffer
 from pure3270.protocol.data_stream import DataStreamParser
+from pure3270.protocol.trace_recorder import TraceRecorder
 
 
 class TraceValidationAgent:
@@ -72,13 +72,15 @@ class TraceValidationAgent:
             try:
                 recorder = TraceRecorder()
                 # Attempt to load trace
-                if hasattr(recorder, 'load'):
+                if hasattr(recorder, "load"):
                     recorder.load(str(trace_path))
                     result["status"] = "✓ Loaded successfully"
                 else:
                     # Alternative: just verify file is readable
                     result["status"] = "✓ File readable"
-                    result["warnings"].append("TraceRecorder.load() method not available")
+                    result["warnings"].append(
+                        "TraceRecorder.load() method not available"
+                    )
             except Exception as e:
                 result["status"] = "⚠ Parse warning"
                 result["warnings"].append(f"TraceRecorder error: {str(e)}")
@@ -95,7 +97,9 @@ class TraceValidationAgent:
                 result["warnings"].append(f"DataStreamParser error: {str(e)}")
 
             # Calculate basic statistics
-            result["metrics"]["byte_distribution"] = self._analyze_byte_distribution(data)
+            result["metrics"]["byte_distribution"] = self._analyze_byte_distribution(
+                data
+            )
 
         except Exception as e:
             result["status"] = "✗ Failed"
@@ -118,7 +122,9 @@ class TraceValidationAgent:
             "unique_bytes": len(byte_counts),
             "null_bytes_pct": byte_counts.get(0, 0) / total * 100,
             "iac_bytes_pct": byte_counts.get(0xFF, 0) / total * 100,
-            "printable_pct": sum(v for k, v in byte_counts.items() if 32 <= k <= 126) / total * 100,
+            "printable_pct": sum(v for k, v in byte_counts.items() if 32 <= k <= 126)
+            / total
+            * 100,
         }
 
         return distribution
@@ -140,7 +146,9 @@ class TraceValidationAgent:
         }
 
         # Calculate success rate
-        stats["success_rate_pct"] = stats["successful_loads"] / stats["total_traces"] * 100
+        stats["success_rate_pct"] = (
+            stats["successful_loads"] / stats["total_traces"] * 100
+        )
 
         return stats
 
@@ -201,7 +209,11 @@ class TraceValidationAgent:
             self.results["traces"].append(result)
 
             # Print status
-            status_icon = "✅" if "✓" in result["status"] else "⚠️" if "⚠" in result["status"] else "❌"
+            status_icon = (
+                "✅"
+                if "✓" in result["status"]
+                else "⚠️" if "⚠" in result["status"] else "❌"
+            )
             print(f"  {status_icon} {result['status']}")
             print(f"  Size: {result['size_bytes']:,} bytes")
 
@@ -223,7 +235,9 @@ class TraceValidationAgent:
         duration = time.time() - start_time
         self.results["summary"]["duration_seconds"] = duration
         self.results["summary"]["status"] = "SUCCESS"
-        self.results["summary"]["message"] = f"Processed {len(trace_files)} traces in {duration:.2f}s"
+        self.results["summary"][
+            "message"
+        ] = f"Processed {len(trace_files)} traces in {duration:.2f}s"
 
         # Save results
         output_file = self.output_dir / "trace_validation_results.json"
@@ -237,7 +251,9 @@ class TraceValidationAgent:
         print(f"✅ Status: {self.results['summary']['status']}")
         print(f"⏱️  Duration: {duration:.2f} seconds")
         print(f"📁 Traces processed: {len(trace_files)}")
-        print(f"✅ Successful loads: {self.results['statistics'].get('successful_loads', 0)}")
+        print(
+            f"✅ Successful loads: {self.results['statistics'].get('successful_loads', 0)}"
+        )
         print(f"⚠️  Total warnings: {self.results['statistics'].get('warnings', 0)}")
         print(f"❌ Total errors: {self.results['statistics'].get('errors', 0)}")
         print(f"💾 Results saved: {output_file.absolute()}")

@@ -505,7 +505,11 @@ class TCPIPConnectionPool:
         This prevents orphaned tasks from running indefinitely if the pool
         is garbage collected without explicit stop() call.
         """
-        if self._running and self._health_check_task is None and self._cleanup_task is None:
+        if (
+            self._running
+            and self._health_check_task is None
+            and self._cleanup_task is None
+        ):
             # Already stopped properly
             return
         if self._running:
