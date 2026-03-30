@@ -57,7 +57,7 @@ class PrinterJob:
         self.page_count = 0
         self.line_count = 0
         self.error_message: Optional[str] = None
-        self.lock = threading.Lock()  # Thread safety
+        self.lock = threading.RLock()  # Reentrant lock for nested calls
         self.metadata: Dict[str, Any] = {}
 
     def add_data(self, data: bytes) -> None:
@@ -171,7 +171,7 @@ class PrinterSession:
         self.sequence_number = 0
         self.max_jobs = 50  # Limit to prevent memory issues
         self.job_counter = 0
-        self.lock = threading.Lock()  # Thread safety
+        self.lock = threading.RLock()  # Reentrant lock for nested calls
         self.scs_handlers: Dict[int, Callable[..., None]] = {}
         self.tn3270e_functions: Set[int] = set()
         self.device_type = TN3270E_IBM_DYNAMIC
@@ -268,8 +268,9 @@ class PrinterSession:
         if not self.current_job:
             if holding_lock:
                 # We're already holding the lock, so start job without re-acquiring
-                self.current_job = PrinterJob(f"job_{self.job_counter + 1}")
                 self.job_counter += 1
+                job_id = f"job_{self.job_counter}"
+                self.current_job = PrinterJob(job_id)
                 logger.info(f"Started new printer job: {self.current_job.job_id}")
             else:
                 self.start_new_job()

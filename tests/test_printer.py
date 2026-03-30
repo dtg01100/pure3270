@@ -284,15 +284,28 @@ class TestPrinterSession:
         # Should not raise error for unknown codes
         session.handle_scs_control_code(0xFF)
 
-    @pytest.mark.skip(
-        reason="Known deadlock issue in printer session - needs investigation"
-    )
     def test_process_tn3270e_message_scs_data(self, memory_limit_500mb):
         """Test processing TN3270E SCS data message."""
-        # This test is currently disabled due to a deadlock issue in the printer session
-        # The issue appears to be related to lock contention in the printer implementation
-        # TODO: Investigate and fix the deadlock in PrinterSession.process_tn3270e_message
-        pytest.skip("Test disabled due to deadlock issue in printer session")
+        session = PrinterSession()
+        session.activate()
+
+        # Create header for SCS data
+        header = TN3270EHeader(
+            data_type=SCS_DATA,
+            request_flag=0,
+            response_flag=0,
+            seq_number=1,
+        )
+        data = b"Test printer data"
+
+        # This should not deadlock (was previously skipped due to lock contention)
+        session.process_tn3270e_message(header, data)
+
+        # Verify job was created and has data
+        job = session.get_current_job()
+        assert job is not None
+        assert job.get_data_size() == len(data)
+        assert job.status == "active"
 
     def test_process_tn3270e_message_error_response(self, memory_limit_500mb):
         """Test processing TN3270E error response."""
