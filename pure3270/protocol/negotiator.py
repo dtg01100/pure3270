@@ -555,6 +555,8 @@ class Negotiator:
         Public API: set negotiated_tn3270e flag and propagate state changes.
         """
         self._set_negotiated_flag(bool(value))
+        if value:
+            self.tn3270_mode = True
 
     def _maybe_finalize_negotiation(self) -> None:
         """
