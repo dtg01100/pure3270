@@ -166,6 +166,8 @@ class PrinterStatusReporter:
                 pass
             self._notification_task = None
 
+        self._notification_callbacks.clear()
+
         logger.info("PrinterStatusReporter stopped")
 
     async def update_status(

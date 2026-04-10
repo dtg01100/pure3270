@@ -1249,7 +1249,8 @@ class TN3270Handler:
             logger.error(f"[STATE] Entered ERROR state from {from_state}")
             # Trigger error recovery if configured
             if hasattr(self, "_auto_recover") and self._auto_recover:
-                asyncio.create_task(self._attempt_state_recovery())
+                task = asyncio.create_task(self._attempt_state_recovery())
+                self._bg_tasks.append(task)
 
         elif to_state == HandlerState.RECOVERING:
             logger.info(f"[STATE] Entered RECOVERING state from {from_state}")

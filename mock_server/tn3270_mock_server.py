@@ -1,7 +1,7 @@
 import asyncio
 import struct
 import threading
-from typing import Awaitable, Callable, Optional
+from typing import Any, Awaitable, Callable, Optional
 
 from pure3270.protocol.utils import (
     DO,
@@ -35,11 +35,19 @@ class TN3270MockServer:
         self.port = port
         self.scenario = scenario if scenario is not None else self.default_scenario
         self._server: Optional[asyncio.AbstractServer] = None
+        self._client_tasks: list[asyncio.Task[Any]] = []
 
     async def handle_client(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
-        await self.scenario(reader, writer)
+        task = asyncio.current_task()
+        if task is not None:
+            self._client_tasks.append(task)
+        try:
+            await self.scenario(reader, writer)
+        finally:
+            if task is not None and task in self._client_tasks:
+                self._client_tasks.remove(task)
 
     async def default_scenario(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -96,11 +104,17 @@ class TN3270MockServer:
     async def stop(self) -> None:
         if getattr(self, "_loop", None) and getattr(self, "_server", None):
 
+            def _cancel_client_tasks() -> None:
+                for task in list(self._client_tasks):
+                    if not task.done():
+                        task.cancel()
+                self._client_tasks.clear()
+
             def _close() -> None:
                 assert self._server is not None
                 self._server.close()
 
-            self._loop.call_soon_threadsafe(_close)
+            self._loop.call_soon_threadsafe(_cancel_client_tasks)
             # Allow close to propagate
             await asyncio.sleep(0.05)
             # Wait for server socket to close cleanly to avoid pending task warnings
@@ -169,7 +183,9 @@ class EnhancedTN3270MockServer(TN3270MockServer):
         6. SB TN3270E FUNCTIONS SEND SE (request functions list)
         7. Minimal TN3270E 3270-DATA record + IAC EOR
         """
-
+        task = asyncio.current_task()
+        if task is not None:
+            self._client_tasks.append(task)
         self._trace: list[bytes] = []
         self._received: list[bytes] = []
 
@@ -389,6 +405,8 @@ class EnhancedTN3270MockServer(TN3270MockServer):
         except Exception as e:  # pragma: no cover - debug visibility
             print(f"[MOCK] Exception in handle_client: {e}")
         finally:
+            if task is not None and task in self._client_tasks:
+                self._client_tasks.remove(task)
             try:
                 transport = getattr(writer, "transport", None)
                 if transport and not transport.is_closing():
