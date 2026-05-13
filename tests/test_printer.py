@@ -8,8 +8,8 @@ from pure3270.protocol.printer import PrinterJob, PrinterSession
 from pure3270.protocol.tn3270e_header import TN3270EHeader
 from pure3270.protocol.utils import (
     PRINT_EOJ,
+    RESPONSE,
     SCS_DATA,
-    TN3270E_RESPONSES,
     TN3270E_RSF_ERROR_RESPONSE,
     TN3270E_SCS_CTL_CODES,
 )
@@ -316,7 +316,7 @@ class TestPrinterSession:
         job = session.start_new_job("test")
 
         header = TN3270EHeader(
-            data_type=TN3270E_RESPONSES,  # RESPONSE
+            data_type=RESPONSE,
             response_flag=TN3270E_RSF_ERROR_RESPONSE,
             seq_number=123,
         )

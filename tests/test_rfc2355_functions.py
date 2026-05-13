@@ -85,12 +85,12 @@ class TestFunctionsList:
         assert TN3270E_SCS_CTL_CODES == 0x04
 
     def test_responses_function_code(self):
-        """Test RESPONSES function code."""
-        assert TN3270E_RESPONSES == 0x03  # Actually 0x03 in RFC
+        """Test RESPONSES function code per RFC 2355 7.2.2 (bit 3 = 0x08)."""
+        assert TN3270E_RESPONSES == 0x08
 
     def test_sysreq_function_code(self):
-        """Test SYSREQ function code."""
-        assert TN3270E_SYSREQ == 0x05
+        """Test SYSREQ function code per RFC 2355 7.2.2 (bit 4 = 0x10)."""
+        assert TN3270E_SYSREQ == 0x10
 
 
 class TestFunctionsNegotiationFlow:
