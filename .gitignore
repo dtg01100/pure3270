@@ -486,3 +486,7 @@ quick_*.sh
 s3270_*.sh
 test_*.sh
 *.s3270
+
+# CLIO (managed automatically)
+.clio/*
+!.clio/instructions.md
