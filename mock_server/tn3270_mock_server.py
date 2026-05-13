@@ -26,7 +26,7 @@ class TN3270MockServer:
     def __init__(
         self,
         host: str = "127.0.0.1",
-        port: int = 23270,
+        port: int = 0,  # 0 means auto-assign available port
         scenario: Optional[
             Callable[[asyncio.StreamReader, asyncio.StreamWriter], Awaitable[None]]
         ] = None,
@@ -36,6 +36,7 @@ class TN3270MockServer:
         self.scenario = scenario if scenario is not None else self.default_scenario
         self._server: Optional[asyncio.AbstractServer] = None
         self._client_tasks: list[asyncio.Task[Any]] = []
+        self._server_ready: threading.Event = threading.Event()
 
     async def handle_client(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -65,6 +66,12 @@ class TN3270MockServer:
         self._server = await asyncio.start_server(
             self.handle_client, self.host, self.port
         )
+        # Update port to actual assigned port if auto-assigned
+        if self.port == 0:
+            sock = self._server.sockets[0]
+            self.port = sock.getsockname()[1]
+        # Signal that server is ready
+        self._server_ready.set()
         print(
             f"TN3270MockServer started on {self.host}:{self.port} handler={self.handle_client.__qualname__} file={getattr(self.handle_client, '__code__', None) and self.handle_client.__code__.co_filename}"
         )
@@ -79,6 +86,7 @@ class TN3270MockServer:
         if hasattr(self, "_thread"):
             raise RuntimeError("Server already started")
 
+        self._server_ready.clear()
         self._loop = asyncio.new_event_loop()
 
         def _runner() -> None:
@@ -91,9 +99,9 @@ class TN3270MockServer:
             target=_runner, name="TN3270MockServer", daemon=True
         )
         self._thread.start()
-        # Brief wait for bind
-        while not getattr(self, "_server", None):
-            pass
+        # Wait for server to be ready using event (proper synchronization)
+        if not self._server_ready.wait(timeout=5.0):
+            raise RuntimeError("Server failed to start within timeout")
 
     async def start(self) -> None:  # backwards compatibility for existing scenarios
         self.start_threaded()
@@ -102,6 +110,8 @@ class TN3270MockServer:
         self.start_threaded()
 
     async def stop(self) -> None:
+        """Stop the server and clean up all resources."""
+        # First, close all client connections
         if getattr(self, "_loop", None) and getattr(self, "_server", None):
 
             def _cancel_client_tasks() -> None:
@@ -111,8 +121,8 @@ class TN3270MockServer:
                 self._client_tasks.clear()
 
             def _close() -> None:
-                assert self._server is not None
-                self._server.close()
+                if self._server is not None:
+                    self._server.close()
 
             self._loop.call_soon_threadsafe(_cancel_client_tasks)
             # Allow close to propagate
@@ -133,7 +143,7 @@ class TN3270MockServer:
             self._loop.call_soon_threadsafe(_stop)
             if getattr(self, "_thread", None):
                 self._thread.join(timeout=1.0)
-            print(f"TN3270MockServer stopped on {self.host}:{self.port}")
+            print(f"TN3270MockServer stopped on {self.host}")
 
 
 class EnhancedTN3270MockServer(TN3270MockServer):
@@ -156,7 +166,7 @@ class EnhancedTN3270MockServer(TN3270MockServer):
     def __init__(
         self,
         host: str = "127.0.0.1",
-        port: int = 23270,
+        port: int = 0,  # 0 means auto-assign available port
         requested_device_type: str | None = None,
         functions_mode: str = "request",
     ) -> None:
