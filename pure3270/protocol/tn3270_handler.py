@@ -2873,7 +2873,7 @@ class TN3270Handler:
         from .tn3270e_header import TN3270EHeader
         from .utils import PRINTER_STATUS_DATA_TYPE, SCS_DATA
         from .utils import SNA_RESPONSE as SNA_RESPONSE_TYPE
-        from .utils import TN3270_DATA
+        from .utils import TN3270_DATA, TN3270E_DATA_TYPES
 
         # Even if negotiation hasn't fully validated, attempt TN3270 mode
         # processing when actual 3270 payload is present. Tests and trace
@@ -2896,33 +2896,39 @@ class TN3270Handler:
                 tn3270e_header = None
             if tn3270e_header:
                 data_type = tn3270e_header.data_type
-                header_len = 5
-                # Use enhanced sequence number validation with wraparound handling
-                expected_seq = (self._last_received_seq_number + 1) % 65536
-                if not self._validate_sequence_number(
-                    tn3270e_header.seq_number, expected_seq
-                ):
-                    logger.warning(
-                        f"Sequence number validation failed in TN3270 mode, attempting synchronization"
-                    )
-                    # Try to synchronize instead of failing immediately
-                    self._synchronize_sequence_numbers(tn3270e_header.seq_number)
+                # Validate data_type is a legitimate TN3270E data type (0x00-0x0A).
+                # Some servers (e.g. Hercules) send raw 3270 data starting with 0xF5
+                # (Write command) which TN3270EHeader.from_bytes may misparse as valid.
+                # Reject the header when data_type falls outside the valid range.
+                if data_type not in TN3270E_DATA_TYPES:
+                    tn3270e_header = None
+                    header_len = 0
                 else:
-                    # Update sequence number only if validation passed
-                    self._last_received_seq_number = tn3270e_header.seq_number
-
-                try:
-                    if (
-                        len(processed_data) >= 5
-                        and processed_data[:4] == b"\x00\x00\x00\x00"
-                        and processed_data[4] == 0xF5
+                    header_len = 5
+                    # Use enhanced sequence number validation with wraparound
+                    expected_seq = (self._last_received_seq_number + 1) % 65536
+                    if not self._validate_sequence_number(
+                        tn3270e_header.seq_number, expected_seq
                     ):
-                        header_len = 4
-                except Exception:
-                    pass
-                await _call_maybe_await(
-                    self.negotiator._handle_tn3270e_response, tn3270e_header
-                )
+                        logger.warning(
+                            "Sequence number validation failed in TN3270 mode, attempting synchronization"
+                        )
+                        self._synchronize_sequence_numbers(tn3270e_header.seq_number)
+                    else:
+                        self._last_received_seq_number = tn3270e_header.seq_number
+
+                    try:
+                        if (
+                            len(processed_data) >= 5
+                            and processed_data[:4] == b"\x00\x00\x00\x00"
+                            and processed_data[4] == 0xF5
+                        ):
+                            header_len = 4
+                    except Exception:
+                        pass
+                    await _call_maybe_await(
+                        self.negotiator._handle_tn3270e_response, tn3270e_header
+                    )
                 if data_type == SCS_DATA and self.printer_buffer:
                     try:
                         data_for_parser = processed_data[header_len:]

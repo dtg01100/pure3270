@@ -130,9 +130,9 @@ logger = logging.getLogger(__name__)
 
 # TN3270E Telnet option value per RFC 1647 (option 40 decimal = 0x28 hex)
 # This is the only correct value per the RFC specification.
-
-# Not present in utils; define here for TERMINAL-LOCATION rejection handling per RFC
-TN3270E_REJECT = 0x01
+# RFC 2355 defines REJECT as 0x05 (used in utils.py). We use 0x01 here as
+# a local identifier for TERMINAL-LOCATION rejection handling.
+_TERMINAL_LOCATION_REJECT = 0x01
 
 
 class SnaSessionState(Enum):
@@ -2516,7 +2516,7 @@ class Negotiator:
                 self._lu_selection_complete = True
                 self._get_or_create_lu_selection_event().set()
 
-        elif subcommand == TN3270E_REJECT:
+        elif subcommand == _TERMINAL_LOCATION_REJECT:
             # Server rejected our LU selection
             logger.error("[TERMINAL-LOCATION] Server rejected LU selection")
             if len(sub_payload) > 1:
@@ -3289,7 +3289,7 @@ class Negotiator:
                     # _send_subneg for capture. Proper format: IAC SB TTYPE IS <terminal> IAC SE
                     self._send_subneg(
                         bytes([TELOPT_TTYPE]),
-                        bytes([TN3270E_IS]) + terminal_type,
+                        bytes([TTYPE_IS]) + terminal_type,
                         writer=self.writer,
                     )
                     # If writer is an asyncio.StreamWriter, ensure drain is awaited

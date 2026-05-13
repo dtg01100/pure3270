@@ -130,12 +130,6 @@ class ConnectionError(SessionError):
 
 
 class Session:
-    """
-    Synchronous wrapper for AsyncSession.
-
-    This class provides a synchronous interface to the asynchronous 3270 session.
-    All methods use asyncio.run() to execute async operations.
-    """
 
     def __init__(
         self,
@@ -146,6 +140,7 @@ class Session:
         allow_fallback: bool = True,
         enable_trace: bool = False,
         terminal_type: str = "IBM-3278-2",
+        codepage: str = "cp037",
     ) -> None:
         """
         Initialize a synchronous session with a dedicated thread and event loop.
@@ -167,6 +162,7 @@ class Session:
         self._allow_fallback = allow_fallback
         self._enable_trace = enable_trace
         self._terminal_type = terminal_type
+        self._codepage = codepage
         self._recorder = None
         self._loop = None
         self._thread = None
@@ -965,6 +961,7 @@ class AsyncSession:
         enable_trace: bool = False,
         terminal_type: str = "IBM-3278-2",
         is_printer_session: bool = False,
+        codepage: str = "cp037",
     ) -> None:
         """
         Initialize the AsyncSession.
@@ -978,6 +975,7 @@ class AsyncSession:
             enable_trace: Enable tracing.
             terminal_type: Terminal model type.
             is_printer_session: True if this is a printer session.
+            codepage: EBCDIC code page for screen decoding (e.g. 'cp037', 'cp500').
         """
         # Validate terminal type
         from .protocol.utils import is_valid_terminal_model
@@ -995,13 +993,14 @@ class AsyncSession:
         self._enable_trace = enable_trace
         self._terminal_type = terminal_type
         self._is_printer_session = is_printer_session
+        self._codepage = codepage
         self._handler: Optional[TN3270Handler] = None
 
         # Initialize screen buffer
         from .protocol.utils import get_screen_size
 
         rows, cols = get_screen_size(self._terminal_type)
-        self._screen_buffer = ScreenBuffer(rows, cols)
+        self._screen_buffer = ScreenBuffer(rows, cols, codepage=codepage)
 
         self._connected = False
         self._trace_events: List[Any] = []

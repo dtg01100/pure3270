@@ -399,7 +399,7 @@ class MalformedDataHandler:
 
         try:
             return TN3270EHeader.from_bytes(data[:5])
-        except:
+        except Exception:
             return None
 
     def _try_realigned_header(self, data: bytes) -> Optional[TN3270EHeader]:

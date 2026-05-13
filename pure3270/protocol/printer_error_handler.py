@@ -302,21 +302,19 @@ class PrinterErrorHandler:
         """
         if strategy == RecoveryStrategy.RETRY:
             return await self._retry_operation(operation, recovery_callback)
-        elif strategy == RecoveryStrategy.RECONNECT:
+        if strategy == RecoveryStrategy.RECONNECT:
             return await self._reconnect_operation(operation, recovery_callback)
-        elif strategy == RecoveryStrategy.RESET:
+        if strategy == RecoveryStrategy.RESET:
             return await self._reset_operation(operation, recovery_callback)
-        elif strategy == RecoveryStrategy.FAILOVER:
+        if strategy == RecoveryStrategy.FAILOVER:
             return await self._failover_operation(operation, recovery_callback)
-        elif strategy == RecoveryStrategy.ESCALATE:
+        if strategy == RecoveryStrategy.ESCALATE:
             return False  # Escalation means don't recover
-        elif strategy == RecoveryStrategy.IGNORE:
+        if strategy == RecoveryStrategy.IGNORE:
             logger.info(f"Ignoring error for {operation}: {error}")
             return True
 
-        # Fallback for any unhandled strategies (should not occur with enum)
-        logger.warning(f"Unknown recovery strategy: {strategy}")  # type: ignore[unreachable]
-        return False
+        return False  # type: ignore[unreachable]
 
     async def _retry_operation(
         self, operation: str, recovery_callback: Optional[Callable[[], Any]] = None

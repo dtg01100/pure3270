@@ -97,9 +97,18 @@ class SessionManager:
                             f"[TELNET] Processing server response: {data.hex()}"
                         )
                         # Process through handler's telnet stream processor
-                        processed = handler._process_telnet_stream(data)
-                        if inspect.isawaitable(processed):
-                            await processed
+                        cleaned_data, _ = await handler._process_telnet_stream(data)
+                        # Stash any non-IAC payload (e.g. initial 3270 data stream)
+                        # so receive_data can pick it up instead of losing it.
+                        if cleaned_data and hasattr(handler, "_pending_payload"):
+                            handler._pending_payload.extend(cleaned_data)
+                        # Drain IAC response (e.g. WILL TTYPE) so the server can
+                        # proceed with the next negotiation step without delay.
+                        if self.writer:
+                            try:
+                                await self.writer.drain()
+                            except Exception:
+                                pass
                 except asyncio.TimeoutError:
                     logger.info(
                         "[TELNET] No server response within timeout - continuing"
