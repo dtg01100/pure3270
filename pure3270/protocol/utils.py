@@ -136,9 +136,8 @@ NVT_DATA = 0x05  # NVT-DATA
 REQUEST = 0x06  # REQUEST
 SSCP_LU_DATA = 0x07  # SSCP-LU-DATA
 PRINT_EOJ = 0x08  # PRINT-EOJ
-SNA_RESPONSE = 0x09  # New SNA Response Data Type
-SNA_RESPONSE_DATA_TYPE = 0x09  # SNA Response Data Type
-PRINTER_STATUS_DATA_TYPE = 0x0A  # New data type for Printer Status (TN3270E)
+SNA_RESPONSE = 0x09  # SNA Response Data Type (RFC 2355)
+PRINTER_STATUS_DATA_TYPE = 0x0A  # Data type for Printer Status (TN3270E)
 
 # TN3270E Data Types tuple for validation
 TN3270E_DATA_TYPES = (
@@ -155,25 +154,30 @@ TN3270E_DATA_TYPES = (
     PRINTER_STATUS_DATA_TYPE,
 )
 
-# TN3270E Subnegotiation Message Types
-# TN3270E Function Types (bit flags)
-# Per RFC 2355, BIND-IMAGE uses bit 0x01 (TN3270E_DATA_STREAM_CTL)
-TN3270E_DATA_STREAM_CTL = 0x01
-TN3270E_NEW_APPL = 0x02
-TN3270E_RESPONSES = 0x03
-TN3270E_SCS_CTL_CODES = 0x04
-TN3270E_SYSREQ_ATTN = 0x05
-# Per tests and common implementations, BIND-IMAGE uses bit 0x01
-TN3270E_BIND_IMAGE = 0x01
+# Note: SNA_RESPONSE_DATA_TYPE (0x02) is an internal data stream identifier
+# defined below in the "Internal" section. The TN3270E header data type for
+# SNA responses is SNA_RESPONSE (0x09).
 
-# TN3270E Sysreq Key Constants
-TN3270E_SYSREQ_ATTN = 0x6C  # ATTN key
-TN3270E_SYSREQ_BREAK = 0xF3  # Break key
-TN3270E_SYSREQ_CANCEL = 0x6D  # Cancel key
-TN3270E_SYSREQ_LOGOFF = 0x7B  # Logoff key
-TN3270E_SYSREQ_MESSAGE_TYPE = 0x1C  # Message type for sysreq
-TN3270E_SYSREQ_PRINT = 0x7C  # Print key
-TN3270E_SYSREQ_RESTART = 0x7D  # Restart key
+# TN3270E Function Types (bit flags) - RFC 2355 Section 7.2.2
+TN3270E_DATA_STREAM_CTL = 0x01
+TN3270E_BIND_IMAGE = 0x01  # BIND-IMAGE uses bit 0x01 per RFC 2355
+TN3270E_NEW_APPL = 0x02
+TN3270E_RESPONSES = 0x08
+TN3270E_SCS_CTL_CODES = 0x04
+TN3270E_SYSREQ = 0x10  # SYSREQ function bit
+
+# TN3270E SYSREQ Subnegotiation Message Type
+TN3270E_SYSREQ_MESSAGE_TYPE = 0x1C  # Message type for sysreq subnegotiation
+
+# TN3270E SYSREQ Command Codes (RFC 2355 Section 10.5)
+TN3270E_SYSREQ_ATTN = 0x6C  # ATTN key code
+TN3270E_SYSREQ_BREAK = 0xF3  # Break key code
+TN3270E_SYSREQ_CANCEL = 0x6D  # Cancel key code
+TN3270E_SYSREQ_LOGOFF = 0x7B  # Logoff key code
+TN3270E_SYSREQ_PRINT = 0x7C  # Print key code
+TN3270E_SYSREQ_RESTART = 0x7D  # Restart key code
+TN3270E_SYSREQ_CLEAR = 0x07  # Clear key code
+TN3270E_SYSREQ_TEST = 0x08  # Test key code
 
 # Additional sense codes for SNA responses
 SNA_SENSE_CODE_SUCCESS = 0x0000
@@ -185,13 +189,6 @@ SNA_SENSE_CODE_LU_BUSY = 0x080A  # LU Busy
 SNA_SENSE_CODE_INVALID_SEQUENCE = 0x1008  # Invalid Sequence
 SNA_SENSE_CODE_NO_RESOURCES = 0x080F  # No Resources
 SNA_SENSE_CODE_STATE_ERROR = 0x1003  # State Error
-
-# Additional TN3270E Sysreq constants
-TN3270E_SYSREQ = 0x05  # System request key (general)
-TN3270E_SYSREQ_BREAK = 0x06
-TN3270E_SYSREQ_ATTN = 0x05
-TN3270E_SYSREQ_CLEAR = 0x07
-TN3270E_SYSREQ_TEST = 0x08
 
 # TN3270E Response Flags (RFC 2355 Section 8.1.3)
 TN3270E_RSF_ALWAYS_RESPONSE = 0x02

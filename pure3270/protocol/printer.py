@@ -25,7 +25,6 @@ from .utils import (  # Additional constants for advanced printer support
     TN3270E_IBM_DYNAMIC,
     TN3270E_IS,
     TN3270E_REQUEST,
-    TN3270E_RESPONSES,
     TN3270E_RSF_ALWAYS_RESPONSE,
     TN3270E_RSF_ERROR_RESPONSE,
     TN3270E_RSF_NO_RESPONSE,
@@ -511,8 +510,8 @@ class PrinterSession:
                     scs_code = data[0]
                     self.handle_scs_control_code(scs_code)
                 logger.debug(f"Processed SCS control codes: {data.hex()}")
-            elif header.data_type == TN3270E_RESPONSES:
-                # Handle response messages with enhanced error handling
+            elif header.data_type == RESPONSE:
+                # Handle RESPONSE messages with response flag processing
                 self._handle_tn3270e_response(header, data)
             elif header.data_type == BIND_IMAGE:
                 # Handle BIND-IMAGE structured field
@@ -520,9 +519,6 @@ class PrinterSession:
             elif header.data_type == REQUEST:
                 # Handle REQUEST messages
                 self._handle_request_message(header, data)
-            elif header.data_type == RESPONSE:
-                # Handle RESPONSE messages
-                self._handle_response_message(header, data)
             elif header.data_type == TN3270_DATA:
                 # Handle 3270 data stream
                 self._handle_3270_data_message(header, data)
