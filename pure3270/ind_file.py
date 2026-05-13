@@ -96,8 +96,13 @@ class IndFileTransfer:
     def start(self) -> None:
         """Start the file transfer."""
         if self.direction == "download":
-            # For downloads, create/truncate the local file
-            self.file_handle = open(self.local_path, "wb")
+            try:
+                self.file_handle = open(self.local_path, "wb")
+            except OSError as e:
+                self.is_active = False
+                raise IndFileError(
+                    f"Failed to open local file for download: {e}"
+                ) from e
         elif self.direction == "upload":
             # For uploads, the file should already be opened by the caller
             pass

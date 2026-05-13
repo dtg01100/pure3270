@@ -1016,14 +1016,8 @@ class ScreenBuffer(BufferWriter):
                     pos = start + col
 
                     # Check if this position actually contains a field attribute
-                    # Field attributes are typically in ranges: 0x00, 0xC0-0xFF
                     if pos in self._field_starts:
-                        # Only mask if this looks like a real field attribute byte
-                        # Basic attributes: 0x00 or high-bit set (0xC0-0xFF)
-                        if line_bytes[col] == 0x00 or (line_bytes[col] & 0x80):
-                            line_bytes[col] = (
-                                0x40  # EBCDIC space for actual field attributes
-                            )
+                        line_bytes[col] = 0x40  # EBCDIC space for field attributes
                     # Hide cursor position with EBCDIC space
                     elif row == self.cursor_row and col == self.cursor_col:
                         line_bytes[col] = 0x40  # EBCDIC space

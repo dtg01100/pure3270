@@ -36,7 +36,7 @@
 import logging
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple, Type, Union
 
 logger = logging.getLogger(__name__)
 
@@ -171,8 +171,7 @@ class ExtendedAttributeSet:
         # raw value but log a warning for visibility.
         if not isinstance(attribute, ExtendedAttribute):
             try:
-                # Map known attribute type names to constructors
-                mapper = {
+                mapper: Dict[str, Type[ExtendedAttribute]] = {
                     AttributeType.COLOR.value: ColorAttribute,
                     AttributeType.HIGHLIGHT.value: HighlightAttribute,
                     AttributeType.VALIDATION.value: ValidationAttribute,

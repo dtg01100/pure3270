@@ -65,11 +65,7 @@ class AddressCalculator:
         """
         if mode == AddressingMode.MODE_12_BIT:
             return 0 <= address <= 0xFFF  # 12-bit: 0-4095
-        elif mode == AddressingMode.MODE_14_BIT:
-            return 0 <= address <= 0x3FFF  # 14-bit: 0-16383
-        else:
-            logger.warning(f"Unknown addressing mode: {mode}")  # type: ignore[unreachable]
-            return False
+        return 0 <= address <= 0x3FFF  # 14-bit: 0-16383
 
     @staticmethod
     def address_to_coords(
@@ -133,11 +129,7 @@ class AddressCalculator:
         """
         if mode == AddressingMode.MODE_12_BIT:
             return 4096  # 0x1000
-        elif mode == AddressingMode.MODE_14_BIT:
-            return 16384  # 0x4000
-        else:
-            logger.warning(f"Unknown addressing mode: {mode}")  # type: ignore[unreachable]
-            return 4096  # Default to 12-bit
+        return 16384  # 0x4000
 
     @staticmethod
     def convert_address_mode(
