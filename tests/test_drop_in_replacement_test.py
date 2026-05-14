@@ -3,13 +3,13 @@ import json
 import os
 from typing import Any
 
+import pytest
 
-def _get_compare_script_results():
-    from drop_in_replacement_test import (
-        compare_script_results,  # type: ignore[import-untyped]
-    )
+pytest.importorskip("drop_in_replacement_test")
 
-    return compare_script_results
+from drop_in_replacement_test import (  # type: ignore[import-untyped]
+    compare_script_results,
+)
 
 
 def write_results(path: str, payload: Any) -> None:
@@ -79,12 +79,12 @@ def test_compare_script_results_with_padding_only(tmp_path: Any, capsys: Any) ->
         pstep = prj.get("steps", [])[1]
         rstep = rrj.get("steps", [])[1]
         assert pstep.get("raw_base64") == rstep.get("raw_base64")
-        ok = _get_compare_script_results()()
+        ok = compare_script_results()
         assert ok is True
         # Now enable strict mode - we should get a failure (padding treated as bug)
         os.environ["PURE3270_FAIL_ON_PADDING"] = "1"
         try:
-            ok2 = _get_compare_script_results()()
+            ok2 = compare_script_results()
             assert ok2 is False
         finally:
             del os.environ["PURE3270_FAIL_ON_PADDING"]
@@ -153,7 +153,7 @@ def test_compare_script_results_with_raw_difference(tmp_path: Any) -> None:
     cwd = os.getcwd()
     try:
         os.chdir(tmp_path)
-        ok = _get_compare_script_results()()
+        ok = compare_script_results()
         assert ok is False
     finally:
         os.chdir(cwd)
@@ -220,7 +220,7 @@ def test_compare_script_results_writes_artifacts(tmp_path: Any) -> None:
     try:
         os.chdir(tmp_path)
         dest_dir = tmp_path / "artifacts"
-        ok = _get_compare_script_results()(artifact_dir=str(dest_dir))
+        ok = compare_script_results(artifact_dir=str(dest_dir))
         assert ok is True
         # artifacts should include the JSONs and the tracefile copy
         assert (dest_dir / "pure3270_script_results.json").exists()
@@ -285,7 +285,7 @@ def test_compare_script_results_step_by_step_detects_diffs(tmp_path: Any) -> Non
     cwd = os.getcwd()
     try:
         os.chdir(tmp_path)
-        ok = _get_compare_script_results()(compare_steps=True)
+        ok = compare_script_results(compare_steps=True)
         assert ok is False
     finally:
         os.chdir(cwd)
@@ -345,10 +345,10 @@ def test_compare_script_results_step_by_step_padding_handling(tmp_path: Any) -> 
     try:
         os.chdir(tmp_path)
         # Non-strict should accept (minor)
-        ok = _get_compare_script_results()(compare_steps=True, strict=False)
+        ok = compare_script_results(compare_steps=True, strict=False)
         assert ok is True
         # Strict should fail
-        ok2 = _get_compare_script_results()(compare_steps=True, strict=True)
+        ok2 = compare_script_results(compare_steps=True, strict=True)
         assert ok2 is False
     finally:
         os.chdir(cwd)
