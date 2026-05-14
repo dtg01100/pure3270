@@ -14,6 +14,8 @@ sys.path.insert(
 )
 # Ensure tests directory is in Python path for imports
 sys.path.insert(0, os.path.dirname(__file__))
+# Ensure project root is in path for root-level modules (e.g. drop_in_replacement_test)
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import pytest
 import pytest_asyncio

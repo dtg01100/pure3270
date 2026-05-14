@@ -1,14 +1,10 @@
 import base64
 import json
 import os
-import sys
-from pathlib import Path
 from typing import Any
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
-from drop_in_replacement_test import (
-    compare_script_results,  # type: ignore[import-untyped]
+from drop_in_replacement_test import (  # type: ignore[import-untyped]
+    compare_script_results,
 )
 
 
