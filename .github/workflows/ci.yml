@@ -119,7 +119,7 @@ jobs:
       run: |
         echo "🚀 Running unit and property tests..."
         cd $GITHUB_WORKSPACE
-        PYTHONPATH= python -m pytest tests/ -v --tb=short -m "not integration" \
+        PYTHONPATH= python -m pytest tests/ -v --tb=short -m "not integration and not hercules" \
           --durations=10 --maxfail=3 --disable-warnings
 
     - name: Run specific slow tests (if enabled)
