@@ -4,7 +4,9 @@ import time
 import pytest
 
 from pure3270 import Session
-from pure3270.utils.common import decode_ebcdic_string
+from pure3270.emulation.ebcdic import translate_ebcdic_to_ascii
+
+decode_ebcdic_string = translate_ebcdic_to_ascii
 
 
 @pytest.mark.timeout(8)

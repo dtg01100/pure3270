@@ -1,9 +1,15 @@
 import base64
 import json
 import os
+import sys
+from pathlib import Path
 from typing import Any
 
-from drop_in_replacement_test import compare_script_results
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from drop_in_replacement_test import (
+    compare_script_results,  # type: ignore[import-untyped]
+)
 
 
 def write_results(path: str, payload: Any) -> None:
