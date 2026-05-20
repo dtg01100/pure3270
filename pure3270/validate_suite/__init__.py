@@ -1,10 +1,7 @@
 """
-pure3270 Validation Suite.
+DEPRECATED: Validation Suite has moved to pure3270/validation/.
 
-This package contains RFC-specific checklist validators that verify
-compliance with each Telnet/3270 specification. Each module provides
-pytest-style test functions keyed to specific RFC sections.
-
-Usage:
-    python -m pytest pure3270/validate_suite/ -v
+This package is kept for backward compatibility. Please use:
+    python -m pure3270.validation
+    python -m pytest pure3270/validation/ -v
 """

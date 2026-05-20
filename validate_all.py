@@ -123,6 +123,10 @@ STEPS: list[dict] = [
         "name": "Validation suite",
         "cmd": ["python", "-m", "pytest", "pure3270/validate_suite/", "-q"],
     },
+    {
+        "name": "validation",
+        "cmd": ["python", "-m", "pytest", "pure3270/validation/", "-q"],
+    },
 ]
 
 

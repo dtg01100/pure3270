@@ -20,13 +20,8 @@ class Requirement:
     def is_tested(self) -> bool:
         return self.status == "tested"
 
-    def has_valid_tests(self) -> bool:
-        if not self.tests:
-            return False
-        for test_ref in self.tests:
-            if not _resolve_test_ref(test_ref):
-                return False
-        return True
+    def has_resolvable_tests(self) -> bool:
+        return len(self.stale_tests()) == 0
 
     def stale_tests(self) -> list[str]:
         return [t for t in self.tests if not _resolve_test_ref(t)]
