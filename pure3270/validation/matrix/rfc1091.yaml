@@ -8,13 +8,15 @@ sections:
       - id: "2.1"
         text: "Terminal type option code is 24 (0x18)"
         rfc_keyword: MUST
-        tests: []
-        status: missing
+        tests:
+          - "pure3270.validation.matrix.test_rfc1091::test_section_2_option_code"
+        status: tested
       - id: "2.2"
         text: "Terminal type subnegotiation uses IS and SEND qualifiers"
         rfc_keyword: MUST
-        tests: []
-        status: missing
+        tests:
+          - "pure3270.validation.matrix.test_rfc1091::test_section_2_subnegotiation_qualifiers"
+        status: tested
   - section: "3"
     title: Terminal Type Names
     requirements:

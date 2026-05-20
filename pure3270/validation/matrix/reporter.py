@@ -19,13 +19,17 @@ def build_rfc_report(matrix: RfcMatrix, report: ValidationReport) -> SectionRepo
         for req in partial_requirements:
             stale = req.stale_tests()
             hint = f" ({len(stale)} stale test refs)" if stale else ""
-            section.details.append(f"    §{req.section} [{req.rfc_keyword}]{hint}: {req.text}")
+            section.details.append(
+                f"    §{req.section} [{req.rfc_keyword}]{hint}: {req.text}"
+            )
 
     missing = matrix.get_missing()
     if missing:
         section.details.append("")
         section.details.append(f"  MISSING ({len(missing)} untested):")
         for req in missing[:10]:
-            section.details.append(f"    §{req.section} [{req.rfc_keyword}]: {req.text}")
+            section.details.append(
+                f"    §{req.section} [{req.rfc_keyword}]: {req.text}"
+            )
 
     return section

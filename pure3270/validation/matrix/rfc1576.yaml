@@ -8,10 +8,12 @@ sections:
       - id: "2.1"
         text: "TN3270 uses BINARY and EOR telnet options for 3270 data stream"
         rfc_keyword: MUST
-        tests: []
-        status: missing
+        tests:
+          - "pure3270.validation.matrix.test_rfc1576::test_section_2_binary_and_eor"
+        status: tested
       - id: "2.2"
         text: "Server may use IAC WILL EOR to indicate TN3270 support"
         rfc_keyword: SHOULD
-        tests: []
-        status: missing
+        tests:
+          - "pure3270.validation.matrix.test_rfc1576::test_section_2_will_eor_negotiation"
+        status: tested

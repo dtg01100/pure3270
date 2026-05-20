@@ -72,6 +72,8 @@ class ValidationReport:
                 }
                 for name, s in self.sections.items()
             },
+            "start_time": self.start_time,
+            "end_time": self.end_time,
             "ci_mode": self.ci_mode,
             "exit_code": self.exit_code,
         }

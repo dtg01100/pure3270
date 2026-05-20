@@ -108,7 +108,10 @@ class TestSection3DataTypes:
         assert SNA_RESPONSE == 0x09
 
     def test_data_stream_sscp_is_0x0a(self) -> None:
-        assert 0x0A == 0x0A  # DATA-STREAM-SSCP (0x0A) — defined in RFC but not exported
+        """§3.2: DATA-STREAM-SSCP data type is 0x0A."""
+        from pure3270.protocol.utils import DATA_STREAM_SSCP
+
+        assert DATA_STREAM_SSCP == 0x0A
 
 
 class TestSection3ResponseFlags:
@@ -151,6 +154,53 @@ class TestSection7DeviceType:
         payload = bytes([TN3270E_DEVICE_TYPE, TN3270E_CONNECT]) + b"LU01    "
         await neg.handle_subnegotiation(TELOPT_TN3270E, payload)
         assert getattr(neg, "_connected_lu_name", None) is not None
+
+    def test_associate_constant(self) -> None:
+        """§7.1.3: ASSOCIATE command constant is 0x04."""
+        from pure3270.protocol.utils import TN3270E_ASSOCIATE
+
+        assert TN3270E_ASSOCIATE == 0x04
+
+    @pytest.mark.asyncio  # type: ignore[misc]
+    async def test_reject_subnegotiation(self, screen_buffer: ScreenBuffer) -> None:
+        """§7.1.5: REJECT sets _device_type_rejected and _rejection_reason."""
+        from unittest.mock import AsyncMock
+
+        from pure3270.protocol.data_stream import DataStreamParser
+        from pure3270.protocol.negotiator import Negotiator
+        from pure3270.protocol.utils import (
+            TELOPT_TN3270E,
+            TN3270E_DEVICE_TYPE,
+            TN3270E_REJECT,
+        )
+
+        parser = DataStreamParser(screen_buffer)
+        neg = Negotiator(
+            writer=AsyncMock(),
+            parser=parser,
+            screen_buffer=screen_buffer,
+            is_printer_session=False,
+        )
+        neg._server_supports_tn3270e = True
+        payload = bytes([TN3270E_DEVICE_TYPE, TN3270E_REJECT, 0x03])
+        await neg.handle_subnegotiation(TELOPT_TN3270E, payload)
+        assert neg._device_type_rejected
+        assert neg._rejection_reason == 0x03
+
+    def test_reject_constant(self) -> None:
+        """§7.1.5: REJECT command constant is 0x05."""
+        from pure3270.protocol.utils import TN3270E_REJECT
+
+        assert TN3270E_REJECT == 0x05
+
+    def test_terminal_type_name_padding(self) -> None:
+        """§7.1.2: LU names in CONNECT/ASSOCIATE are space-padded to 8 chars."""
+        from pure3270.protocol.utils import TN3270E_DEVICE_TYPE
+
+        names = [b"LU01    ", b"DISPLY01", b"IBM-3278"]
+        for name in names:
+            assert len(name) == 8, f"'{name.decode()}' must be exactly 8 bytes"
+        assert TN3270E_DEVICE_TYPE == 0x02
 
 
 class TestSection7Functions:
@@ -203,7 +253,11 @@ class TestSection10BindUnbind:
         h = TN3270EHeader(
             data_type=NVT_DATA, request_flag=0, response_flag=0, seq_number=0
         )
-        assert h.data_type in (SSCP_LU_DATA, NVT_DATA) or True
+        assert h.data_type == NVT_DATA
+        h2 = TN3270EHeader(
+            data_type=SSCP_LU_DATA, request_flag=0, response_flag=0, seq_number=0
+        )
+        assert h2.data_type == SSCP_LU_DATA
 
     def test_seq_number_wraps_at_32767(self) -> None:
         """§10.4: SEQ-NUMBER sequence wraps at 32767."""
@@ -212,8 +266,9 @@ class TestSection10BindUnbind:
             data_type=TN3270_DATA, request_flag=0, response_flag=0, seq_number=max_seq
         )
         assert h.seq_number == max_seq
-        wrapped = 0
-        assert wrapped < h.seq_number
+        raw = h.to_bytes()
+        assert raw[3] == (max_seq >> 8) & 0xFF
+        assert raw[4] == max_seq & 0xFF
 
 
 class TestSection11Attn:

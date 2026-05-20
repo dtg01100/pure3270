@@ -31,6 +31,7 @@ def _resolve_test_ref(ref: str) -> bool:
     try:
         if "::" in ref:
             module_path, func_name = ref.split("::", 1)
+            func_name = func_name.replace("::", ".")
             if "." in func_name:
                 class_name, method_name = func_name.rsplit(".", 1)
                 mod = importlib.import_module(module_path)

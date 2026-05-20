@@ -46,22 +46,30 @@ sections:
         rfc_keyword: MUST
         tests:
           - "pure3270.validation.matrix.test_rfc2355::TestSection7DeviceType::test_connect_command"
-        status: partial
+          - "pure3270.validation.matrix.test_rfc2355::TestSection7DeviceType::test_associate_constant"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection7DeviceType::test_reject_subnegotiation"
+        status: tested
       - id: "7.1.2"
         text: "Terminal type name is left-justified and space-padded to 8 characters"
         rfc_keyword: MUST
-        tests: []
-        status: missing
+        tests:
+          - "pure3270.validation.matrix.test_rfc2355::TestSection7DeviceType::test_terminal_type_name_padding"
+        status: tested
       - id: "7.1.3"
         text: "ASSOCIATE command uses 8-character LU name"
         rfc_keyword: MUST
-        tests: []
-        status: missing
+        tests:
+          - "pure3270.validation.matrix.test_rfc2355::TestSection7DeviceType::test_associate_constant"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection7DeviceType::test_terminal_type_name_padding"
+        status: tested
       - id: "7.2"
         text: "FUNCTIONS negotiation uses bit flags: DATA-STREAM-CTL (bit 0), SCS-CTL-CODES (bit 2), RESPONSES (bit 3), SYSREQ (bit 4)"
         rfc_keyword: MUST
         tests:
-          - "pure3270.validation.matrix.test_rfc2355::TestSection7Functions*"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection7Functions::test_bind_image_bit"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection7Functions::test_scs_ctl_codes_bit"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection7Functions::test_responses_bit"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection7Functions::test_sysreq_bit"
         status: tested
       - id: "7.3"
         text: "BIND-IMAGE and DATA-STREAM-CTL share bit 0"
@@ -86,13 +94,13 @@ sections:
         rfc_keyword: MUST
         tests:
           - "pure3270.validation.matrix.test_rfc2355::TestSection10BindUnbind::test_before_bind_restrictions"
-        status: partial
+        status: tested
       - id: "10.2"
         text: "SEQ-NUMBER sequence wraps at 32767"
         rfc_keyword: MUST
         tests:
           - "pure3270.validation.matrix.test_rfc2355::TestSection10BindUnbind::test_seq_number_wraps_at_32767"
-        status: partial
+        status: tested
   - section: "11"
     title: SYSREQ and ATTN
     requirements:
