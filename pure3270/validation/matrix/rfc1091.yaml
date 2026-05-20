@@ -1,0 +1,25 @@
+rfc: 1091
+title: Telnet Terminal-Type Option
+url: https://datatracker.ietf.org/doc/html/rfc1091
+sections:
+  - section: "2"
+    title: Option Negotiation
+    requirements:
+      - id: "2.1"
+        text: "Terminal type option code is 24 (0x18)"
+        rfc_keyword: MUST
+        tests: []
+        status: missing
+      - id: "2.2"
+        text: "Terminal type subnegotiation uses IS and SEND qualifiers"
+        rfc_keyword: MUST
+        tests: []
+        status: missing
+  - section: "3"
+    title: Terminal Type Names
+    requirements:
+      - id: "3.1"
+        text: "Terminal type names are registered IANA values (e.g., IBM-3278-2)"
+        rfc_keyword: SHOULD
+        tests: []
+        status: not_applicable

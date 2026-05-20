@@ -1,0 +1,100 @@
+rfc: 854
+title: Telnet Protocol Specification
+url: https://datatracker.ietf.org/doc/html/rfc854
+sections:
+  - section: "3"
+    title: Command Structure
+    requirements:
+      - id: "3.1"
+        text: "IAC is 0xFF, commands are 2-byte sequences (IAC + command code)"
+        rfc_keyword: MUST
+        tests:
+          - "pure3270.validation.matrix.test_rfc854::test_section_3_command_structure"
+        status: tested
+      - id: "3.2"
+        text: "Subnegotiation uses IAC SB ... IAC SE framing"
+        rfc_keyword: MUST
+        tests:
+          - "pure3270.validation.matrix.test_rfc854::test_section_3_subnegotiation"
+        status: tested
+      - id: "3.3"
+        text: "IAC IAC in data stream represents a single 0xFF data byte"
+        rfc_keyword: MUST
+        tests:
+          - "pure3270.validation.matrix.test_rfc854::test_section_4_iac_iac_escaping"
+        status: tested
+  - section: "4"
+    title: Option Negotiation
+    requirements:
+      - id: "4.1"
+        text: "WILL (0xFB), WONT (0xFC), DO (0xFD), DONT (0xFE) codes for option negotiation"
+        rfc_keyword: MUST
+        tests:
+          - "pure3270.validation.matrix.test_rfc854::test_section_4_option_negotiation"
+        status: tested
+  - section: "5"
+    title: Telnet Commands
+    requirements:
+      - id: "5.1"
+        text: "NOP (0xF1) - No operation"
+        rfc_keyword: MUST
+        tests: []
+        status: not_applicable
+      - id: "5.2"
+        text: "DM (0xF2) - Data Mark (part of SYNCH)"
+        rfc_keyword: MUST
+        tests: []
+        status: not_applicable
+      - id: "5.3"
+        text: "BRK (0xF3) - Break"
+        rfc_keyword: MAY
+        tests: []
+        status: not_applicable
+      - id: "5.4"
+        text: "IP (0xF4) - Interrupt Process"
+        rfc_keyword: MAY
+        tests: []
+        status: not_applicable
+      - id: "5.5"
+        text: "AO (0xF5) - Abort Output"
+        rfc_keyword: MAY
+        tests: []
+        status: not_applicable
+      - id: "5.6"
+        text: "AYT (0xF6) - Are You There"
+        rfc_keyword: MAY
+        tests: []
+        status: not_applicable
+      - id: "5.7"
+        text: "EC (0xF7) - Erase Character"
+        rfc_keyword: MAY
+        tests: []
+        status: not_applicable
+      - id: "5.8"
+        text: "EL (0xF8) - Erase Line"
+        rfc_keyword: MAY
+        tests: []
+        status: not_applicable
+      - id: "5.9"
+        text: "GA (0xF9) - Go Ahead"
+        rfc_keyword: MAY
+        tests: []
+        status: not_applicable
+  - section: "10"
+    title: NVT Printer and Display
+    requirements:
+      - id: "10.1"
+        text: "Default NVT is half-duplex, ASCII, carriage-oriented"
+        rfc_keyword: MUST
+        tests:
+          - "pure3270.validation.matrix.test_rfc854::test_section_10_nvt_default"
+        status: tested
+  - section: "17"
+    title: Timing Mark
+    requirements:
+      - id: "17.1"
+        text: "TIMING-MARK option (6) is used for synchronization"
+        rfc_keyword: SHOULD
+        tests:
+          - "pure3270.validation.matrix.test_rfc854::test_timing_mark_option"
+        status: tested

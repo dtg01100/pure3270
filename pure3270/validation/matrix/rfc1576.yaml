@@ -1,0 +1,17 @@
+rfc: 1576
+title: TN3270 Current Practices
+url: https://datatracker.ietf.org/doc/html/rfc1576
+sections:
+  - section: "2"
+    title: TN3270 Environment
+    requirements:
+      - id: "2.1"
+        text: "TN3270 uses BINARY and EOR telnet options for 3270 data stream"
+        rfc_keyword: MUST
+        tests: []
+        status: missing
+      - id: "2.2"
+        text: "Server may use IAC WILL EOR to indicate TN3270 support"
+        rfc_keyword: SHOULD
+        tests: []
+        status: missing

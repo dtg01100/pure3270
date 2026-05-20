@@ -1,0 +1,125 @@
+rfc: 2355
+title: TN3270 Enhancements
+url: https://datatracker.ietf.org/doc/html/rfc2355
+sections:
+  - section: "3"
+    title: TN3270E Message Header
+    requirements:
+      - id: "3.1"
+        text: "TN3270E header is exactly 5 bytes"
+        rfc_keyword: MUST
+        tests:
+          - "pure3270.validation.matrix.test_rfc2355::TestSection3HeaderFormat::test_header_is_5_bytes"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection3HeaderFormat::test_data_type_field"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection3HeaderFormat::test_request_flag_field"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection3HeaderFormat::test_response_flag_field"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection3HeaderFormat::test_seq_number_field"
+        status: tested
+      - id: "3.2"
+        text: "All 11 DATA-TYPE values defined: TN3270_DATA (0x00) through DATA-STREAM-SSCP (0x0A)"
+        rfc_keyword: MUST
+        tests:
+          - "pure3270.validation.matrix.test_rfc2355::TestSection3DataTypes::test_tn3270_data_is_0x00"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection3DataTypes::test_scs_data_is_0x01"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection3DataTypes::test_response_is_0x02"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection3DataTypes::test_bind_image_is_0x03"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection3DataTypes::test_unbind_is_0x04"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection3DataTypes::test_nvt_data_is_0x05"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection3DataTypes::test_request_is_0x06"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection3DataTypes::test_sscp_lu_data_is_0x07"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection3DataTypes::test_print_eoj_is_0x08"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection3DataTypes::test_sna_response_is_0x09"
+        status: tested
+      - id: "3.3"
+        text: "RESPONSE-FLAG values: NO-RESPONSE (0x00), ERROR-RESPONSE (0x01), ALWAYS-RESPONSE (0x02)"
+        rfc_keyword: MUST
+        tests:
+          - "pure3270.validation.matrix.test_rfc2355::TestSection3ResponseFlags::test_no_response_is_0x00"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection3ResponseFlags::test_error_response_is_0x01"
+          - "pure3270.validation.matrix.test_rfc2355::TestSection3ResponseFlags::test_always_response_is_0x02"
+        status: tested
+  - section: "7"
+    title: TN3270E Subnegotiation
+    requirements:
+      - id: "7.1.1"
+        text: "DEVICE-TYPE subnegotiation supports CONNECT, ASSOCIATE, and REJECT"
+        rfc_keyword: MUST
+        tests:
+          - "pure3270.validation.matrix.test_rfc2355::TestSection7DeviceType::test_connect_command"
+        status: partial
+      - id: "7.1.2"
+        text: "Terminal type name is left-justified and space-padded to 8 characters"
+        rfc_keyword: MUST
+        tests: []
+        status: missing
+      - id: "7.1.3"
+        text: "ASSOCIATE command uses 8-character LU name"
+        rfc_keyword: MUST
+        tests: []
+        status: missing
+      - id: "7.2"
+        text: "FUNCTIONS negotiation uses bit flags: DATA-STREAM-CTL (bit 0), SCS-CTL-CODES (bit 2), RESPONSES (bit 3), SYSREQ (bit 4)"
+        rfc_keyword: MUST
+        tests:
+          - "pure3270.validation.matrix.test_rfc2355::TestSection7Functions*"
+        status: tested
+      - id: "7.3"
+        text: "BIND-IMAGE and DATA-STREAM-CTL share bit 0"
+        rfc_keyword: MUST
+        tests:
+          - "pure3270.validation.matrix.test_rfc2355::TestSection7Functions::test_bit_positions_are_unique"
+        status: tested
+  - section: "9"
+    title: NVT Mode
+    requirements:
+      - id: "9.1"
+        text: "NVT-DATA data type is 0x05"
+        rfc_keyword: MUST
+        tests:
+          - "pure3270.validation.matrix.test_rfc2355::TestSection9NvtMode::test_nvt_data_type_is_0x05"
+        status: tested
+  - section: "10"
+    title: BIND-IMAGE and UNBIND
+    requirements:
+      - id: "10.1"
+        text: "Before first BIND, only SSCP-LU-DATA and NVT-DATA data types are allowed"
+        rfc_keyword: MUST
+        tests:
+          - "pure3270.validation.matrix.test_rfc2355::TestSection10BindUnbind::test_before_bind_restrictions"
+        status: partial
+      - id: "10.2"
+        text: "SEQ-NUMBER sequence wraps at 32767"
+        rfc_keyword: MUST
+        tests:
+          - "pure3270.validation.matrix.test_rfc2355::TestSection10BindUnbind::test_seq_number_wraps_at_32767"
+        status: partial
+  - section: "11"
+    title: SYSREQ and ATTN
+    requirements:
+      - id: "11.1"
+        text: "When SYSREQ not negotiated, ATTN generates IP (IAC IP)"
+        rfc_keyword: MAY
+        tests:
+          - "pure3270.validation.matrix.test_rfc2355::TestSection11Attn::test_attn_generates_ip"
+        status: tested
+  - section: "13"
+    title: Keep-Alive
+    requirements:
+      - id: "13.1"
+        text: "NOP keep-alive (IAC NOP)"
+        rfc_keyword: SHOULD
+        tests:
+          - "pure3270.validation.matrix.test_rfc2355::TestSection13KeepAlive::test_nop_keepalive"
+        status: tested
+      - id: "13.2"
+        text: "TIMING-MARK keep-alive (IAC DO TIMING-MARK)"
+        rfc_keyword: SHOULD
+        tests:
+          - "pure3270.validation.matrix.test_rfc2355::TestSection13KeepAlive::test_timing_mark_keepalive"
+        status: tested
+      - id: "13.3"
+        text: "TCP keepalive socket option"
+        rfc_keyword: MAY
+        tests:
+          - "pure3270.validation.matrix.test_rfc2355::TestSection13KeepAlive::test_tcp_keepalive"
+        status: tested
