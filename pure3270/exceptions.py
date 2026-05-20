@@ -76,8 +76,8 @@ class ConnectionError(Pure3270Error):
     pass
 
 
-class NegotiationError(Pure3270Error):
-    """Negotiation error with protocol-specific context."""
+class ProtocolError(Pure3270Error):
+    """Protocol error with protocol-specific context."""
 
     pass
 
@@ -85,14 +85,14 @@ class NegotiationError(Pure3270Error):
 # MacroError removed along with macro DSL support
 
 
-class ParseError(Pure3270Error):
-    """Parsing error with data-specific context."""
+class NegotiationError(ProtocolError):
+    """Negotiation error with protocol-specific context."""
 
     pass
 
 
-class ProtocolError(Pure3270Error):
-    """Protocol error with protocol-specific context."""
+class ParseError(ProtocolError):
+    """Parsing error with data-specific context."""
 
     pass
 
