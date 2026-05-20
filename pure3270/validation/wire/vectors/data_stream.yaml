@@ -1,0 +1,40 @@
+vectors:
+  - id: datastream-write-wcc
+    description: "3270 Write command with Write Control Character"
+    tags: [3270, data-stream, write]
+    server_sends:
+      - b: "f1c1c2c3"
+    expected_client_writes: []
+    assert_state: TN3270_MODE
+
+  - id: datastream-sba-sf
+    description: "Set Buffer Address + Start Field orders"
+    tags: [3270, data-stream, orders]
+    server_sends:
+      - b: "1140401df1c1c2c3"
+    expected_client_writes: []
+    assert_state: TN3270_MODE
+
+  - id: datastream-erase-write
+    description: "Erase/Write command"
+    tags: [3270, data-stream, erase-write]
+    server_sends:
+      - b: "f51140401dc1c2c3"
+    expected_client_writes: []
+    assert_state: TN3270_MODE
+
+  - id: datastream-ra-order
+    description: "Repeat to Address order"
+    tags: [3270, data-stream, order]
+    server_sends:
+      - b: "f1124040c8"
+    expected_client_writes: []
+    assert_state: TN3270_MODE
+
+  - id: datastream-ge-order
+    description: "Graphic Escape order"
+    tags: [3270, data-stream, order]
+    server_sends:
+      - b: "f108c1c2c3"
+    expected_client_writes: []
+    assert_state: TN3270_MODE

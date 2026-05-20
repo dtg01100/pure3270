@@ -1,0 +1,78 @@
+vectors:
+  - id: tn3270e-header-encode
+    description: "TN3270E 5-byte header with TN3270_DATA type, seq=1"
+    tags: [rfc2355, header]
+    server_sends: []
+    expected_client_writes: []
+    assert_encoding:
+      data_type: 0
+      request_flag: 0
+      response_flag: 0
+      seq_number: 1
+      expected_hex: "0000000001"
+
+  - id: tn3270e-header-scs-data
+    description: "TN3270E header with SCS_DATA type (0x01)"
+    tags: [rfc2355, header]
+    server_sends: []
+    expected_client_writes: []
+    assert_encoding:
+      data_type: 1
+      request_flag: 0
+      response_flag: 1
+      seq_number: 5
+      expected_hex: "0100010005"
+
+  - id: tn3270e-header-bind-image
+    description: "TN3270E header with BIND_IMAGE type (0x03)"
+    tags: [rfc2355, header, bind]
+    server_sends: []
+    expected_client_writes: []
+    assert_encoding:
+      data_type: 3
+      request_flag: 1
+      response_flag: 0
+      seq_number: 32767
+      expected_hex: "0301007fff"
+
+  - id: tn3270e-data-stream-ctl
+    description: "DATA-STREAM-CTL active: handler prepends TN3270E header to outgoing data"
+    tags: [rfc2355, data-stream-ctl]
+    use_data_stream_ctl: true
+    client_sends:
+      data: "c1c2c3"
+    expected_client_writes:
+      - exact: "0000010001c1c2c3"
+    assert_state: TN3270_MODE
+
+  - id: tn3270e-receive-tn3270-data
+    description: "Receive TN3270_DATA with valid 5-byte header"
+    tags: [rfc2355, receive]
+    server_sends:
+      - b: "000000000140c1c2c3"
+    expected_client_writes: []
+    assert_state: TN3270_MODE
+
+  - id: tn3270e-receive-scs-data
+    description: "Receive SCS_DATA with valid 5-byte header"
+    tags: [rfc2355, receive, scs]
+    server_sends:
+      - b: "010000000104f1f2f3f4"
+    expected_client_writes: []
+    assert_state: TN3270_MODE
+
+  - id: tn3270e-invalid-data-type
+    description: "Receive header with invalid data type (0xFF), should raise error"
+    tags: [rfc2355, error]
+    server_sends:
+      - b: "ff00000001c1c2c3"
+    expected_client_writes: []
+    assert_error: ProtocolError
+
+  - id: tn3270e-truncated-header
+    description: "Receive truncated header (3 bytes instead of 5), should handle gracefully"
+    tags: [rfc2355, error]
+    server_sends:
+      - b: "000001"
+    expected_client_writes: []
+    assert_error: None

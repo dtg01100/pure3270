@@ -1,0 +1,104 @@
+vectors:
+  - id: neg-will-tn3270e
+    description: "Server sends IAC WILL TN3270E, client should respond IAC DO TN3270E"
+    tags: [rfc2355, negotiation]
+    server_sends:
+      - b: "fffb28"
+    expected_client_writes:
+      - contains: "fffd28"
+    assert_state: NEGOTIATING
+
+  - id: neg-do-ttype
+    description: "Server sends IAC DO TTYPE, client should respond IAC WILL TTYPE"
+    tags: [rfc1091, negotiation]
+    server_sends:
+      - b: "fffd18"
+    expected_client_writes:
+      - contains: "fffb18"
+    assert_state: NEGOTIATING
+
+  - id: neg-wont-tn3270e
+    description: "Server sends IAC WONT TN3270E, client moves toward ASCII fallback"
+    tags: [rfc2355, negotiation, fallback]
+    server_sends:
+      - b: "fffc28"
+    expected_client_writes:
+      - contains: "fffe28"
+    assert_state: NEGOTIATING
+
+  - id: neg-device-type-send
+    description: "Server sends SB TN3270E DEVICE-TYPE SEND SE, client responds with terminal type IS"
+    tags: [rfc2355, negotiation, device-type]
+    server_sends:
+      - b: "fffa280102f0"
+    expected_client_writes:
+      - pattern: "fffa28.*f0"
+    assert_state: NEGOTIATING
+
+  - id: neg-functions-request
+    description: "Server sends SB TN3270E FUNCTIONS REQUEST SE, client responds with functions IS"
+    tags: [rfc2355, negotiation, functions]
+    server_sends:
+      - b: "fffa280202f0"
+    expected_client_writes:
+      - pattern: "fffa28.*f0"
+    assert_state: NEGOTIATING
+
+  - id: iac-escaped-data
+    description: "Data byte 0xFF in stream is escaped as IAC IAC"
+    tags: [rfc854, escaping]
+    server_sends:
+      - b: "ffff48656c6c6f"
+    expected_client_writes:
+      - contains: "fffd28"
+    assert_state: NEGOTIATING
+
+  - id: iac-nop-keepalive
+    description: "Server sends IAC NOP, client ignores it (no response required)"
+    tags: [rfc854, keepalive]
+    server_sends:
+      - b: "fff1"
+    expected_client_writes: []
+    assert_state: NEGOTIATING
+
+  - id: iac-ayt
+    description: "Server sends IAC AYT, client responds with IAC EC (or equivalent)"
+    tags: [rfc854, command]
+    server_sends:
+      - b: "fff6"
+    expected_client_writes: []
+    assert_state: NEGOTIATING
+
+  - id: full-negotiation-flow
+    description: "Complete negotiation: DO-SGA, DO-BINARY, WILL-EOR, WILL-TN3270E, DEVICE-TYPE, FUNCTIONS"
+    tags: [rfc2355, negotiation, full-flow]
+    server_sends:
+      - b: "fffd03fffd00fffb19fffb28"
+      - after: client_responds
+      - b: "fffa280102241f02f0"
+      - after: client_responds
+      - b: "fffa2802021d01f0"
+    expected_client_writes:
+      - contains: "fffb03"
+      - contains: "fffb00"
+      - contains: "fffd19"
+      - contains: "fffd28"
+    assert_state: NEGOTIATING
+
+  - id: telnet-binary-data
+    description: "BINARY option negotiated, data bytes pass through unmodified"
+    tags: [rfc856, binary]
+    server_sends:
+      - b: "fffd000102030405"
+    expected_client_writes:
+      - contains: "fffb00"
+    assert_state: NEGOTIATING
+
+  - id: telnet-sga-negotiation
+    description: "Server sends IAC DO SGA, client responds IAC WILL SGA"
+    tags: [rfc858, sga]
+    server_sends:
+      - b: "fffd03"
+    expected_client_writes:
+      - contains: "fffb03"
+    assert_state: NEGOTIATING

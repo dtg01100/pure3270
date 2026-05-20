@@ -1,0 +1,50 @@
+vectors:
+  - id: err-connection-reset
+    description: "Connection reset during read should raise ConnectionResetError"
+    tags: [error, connection]
+    server_sends:
+      - raises: ConnectionResetError
+    expected_client_writes: []
+    assert_error: ConnectionResetError
+
+  - id: err-read-timeout
+    description: "Read timeout should raise asyncio.TimeoutError"
+    tags: [error, timeout]
+    server_sends:
+      - raises: asyncio.TimeoutError
+    expected_client_writes: []
+    assert_error: TimeoutError
+
+  - id: err-malformed-iac
+    description: "IAC followed by non-command byte (0x00) should skip to next sync point"
+    tags: [error, protocol]
+    server_sends:
+      - b: "ff0048656c6c6f"
+    expected_client_writes: []
+    assert_state: NEGOTIATING
+
+  - id: err-truncated-sb
+    description: "SB without closing SE should eventually timeout or be handled"
+    tags: [error, protocol]
+    server_sends:
+      - b: "fffa2801"
+    expected_client_writes: []
+    assert_error: None
+
+  - id: err-garbage-input
+    description: "Complete garbage bytes fed to handler should not crash"
+    tags: [error, fuzz]
+    server_sends:
+      - b: "deadbeef010203040506070809"
+    expected_client_writes: []
+    assert_state: NEGOTIATING
+
+  - id: err-partial-telnet-sequence
+    description: "Partial IAC sequence split across reads should reassemble correctly"
+    tags: [error, protocol, segmentation]
+    server_sends:
+      - b: "ff"
+      - b: "fb28"
+    expected_client_writes:
+      - contains: "fffd28"
+    assert_state: NEGOTIATING
