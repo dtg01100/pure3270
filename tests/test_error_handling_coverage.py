@@ -17,6 +17,10 @@ import asyncio
 import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from pure3270.emulation.screen_buffer import ScreenBuffer
+from pure3270.protocol.negotiator import Negotiator
+from pure3270.protocol.tn3270_handler import TN3270Handler
+
 import pytest
 
 from pure3270.exceptions import Pure3270Error
@@ -27,9 +31,7 @@ from pure3270.protocol.exceptions import (
     ParseError,
     ProtocolError,
 )
-from pure3270.protocol.negotiator import Negotiator
 from pure3270.protocol.printer import PrinterSession
-from pure3270.protocol.tn3270_handler import TN3270Handler
 from pure3270.protocol.utils import IAC, SB, SE
 
 
@@ -53,34 +55,34 @@ class TestProtocolErrorRecovery:
     def test_protocol_error_isolation(self):
         """Test that protocol errors don't propagate unexpectedly."""
         # Create handler with mock components
-        mock_writer = MagicMock()
+        mock_reader = MagicMock(spec=asyncio.StreamReader)
+        mock_writer = MagicMock(spec=asyncio.StreamWriter)
         mock_writer.drain = AsyncMock()
 
-        # Handler creation should succeed
         handler = TN3270Handler(
+            reader=mock_reader,
+            writer=mock_writer,
             host="localhost",
             port=23,
             ssl_context=None,
             terminal_type="IBM-3278-2",
         )
-        handler.writer = mock_writer
 
         # Error in one operation shouldn't break handler
         assert handler is not None
 
     def test_negotiation_error_handling(self):
         """Test handling of negotiation errors."""
-        mock_writer = MagicMock()
+        mock_writer = MagicMock(spec=asyncio.StreamWriter)
         mock_writer.drain = AsyncMock()
 
         negotiator = Negotiator(
             writer=mock_writer,
             parser=None,
-            screen_buffer=MagicMock(),
-            handler=MagicMock(),
+            screen_buffer=MagicMock(spec=ScreenBuffer),
+            handler=MagicMock(spec=TN3270Handler),
         )
 
-        # Negotiation errors should be properly raised
         assert isinstance(negotiator, Negotiator)
 
 
@@ -141,29 +143,28 @@ class TestTimeoutScenarios:
     @pytest.mark.asyncio
     async def test_negotiation_timeout(self):
         """Test negotiation timeout handling."""
-        mock_writer = MagicMock()
+        mock_writer = MagicMock(spec=asyncio.StreamWriter)
         mock_writer.drain = AsyncMock()
 
         negotiator = Negotiator(
             writer=mock_writer,
             parser=None,
-            screen_buffer=MagicMock(),
-            handler=MagicMock(),
+            screen_buffer=MagicMock(spec=ScreenBuffer),
+            handler=MagicMock(spec=TN3270Handler),
         )
 
-        # Negotiation should handle timeouts gracefully
         assert negotiator._timeouts is not None
 
     def test_operation_timeout_configuration(self):
         """Test that timeouts are properly configured."""
-        mock_writer = MagicMock()
+        mock_writer = MagicMock(spec=asyncio.StreamWriter)
         mock_writer.drain = AsyncMock()
 
         negotiator = Negotiator(
             writer=mock_writer,
             parser=None,
-            screen_buffer=MagicMock(),
-            handler=MagicMock(),
+            screen_buffer=MagicMock(spec=ScreenBuffer),
+            handler=MagicMock(spec=TN3270Handler),
         )
 
         # Check timeout configuration
@@ -299,17 +300,16 @@ class TestErrorLogging:
         """Test that debug logging provides diagnostics."""
         caplog.set_level(logging.DEBUG)
 
-        mock_writer = MagicMock()
+        mock_writer = MagicMock(spec=asyncio.StreamWriter)
         mock_writer.drain = AsyncMock()
 
         negotiator = Negotiator(
             writer=mock_writer,
             parser=None,
-            screen_buffer=MagicMock(),
-            handler=MagicMock(),
+            screen_buffer=MagicMock(spec=ScreenBuffer),
+            handler=MagicMock(spec=TN3270Handler),
         )
 
-        # Negotiator should log debug info
         assert negotiator is not None
 
 

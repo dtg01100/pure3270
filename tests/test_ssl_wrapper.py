@@ -60,7 +60,7 @@ class TestSSLWrapper:
         with patch.object(ssl_wrapper, "create_context") as mock_create:
             # Mock create_context to actually set the context
             def mock_set_context():
-                ssl_wrapper.context = MagicMock()
+                ssl_wrapper.context = MagicMock(spec=ssl.SSLContext)
                 return ssl_wrapper.context
 
             mock_create.side_effect = mock_set_context

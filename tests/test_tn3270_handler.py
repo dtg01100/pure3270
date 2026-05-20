@@ -199,8 +199,8 @@ class TestTN3270Handler:
     @pytest.mark.asyncio
     async def test_is_connected(self, tn3270_handler):
         assert tn3270_handler.is_connected() is False
-        tn3270_handler.writer = MagicMock()
-        tn3270_handler.reader = MagicMock()
+        tn3270_handler.writer = MagicMock(spec=asyncio.StreamWriter)
+        tn3270_handler.reader = MagicMock(spec=asyncio.StreamReader)
         tn3270_handler.writer.is_closing = MagicMock(return_value=False)
         tn3270_handler.reader.at_eof = MagicMock(return_value=False)
         tn3270_handler._connected = True
@@ -208,8 +208,8 @@ class TestTN3270Handler:
 
     @pytest.mark.asyncio
     async def test_is_connected_writer_closing(self, tn3270_handler):
-        tn3270_handler.writer = MagicMock()
-        tn3270_handler.reader = MagicMock()
+        tn3270_handler.writer = MagicMock(spec=asyncio.StreamWriter)
+        tn3270_handler.reader = MagicMock(spec=asyncio.StreamReader)
         tn3270_handler.writer.is_closing = MagicMock(return_value=True)
         tn3270_handler.reader.at_eof = MagicMock(return_value=False)
         tn3270_handler._connected = True
@@ -217,8 +217,8 @@ class TestTN3270Handler:
 
     @pytest.mark.asyncio
     async def test_is_connected_reader_at_eof(self, tn3270_handler):
-        tn3270_handler.writer = MagicMock()
-        tn3270_handler.reader = MagicMock()
+        tn3270_handler.writer = MagicMock(spec=asyncio.StreamWriter)
+        tn3270_handler.reader = MagicMock(spec=asyncio.StreamReader)
         tn3270_handler.writer.is_closing = MagicMock(return_value=False)
         tn3270_handler.reader.at_eof = MagicMock(return_value=True)
         tn3270_handler._connected = True

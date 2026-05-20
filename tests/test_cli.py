@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from pure3270 import main
+from pure3270 import Session, main
 
 
 @pytest.mark.skipif(
@@ -14,7 +14,7 @@ from pure3270 import main
 def test_main_no_args(capsys, memory_limit_500mb):
     with patch("sys.argv", ["pure3270"]):
         with patch("pure3270.Session") as mock_session:
-            mock_instance = MagicMock()
+            mock_instance = MagicMock(spec=Session)
             mock_session.return_value = mock_instance
             mock_instance.connect.return_value = None
             # Mock input to immediately return 'quit' to exit the loop
@@ -32,7 +32,7 @@ def test_main_no_args(capsys, memory_limit_500mb):
 def test_main_with_host(capsys, caplog, preserve_root_logger, memory_limit_500mb):
     with patch("sys.argv", ["pure3270", "test.host", "--console"]):
         with patch("pure3270.Session") as mock_session:
-            mock_instance = MagicMock()
+            mock_instance = MagicMock(spec=Session)
             mock_session.return_value = mock_instance
             mock_instance.connect.return_value = None
             # Mock input to immediately return 'quit' to exit the loop
@@ -68,7 +68,7 @@ def test_main_with_script(capsys, caplog, preserve_root_logger, memory_limit_500
             mock_file.readlines.return_value = ["String(hello)", "key Enter"]
             mock_open.return_value.__enter__.return_value = mock_file
             with patch("pure3270.Session") as mock_session:
-                mock_instance = MagicMock()
+                mock_instance = MagicMock(spec=Session)
                 mock_session.return_value = mock_instance
                 mock_instance.connect.return_value = None
                 caplog.set_level(logging.INFO)
@@ -92,13 +92,13 @@ def test_main_restores_console_env(
     import os
     from unittest.mock import MagicMock, patch
 
-    from pure3270 import main
+    from pure3270 import Session, main
 
     # Scenario A: env var initially unset, main() called with --console -> should be restored to unset
     monkeypatch.delenv("PURE3270_CONSOLE_MODE", raising=False)
     with patch("sys.argv", ["pure3270", "example.host", "--console"]):
         with patch("pure3270.Session") as mock_session:
-            mock_instance = MagicMock()
+            mock_instance = MagicMock(spec=Session)
             mock_session.return_value = mock_instance
             mock_instance.connect.return_value = None
             with patch("builtins.input", return_value="quit"):
@@ -112,7 +112,7 @@ def test_main_restores_console_env(
     monkeypatch.setenv("PURE3270_CONSOLE_MODE", "true")
     with patch("sys.argv", ["pure3270", "example.host"]):
         with patch("pure3270.Session") as mock_session:
-            mock_instance = MagicMock()
+            mock_instance = MagicMock(spec=Session)
             mock_session.return_value = mock_instance
             mock_instance.connect.return_value = None
             with patch("builtins.input", return_value="quit"):

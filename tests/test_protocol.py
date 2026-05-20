@@ -10,6 +10,7 @@ warnings.filterwarnings("ignore", message=".*unclosed.*", category=ResourceWarni
 import asyncio
 import platform
 import ssl
+from ssl import SSLContext
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -166,7 +167,7 @@ class TestSSLWrapper:
     def test_create_context_verify(
         self, mock_ssl_context, ssl_wrapper, memory_limit_500mb
     ):
-        ctx = MagicMock()
+        ctx = MagicMock(spec=SSLContext)
         mock_ssl_context.return_value = ctx
         with patch("ssl.PROTOCOL_TLS_CLIENT"):
             ssl_wrapper.create_context()
@@ -182,7 +183,7 @@ class TestSSLWrapper:
         self, mock_ssl_context, ssl_wrapper, memory_limit_500mb
     ):
         wrapper = SSLWrapper(verify=False)
-        ctx = MagicMock()
+        ctx = MagicMock(spec=SSLContext)
         mock_ssl_context.return_value = ctx
         with patch("ssl.PROTOCOL_TLS_CLIENT"):
             wrapper.create_context()
@@ -206,7 +207,7 @@ class TestSSLWrapper:
         with patch.object(ssl_wrapper, "create_context") as mock_create:
             # Mock create_context to actually set the context
             def mock_set_context():
-                ssl_wrapper.context = MagicMock()
+                ssl_wrapper.context = MagicMock(spec=ssl.SSLContext)
                 return ssl_wrapper.context
 
             mock_create.side_effect = mock_set_context
@@ -226,7 +227,7 @@ class TestSSLWrapper:
 
         # Call create_context through wrapper
         with patch("ssl.SSLContext") as mock_ssl_context:
-            mock_context = MagicMock()
+            mock_context = MagicMock(spec=SSLContext)
             mock_ssl_context.return_value = mock_context
             context = ssl_wrapper.get_context()  # This will call create_context
 
@@ -437,8 +438,8 @@ class TestTN3270Handler:
 
     def test_is_connected(self, tn3270_handler, memory_limit_500mb):
         assert tn3270_handler.is_connected() is False
-        tn3270_handler.writer = MagicMock()
-        tn3270_handler.reader = MagicMock()
+        tn3270_handler.writer = MagicMock(spec=asyncio.StreamWriter)
+        tn3270_handler.reader = MagicMock(spec=asyncio.StreamReader)
         # Configure mock methods for liveness checks
         tn3270_handler.writer.is_closing.return_value = False
         tn3270_handler.reader.at_eof.return_value = False
@@ -1131,7 +1132,7 @@ class TestEORStripping:
         screen = ScreenBuffer()
         handler = TN3270Handler(None, None, screen)
         handler.parser = DataStreamParser(screen)
-        handler.negotiator = MagicMock()
+        handler.negotiator = MagicMock(spec=Negotiator)
         handler.negotiator._ascii_mode = False
         handler._process_telnet_stream = AsyncMock(
             return_value=(b"\xc1\xc2\x19", False)
@@ -1145,7 +1146,10 @@ class TestEORStripping:
     async def test_eor_strip_tn3270(self, mock_handler):
         """Test stripping trailing 0x19 in TN3270 mode."""
         mock_handler.reader = AsyncMock()
+        mock_handler.writer = AsyncMock()
         mock_handler.reader.read.return_value = b"\xc1\xc2\x19"  # Data + EOR
+        processed, _ = await mock_handler._process_telnet_stream(b"\xc1\xc2\x19")
+        assert processed == b"\xc1\xc2\x19"  # _process doesn't strip, receive_data does
         received = await mock_handler.receive_data()
         assert received == b"\xc1\xc2"  # Stripped
 
@@ -1155,22 +1159,28 @@ class TestEORStripping:
     @pytest.mark.asyncio
     async def test_eor_strip_multiple(self, mock_handler):
         """Test multiple trailing 0x19 stripped."""
-        mock_handler._process_telnet_stream.return_value = (b"\xc1\xc2\x19\x19", False)
+        mock_handler.reader = AsyncMock()
+        mock_handler.writer = AsyncMock()
+        mock_handler.reader.read.return_value = b"\xc1\xc2\x19\x19"
         received = await mock_handler.receive_data()
         assert received == b"\xc1\xc2"
 
     @pytest.mark.asyncio
     async def test_eor_no_strip_if_not_trailing(self, mock_handler):
         """Test 0x19 in middle not stripped."""
-        mock_handler._process_telnet_stream.return_value = (b"\xc1\x19\xc2", False)
+        mock_handler.reader = AsyncMock()
+        mock_handler.writer = AsyncMock()
+        mock_handler.reader.read.return_value = b"\xc1\x19\xc2"
         received = await mock_handler.receive_data()
         assert b"\x19" in received  # Not trailing
 
     @pytest.mark.asyncio
     async def test_eor_strip_ascii_mode(self, mock_handler):
         """Test in ASCII mode, but still strip if present (though rare)."""
+        mock_handler.reader = AsyncMock()
+        mock_handler.writer = AsyncMock()
         mock_handler.negotiator._ascii_mode = True
-        mock_handler._process_telnet_stream.return_value = (b"Hello\x19", False)
+        mock_handler.reader.read.return_value = b"Hello\x19"
         received = await mock_handler.receive_data()
         assert received == b"Hello"  # Stripped even in ASCII
 
@@ -1496,8 +1506,8 @@ class TestEORStripping:
     def mock_handler(self):
         screen = ScreenBuffer()
         handler = TN3270Handler(None, None, screen)
-        handler.parser = MagicMock()
-        handler.negotiator = MagicMock()
+        handler.parser = MagicMock(spec=DataStreamParser)
+        handler.negotiator = MagicMock(spec=Negotiator)
         handler.negotiator._ascii_mode = False
         # Set up handler state for negotiation validation
         handler._connected = True
