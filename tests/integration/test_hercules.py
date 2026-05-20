@@ -85,6 +85,7 @@ def parse_s3270_ascii_output(output: str) -> str:
     return "\n".join(lines)
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_s3270_available() -> None:
@@ -93,6 +94,7 @@ async def test_s3270_available() -> None:
     assert result.returncode == 0, "s3270 not found in PATH"
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_connection(session: AsyncSession) -> None:
@@ -100,6 +102,7 @@ async def test_connection(session: AsyncSession) -> None:
     assert session.connected is True
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_tn3270_negotiation(session: AsyncSession) -> None:
@@ -110,6 +113,7 @@ async def test_tn3270_negotiation(session: AsyncSession) -> None:
     assert len(session.screen.buffer) == 1920  # 24x80
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_screen_buffer_dimensions(session: AsyncSession) -> None:
@@ -120,6 +124,7 @@ async def test_screen_buffer_dimensions(session: AsyncSession) -> None:
     assert len(screen.buffer) == 24 * 80
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_screen_to_text(session: AsyncSession) -> None:
@@ -134,6 +139,7 @@ async def test_screen_to_text(session: AsyncSession) -> None:
     assert len(text) > 0
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_cursor_position(session: AsyncSession) -> None:
@@ -144,6 +150,7 @@ async def test_cursor_position(session: AsyncSession) -> None:
     assert 0 <= col < 80
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_enter_key(session: AsyncSession) -> None:
@@ -159,6 +166,7 @@ async def test_enter_key(session: AsyncSession) -> None:
     assert pos_after == pos_before, "Enter should not change cursor position (AID only)"
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_tab_key(session: AsyncSession) -> None:
@@ -172,6 +180,7 @@ async def test_tab_key(session: AsyncSession) -> None:
     assert pos_after != pos_before, "Tab should move cursor position"
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_string_input(session: AsyncSession) -> None:
@@ -188,6 +197,7 @@ async def test_string_input(session: AsyncSession) -> None:
     assert "TEST" in screen_text, "String input 'TEST' should appear on screen"
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_tab_key(session: AsyncSession) -> None:
@@ -198,6 +208,7 @@ async def test_tab_key(session: AsyncSession) -> None:
     assert session.connected is True
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_pf_keys(session: AsyncSession) -> None:
@@ -212,6 +223,7 @@ async def test_pf_keys(session: AsyncSession) -> None:
     assert session.connected is True
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_cursor_movement_keys(session: AsyncSession) -> None:
@@ -225,6 +237,7 @@ async def test_cursor_movement_keys(session: AsyncSession) -> None:
     assert session.connected is True
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_disconnect_reconnect(session: AsyncSession) -> None:
@@ -239,6 +252,7 @@ async def test_disconnect_reconnect(session: AsyncSession) -> None:
     assert session.connected
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_alphanumeric_input(session: AsyncSession) -> None:
@@ -248,6 +262,7 @@ async def test_alphanumeric_input(session: AsyncSession) -> None:
     assert session.connected is True
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_special_characters(session: AsyncSession) -> None:
@@ -257,6 +272,7 @@ async def test_special_characters(session: AsyncSession) -> None:
     assert session.connected is True
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_quick_keystrokes(session: AsyncSession) -> None:
@@ -273,6 +289,7 @@ async def test_quick_keystrokes(session: AsyncSession) -> None:
         assert session.connected is True, f"Connection lost after Enter {i + 1}"
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_mixed_operations(session: AsyncSession) -> None:
@@ -286,6 +303,7 @@ async def test_mixed_operations(session: AsyncSession) -> None:
     assert session.connected is True
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_s3270_connection_test() -> None:
@@ -299,6 +317,7 @@ async def test_s3270_connection_test() -> None:
     assert rc == 0, f"s3270 command failed: {stderr}"
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_s3270_enter_key() -> None:
@@ -315,6 +334,7 @@ async def test_s3270_enter_key() -> None:
     assert "data:" in stdout
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_s3270_string_input() -> None:
@@ -330,6 +350,7 @@ async def test_s3270_string_input() -> None:
     assert rc == 0
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_initial_screen_matches_s3270(session: AsyncSession) -> None:
@@ -373,6 +394,7 @@ async def test_initial_screen_matches_s3270(session: AsyncSession) -> None:
     assert 0 <= session.screen.cursor_col < 80
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_tso_login_matches_s3270(session: AsyncSession) -> None:
@@ -400,6 +422,7 @@ async def test_tso_login_matches_s3270(session: AsyncSession) -> None:
     assert non_space > 0, "Screen is empty after Enter on the about screen"
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_hercules_connection_established(session: AsyncSession) -> None:
@@ -419,6 +442,7 @@ async def test_hercules_connection_established(session: AsyncSession) -> None:
     print(f"Buffer size: {len(screen.buffer)}")
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_tn3270_protocol_compliance(session: AsyncSession) -> None:
@@ -442,6 +466,7 @@ async def test_tn3270_protocol_compliance(session: AsyncSession) -> None:
     print(f"Protocol: TN3270 (non-E)")
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_keystroke_injection(session: AsyncSession) -> None:
@@ -472,6 +497,7 @@ async def test_keystroke_injection(session: AsyncSession) -> None:
     print(f"Errors: {len(errors)}")
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_screen_update_after_input(session: AsyncSession) -> None:
@@ -492,6 +518,7 @@ async def test_screen_update_after_input(session: AsyncSession) -> None:
     print(f"After input: {len(final_text)} chars")
 
 
+@pytest.mark.integration
 @pytest.mark.hercules
 @pytest.mark.asyncio
 async def test_reference_implementation_comparison() -> None:
