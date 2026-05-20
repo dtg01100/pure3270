@@ -77,8 +77,25 @@ def main() -> int:
                 sec.details.append(f"  FAIL: {v.id} - {result.get('error', 'unknown')}")
 
     if args.all or args.acceptance:
+        from pure3270.validation.acceptance.runner import ScenarioRunner
+        from pure3270.validation.acceptance.scenarios import create_default_scenarios
+
+        scenarios = create_default_scenarios()
         sec = report.add_section("Acceptance Scenarios")
-        sec.details.append("  Not yet implemented")
+        sec.total = len(scenarios)
+        runner = ScenarioRunner(target="mock")
+        for scenario in scenarios:
+            result = asyncio.run(runner.run_scenario(scenario))
+            if result["passed"]:
+                sec.passed += 1
+                sec.details.append(
+                    f"  PASS: {scenario.name} ({result['steps_passed']}/{result['steps_total']} steps)"
+                )
+            else:
+                sec.failed += 1
+                sec.details.append(
+                    f"  FAIL: {scenario.name} - {result.get('error', 'unknown')}"
+                )
 
     if args.all or args.fuzz:
         sec = report.add_section("Fuzzing")
