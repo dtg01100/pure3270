@@ -1,6 +1,8 @@
 import asyncio
 import struct
 import threading
+from dataclasses import dataclass, field
+from enum import Enum
 from typing import Any, Awaitable, Callable, Optional
 
 from pure3270.protocol.utils import (
@@ -22,18 +24,45 @@ from pure3270.protocol.utils import (
 )
 
 
+class TLSMode(Enum):
+    NONE = "none"
+    IMMEDIATE = "immediate"
+    NEGOTIATED = "negotiated"
+
+
+@dataclass
+class ServerConfig:
+    host: str = "127.0.0.1"
+    port: int = 0
+    scenario: str = "enhanced"
+    terminal_type: str = "IBM-3278-2-E"
+    lu_name: str = "LUNAME01"
+    functions_mode: str = "send"
+    tls_mode: TLSMode = TLSMode.NONE
+
+
 class TN3270MockServer:
     def __init__(
         self,
-        host: str = "127.0.0.1",
-        port: int = 0,  # 0 means auto-assign available port
+        config: ServerConfig | None = None,
+        host: str | None = None,
+        port: int | None = None,
         scenario: Optional[
             Callable[[asyncio.StreamReader, asyncio.StreamWriter], Awaitable[None]]
         ] = None,
     ) -> None:
-        self.host = host
-        self.port = port
-        self.scenario = scenario if scenario is not None else self.default_scenario
+        if config is not None:
+            self.config = config
+            self.host = config.host
+            self.port = config.port
+            self._scenario_name = config.scenario
+            self.scenario = scenario if scenario is not None else self.default_scenario
+        else:
+            self.config = ServerConfig(host=host or "127.0.0.1", port=port or 0)
+            self.host = host if host is not None else "127.0.0.1"
+            self.port = port if port is not None else 0
+            self._scenario_name = "enhanced"
+            self.scenario = scenario if scenario is not None else self.default_scenario
         self._server: Optional[asyncio.AbstractServer] = None
         self._client_tasks: list[asyncio.Task[Any]] = []
         self._server_ready: threading.Event = threading.Event()
@@ -161,19 +190,28 @@ class EnhancedTN3270MockServer(TN3270MockServer):
     semantics. Future improvements can generate valid 3270 orders.
     """
 
-    terminal_type: str = "IBM-3278-2-E"
+    terminal_type: str | None = "IBM-3278-2-E"
+    requested_device_type: str | None = None
 
     def __init__(
         self,
-        host: str = "127.0.0.1",
-        port: int = 0,  # 0 means auto-assign available port
+        config: ServerConfig | None = None,
+        host: str | None = None,
+        port: int | None = None,
         requested_device_type: str | None = None,
-        functions_mode: str = "request",
+        functions_mode: str | None = None,
+        terminal_type: str | None = None,
     ) -> None:
-        super().__init__(host=host, port=port)
-        # Optional: request a specific device type first to exercise REQUEST path
-        self.requested_device_type = requested_device_type
-        self.functions_mode = functions_mode
+        if config is not None:
+            super().__init__(config=config)
+            self.requested_device_type = requested_device_type or config.terminal_type
+            self.functions_mode = functions_mode or config.functions_mode
+            self.terminal_type = terminal_type or config.terminal_type
+        else:
+            super().__init__(host=host, port=port)
+            self.requested_device_type = requested_device_type
+            self.functions_mode = functions_mode if functions_mode is not None else "request"
+            self.terminal_type = terminal_type if terminal_type is not None else "IBM-3278-2-E"
 
     async def handle_client(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -450,10 +488,38 @@ async def negotiation_failure_scenario(
     writer.close()
 
 
-# To run with a custom scenario, pass scenario=negotiation_failure_scenario
+def main() -> None:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="TN3270 Mock Server")
+    parser.add_argument(
+        "--type",
+        "-t",
+        default="enhanced",
+        choices=["enhanced", "echo", "negotiation_failure"],
+        help="Scenario type",
+    )
+    parser.add_argument("--port", "-p", type=int, default=0, help="Port (0 for auto)")
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument(
+        "--list", "-l", action="store_true", help="List available scenarios"
+    )
+    args = parser.parse_args()
+
+    if args.list:
+        print("Available scenarios:")
+        for name in ["enhanced", "echo", "negotiation_failure"]:
+            print(f"  {name}")
+        return
+
+    config = ServerConfig(
+        host=args.host,
+        port=args.port,
+        scenario=args.type,
+    )
+    server = TN3270MockServer(config=config)
+    asyncio.run(server.start())
+
 
 if __name__ == "__main__":
-    # Example: python mock_server/tn3270_mock_server.py
-    # For custom scenario: server = TN3270MockServer(scenario=negotiation_failure_scenario)
-    server = TN3270MockServer()
-    asyncio.run(server.start())
+    main()
