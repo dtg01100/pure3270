@@ -121,7 +121,7 @@ STEPS: list[dict] = [
     {"name": "Macro prohibition", "cmd": ["python", "tools/forbid_macros.py"]},
     {
         "name": "validation",
-        "cmd": ["python", "-m", "pytest", "pure3270/validation/", "-q"],
+        "cmd": ["python", "-m", "pure3270.validation", "--ci", "--skip-slow"],
     },
 ]
 

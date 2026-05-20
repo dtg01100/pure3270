@@ -9,6 +9,7 @@ Usage:
 import argparse
 import asyncio
 import json
+import subprocess
 import sys
 import time
 
@@ -99,7 +100,31 @@ def main() -> int:
 
     if args.all or args.fuzz:
         sec = report.add_section("Fuzzing")
-        sec.details.append("  Not yet implemented")
+        try:
+            fuzz_result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "pytest",
+                    "pure3270/validation/fuzz/",
+                    "-q",
+                    "--tb=short",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=120,
+            )
+            if fuzz_result.returncode == 0:
+                sec.passed = 1
+                sec.total = 1
+            else:
+                sec.failed = 1
+                sec.total = 1
+                sec.details.append(fuzz_result.stdout.strip()[-500:])
+        except subprocess.TimeoutExpired:
+            sec.skipped = 1
+            sec.total = 1
+            sec.details.append("  Fuzzing timed out (skipped)")
 
     report.end_time = time.time()
 

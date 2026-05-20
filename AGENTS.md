@@ -10,6 +10,8 @@
 - **Lint code**: `python -m flake8 pure3270/`
 - **Type check**: `python -m mypy pure3270/`
 - **Pre-commit**: `pre-commit run --all-files`
+- **Validation suite**: `python -m pure3270.validation --all`
+- **CI validation (fast)**: `python -m pure3270.validation --ci --skip-slow`
 
 ### Installation
 - **Install package**: `pip install -e .` (3s)
