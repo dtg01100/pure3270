@@ -491,12 +491,14 @@ async def negotiation_failure_scenario(
 def main() -> None:
     import argparse
 
+    from mock_server.scenarios import SCENARIOS
+
     parser = argparse.ArgumentParser(description="TN3270 Mock Server")
     parser.add_argument(
         "--type",
         "-t",
         default="enhanced",
-        choices=["enhanced", "echo", "negotiation_failure"],
+        choices=list(SCENARIOS.keys()),
         help="Scenario type",
     )
     parser.add_argument("--port", "-p", type=int, default=0, help="Port (0 for auto)")
@@ -508,7 +510,7 @@ def main() -> None:
 
     if args.list:
         print("Available scenarios:")
-        for name in ["enhanced", "echo", "negotiation_failure"]:
+        for name in SCENARIOS.keys():
             print(f"  {name}")
         return
 
@@ -517,7 +519,7 @@ def main() -> None:
         port=args.port,
         scenario=args.type,
     )
-    server = TN3270MockServer(config=config)
+    server = SCENARIOS[args.type](config=config)
     asyncio.run(server.start())
 
 
