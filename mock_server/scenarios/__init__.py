@@ -9,6 +9,7 @@ from mock_server.scenarios.menu_nvt import MenuNVTServer
 from mock_server.scenarios.menu_sscp_lu import MenuSSCP_LUServer
 from mock_server.scenarios.menu_tn3270e import MenuTN3270EServer
 from mock_server.scenarios.negotiation_failure import NegotiationFailureServer
+from mock_server.scenarios.tn3270_only import TN3270OnlyServer
 from mock_server.tn3270_mock_server import TN3270MockServer
 
 SCENARIOS: dict[str, Type[TN3270MockServer]] = {
@@ -20,4 +21,5 @@ SCENARIOS: dict[str, Type[TN3270MockServer]] = {
     "menu_tn3270e": MenuTN3270EServer,
     "menu_sscp_lu": MenuSSCP_LUServer,
     "enhanced": MenuTN3270EServer,
+    "tn3270_only": TN3270OnlyServer,
 }
