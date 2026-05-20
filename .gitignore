@@ -487,6 +487,9 @@ s3270_*.sh
 test_*.sh
 *.s3270
 
+# Git worktrees
+.worktrees/
+
 # CLIO (managed automatically)
 .clio/*
 !.clio/instructions.md
