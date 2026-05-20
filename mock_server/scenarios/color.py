@@ -6,7 +6,6 @@ from pure3270.protocol.utils import (
     WILL,
     SB,
     SE,
-    WILL,
     TELOPT_EOR,
     TELOPT_TN3270E,
     TN3270_DATA,
