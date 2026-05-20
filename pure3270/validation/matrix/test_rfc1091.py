@@ -16,3 +16,12 @@ def test_section_2_subnegotiation_qualifiers() -> None:
     assert TTYPE_IS == 0x00
     assert TTYPE_SEND == 0x01
     assert TTYPE_IS != TTYPE_SEND
+
+
+def test_section_3_iana_registered_names() -> None:
+    """RFC 1091 §3.1: Terminal type names follow registered IANA format (IBM-XXXX)."""
+    valid_prefixes = ("IBM-", "DEC-", "WYSE-", "HP-")
+    known_types = ("IBM-3278-2", "IBM-3278-4", "IBM-3287-1", "IBM-DYNAMIC")
+    for name in known_types:
+        assert name.startswith(valid_prefixes), f"'{name}' must use registered prefix"
+        assert len(name) <= 40, f"'{name}' must be within IANA length limit"

@@ -38,48 +38,57 @@ sections:
       - id: "5.1"
         text: "NOP (0xF1) - No operation"
         rfc_keyword: MUST
-        tests: []
-        status: not_applicable
+        tests:
+          - "pure3270.validation.matrix.test_rfc854::test_section_5_nop"
+        status: tested
       - id: "5.2"
         text: "DM (0xF2) - Data Mark (part of SYNCH)"
         rfc_keyword: MUST
-        tests: []
-        status: not_applicable
+        tests:
+          - "pure3270.validation.matrix.test_rfc854::test_section_5_dm"
+        status: tested
       - id: "5.3"
         text: "BRK (0xF3) - Break"
         rfc_keyword: MAY
-        tests: []
-        status: not_applicable
+        tests:
+          - "pure3270.validation.matrix.test_rfc854::test_section_5_brk"
+        status: tested
       - id: "5.4"
         text: "IP (0xF4) - Interrupt Process"
         rfc_keyword: MAY
-        tests: []
-        status: not_applicable
+        tests:
+          - "pure3270.validation.matrix.test_rfc854::test_section_5_ip"
+        status: tested
       - id: "5.5"
         text: "AO (0xF5) - Abort Output"
         rfc_keyword: MAY
-        tests: []
-        status: not_applicable
+        tests:
+          - "pure3270.validation.matrix.test_rfc854::test_section_5_ao"
+        status: tested
       - id: "5.6"
         text: "AYT (0xF6) - Are You There"
         rfc_keyword: MAY
-        tests: []
-        status: not_applicable
+        tests:
+          - "pure3270.validation.matrix.test_rfc854::test_section_5_ayt"
+        status: tested
       - id: "5.7"
         text: "EC (0xF7) - Erase Character"
         rfc_keyword: MAY
-        tests: []
-        status: not_applicable
+        tests:
+          - "pure3270.validation.matrix.test_rfc854::test_section_5_ec"
+        status: tested
       - id: "5.8"
         text: "EL (0xF8) - Erase Line"
         rfc_keyword: MAY
-        tests: []
-        status: not_applicable
+        tests:
+          - "pure3270.validation.matrix.test_rfc854::test_section_5_el"
+        status: tested
       - id: "5.9"
         text: "GA (0xF9) - Go Ahead"
         rfc_keyword: MAY
-        tests: []
-        status: not_applicable
+        tests:
+          - "pure3270.validation.matrix.test_rfc854::test_section_5_ga"
+        status: tested
   - section: "10"
     title: NVT Printer and Display
     requirements:

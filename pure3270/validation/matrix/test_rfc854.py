@@ -69,11 +69,58 @@ def test_section_4_iac_iac_escaping() -> None:
     assert result == b"Hello\xffWorld"
 
 
-def test_section_5_ayt() -> None:
-    """RFC 854 §5: AYT (Are You There) should be recognized."""
-    from pure3270.protocol.utils import send_iac
+def test_section_5_nop() -> None:
+    """RFC 854 §5.1: NOP (0xF1) - No operation."""
+    assert NOP == 0xF1
+    assert bytes([IAC, NOP]) == b"\xff\xf1"
 
+
+def test_section_5_dm() -> None:
+    """RFC 854 §5.2: DM (0xF2) - Data Mark (part of SYNCH)."""
+    assert DM == 0xF2
+    assert bytes([IAC, DM]) == b"\xff\xf2"
+
+
+def test_section_5_brk() -> None:
+    """RFC 854 §5.3: BRK (0xF3) - Break."""
+    assert BRK == 0xF3
+    assert bytes([IAC, BRK]) == b"\xff\xf3"
+
+
+def test_section_5_ip() -> None:
+    """RFC 854 §5.4: IP (0xF4) - Interrupt Process."""
+    assert IP == 0xF4
+    assert bytes([IAC, IP]) == b"\xff\xf4"
+
+
+def test_section_5_ao() -> None:
+    """RFC 854 §5.5: AO (0xF5) - Abort Output."""
+    assert AO == 0xF5
+    assert bytes([IAC, AO]) == b"\xff\xf5"
+
+
+def test_section_5_ayt() -> None:
+    """RFC 854 §5.6: AYT (0xF6) - Are You There."""
     assert AYT == 0xF6
+    assert bytes([IAC, AYT]) == b"\xff\xf6"
+
+
+def test_section_5_ec() -> None:
+    """RFC 854 §5.7: EC (0xF7) - Erase Character."""
+    assert EC == 0xF7
+    assert bytes([IAC, EC]) == b"\xff\xf7"
+
+
+def test_section_5_el() -> None:
+    """RFC 854 §5.8: EL (0xF8) - Erase Line."""
+    assert EL == 0xF8
+    assert bytes([IAC, EL]) == b"\xff\xf8"
+
+
+def test_section_5_ga() -> None:
+    """RFC 854 §5.9: GA (0xF9) - Go Ahead."""
+    assert GA == 0xF9
+    assert bytes([IAC, GA]) == b"\xff\xf9"
 
 
 def test_section_10_nvt_default() -> None:

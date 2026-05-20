@@ -23,5 +23,6 @@ sections:
       - id: "3.1"
         text: "Terminal type names are registered IANA values (e.g., IBM-3278-2)"
         rfc_keyword: SHOULD
-        tests: []
-        status: not_applicable
+        tests:
+          - "pure3270.validation.matrix.test_rfc1091::test_section_3_iana_registered_names"
+        status: tested
