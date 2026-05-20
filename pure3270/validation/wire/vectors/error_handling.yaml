@@ -48,3 +48,43 @@ vectors:
     expected_client_writes:
       - contains: "fffd28"
     assert_state: NEGOTIATING
+
+  - id: err-buffer-overflow-attempt
+    description: "Excessive data in single buffer should not cause overflow"
+    tags: [error, buffer]
+    server_sends:
+      - b: "ffffff"
+    expected_client_writes: []
+    assert_state: NEGOTIATING
+
+  - id: err-null-bytes
+    description: "Server sends null bytes, handler should not crash"
+    tags: [error, protocol]
+    server_sends:
+      - b: "000000"
+    expected_client_writes: []
+    assert_state: NEGOTIATING
+
+  - id: err-iac-se-in-wrong-place
+    description: "IAC SE (0xf0) appearing outside subnegotiation should be handled"
+    tags: [error, protocol]
+    server_sends:
+      - b: "fff0"
+    expected_client_writes: []
+    assert_state: NEGOTIATING
+
+  - id: err-all-zeros
+    description: "All zero bytes should be handled gracefully"
+    tags: [error, fuzz]
+    server_sends:
+      - b: "00000000000000000000"
+    expected_client_writes: []
+    assert_state: NEGOTIATING
+
+  - id: err-all-ones
+    description: "All 0xFF bytes should be handled gracefully"
+    tags: [error, fuzz]
+    server_sends:
+      - b: "ffffffffffffffffffff"
+    expected_client_writes: []
+    assert_state: NEGOTIATING

@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Any, Optional
 from unittest.mock import AsyncMock
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 
 from pure3270.emulation.screen_buffer import ScreenBuffer
 from pure3270.protocol.tn3270_handler import HandlerState, TN3270Handler

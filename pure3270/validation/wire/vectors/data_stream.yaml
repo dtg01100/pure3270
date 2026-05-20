@@ -38,3 +38,91 @@ vectors:
       - b: "f108c1c2c3"
     expected_client_writes: []
     assert_state: TN3270_MODE
+
+  - id: datastream-ic-order
+    description: "Insert Cursor order moves cursor to address specified by preceding SBA"
+    tags: [3270, data-stream, order, cursor]
+    server_sends:
+      - b: "f111404003"
+    expected_client_writes: []
+    assert_state: TN3270_MODE
+
+  - id: datastream-pt-order
+    description: "Program Tab moves cursor to next tab stop"
+    tags: [3270, data-stream, order, cursor]
+    server_sends:
+      - b: "f105"
+    expected_client_writes: []
+    assert_state: TN3270_MODE
+
+  - id: datastream-ra-repeat
+    description: "Repeat to Address with character to repeat"
+    tags: [3270, data-stream, order]
+    server_sends:
+      - b: "f1c2d3d4"
+    expected_client_writes: []
+    assert_state: TN3270_MODE
+
+  - id: datastream-sfe-start-field-extended
+    description: "Start Field Extended with extended attribute byte"
+    tags: [3270, data-stream, order, extended-attr]
+    server_sends:
+      - b: "f11140402e01f0c1c2c3"
+    expected_client_writes: []
+    assert_state: TN3270_MODE
+
+  - id: datastream-mf-modify-field
+    description: "Modify Field orders change field attributes"
+    tags: [3270, data-stream, order]
+    server_sends:
+      - b: "f11140402c01"
+    expected_client_writes: []
+    assert_state: TN3270_MODE
+
+  - id: datastream-eua-erase-unprotected
+    description: "Erase Unprotected to Address"
+    tags: [3270, data-stream, order]
+    server_sends:
+      - b: "f111404012"
+    expected_client_writes: []
+    assert_state: TN3270_MODE
+
+  - id: datastream-fmk-field-mark
+    description: "Field Mark order marks a field boundary"
+    tags: [3270, data-stream, order]
+    server_sends:
+      - b: "f11140401e"
+    expected_client_writes: []
+    assert_state: TN3270_MODE
+
+  - id: datastream-ew-extended-write
+    description: "Extended Write command"
+    tags: [3270, data-stream, write]
+    server_sends:
+      - b: "f71140401df1c1c2c3"
+    expected_client_writes: []
+    assert_state: TN3270_MODE
+
+  - id: datastream-ewa-extended-write-alt
+    description: "Erase/Write Alternate command"
+    tags: [3270, data-stream, write, alternate]
+    server_sends:
+      - b: "f6"
+    expected_client_writes: []
+    assert_state: TN3270_MODE
+
+  - id: datastream-read-partition
+    description: "Read Partition query command"
+    tags: [3270, data-stream, partition]
+    server_sends:
+      - b: "f1114040020103"
+    expected_client_writes: []
+    assert_state: TN3270_MODE
+
+  - id: datastream-load-program
+    description: "Load Programmed Symbols with PS payload"
+    tags: [3270, data-stream, ps]
+    server_sends:
+      - b: "f11140400b01020304"
+    expected_client_writes: []
+    assert_state: TN3270_MODE

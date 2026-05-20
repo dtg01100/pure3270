@@ -150,6 +150,10 @@ validate_*.py
 !tools/screen_buffer_regression_test.py
 !test_server_harness.py
 
+# Allow validation suite test files
+!pure3270/validation/wire/test_vectors.py
+!pure3270/validation/fuzz/test_protocol.py
+
 # Now ignore general test patterns (after exceptions)
 test_*.py
 *_test.py

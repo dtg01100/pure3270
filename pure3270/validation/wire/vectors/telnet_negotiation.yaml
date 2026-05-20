@@ -101,3 +101,85 @@ vectors:
     expected_client_writes:
       - contains: "fffb03"
     assert_state: NEGOTIATING
+
+  - id: iac-brk
+    description: "Server sends IAC BRK (Break), client handles without crash"
+    tags: [rfc854, command]
+    server_sends:
+      - b: "fff3"
+    expected_client_writes: []
+    assert_state: NEGOTIATING
+
+  - id: iac-ip
+    description: "Server sends IAC IP (Interrupt Process), client handles without crash"
+    tags: [rfc854, command]
+    server_sends:
+      - b: "fff4"
+    expected_client_writes: []
+    assert_state: NEGOTIATING
+
+  - id: iac-ao
+    description: "Server sends IAC AO (Abort Output), client handles without crash"
+    tags: [rfc854, command]
+    server_sends:
+      - b: "fff5"
+    expected_client_writes: []
+    assert_state: NEGOTIATING
+
+  - id: iac-ec
+    description: "Server sends IAC EC (Erase Character), client handles without crash"
+    tags: [rfc854, command]
+    server_sends:
+      - b: "fff7"
+    expected_client_writes: []
+    assert_state: NEGOTIATING
+
+  - id: iac-el
+    description: "Server sends IAC EL (Erase Line), client handles without crash"
+    tags: [rfc854, command]
+    server_sends:
+      - b: "fff8"
+    expected_client_writes: []
+    assert_state: NEGOTIATING
+
+  - id: iac-ga
+    description: "Server sends IAC GA (Go Ahead), client handles without crash"
+    tags: [rfc854, command]
+    server_sends:
+      - b: "fff9"
+    expected_client_writes: []
+    assert_state: NEGOTIATING
+
+  - id: neg-do-timing-mark
+    description: "Server sends IAC DO TIMING-MARK, client responds IAC WILL TIMING-MARK or WONT"
+    tags: [rfc854, timing-mark, keepalive]
+    server_sends:
+      - b: "fffd06"
+    expected_client_writes:
+      - contains: "fffb06"
+    assert_state: NEGOTIATING
+
+  - id: neg-wont-timing-mark
+    description: "Server sends IAC WONT TIMING-MARK, client acknowledges"
+    tags: [rfc854, timing-mark]
+    server_sends:
+      - b: "fffc06"
+    expected_client_writes: []
+    assert_state: NEGOTIATING
+
+  - id: neg-dont-ttype
+    description: "Server sends IAC DONT TTYPE, client acknowledges with WONT"
+    tags: [rfc1091, negotiation]
+    server_sends:
+      - b: "fffe18"
+    expected_client_writes:
+      - contains: "fffc18"
+    assert_state: NEGOTIATING
+
+  - id: iac-dm-sync
+    description: "Server sends IAC DM (Data Mark) as part of SYNCH mechanism"
+    tags: [rfc854, synch]
+    server_sends:
+      - b: "fff2"
+    expected_client_writes: []
+    assert_state: NEGOTIATING

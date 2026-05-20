@@ -2,6 +2,8 @@ import base64
 import json
 from pathlib import Path
 
+import pytest
+
 from pure3270.emulation.ebcdic import translate_ebcdic_to_ascii
 
 
@@ -12,6 +14,9 @@ def _load_archive_json(name: str) -> dict:
 
 def test_translate_pure3270_archived_raw_bytes():
     """Decode pure3270 archived raw bytes and ensure translation contains expected phrases."""
+    archive_path = Path("archives/test-artifacts-20251109/pure3270_script_results.json")
+    if not archive_path.exists():
+        pytest.skip(f"Archive file not found: {archive_path}")
     data = _load_archive_json("pure3270_script_results.json")
     # Find any screenshot with raw_base64
     raw_entry = None

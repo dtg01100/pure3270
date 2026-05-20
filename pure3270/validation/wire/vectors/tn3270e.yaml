@@ -76,3 +76,81 @@ vectors:
       - b: "000001"
     expected_client_writes: []
     assert_error: None
+
+  - id: tn3270e-device-type-connect
+    description: "Server sends DEVICE-TYPE CONNECT, client responds with IS + lu_name"
+    tags: [rfc2355, device-type, connect]
+    server_sends:
+      - b: "fffa280201f0"
+    expected_client_writes:
+      - pattern: "fffa28"
+    assert_state: NEGOTIATING
+
+  - id: tn3270e-device-type-associate
+    description: "Server sends DEVICE-TYPE ASSOCIATE with LU name, client responds"
+    tags: [rfc2355, device-type, associate]
+    server_sends:
+      - b: "fffa2802035444433031373032f0"
+    expected_client_writes:
+      - pattern: "fffa28"
+    assert_state: NEGOTIATING
+
+  - id: tn3270e-device-type-reject
+    description: "Server sends DEVICE-TYPE REJECT, client handles rejection"
+    tags: [rfc2355, device-type, reject]
+    server_sends:
+      - b: "fffa280205f0"
+    expected_client_writes: []
+    assert_state: NEGOTIATING
+
+  - id: tn3270e-nvt-data
+    description: "Receive NVT-DATA data type (0x05) in TN3270E header"
+    tags: [rfc2355, nvt, receive]
+    server_sends:
+      - b: "050000000048656c6c6f"
+    expected_client_writes: []
+    assert_state: NEGOTIATING
+
+  - id: tn3270e-response-data
+    description: "Receive RESPONSE data type (0x02)"
+    tags: [rfc2355, response]
+    server_sends:
+      - b: "0200000001"
+    expected_client_writes: []
+    assert_state: TN3270_MODE
+
+  - id: tn3270e-unbind
+    description: "Receive UNBIND data type (0x04)"
+    tags: [rfc2355, unbind]
+    server_sends:
+      - b: "0400000001"
+    expected_client_writes: []
+    assert_state: TN3270_MODE
+
+  - id: tn3270e-sscp-lu-data
+    description: "Receive SSCP-LU-DATA data type (0x07)"
+    tags: [rfc2355, sscp-lu]
+    server_sends:
+      - b: "0700000001"
+    expected_client_writes: []
+    assert_state: TN3270_MODE
+
+  - id: tn3270e-print-eoj
+    description: "Receive PRINT-EOJ data type (0x08)"
+    tags: [rfc2355, printer]
+    server_sends:
+      - b: "0800000001"
+    expected_client_writes: []
+    assert_state: TN3270_MODE
+
+  - id: tn3270e-seq-wrap
+    description: "TN3270E sequence number wraps at 32767"
+    tags: [rfc2355, header, sequence]
+    server_sends: []
+    expected_client_writes: []
+    assert_encoding:
+      data_type: 0
+      request_flag: 0
+      response_flag: 0
+      seq_number: 32768
+      expected_hex: "00000000008000"

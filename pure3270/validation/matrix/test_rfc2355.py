@@ -130,7 +130,7 @@ class TestSection3ResponseFlags:
 class TestSection7DeviceType:
     """RFC 2355 §7.1: DEVICE-TYPE subnegotiation."""
 
-    @pytest.mark.asyncio  # type: ignore[misc]
+    @pytest.mark.asyncio
     async def test_connect_command(self, screen_buffer: ScreenBuffer) -> None:
         """§7.1.2: CONNECT sets _connected_lu_name."""
         from unittest.mock import AsyncMock
@@ -161,7 +161,7 @@ class TestSection7DeviceType:
 
         assert TN3270E_ASSOCIATE == 0x04
 
-    @pytest.mark.asyncio  # type: ignore[misc]
+    @pytest.mark.asyncio
     async def test_reject_subnegotiation(self, screen_buffer: ScreenBuffer) -> None:
         """§7.1.5: REJECT sets _device_type_rejected and _rejection_reason."""
         from unittest.mock import AsyncMock
