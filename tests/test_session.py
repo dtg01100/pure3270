@@ -12,6 +12,8 @@ import pytest
 
 from pure3270 import AsyncSession, Session
 from pure3270.emulation.screen_buffer import ScreenBuffer
+from pure3270.protocol.data_stream import DataStreamParser
+from pure3270.protocol.tn3270_handler import TN3270Handler
 from pure3270.session import ConnectionError, SessionError
 
 
@@ -210,7 +212,7 @@ class TestSession:
 
         # Mock the async session creation and connect method
         with patch("pure3270.session.AsyncSession") as mock_async_session_class:
-            mock_async_session = MagicMock()
+            mock_async_session = MagicMock(spec=AsyncSession)
             mock_async_session.connect = AsyncMock()
             mock_async_session.connected = True
             mock_async_session_class.return_value = mock_async_session
@@ -246,8 +248,9 @@ class TestSession:
         session._transport = mock_transport
 
         # Mock handler
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.connect = AsyncMock()
+        mock_handler.parser = MagicMock(spec=DataStreamParser)
 
         def _set_flag(value, propagate=True):
             mock_handler.negotiated_tn3270e = value
@@ -274,7 +277,7 @@ class TestSession:
         session = AsyncSession(host="127.0.0.1", port=23, allow_fallback=True)
 
         # Mock handler that fails negotiation but supports fallback
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.connect = AsyncMock(side_effect=Exception("Negotiation failed"))
         mock_handler.set_ascii_mode = MagicMock()
 
@@ -292,13 +295,14 @@ class TestSession:
 
         # Mock the real connection path to avoid actual network calls
         with patch("asyncio.open_connection") as mock_open_connection:
-            mock_reader = MagicMock()
-            mock_writer = MagicMock()
+            mock_reader = MagicMock(spec=asyncio.StreamReader)
+            mock_writer = MagicMock(spec=asyncio.StreamWriter)
             mock_open_connection.return_value = (mock_reader, mock_writer)
 
             # Mock TN3270Handler creation
             with patch("pure3270.session.TN3270Handler") as mock_handler_class:
-                mock_handler_instance = MagicMock()
+                mock_handler_instance = MagicMock(spec=TN3270Handler)
+                mock_handler_instance.parser = MagicMock(spec=DataStreamParser)
                 mock_handler_instance.connect = AsyncMock(
                     side_effect=Exception("Negotiation failed")
                 )
@@ -331,13 +335,13 @@ class TestSession:
 
         # Mock the real connection path to avoid actual network calls
         with patch("asyncio.open_connection") as mock_open_connection:
-            mock_reader = MagicMock()
-            mock_writer = MagicMock()
+            mock_reader = MagicMock(spec=asyncio.StreamReader)
+            mock_writer = MagicMock(spec=asyncio.StreamWriter)
             mock_open_connection.return_value = (mock_reader, mock_writer)
 
             # Mock TN3270Handler creation
             with patch("pure3270.session.TN3270Handler") as mock_handler_class:
-                mock_handler_instance = MagicMock()
+                mock_handler_instance = MagicMock(spec=TN3270Handler)
                 mock_handler_instance.connect = AsyncMock(
                     side_effect=Exception("Negotiation failed")
                 )
@@ -351,7 +355,7 @@ class TestSession:
         session = Session()
 
         # Mock async session
-        mock_async_session = MagicMock()
+        mock_async_session = MagicMock(spec=AsyncSession)
         mock_async_session.close = AsyncMock()
         session._async_session = mock_async_session
 
@@ -366,7 +370,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.close = AsyncMock()
         session._handler = mock_handler
 
@@ -413,7 +417,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.send_data = AsyncMock()
         session._handler = mock_handler
 
@@ -427,7 +431,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler that fails twice then succeeds
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.send_data = AsyncMock(
             side_effect=[
                 OSError("Connection failed"),
@@ -447,7 +451,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler that always fails
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.send_data = AsyncMock(side_effect=OSError("Connection failed"))
         session._handler = mock_handler
 
@@ -462,7 +466,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.receive_data = AsyncMock(return_value=b"response data")
         mock_handler.parser = None  # Disable parser to avoid complex mocking
         session._handler = mock_handler
@@ -479,7 +483,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler that times out twice then succeeds
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.receive_data = AsyncMock(
             side_effect=[asyncio.TimeoutError(), asyncio.TimeoutError(), b"data"]
         )
@@ -496,7 +500,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler that always times out
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.receive_data = AsyncMock(side_effect=asyncio.TimeoutError())
         session._handler = mock_handler
 
@@ -511,9 +515,9 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler and parser
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.receive_data = AsyncMock(return_value=b"raw data")
-        mock_parser = MagicMock()
+        mock_parser = MagicMock(spec=DataStreamParser)
         mock_parser.parse = AsyncMock()
         mock_handler.parser = mock_parser
         session._handler = mock_handler
@@ -529,7 +533,7 @@ class TestSession:
         session = Session()
 
         # Mock async session
-        mock_async_session = MagicMock()
+        mock_async_session = MagicMock(spec=AsyncSession)
         mock_async_session.connected = True
         mock_async_session.send = AsyncMock()
         session._async_session = mock_async_session
@@ -550,7 +554,7 @@ class TestSession:
         session = Session()
 
         # Mock async session
-        mock_async_session = MagicMock()
+        mock_async_session = MagicMock(spec=AsyncSession)
         mock_async_session.connected = True
         mock_async_session.read = AsyncMock(return_value=b"response")
         session._async_session = mock_async_session
@@ -565,7 +569,7 @@ class TestSession:
         session = Session()
 
         # Mock async session
-        mock_async_session = MagicMock()
+        mock_async_session = MagicMock(spec=AsyncSession)
         mock_async_session.connected = True
         mock_async_session.read = AsyncMock(return_value=b"response")
         session._async_session = mock_async_session
@@ -626,7 +630,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler and transport
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.close = AsyncMock()
         session._handler = mock_handler
 
@@ -645,7 +649,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.receive_data = AsyncMock(
             side_effect=[b"data1", b"data2", asyncio.TimeoutError()]
         )
@@ -671,7 +675,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.send_data = AsyncMock()
         session._handler = mock_handler
 
@@ -721,7 +725,7 @@ class TestSession:
         assert session.get_aid() is None
 
         # With async session
-        mock_async_session = MagicMock()
+        mock_async_session = MagicMock(spec=AsyncSession)
         mock_async_session.get_aid = MagicMock(return_value=0xF1)
         session._async_session = mock_async_session
 
@@ -744,7 +748,7 @@ class TestSession:
         assert session.connected is False
 
         # With async session
-        mock_async_session = MagicMock()
+        mock_async_session = MagicMock(spec=AsyncSession)
         mock_async_session.connected = True
         session._async_session = mock_async_session
 
@@ -763,7 +767,7 @@ class TestSession:
 
         # Reset and test handler-based connection
         session._connected = False
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.connected = True
         session._handler = mock_handler
         assert session.connected is True
@@ -786,7 +790,7 @@ class TestSession:
         assert buffer.cols == 80
 
         # After mock connection
-        mock_async_session = MagicMock()
+        mock_async_session = MagicMock(spec=AsyncSession)
         mock_screen_buffer = ScreenBuffer(12, 40)
         mock_async_session.screen_buffer = mock_screen_buffer
         session._async_session = mock_async_session
@@ -821,7 +825,7 @@ class TestSession:
         assert session.tn3270e_mode is False
 
         # With handler but no negotiated_tn3270e
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
 
         def _set_flag(value, propagate=True):
             mock_handler.negotiated_tn3270e = value
@@ -848,7 +852,7 @@ class TestSession:
         assert session.tn3270e_mode is False
 
         # With async session
-        mock_async_session = MagicMock()
+        mock_async_session = MagicMock(spec=AsyncSession)
         mock_async_session.tn3270_mode = True
         session._async_session = mock_async_session
         assert session.tn3270e_mode is True
@@ -984,7 +988,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler and screen buffer
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.send_data = AsyncMock()
         mock_handler.receive_data = AsyncMock(return_value=b"response")
         session._handler = mock_handler
@@ -995,7 +999,7 @@ class TestSession:
         )
 
         # Mock parser for response reading
-        mock_parser = MagicMock()
+        mock_parser = MagicMock(spec=DataStreamParser)
         mock_parser.parse = AsyncMock()
         mock_handler.parser = mock_parser
 
@@ -1010,7 +1014,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.send_data = AsyncMock()
         session._handler = mock_handler
 
@@ -1076,7 +1080,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.send_data = AsyncMock()
         session._handler = mock_handler
 
@@ -1090,7 +1094,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.send_data = AsyncMock()
         session._handler = mock_handler
 
@@ -1346,7 +1350,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler for sys_req
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.send_sysreq_command = AsyncMock()
         session._handler = mock_handler
 
@@ -1401,7 +1405,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.send_sysreq_command = AsyncMock()
         session._handler = mock_handler
 
@@ -1620,7 +1624,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.send_break = AsyncMock()
         session._handler = mock_handler
 
@@ -1634,7 +1638,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.send_data = AsyncMock()
         session._handler = mock_handler
 
@@ -1648,7 +1652,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.send_data = AsyncMock()
         session._handler = mock_handler
 
@@ -1662,7 +1666,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        session._handler = MagicMock()
+        session._handler = MagicMock(spec=TN3270Handler)
 
         # Mock the method that would be called
         with patch.object(session, "string") as mock_string:
@@ -1675,7 +1679,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        session._handler = MagicMock()
+        session._handler = MagicMock(spec=TN3270Handler)
 
         # Mock subprocess
         with patch("asyncio.create_subprocess_shell") as mock_subprocess:
@@ -1694,7 +1698,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler but ensure connected returns False
-        session._handler = MagicMock()
+        session._handler = MagicMock(spec=TN3270Handler)
         session._handler.connected = False
 
         result = await session.query("All")
@@ -1707,7 +1711,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        session._handler = MagicMock()
+        session._handler = MagicMock(spec=TN3270Handler)
 
         await session.set("option", "value")
 
@@ -1719,7 +1723,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        session._handler = MagicMock()
+        session._handler = MagicMock(spec=TN3270Handler)
 
         # Just test it doesn't crash (prints text)
         await session.print_text("test")
@@ -1730,7 +1734,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        session._handler = MagicMock()
+        session._handler = MagicMock(spec=TN3270Handler)
 
         # Just test it doesn't crash
         await session.snap()
@@ -1741,7 +1745,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        session._handler = MagicMock()
+        session._handler = MagicMock(spec=TN3270Handler)
 
         # Just test it doesn't crash (prints screen content)
         await session.show()
@@ -1752,7 +1756,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        session._handler = MagicMock()
+        session._handler = MagicMock(spec=TN3270Handler)
 
         # Just test it doesn't crash
         await session.trace(True)
@@ -1763,7 +1767,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        session._handler = MagicMock()
+        session._handler = MagicMock(spec=TN3270Handler)
 
         # Just test it doesn't crash
         await session.transfer("test_file")
@@ -1774,7 +1778,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        session._handler = MagicMock()
+        session._handler = MagicMock(spec=TN3270Handler)
 
         # Just test it doesn't crash
         await session.source("test_file")
@@ -1785,7 +1789,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        session._handler = MagicMock()
+        session._handler = MagicMock(spec=TN3270Handler)
 
         # Use ASCII mode for simple testing
         session.screen_buffer._ascii_mode = True
@@ -1802,7 +1806,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        session._handler = MagicMock()
+        session._handler = MagicMock(spec=TN3270Handler)
 
         with pytest.raises(Exception, match="Script failed: test error"):
             await session.fail("test error")
@@ -1813,7 +1817,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        session._handler = MagicMock()
+        session._handler = MagicMock(spec=TN3270Handler)
 
         with patch.object(session, "insert_text") as mock_insert:
             await session.compose("test")
@@ -1826,7 +1830,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        session._handler = MagicMock()
+        session._handler = MagicMock(spec=TN3270Handler)
 
         await session.cookie("name=value")
 
@@ -1838,7 +1842,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        session._handler = MagicMock()
+        session._handler = MagicMock(spec=TN3270Handler)
 
         # Mock asyncio loop and input
         with (
@@ -1862,7 +1866,7 @@ class TestSession:
 
         # Test connect with None parameters
         with patch("pure3270.session.AsyncSession") as mock_async_session_class:
-            mock_async_session = MagicMock()
+            mock_async_session = MagicMock(spec=AsyncSession)
             mock_async_session.connect = AsyncMock()
             mock_async_session_class.return_value = mock_async_session
 
@@ -1929,7 +1933,7 @@ class TestSession:
 
         # Reset and test handler-based connection
         session.connected = False
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.connected = True
         session._handler = mock_handler
         assert session.connected is True
@@ -2071,7 +2075,7 @@ class TestSession:
         assert session.get_trace_events() == []
 
         # With async session
-        mock_async_session = MagicMock()
+        mock_async_session = MagicMock(spec=AsyncSession)
         mock_async_session.get_trace_events = MagicMock(
             return_value=["event1", "event2"]
         )
@@ -2237,13 +2241,13 @@ class TestSession:
         assert session.tn3270e_mode is False
 
         # With async session but no handler
-        mock_async_session = MagicMock()
+        mock_async_session = MagicMock(spec=AsyncSession)
         mock_async_session.tn3270_mode = False
         session._async_session = mock_async_session
         assert session.tn3270e_mode is False
 
         # With handler negotiated TN3270E
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
 
         def _set_flag_lambda(v, propagate=True):
             mock_handler._negotiated_tn3270e = v
@@ -2268,7 +2272,7 @@ class TestSession:
         assert session.handler is None
 
         # Set handler
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         session.handler = mock_handler
         assert session.handler is mock_handler
 
@@ -2305,7 +2309,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.send_data = AsyncMock()
         mock_handler.receive_data = AsyncMock(return_value=b"data")
         session._handler = mock_handler
@@ -2327,7 +2331,7 @@ class TestSession:
         session = Session()
 
         # Mock async session
-        mock_async_session = MagicMock()
+        mock_async_session = MagicMock(spec=AsyncSession)
         session._async_session = mock_async_session
 
         # Test various s3270 methods
@@ -2352,7 +2356,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler for methods that need it
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.send_data = AsyncMock()
         session._handler = mock_handler
 
@@ -2496,7 +2500,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.send_data = AsyncMock()
         session._handler = mock_handler
 
@@ -2576,7 +2580,7 @@ class TestSession:
         session.screen_buffer.select_light_pen = MagicMock(return_value=0xF1)
 
         # Mock handler
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.send_data = AsyncMock()
         session._handler = mock_handler
 
@@ -2650,7 +2654,7 @@ class TestSession:
         session = Session()
 
         # Mock async session
-        mock_async_session = MagicMock()
+        mock_async_session = MagicMock(spec=AsyncSession)
         session._async_session = mock_async_session
 
         session.set_field_attribute(0, "color", 1)
@@ -2679,7 +2683,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.send_sysreq_command = AsyncMock()
         session._handler = mock_handler
 
@@ -2697,7 +2701,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.send_break = AsyncMock()
         session._handler = mock_handler
 
@@ -2711,7 +2715,7 @@ class TestSession:
         session = AsyncSession()
 
         # Mock handler
-        mock_handler = MagicMock()
+        mock_handler = MagicMock(spec=TN3270Handler)
         mock_handler.send_soh_message = AsyncMock()
         session._handler = mock_handler
 
