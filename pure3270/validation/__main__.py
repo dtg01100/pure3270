@@ -59,7 +59,7 @@ def main() -> int:
     if args.all or args.rfc_matrix:
         matrix = RfcMatrix()
         matrix.load_all()
-        build_rfc_matrix_report = build_rfc_report(matrix, report)
+        build_rfc_report(matrix, report)
 
     if args.all or args.wire:
         sec = report.add_section("Wire-Level Vectors")
