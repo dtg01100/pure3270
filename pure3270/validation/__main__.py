@@ -7,6 +7,7 @@ Usage:
 """
 
 import argparse
+import asyncio
 import json
 import sys
 import time
@@ -62,8 +63,18 @@ def main() -> int:
         build_rfc_report(matrix, report)
 
     if args.all or args.wire:
+        from pure3270.validation.wire.runner import load_vectors, run_vector
+
+        vectors = load_vectors()
         sec = report.add_section("Wire-Level Vectors")
-        sec.details.append("  Not yet implemented")
+        sec.total = len(vectors)
+        for v in vectors:
+            result = asyncio.run(run_vector(v))
+            if result["passed"]:
+                sec.passed += 1
+            else:
+                sec.failed += 1
+                sec.details.append(f"  FAIL: {v.id} - {result.get('error', 'unknown')}")
 
     if args.all or args.acceptance:
         sec = report.add_section("Acceptance Scenarios")
