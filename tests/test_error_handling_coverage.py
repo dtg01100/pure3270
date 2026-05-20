@@ -17,12 +17,9 @@ import asyncio
 import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from pure3270.emulation.screen_buffer import ScreenBuffer
-from pure3270.protocol.negotiator import Negotiator
-from pure3270.protocol.tn3270_handler import TN3270Handler
-
 import pytest
 
+from pure3270.emulation.screen_buffer import ScreenBuffer
 from pure3270.exceptions import Pure3270Error
 from pure3270.protocol.data_stream import DataStreamParser
 from pure3270.protocol.exceptions import (
@@ -31,7 +28,9 @@ from pure3270.protocol.exceptions import (
     ParseError,
     ProtocolError,
 )
+from pure3270.protocol.negotiator import Negotiator
 from pure3270.protocol.printer import PrinterSession
+from pure3270.protocol.tn3270_handler import TN3270Handler
 from pure3270.protocol.utils import IAC, SB, SE
 
 

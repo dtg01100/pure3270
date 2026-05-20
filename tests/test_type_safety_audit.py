@@ -112,7 +112,8 @@ class TypeIgnoreAuditor:
         report.append("\n" + "=" * 80)
         report.append("RECOMMENDATIONS:")
         report.append("=" * 80)
-        report.append("""
+        report.append(
+            """
 1. [arg-type] AsyncMock issues:
    - Create proper type stubs for async mocks
    - Use AsyncMock with proper return_value types
@@ -137,7 +138,8 @@ class TypeIgnoreAuditor:
    - Ensure parent class types are correct
    - Use @override decorator (Python 3.12+)
    - Check Liskov Substitution Principle compliance
-""")
+"""
+        )
 
         return "\n".join(report)
 
