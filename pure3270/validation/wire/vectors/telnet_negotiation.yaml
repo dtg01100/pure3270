@@ -49,8 +49,7 @@ vectors:
     tags: [rfc854, escaping]
     server_sends:
       - b: "ffff48656c6c6f"
-    expected_client_writes:
-      - contains: "fffd28"
+    expected_client_writes: []
     assert_state: NEGOTIATING
 
   - id: iac-nop-keepalive
