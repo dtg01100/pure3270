@@ -1,22 +1,19 @@
-"""
-Scenario: Negotiation Failure
-Simulates a client connecting to the TN3270 mock server and failing negotiation due to unsupported device type.
-"""
+"""Negotiation failure scenario - refuses EOR."""
 
 import asyncio
+
+from pure3270.protocol.utils import IAC, TELOPT_EOR, WONT
 
 from mock_server.tn3270_mock_server import TN3270MockServer
 
 
-async def run() -> None:
-    server = TN3270MockServer()
-    await server.start()
-    print("Negotiation failure scenario started.")
-    # Simulate client sending unsupported device type
-    await asyncio.sleep(1)
-    await server.stop()
-    print("Negotiation failure scenario completed.")
+class NegotiationFailureServer(TN3270MockServer):
+    """Server that refuses EOR - tests error handling."""
 
-
-if __name__ == "__main__":
-    asyncio.run(run())
+    async def handle_client(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        writer.write(bytes([IAC, WONT, TELOPT_EOR]))
+        await writer.drain()
+        await asyncio.sleep(0.1)
+        writer.close()
