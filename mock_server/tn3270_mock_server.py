@@ -407,8 +407,14 @@ class EnhancedTN3270MockServer(TN3270MockServer):
             _send(header + payload, "TN3270E 3270-DATA")
             _send(bytes([IAC, TELOPT_EOR]), "IAC EOR")
             await writer.drain()
-            # Allow client to finish any pending negotiation responses before closing.
-            await asyncio.sleep(0.2)
+            # Keep connection alive by waiting for client input or close
+            try:
+                while True:
+                    data = await asyncio.wait_for(reader.read(4096), timeout=30)
+                    if not data:
+                        break
+            except asyncio.TimeoutError:
+                pass
         except GeneratorExit:
             # Loop shutting down while awaiting read; suppress noisy RuntimeError
             print("[MOCK] GeneratorExit during handle_client (loop closing)")

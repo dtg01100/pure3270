@@ -16,13 +16,50 @@ class ScenarioRunner:
         self.target = target
         self._mock_server: Any = None
         self._server_port: Optional[int] = None
-        self._async_session: Optional[Any] = None
+        self._async_session: Any = None
         self._last_screen: Optional[str] = None
+        self._last_handler_state: Any = None
 
     async def _start_mock_server(self, step: StepKind.StartServer) -> None:
-        from mock_server.tn3270_mock_server import EnhancedTN3270MockServer
+        from mock_server.tn3270_mock_server import (
+            EnhancedTN3270MockServer,
+            TN3270MockServer,
+        )
+        from pure3270.protocol.utils import (
+            DO,
+            DONT,
+            IAC,
+            SB,
+            SE,
+            TELOPT_BINARY,
+            TELOPT_EOR,
+            WILL,
+            WONT,
+        )
 
-        self._mock_server = EnhancedTN3270MockServer(host="127.0.0.1", port=0)
+        if step.handler == "basic":
+
+            async def basic_scenario(
+                reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+            ) -> None:
+                # Minimal negotiation without TN3270E
+                async def _send(data: bytes, label: str) -> None:
+                    writer.write(data)
+                    await writer.drain()
+                    print(f"[MOCK] {label}: {data!r}")
+
+                await _send(bytes([IAC, WILL, TELOPT_EOR]), "WILL EOR")
+                await asyncio.sleep(0.1)
+                await _send(bytes([IAC, WILL, TELOPT_BINARY]), "WILL BINARY")
+                # Keep connection alive for the scenario to complete
+                await asyncio.sleep(30)
+                writer.close()
+
+            self._mock_server = TN3270MockServer(
+                host="127.0.0.1", port=0, scenario=basic_scenario
+            )
+        else:
+            self._mock_server = EnhancedTN3270MockServer(host="127.0.0.1", port=0)
         await self._mock_server._start_in_loop()
         self._server_port = self._mock_server.port
         await asyncio.sleep(0.05)
@@ -58,7 +95,11 @@ class ScenarioRunner:
     async def _run_assert_state(self, step: StepKind.AssertState) -> None:
         assert self._async_session is not None
         handler = self._async_session._handler
-        state_name = handler._current_state if handler else None
+        state_name: Any = None
+        if handler:
+            state_name = handler._current_state
+        elif self._last_handler_state is not None:
+            state_name = self._last_handler_state
         if state_name != step.state:
             raise AssertionError(f"Expected state {step.state}, got {state_name}")
 
@@ -82,7 +123,12 @@ class ScenarioRunner:
 
     async def _run_disconnect(self, step: StepKind.Disconnect) -> None:
         if self._async_session is not None:
-            await self._async_session.close()
+            handler = self._async_session._handler
+            if handler:
+                await self._async_session.close()
+                self._last_handler_state = handler._current_state
+            else:
+                await self._async_session.close()
 
     async def run_scenario(self, scenario: Scenario) -> dict[str, Any]:
         result: dict[str, Any] = {
