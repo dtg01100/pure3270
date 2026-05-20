@@ -523,3 +523,8 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+# Backward compatibility alias - must be at end to avoid circular imports
+from mock_server.scenarios.menu_tn3270e import MenuTN3270EServer
+EnhancedTN3270MockServer = MenuTN3270EServer
