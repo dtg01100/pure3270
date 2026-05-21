@@ -1,0 +1,334 @@
+"""
+Centralized constants for pure3270 to eliminate duplication across modules.
+
+This module re-exports all common constants from protocol.utils and adds
+unique constants not present there (data stream commands, AID codes,
+extended attributes, etc.).
+"""
+
+# Re-export all RFC protocol constants from the source of truth
+from .protocol.utils import (  # noqa: F401
+    AO,
+    AYT,
+    BIND_IMAGE,
+    BREAK,
+    BRK,
+    DEFAULT_TERMINAL_MODEL,
+    DM,
+    DO,
+    DONT,
+    EC,
+    EL,
+    EOR,
+    GA,
+    IAC,
+    IP,
+    NEW_ENV_ESC,
+    NEW_ENV_INFO,
+    NEW_ENV_IS,
+    NEW_ENV_SEND,
+    NEW_ENV_USERVAR,
+    NEW_ENV_VALUE,
+    NEW_ENV_VAR,
+    NOP,
+    NVT_DATA,
+    PRINT_EOJ,
+    PRINTER_STATUS_DATA_TYPE,
+    QUERY_REPLY_CHARACTER_SET,
+    QUERY_REPLY_CHARACTERISTICS,
+    QUERY_REPLY_COLOR,
+    QUERY_REPLY_DBCS_ASIA,
+    QUERY_REPLY_DBCS_EUROPE,
+    QUERY_REPLY_DBCS_MIDDLE_EAST,
+    QUERY_REPLY_DDM,
+    QUERY_REPLY_DEVICE_TYPE,
+    QUERY_REPLY_EXTENDED_ATTRIBUTES,
+    QUERY_REPLY_FIELD_OUTLINING,
+    QUERY_REPLY_FORMAT_STORAGE,
+    QUERY_REPLY_GRAPHICS,
+    QUERY_REPLY_GRID,
+    QUERY_REPLY_HIGHLIGHTING,
+    QUERY_REPLY_IMPLICIT_PARTITION,
+    QUERY_REPLY_LINE_TYPE,
+    QUERY_REPLY_OEM_AUXILIARY_DEVICE,
+    QUERY_REPLY_PORTABLE_CHARACTER_SET,
+    QUERY_REPLY_PROCEDURE,
+    QUERY_REPLY_PRODUCT_DEFINED_DATA,
+    QUERY_REPLY_REPLY_MODES,
+    QUERY_REPLY_RPQ_NAMES,
+    QUERY_REPLY_SEGMENT,
+    QUERY_REPLY_SF,
+    QUERY_REPLY_SUMMARY,
+    QUERY_REPLY_TRANSPARENCY,
+    QUERY_REPLY_USABLE_AREA,
+    REQUEST,
+    RESPONSE,
+    SB,
+    SCS_DATA,
+    SE,
+    SNA_RESPONSE,
+    SNA_RESPONSE_DATA_TYPE,
+    SNA_SENSE_CODE_INVALID_FORMAT,
+    SNA_SENSE_CODE_INVALID_REQUEST,
+    SNA_SENSE_CODE_INVALID_SEQUENCE,
+    SNA_SENSE_CODE_LU_BUSY,
+    SNA_SENSE_CODE_NO_RESOURCES,
+    SNA_SENSE_CODE_NOT_SUPPORTED,
+    SNA_SENSE_CODE_SESSION_FAILURE,
+    SNA_SENSE_CODE_STATE_ERROR,
+    SNA_SENSE_CODE_SUCCESS,
+    SSCP_LU_DATA,
+    TELOPT_3270REGIME,
+    TELOPT_AUTHENTICATION,
+    TELOPT_BINARY,
+    TELOPT_BIND_UNIT,
+    TELOPT_BM,
+    TELOPT_CHARSET,
+    TELOPT_COM_PORT_OPTION,
+    TELOPT_DET,
+    TELOPT_ECHO,
+    TELOPT_ENCRYPT,
+    TELOPT_EOR,
+    TELOPT_EXOPL,
+    TELOPT_KERBEROS_5,
+    TELOPT_LFLOW,
+    TELOPT_LINEMODE,
+    TELOPT_LOGOUT,
+    TELOPT_NAMS,
+    TELOPT_NAOCRD,
+    TELOPT_NAOFFD,
+    TELOPT_NAOHTD,
+    TELOPT_NAOHTS,
+    TELOPT_NAOL,
+    TELOPT_NAOLFD,
+    TELOPT_NAOP,
+    TELOPT_NAOVTD,
+    TELOPT_NAOVTS,
+    TELOPT_NAWS,
+    TELOPT_NEW_ENVIRON,
+    TELOPT_OLD_ENVIRON,
+    TELOPT_OPAQUE_STRUCTURE,
+    TELOPT_OUTMRK,
+    TELOPT_PRAGMA_HEARTBEAT,
+    TELOPT_PRAGMA_LOGON,
+    TELOPT_RCP,
+    TELOPT_RCTE,
+    TELOPT_RSP,
+    TELOPT_SGA,
+    TELOPT_SLE,
+    TELOPT_SNDLOC,
+    TELOPT_SSPI_LOGON,
+    TELOPT_START_TLS,
+    TELOPT_STATUS,
+    TELOPT_SUPDUP,
+    TELOPT_SUPDUPOUTPUT,
+    TELOPT_TERMINAL_LOCATION,
+    TELOPT_TM,
+    TELOPT_TN3270E,
+    TELOPT_TSPEED,
+    TELOPT_TTYLOC,
+    TELOPT_TTYPE,
+    TELOPT_TUID,
+    TELOPT_X3PAD,
+    TELOPT_XASCII,
+    TELOPT_XAUTH,
+    TELOPT_XDISPLOC,
+    TN3270_DATA,
+    TN3270E,
+    TN3270E_ASSOCIATE,
+    TN3270E_BIND_IMAGE,
+    TN3270E_CONNECT,
+    TN3270E_DATA_STREAM_CTL,
+    TN3270E_DATA_TYPES,
+    TN3270E_DEVICE_TYPE,
+    TN3270E_FUNCTIONS,
+    TN3270E_IBM_3179_2,
+    TN3270E_IBM_3196_A1,
+    TN3270E_IBM_3270PC_G,
+    TN3270E_IBM_3270PC_GA,
+    TN3270E_IBM_3270PC_GX,
+    TN3270E_IBM_3278_2,
+    TN3270E_IBM_3278_2_E,
+    TN3270E_IBM_3278_3,
+    TN3270E_IBM_3278_4,
+    TN3270E_IBM_3278_4_E,
+    TN3270E_IBM_3278_5,
+    TN3270E_IBM_3279_2,
+    TN3270E_IBM_3279_2_E,
+    TN3270E_IBM_3279_3,
+    TN3270E_IBM_3279_4,
+    TN3270E_IBM_3279_5,
+    TN3270E_IBM_DYNAMIC,
+    TN3270E_IS,
+    TN3270E_NEW_APPL,
+    TN3270E_QUERY,
+    TN3270E_QUERY_IS,
+    TN3270E_QUERY_SEND,
+    TN3270E_REJECT,
+    TN3270E_REQ_ERR_COND_CLEARED,
+    TN3270E_REQUEST,
+    TN3270E_RESPONSE_MODE,
+    TN3270E_RESPONSE_MODE_BIND_IMAGE,
+    TN3270E_RESPONSE_MODE_IS,
+    TN3270E_RESPONSE_MODE_SEND,
+    TN3270E_RESPONSES,
+    TN3270E_RSF_ALWAYS_RESPONSE,
+    TN3270E_RSF_ERROR_RESPONSE,
+    TN3270E_RSF_NO_RESPONSE,
+    TN3270E_RSF_REQUEST,
+    TN3270E_SCS_CTL_CODES,
+    TN3270E_SEND,
+    TN3270E_SYSREQ,
+    TN3270E_SYSREQ_ATTN,
+    TN3270E_SYSREQ_BREAK,
+    TN3270E_SYSREQ_CANCEL,
+    TN3270E_SYSREQ_CLEAR,
+    TN3270E_SYSREQ_LOGOFF,
+    TN3270E_SYSREQ_MESSAGE_TYPE,
+    TN3270E_SYSREQ_PRINT,
+    TN3270E_SYSREQ_RESTART,
+    TN3270E_SYSREQ_TEST,
+    TN3270E_USABLE_AREA,
+    TN3270E_USABLE_AREA_IS,
+    TN3270E_USABLE_AREA_SEND,
+    TTYPE_IS,
+    TTYPE_SEND,
+    UNBIND,
+    WILL,
+    WONT,
+    get_screen_size,
+    get_supported_terminal_models,
+    get_terminal_capabilities,
+    is_valid_terminal_model,
+)
+
+# 3270 Data Stream Commands (handled at stream start), per x3270 3270ds.h
+CMD_W = 0x01
+CMD_EW = 0x05
+CMD_EWA = 0x0D
+CMD_WSF = 0x11
+SNA_CMD_W = 0xF1
+SNA_CMD_EW = 0xF5
+
+# 3270 in-stream Orders (after WCC), per x3270 3270ds.h
+PT = 0x05  # Program Tab
+GE = 0x08  # Graphic Escape
+SBA = 0x11  # Set Buffer Address
+EUA = 0x12  # Erase Unprotected to Address
+IC = 0x13  # Insert Cursor
+SF = 0x1D  # Start Field
+SA = 0x28  # Set Attribute
+SFE = 0x29  # Start Field Extended
+MF = 0x2C  # Modify Field
+RA = 0x3C  # Repeat to Address
+
+# Structured fields are handled via WSF, not as in-stream orders
+WRITE_STRUCTURED_FIELD_PRINTER = 0x13  # Printer WSF placeholder
+PRINTER_STATUS_SF = 0x01  # Example: Structured Field type for printer status
+STRUCTURED_FIELD = 0x88  # SF identifier value used in our tolerant parsing
+
+# Misc constants used by printer/status handling
+SCS_CTL_CODES = 0x04
+EOA = 0x0D
+SOH = 0x01
+DATA_STREAM_CTL = 0x40
+LIGHT_PEN_AID = 0x7D
+
+# Printer status codes (IBM 3270 printer protocol)
+DEVICE_END = 0x00  # Device end - normal completion
+INTERVENTION_REQUIRED = 0x01  # Intervention required - operator action needed
+DATA_CHECK = 0x02  # Data check - data error detected
+OPERATION_CHECK = 0x04  # Operation check - hardware error
+
+# Extended Attribute Types (for SF_EXT)
+EXT_ATTR_HIGHLIGHT = 0x41  # Extended highlighting
+EXT_ATTR_COLOR = 0x42  # Color
+EXT_ATTR_CHARACTER_SET = 0x43  # Character set
+EXT_ATTR_FIELD_VALID = 0x44  # Field validation
+EXT_ATTR_OUTLINE = 0x45  # Outlining
+
+# Extended Highlighting Values (RFC 1576, Section 2.1.1.1)
+HIGHLIGHT_NONE = 0xF0
+HIGHLIGHT_BLINK = 0xF1
+HIGHLIGHT_REVERSE_VIDEO = 0xF2
+HIGHLIGHT_UNDERSCORE = 0xF4
+HIGHLIGHT_INTENSIFIED = 0xF8
+
+# Color Values (RFC 1576, Section 2.1.1.2)
+COLOR_DEFAULT = 0xF0
+COLOR_BLUE = 0xF1
+COLOR_RED = 0xF2
+COLOR_PINK = 0xF3
+COLOR_GREEN = 0xF4
+COLOR_TURQUOISE = 0xF5
+COLOR_YELLOW = 0xF6
+COLOR_WHITE = 0xF7  # Default foreground
+COLOR_BLACK = 0xF8  # Default background
+
+# Field Validation Values (RFC 1576, Section 2.1.1.4)
+VALID_NONE = 0x00
+VALID_MANDATORY_FILL = 0x01
+VALID_MANDATORY_ENTRY = 0x02
+VALID_TRIGGER = 0x04
+
+# Outlining Values (RFC 1576, Section 2.1.1.5)
+OUTLINE_NONE = 0x00
+OUTLINE_UNDERSCORE = 0x01
+OUTLINE_RIGHT_VERTICAL = 0x02
+OUTLINE_OVERLINE = 0x04
+OUTLINE_LEFT_VERTICAL = 0x08
+
+# SOH Status Message Formats (placeholders, research needed)
+SOH_SUCCESS = 0x00  # SOH success
+SOH_DEVICE_END = 0x40  # SOH device end
+SOH_INTERVENTION_REQUIRED = 0x80  # SOH intervention required
+
+# 3270 Attention Identifier (AID) Codes
+AID_ENTER = 0x7D  # Enter key
+AID_CLEAR = 0x6D  # Clear key
+AID_RESET = 0x6A  # Reset key
+AID_TEST = 0x11  # Test request
+
+# Program Function Keys (PF1-PF24)
+AID_PF1 = 0xF1
+AID_PF2 = 0xF2
+AID_PF3 = 0xF3
+AID_PF4 = 0xF4
+AID_PF5 = 0xF5
+AID_PF6 = 0xF6
+AID_PF7 = 0xF7
+AID_PF8 = 0xF8
+AID_PF9 = 0xF9
+AID_PF10 = 0x7A
+AID_PF11 = 0x7B
+AID_PF12 = 0x7C
+AID_PF13 = 0xC1
+AID_PF14 = 0xC2
+AID_PF15 = 0xC3
+AID_PF16 = 0xC4
+AID_PF17 = 0xC5
+AID_PF18 = 0xC6
+AID_PF19 = 0xC7
+AID_PF20 = 0xC8
+AID_PF21 = 0xC9
+AID_PF22 = 0x4A
+AID_PF23 = 0x4B
+AID_PF24 = 0x4C
+
+# Program Attention Keys (PA1-PA3)
+AID_PA1 = 0x6C
+AID_PA2 = 0x6E
+AID_PA3 = 0x6B
+
+# System Request Keys
+AID_SYSREQ = 0xF0  # System request
+AID_ATTN = 0xF1  # Attention
+
+# Additional Keys
+AID_DUP = 0xF5  # Duplicate key
+AID_BACKSPACE = 0xF8  # Backspace key
+AID_FIELD_EXIT = 0xF3  # Field Exit key
+
+# Backward compatibility constants
+WRITE = CMD_EW  # Some tests import WRITE and use it to reference the write handler
+WCC = 0xC1  # WCC byte value used by many tests/tools as the Write Control Character marker

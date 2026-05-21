@@ -461,7 +461,6 @@ p3270-README.md
 mcp-config.json
 VIS
 conftest.py
-pure3270/constants.py
 pure3270/patching/README.md
 pure3270/protocol/base_parser.py
 pure3270/protocol/enhanced_error_handling.py
