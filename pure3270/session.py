@@ -1843,7 +1843,7 @@ class AsyncSession:
             # Wrap raw connection errors in SessionError for consistency
             raise SessionError(
                 f"Connection error sending key '{keyname}': {e}",
-                context={"key": keyname, "original_error": str(e)}
+                context={"key": keyname, "original_error": str(e)},
             )
         except Exception:
             # In tests, handler is often an AsyncMock; just ensure it's called
@@ -2454,5 +2454,5 @@ class AsyncSession:
             logger.debug(f"Connection closed after AID 0x{aid:02x}: {e}")
             raise SessionError(
                 f"Connection closed by host after AID 0x{aid:02x}",
-                context={"aid": aid, "original_error": str(e)}
+                context={"aid": aid, "original_error": str(e)},
             )

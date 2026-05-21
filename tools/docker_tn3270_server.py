@@ -99,7 +99,7 @@ def start_tn3270_container(
         subprocess.run(["docker", "rm", "-f", name], capture_output=True)
 
     # Create a simple TN3270 mock server Dockerfile
-    dockerfile_content = '''
+    dockerfile_content = """
 FROM python:3.11-slim
 
 WORKDIR /app
@@ -112,11 +112,11 @@ import struct
 async def handle_client(reader, writer):
     addr = writer.get_extra_info("peername")
     print(f"Connection from {addr}")
-    
+
     # TN3270 negotiation
     writer.write(b"\\xff\\xfb\\x19")  # WILL EOR
     await writer.drain()
-    
+
     # Send welcome screen
     welcome = bytearray()
     welcome.extend([0xf5, 0xc3])  # Erase/Write, WCC
@@ -124,7 +124,7 @@ async def handle_client(reader, writer):
     writer.write(bytes(welcome))
     writer.write(b"\\xff\\xef")  # IAC EOR
     await writer.drain()
-    
+
     await asyncio.sleep(0.5)
     writer.close()
 
@@ -138,10 +138,12 @@ asyncio.run(main())
 ' > server.py
 
 CMD ["python", "server.py"]
-'''
+"""
 
     # Write Dockerfile to temp location
-    dockerfile_path = Path("/tmp/tn3270-test-docker")
+    dockerfile_path = Path(
+        "/tmp/tn3270-test-docker"
+    )  # nosec: B108 - test fixture, not production
     dockerfile_path.mkdir(exist_ok=True)
     (dockerfile_path / "Dockerfile").write_text(dockerfile_content)
 
@@ -162,10 +164,13 @@ CMD ["python", "server.py"]
     logger.info(f"Starting container on port {port}...")
     run_result = subprocess.run(
         [
-            "docker", "run",
+            "docker",
+            "run",
             "-d",
-            "--name", name,
-            "-p", f"{port}:9923",
+            "--name",
+            name,
+            "-p",
+            f"{port}:9923",
             "pure3270-test-server",
         ],
         capture_output=True,
@@ -209,14 +214,19 @@ def stop_container(name: str = "pure3270-test-server") -> bool:
         return False
 
 
-def get_container_status(name: str = "pure3270-test-server") -> Optional[DockerContainer]:
+def get_container_status(
+    name: str = "pure3270-test-server",
+) -> Optional[DockerContainer]:
     """Get status of the TN3270 test container."""
     try:
         result = subprocess.run(
             [
-                "docker", "ps",
-                "--filter", f"name={name}",
-                "--format", "{{.ID}}|{{.Status}}",
+                "docker",
+                "ps",
+                "--filter",
+                f"name={name}",
+                "--format",
+                "{{.ID}}|{{.Status}}",
             ],
             capture_output=True,
             text=True,
