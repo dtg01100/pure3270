@@ -1835,9 +1835,20 @@ class AsyncSession:
                 # Unknown key - send default AID (TELNET BRK)
                 await self.submit(0xF3)
                 logger.warning(f"Unknown key '{keyname}', sending default AID 0xF3")
+        except (SessionError, BrokenPipeError, ConnectionResetError) as e:
+            # Re-raise connection-related errors so callers can handle them
+            # BrokenPipeError/ConnectionResetError can escape SessionError wrapper
+            if isinstance(e, SessionError):
+                raise
+            # Wrap raw connection errors in SessionError for consistency
+            raise SessionError(
+                f"Connection error sending key '{keyname}': {e}",
+                context={"key": keyname, "original_error": str(e)}
+            )
         except Exception:
             # In tests, handler is often an AsyncMock; just ensure it's called
             await self._handler.send_data(b"")
+            logger.debug(f"Key send fallback for test/mock handler: {keyname}")
 
     def capabilities(self) -> str:
         """Get capabilities."""
@@ -2433,5 +2444,15 @@ class AsyncSession:
 
         # Send the AID byte
         aid_data = bytes([aid])
-        await self._handler.send_data(aid_data)
-        logger.debug(f"Submitted AID: 0x{aid:02x}")
+        try:
+            await self._handler.send_data(aid_data)
+            logger.debug(f"Submitted AID: 0x{aid:02x}")
+        except (BrokenPipeError, ConnectionResetError) as e:
+            # Connection was lost (e.g., server closed connection after responding)
+            # This can happen when server closes connection after AID submission
+            # For PF/PA keys, the host may have closed the connection
+            logger.debug(f"Connection closed after AID 0x{aid:02x}: {e}")
+            raise SessionError(
+                f"Connection closed by host after AID 0x{aid:02x}",
+                context={"aid": aid, "original_error": str(e)}
+            )
