@@ -107,9 +107,10 @@ class TestConnectionErrorHandling:
         session = AsyncSession()
 
         # Connection timeout should raise asyncio.TimeoutError or similar
+        # Use asyncio.wait_for to ensure the test doesn't hang in CI
         with pytest.raises((asyncio.TimeoutError, OSError)):
-            # Use a non-routable IP to trigger timeout
-            await session.connect("10.255.255.1", 23)
+            # Use a non-routable IP to trigger timeout, wrapped with short timeout
+            await asyncio.wait_for(session.connect("10.255.255.1", 23), timeout=5.0)
 
     @pytest.mark.asyncio
     async def test_disconnect_during_operation(self):
