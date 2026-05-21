@@ -1,24 +1,25 @@
 """Color display server - tests 3279 color and extended attributes."""
 
 import asyncio
+
+from mock_server.tn3270_mock_server import TN3270MockServer
+from pure3270.emulation.ebcdic import translate_ascii_to_ebcdic
 from pure3270.protocol.utils import (
     IAC,
-    WILL,
     SB,
     SE,
     TELOPT_EOR,
     TELOPT_TN3270E,
+    TELOPT_TTYPE,
     TN3270_DATA,
     TN3270E_DEVICE_TYPE,
     TN3270E_FUNCTIONS,
     TN3270E_IS,
-    TN3270E_SEND,
     TN3270E_REQUEST,
+    TN3270E_SEND,
     TTYPE_SEND,
-    TELOPT_TTYPE,
+    WILL,
 )
-from pure3270.emulation.ebcdic import translate_ascii_to_ebcdic
-from mock_server.tn3270_mock_server import TN3270MockServer
 
 
 class ColorServer(TN3270MockServer):
@@ -28,7 +29,9 @@ class ColorServer(TN3270MockServer):
     and extended attribute types.
     """
 
-    async def handle_client(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
+    async def handle_client(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
         writer.write(bytes([IAC, WILL, TELOPT_TTYPE]))
         await writer.drain()
         writer.write(bytes([IAC, WILL, TELOPT_EOR]))

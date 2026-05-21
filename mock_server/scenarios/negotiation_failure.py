@@ -2,9 +2,8 @@
 
 import asyncio
 
-from pure3270.protocol.utils import IAC, TELOPT_EOR, WONT
-
 from mock_server.tn3270_mock_server import TN3270MockServer
+from pure3270.protocol.utils import IAC, TELOPT_EOR, WONT
 
 
 class NegotiationFailureServer(TN3270MockServer):

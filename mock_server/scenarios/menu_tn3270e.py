@@ -2,6 +2,7 @@
 
 import asyncio
 
+from mock_server.tn3270_mock_server import ServerConfig, TN3270MockServer
 from pure3270.emulation.ebcdic import translate_ascii_to_ebcdic
 from pure3270.protocol.data_stream import SBA, SF
 from pure3270.protocol.tn3270e_header import TN3270EHeader
@@ -23,8 +24,6 @@ from pure3270.protocol.utils import (
     WILL,
 )
 
-from mock_server.tn3270_mock_server import TN3270MockServer
-
 
 class MenuTN3270EServer(TN3270MockServer):
     """TN3270E mock server providing full negotiation sequence and menu screen.
@@ -43,13 +42,13 @@ class MenuTN3270EServer(TN3270MockServer):
 
     def __init__(
         self,
-        config=None,
-        host=None,
-        port=None,
-        requested_device_type=None,
-        functions_mode=None,
-        terminal_type=None,
-    ):
+        config: ServerConfig | None = None,
+        host: str | None = None,
+        port: int | None = None,
+        requested_device_type: str | None = None,
+        functions_mode: str | None = None,
+        terminal_type: str | None = None,
+    ) -> None:
         if config is not None:
             super().__init__(config=config)
             self.requested_device_type = requested_device_type or config.terminal_type
@@ -58,8 +57,12 @@ class MenuTN3270EServer(TN3270MockServer):
         else:
             super().__init__(host=host, port=port)
             self.requested_device_type = requested_device_type
-            self.functions_mode = functions_mode if functions_mode is not None else "request"
-            self.terminal_type = terminal_type if terminal_type is not None else "IBM-3278-2-E"
+            self.functions_mode = (
+                functions_mode if functions_mode is not None else "request"
+            )
+            self.terminal_type = (
+                terminal_type if terminal_type is not None else "IBM-3278-2-E"
+            )
 
     def build_menu_stream(self) -> bytes:
         """Build a minimal 3270 data stream for a simple menu screen."""
@@ -129,7 +132,9 @@ class MenuTN3270EServer(TN3270MockServer):
                 requested = self.requested_device_type
                 lu_name = ""
                 _send(
-                    bytes([IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_REQUEST])
+                    bytes(
+                        [IAC, SB, TELOPT_TN3270E, TN3270E_DEVICE_TYPE, TN3270E_REQUEST]
+                    )
                     + requested.encode("ascii")
                     + b"\x00"
                     + lu_name.encode("ascii")

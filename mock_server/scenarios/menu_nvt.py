@@ -2,13 +2,8 @@
 
 import asyncio
 
-from pure3270.protocol.utils import (
-    IAC,
-    WILL,
-    TELOPT_EOR,
-    TELOPT_BINARY,
-)
 from mock_server.tn3270_mock_server import TN3270MockServer
+from pure3270.protocol.utils import IAC, TELOPT_BINARY, TELOPT_EOR, WILL
 
 
 class MenuNVTServer(TN3270MockServer):

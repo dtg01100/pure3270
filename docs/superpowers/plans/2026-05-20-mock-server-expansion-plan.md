@@ -137,13 +137,13 @@ def main() -> None:
     parser.add_argument("--list", "-l", action="store_true",
                         help="List available scenarios")
     args = parser.parse_args()
-    
+
     if args.list:
         print("Available scenarios:")
         for name in SCENARIOS:
             print(f"  {name}")
         return
-    
+
     config = ServerConfig(
         host=args.host,
         port=args.port,
@@ -186,25 +186,25 @@ def build_menu_screen(
     width: int = 80,
 ) -> bytes:
     """Build a formatted 3270 menu screen.
-    
+
     Args:
         title: Screen title (ASCII)
         options: List of (label, description) tuples
-    
+
     Returns:
         Complete 3270 data stream bytes (WCC + orders + text + IAC EOR)
     """
     # WCC: keyboard reset, audible alarm, etc.
     wcc_byte = bytes([0x00])  # No special WCC flags
-    
+
     # Build buffer starting with WCC
     buffer = bytearray(wcc_byte)
-    
+
     # Title: position 0,0 and write
     row, col = 0, 0
     buffer.extend(build_sba(row, col))
     buffer.extend(translate_ascii_to_ebcdic(title))
-    
+
     # Each option: row, protected field with description
     for i, (label, desc) in enumerate(options):
         row = 2 + i
@@ -213,7 +213,7 @@ def build_menu_screen(
         # Start protected field
         buffer.extend(bytes([SF, 0xF0]))  # Protected, display-only attribute
         buffer.extend(translate_ascii_to_ebcdic(f"{label}: {desc}"))
-    
+
     return bytes(buffer)
 
 def build_sba(row: int, col: int) -> bytes:
@@ -272,12 +272,12 @@ from pure3270.protocol.utils import IAC, WILL, TELOPT_EOR
 
 class EchoServer(TN3270MockServer):
     """Simple echo server for protocol debugging."""
-    
+
     async def handle_client(self, reader, writer):
         # Send WILL EOR
         writer.write(bytes([IAC, WILL, TELOPT_EOR]))
         await writer.drain()
-        
+
         # Echo loop
         try:
             while True:
@@ -302,7 +302,7 @@ from pure3270.protocol.utils import IAC, WONT, TELOPT_EOR
 
 class NegotiationFailureServer(TN3270MockServer):
     """Server that refuses EOR - tests error handling."""
-    
+
     async def handle_client(self, reader, writer):
         writer.write(bytes([IAC, WONT, TELOPT_EOR]))
         await writer.drain()
@@ -367,16 +367,16 @@ from mock_server.tn3270_mock_server import TN3270MockServer
 
 class MenuTN3270EServer(TN3270MockServer):
     """Menu server with full TN3270E negotiation.
-    
+
     This is the primary test scenario - exercises full negotiation
     sequence and sends realistic 3270 data stream.
     """
-    
+
     async def handle_client(self, reader, writer):
         # Implement full negotiation from EnhancedTN3270MockServer
         # (copy implementation from EnhancedTN3270MockServer.handle_client)
         # ...
-        
+
         # After negotiation: send menu screen
         header = TN3270EHeader(
             data_type=TN3270_DATA,
@@ -384,12 +384,12 @@ class MenuTN3270EServer(TN3270MockServer):
             response_flag=0,
             seq_number=1,
         ).to_bytes()
-        
+
         menu_data = self.build_menu_stream()
         writer.write(header + menu_data)
         writer.write(bytes([IAC, TELOPT_EOR]))
         await writer.drain()
-        
+
         # Keep alive
         try:
             while True:
@@ -455,21 +455,21 @@ from mock_server.tn3270_mock_server import TN3270MockServer
 
 class Menu3270Server(TN3270MockServer):
     """Menu server using TN3270 (no E) protocol.
-    
+
     Unlike TN3270E, this does not offer WILL TN3270E option.
     """
-    
+
     async def handle_client(self, reader, writer):
         # 1. Offer TTYPE and EOR (no TN3270E)
         writer.write(bytes([IAC, WILL, TELOPT_TTYPE]))
         await writer.drain()
         writer.write(bytes([IAC, WILL, TELOPT_EOR]))
         await writer.drain()
-        
+
         # 2. Request terminal type
         writer.write(bytes([IAC, SB, TELOPT_TTYPE, TTYPE_SEND, IAC, SE]))
         await writer.drain()
-        
+
         # 3. Read client response
         try:
             term_resp = await asyncio.wait_for(
@@ -477,13 +477,13 @@ class Menu3270Server(TN3270MockServer):
             )
         except Exception:
             pass
-        
+
         # 4. Send 3270 data stream (no TN3270E header)
         menu_data = self.build_menu_stream()
         writer.write(menu_data)
         writer.write(bytes([IAC, TELOPT_EOR]))
         await writer.drain()
-        
+
         # Keep alive
         try:
             while True:
@@ -529,18 +529,18 @@ from mock_server.tn3270_mock_server import TN3270MockServer
 
 class MenuNVTServer(TN3270MockServer):
     """Menu server in NVT (character) mode.
-    
+
     No 3270 negotiation - just plain TELNET with ASCII text.
     Useful for testing ASCII/VT100 fallback behavior.
     """
-    
+
     async def handle_client(self, reader, writer):
         # Offer BINARY and EOR for NVT mode
         writer.write(bytes([IAC, WILL, TELOPT_BINARY]))
         await writer.drain()
         writer.write(bytes([IAC, WILL, TELOPT_EOR]))
         await writer.drain()
-        
+
         # Send menu as plain ASCII text
         menu = "MAIN MENU\n"
         menu += "=========\n"
@@ -548,10 +548,10 @@ class MenuNVTServer(TN3270MockServer):
         menu += "B. Option B\n"
         menu += "C. Option C\n"
         menu += "\nSelect: "
-        
+
         writer.write(menu.encode("ascii"))
         await writer.drain()
-        
+
         # Echo input
         try:
             while True:
@@ -599,24 +599,24 @@ from mock_server.tn3270_mock_server import TN3270MockServer
 
 class MenuSSCP_LUServer(TN3270MockServer):
     """Menu server using TN3270E SSCP-LU mode.
-    
+
     SSCP-LU is a sub-mode of TN3270E where the terminal behaves
     more like NVT line mode, gathering a line at a time.
     """
-    
+
     # SSCP-LU data type would be 0x01 or similar in TN3270E header
     SSCP_LU_DATA = 0x02  # Need to verify correct constant
-    
+
     async def handle_client(self, reader, writer):
         # Full TN3270E negotiation first
         writer.write(bytes([IAC, WILL, TELOPT_EOR]))
         writer.write(bytes([IAC, WILL, TELOPT_TN3270E]))
         await writer.drain()
-        
+
         # Device-type negotiation with SSCP-LU indication
         # (implementation similar to MenuTN3270EServer)
         # ...
-        
+
         # Send data with SSCP-LU data type
         # header = TN3270EHeader(data_type=self.SSCP_LU_DATA, ...)
         # ...
@@ -670,21 +670,21 @@ COLOR_WHITE = 0x04
 
 class ColorServer(TN3270MockServer):
     """Server that sends color/attribute display.
-    
+
     Sends a screen demonstrating various 3279 color attributes
     and extended attribute types.
     """
-    
+
     async def handle_client(self, reader, writer):
         # Full TN3270E negotiation
         # ...
-        
+
         # Send color display screen
         # Uses SF with extended attributes:
         # - Field with color attribute
         # - Field with highlight attribute
         # - Field with EA_EABIT (extended highlighting)
-        
+
         # Example:
         # SBA(row=0, col=0)
         # SF(0xF0 | 0x04)  # Protected + default color
@@ -730,28 +730,28 @@ from mock_server.tn3270_mock_server import TN3270MockServer
 
 class TN3270OnlyServer(TN3270MockServer):
     """Server that only supports TN3270, not TN3270E.
-    
+
     This server explicitly does NOT offer WILL TN3270E,
     testing the client's fallback behavior.
     """
-    
+
     async def handle_client(self, reader, writer):
         # Offer TTYPE and EOR only (no TN3270E)
         writer.write(bytes([IAC, WILL, TELOPT_TTYPE]))
         await writer.drain()
         writer.write(bytes([IAC, WILL, TELOPT_EOR]))
         await writer.drain()
-        
+
         # Request terminal type
         writer.write(bytes([IAC, SB, TELOPT_TTYPE, TTYPE_SEND, IAC, SE]))
         await writer.drain()
-        
+
         # Read response
         try:
             await asyncio.wait_for(reader.readuntil(bytes([IAC, SE])), timeout=1.5)
         except Exception:
             pass
-        
+
         # Send 3270 data stream (no TN3270E header)
         # ...
 ```
@@ -868,7 +868,7 @@ def start_x3270_target(
     host: str = "127.0.0.1",
 ) -> subprocess.Popen:
     """Start x3270 target as subprocess.
-    
+
     Returns the Popen object. Caller should call proc.terminate() when done.
     """
     target_path = find_x3270_target()
@@ -877,7 +877,7 @@ def start_x3270_target(
             "x3270 target.py not found. "
             "Clone https://github.com/wuzuf/x3270 or install x3270 package."
         )
-    
+
     return subprocess.Popen(
         ["python3", str(target_path), "--type", scenario, "--port", str(port), "--address", host],
         stdout=subprocess.PIPE,
@@ -926,7 +926,7 @@ def test_scenario_negotiates(scenario_name):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     loop.run_until_complete(server.start())
-    
+
     try:
         s = Session()
         s.open(server.host, server.port)

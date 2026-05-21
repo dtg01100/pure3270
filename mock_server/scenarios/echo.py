@@ -2,9 +2,8 @@
 
 import asyncio
 
-from pure3270.protocol.utils import IAC, TELOPT_EOR, WILL
-
 from mock_server.tn3270_mock_server import TN3270MockServer
+from pure3270.protocol.utils import IAC, TELOPT_EOR, WILL
 
 
 class EchoServer(TN3270MockServer):

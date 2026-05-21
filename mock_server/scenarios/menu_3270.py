@@ -2,6 +2,7 @@
 
 import asyncio
 
+from mock_server.tn3270_mock_server import TN3270MockServer
 from pure3270.emulation.ebcdic import translate_ascii_to_ebcdic
 from pure3270.protocol.data_stream import SBA, SF
 from pure3270.protocol.utils import (
@@ -13,7 +14,6 @@ from pure3270.protocol.utils import (
     TTYPE_SEND,
     WILL,
 )
-from mock_server.tn3270_mock_server import TN3270MockServer
 
 
 class Menu3270Server(TN3270MockServer):

@@ -22,7 +22,7 @@ def start_x3270_target(
     scenario: str = "menu-f",
     port: int = 8021,
     host: str = "127.0.0.1",
-) -> subprocess.Popen:
+) -> subprocess.Popen[bytes]:
     """Start x3270 target as subprocess.
 
     Returns the Popen object. Caller should call proc.terminate() when done.
@@ -35,7 +35,16 @@ def start_x3270_target(
         )
 
     return subprocess.Popen(
-        ["python3", str(target_path), "--type", scenario, "--port", str(port), "--address", host],
+        [
+            "python3",
+            str(target_path),
+            "--type",
+            scenario,
+            "--port",
+            str(port),
+            "--address",
+            host,
+        ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )

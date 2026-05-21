@@ -2,20 +2,19 @@
 
 import asyncio
 
+from mock_server.tn3270_mock_server import ServerConfig, TN3270MockServer
 from pure3270.emulation.ebcdic import translate_ascii_to_ebcdic
 from pure3270.protocol.utils import (
     IAC,
     SB,
     SE,
-    WILL,
+    SSCP_LU_DATA,
     TELOPT_EOR,
     TELOPT_TN3270E,
     TN3270E_DEVICE_TYPE,
     TN3270E_IS,
-    SSCP_LU_DATA,
+    WILL,
 )
-
-from mock_server.tn3270_mock_server import TN3270MockServer
 
 
 class MenuSSCP_LUServer(TN3270MockServer):
@@ -31,12 +30,12 @@ class MenuSSCP_LUServer(TN3270MockServer):
 
     def __init__(
         self,
-        config=None,
-        host=None,
-        port=None,
-        terminal_type=None,
-        lu_name=None,
-    ):
+        config: ServerConfig | None = None,
+        host: str | None = None,
+        port: int | None = None,
+        terminal_type: str | None = None,
+        lu_name: str | None = None,
+    ) -> None:
         if config is not None:
             super().__init__(config=config)
             self.terminal_type = terminal_type or config.terminal_type

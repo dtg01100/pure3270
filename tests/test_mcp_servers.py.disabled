@@ -6,14 +6,16 @@ DISABLED: Import path issues - tests expect MCP servers to be installed as 'mcp_
 but they exist locally as 'mcp-servers' directory. Requires significant refactoring to work.
 """
 
-import pytest
 import base64
 import json
-from typing import List, Dict, Any
+import os
 
 # Add mcp-servers to the Python path
 import sys
-import os
+from typing import Any, Dict, List
+
+import pytest
+
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'mcp-servers')))
 
 class TestTN3270ProtocolAnalyzer:

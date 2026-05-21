@@ -210,8 +210,12 @@ class EnhancedTN3270MockServer(TN3270MockServer):
         else:
             super().__init__(host=host, port=port)
             self.requested_device_type = requested_device_type
-            self.functions_mode = functions_mode if functions_mode is not None else "request"
-            self.terminal_type = terminal_type if terminal_type is not None else "IBM-3278-2-E"
+            self.functions_mode = (
+                functions_mode if functions_mode is not None else "request"
+            )
+            self.terminal_type = (
+                terminal_type if terminal_type is not None else "IBM-3278-2-E"
+            )
 
     async def handle_client(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -525,8 +529,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-# Backward compatibility alias - must be at end to avoid circular imports
-from mock_server.scenarios.menu_tn3270e import MenuTN3270EServer
-EnhancedTN3270MockServer = MenuTN3270EServer

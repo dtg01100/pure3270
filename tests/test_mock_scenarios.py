@@ -2,9 +2,11 @@
 
 import asyncio
 import socket
+
 import pytest
-from mock_server.scenarios import SCENARIOS
+
 from mock_server import TN3270MockServer
+from mock_server.scenarios import SCENARIOS
 
 
 @pytest.mark.parametrize("scenario_name", list(SCENARIOS.keys()))

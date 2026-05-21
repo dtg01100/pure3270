@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 from typing import Any
 
-import yaml  # type: ignore[import-untyped]
+import yaml
 
 RFC_DIR = Path(__file__).parent
 
