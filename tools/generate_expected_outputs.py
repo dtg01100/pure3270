@@ -7,15 +7,17 @@ This tool:
 2. Generates JSON expected files with appropriate validation checks
 3. Focuses on traces that provide good semantic coverage
 """
-
 import json
 import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
-sys.path.insert(0, "/workspaces/pure3270")
-sys.path.insert(0, "/workspaces/pure3270/examples")
-
+# Use the script's own location to derive project paths, instead of
+# hardcoding ``/workspaces/pure3270`` which only exists in CI.
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_EXAMPLES_DIR = _PROJECT_ROOT / "examples"
+sys.path.insert(0, str(_PROJECT_ROOT))
+sys.path.insert(0, str(_EXAMPLES_DIR))
 from compare_trace_processing import TraceComparator
 
 from pure3270.emulation.screen_buffer import ScreenBuffer
@@ -284,27 +286,115 @@ class ExpectedOutputGenerator:
 
         return generated_count
 
+    def generate_all_expected_files(
+        self, force: bool = False
+    ) -> tuple[int, int]:
+        """Generate expected output files for every ``.trc`` in the traces dir.
 
-def main():
-    """Main generation workflow."""
-    traces_dir = Path("/workspaces/pure3270/tests/data/traces")
-    expected_dir = Path("/workspaces/pure3270/tests/data/expected")
+        Uses generic validation checks (screen size, field count, parsing
+        errors) rather than the curated per-trace checks in
+        ``generate_key_expected_files``. The point is to give semantic
+        validation a baseline for as many traces as possible, not to
+        encode expert knowledge of each scenario.
+
+        Auto-generated baselines are tagged with ``"auto": true`` and
+        excluded from the parametrized ``test_trace_semantic_validation``
+        regression suite (which only runs against curated baselines).
+        That separation prevents the "regress -> regenerate -> commit"
+        loop from silently eroding regression coverage.
+
+        Files that already exist are NOT overwritten unless ``force`` is
+        True. Returns (generated_count, skipped_count).
+        """
+        generic_checks = [
+            {
+                "type": "screen_size",
+                "expected": "24x80",
+                "description": "Standard 3270 screen size",
+            },
+            {
+                "type": "field_count",
+                "min": 0,
+                "max": 50,
+                "description": "Generic field count check",
+            },
+            {
+                "type": "parsing_errors",
+                "expected_errors": False,
+                "description": "Should process without errors",
+            },
+        ]
+        generated_count = 0
+        skipped_count = 0
+        for trc_path in sorted(self.traces_dir.glob("*.trc")):
+            trace_name = trc_path.stem
+            expected_file = self.expected_dir / f"{trace_name}_expected.json"
+            if expected_file.exists() and not force:
+                skipped_count += 1
+                continue
+            expected = self.generate_for_trace(
+                trace_name,
+                f"Auto-generated baseline for {trace_name}.trc",
+                generic_checks,
+            )
+            if expected:
+                # Mark the file as auto-generated so the regression test
+                # infrastructure classifies it as a smoke baseline, not
+                # a curated regression guard.
+                expected["auto"] = True
+                with open(expected_file, "w") as f:
+                    json.dump(expected, f, indent=2)
+                generated_count += 1
+        return generated_count, skipped_count
+
+
+def main() -> int:
+    """Main generation workflow.
+
+    Run without arguments to regenerate the 6 curated key-trace
+    expected files. Pass ``--all-traces`` to also generate generic
+    baseline expected files for every ``.trc`` in the traces dir.
+    """
+    import argparse
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--all-traces",
+        action="store_true",
+        help="Also generate generic expected files for every .trc in tests/data/traces",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite existing expected files (with --all-traces only)",
+    )
+    args = parser.parse_args()
+
+    traces_dir = _PROJECT_ROOT / "tests" / "data" / "traces"
+    expected_dir = _PROJECT_ROOT / "tests" / "data" / "expected"
 
     expected_dir.mkdir(parents=True, exist_ok=True)
-
     generator = ExpectedOutputGenerator(traces_dir, expected_dir)
 
     print("🎯 Generating expected outputs for key traces...")
     count = generator.generate_key_expected_files()
+    print(f"\n✅ Generated {count} curated expected output files")
 
-    print(f"\n✅ Generated {count} expected output files")
+    if args.all_traces:
+        print("\n🌐 Generating generic expected outputs for all traces...")
+        all_count, skipped = generator.generate_all_expected_files(force=args.force)
+        print(
+            f"✅ Generated {all_count} auto-generated expected files "
+            f"({skipped} skipped, use --force to overwrite)"
+        )
 
     # Show all available expected files
     all_expected = list(expected_dir.glob("*_expected.json"))
     print(f"\n📋 Total expected files now available: {len(all_expected)}")
     for expected_file in sorted(all_expected):
         print(f"  ✓ {expected_file.name}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

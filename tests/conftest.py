@@ -173,9 +173,19 @@ def pytest_configure(config):
     config.option.log_cli_level = "DEBUG"
 
 
-@pytest.fixture
-def tn3270_handler():
-    """Fixture providing a TN3270Handler with mocked dependencies."""
+@pytest_asyncio.fixture
+async def tn3270_handler():
+    """Fixture providing a TN3270Handler with mocked dependencies.
+
+    Async so the teardown can await handler.close(), which cancels any
+    background tasks (e.g. _reader_loop) created when a test calls
+    handler.connect(). Without this, the test fixture's TN3270Handler
+    keeps its _bg_tasks alive across the event loop, leaving pending
+    coroutines that produce "coroutine 'Event.wait' was never awaited"
+    and "coroutine 'TN3270Handler._reader_loop.<locals>._compat_read'
+    was never awaited" RuntimeWarnings when the tasks are eventually
+    garbage-collected.
+    """
     from unittest.mock import AsyncMock
 
     # Mock the reader and writer
@@ -191,8 +201,19 @@ def tn3270_handler():
         host="test-host",
         port=23,
     )
-
-    return handler
+    try:
+        yield handler
+    finally:
+        # Always close the handler to cancel any background tasks
+        # that the test may have started via connect(). close() drains
+        # _bg_tasks and clears callback dictionaries, which prevents
+        # the un-awaited-coroutine warnings on fixture teardown.
+        if getattr(handler, "_connected", False) or getattr(handler, "_bg_tasks", None):
+            try:
+                await handler.close()
+            except Exception:
+                # Best-effort cleanup; never let teardown raise.
+                pass
 
 
 @pytest.fixture

@@ -131,13 +131,14 @@ async def execute_command(command: str, args: List[str]) -> Any:
         method = getattr(session, method_name)
 
         # Check if it's an async method
-        if asyncio.iscoroutinefunction(method):
+        import inspect
+
+        if inspect.iscoroutinefunction(method):
             result = await method(*args)
         else:
             result = method(*args)
 
         return result
-
     except Exception as e:
         return f"error: {e}"
 

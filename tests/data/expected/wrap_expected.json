@@ -1,22 +1,22 @@
 {
   "trace_file": "wrap.trc",
-  "description": "Line wrapping operations",
+  "description": "Auto-generated baseline for wrap.trc (auto-generated smoke baseline)",
   "validation_checks": [
     {
       "type": "screen_size",
       "expected": "24x80",
-      "description": "Text wrapping test"
+      "description": "Standard 3270 screen size"
     },
     {
       "type": "field_count",
       "min": 37,
       "max": 44,
-      "description": "Wrapping can affect field layout"
+      "description": "Generic field count check"
     },
     {
       "type": "parsing_errors",
       "expected_errors": false,
-      "description": "Wrapping should work correctly"
+      "description": "Should process without errors"
     }
   ],
   "protocol": {
@@ -30,5 +30,6 @@
       1,
       10
     ]
-  }
+  },
+  "auto": true
 }

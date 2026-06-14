@@ -12,6 +12,7 @@ import pytest
 
 from pure3270 import AsyncSession, Session
 from pure3270.emulation.screen_buffer import ScreenBuffer
+from pure3270.exceptions import NotConnectedError
 from pure3270.protocol.data_stream import DataStreamParser
 from pure3270.protocol.tn3270_handler import TN3270Handler
 from pure3270.session import ConnectionError, SessionError
@@ -603,7 +604,7 @@ class TestSession:
         """Test AsyncSession send when not connected."""
         session = AsyncSession()
 
-        with pytest.raises(SessionError, match="Session not connected"):
+        with pytest.raises(NotConnectedError, match="Session not connected"):
             await session.send(b"data")
 
     @pytest.mark.asyncio
@@ -611,7 +612,7 @@ class TestSession:
         """Test AsyncSession read when not connected."""
         session = AsyncSession()
 
-        with pytest.raises(SessionError, match="Session not connected"):
+        with pytest.raises(NotConnectedError, match="Session not connected"):
             await session.read()
 
     @pytest.mark.asyncio
@@ -1587,7 +1588,7 @@ class TestSession:
         session = AsyncSession()
 
         # expect() can check local screen state
-        result = await session.expect("pattern")
+        result = await session.expect("pattern", timeout=0.2)
         assert isinstance(result, bool)
 
     @pytest.mark.asyncio

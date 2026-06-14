@@ -65,6 +65,7 @@ class TN3270MockServer:
         self._server: Optional[asyncio.AbstractServer] = None
         self._client_tasks: list[asyncio.Task[Any]] = []
         self._server_ready: threading.Event = threading.Event()
+        self._stopped: bool = False
 
     async def handle_client(
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
@@ -138,8 +139,16 @@ class TN3270MockServer:
         self.start_threaded()
 
     async def stop(self) -> None:
-        """Stop the server and clean up all resources."""
-        # First, close all client connections
+        """Stop the server and clean up all resources.
+
+        Idempotent: calling stop more than once is safe. The method
+        avoids leaving pending tasks on the threaded event loop, which
+        would surface as ``Task was destroyed but it is pending!`` on
+        loop close.
+        """
+        if getattr(self, "_stopped", False):
+            return
+        # First, close all client connections and the listening socket
         if getattr(self, "_loop", None) and getattr(self, "_server", None):
 
             def _cancel_client_tasks() -> None:
@@ -147,24 +156,24 @@ class TN3270MockServer:
                     if not task.done():
                         task.cancel()
                 self._client_tasks.clear()
-
-            def _close() -> None:
+                # Close the listening socket. ``Server.close()`` is
+                # synchronous and returns once the close is scheduled;
+                # the corresponding ``wait_closed()`` coroutine is run
+                # briefly below to let asyncio mark the server closed
+                # before we stop the loop.
                 if self._server is not None:
                     self._server.close()
 
             self._loop.call_soon_threadsafe(_cancel_client_tasks)
-            # Allow close to propagate
-            await asyncio.sleep(0.05)
-            # Wait for server socket to close cleanly to avoid pending task warnings
-            try:
-                if self._server is not None:
-                    fut = asyncio.run_coroutine_threadsafe(
-                        self._server.wait_closed(), self._loop
-                    )
-                    fut.result(timeout=1.0)
-            except Exception:
-                pass
+            # Allow close to propagate and let pending cancellations
+            # complete. A small sleep is sufficient: ``Server.close()``
+            # is non-blocking and the asyncio internals only need a
+            # single loop iteration to schedule the close event.
+            await asyncio.sleep(0.1)
 
+            # Stop the loop. ``_stop`` runs synchronously in the loop
+            # thread; once it returns, ``run_forever`` exits and the
+            # loop can be safely discarded.
             def _stop() -> None:
                 self._loop.stop()
 
@@ -316,8 +325,11 @@ class EnhancedTN3270MockServer(TN3270MockServer):
                 )
                 self._received.append(devtype_resp)
                 print(f"[MOCK] <- DEVICE-TYPE RESP: {devtype_resp!r}")
-                # Send DEVICE-TYPE IS selecting one model (requested or default)
-                device_type = self.requested_device_type or "IBM-3278-2"
+                # Send DEVICE-TYPE IS selecting one model (requested or default).
+                # The default matches s3270's own DEVICE-TYPE IS response for
+                # the 24x80 model — see ibmlink2.trc for trace evidence of
+                # ``DEVICE-TYPE IS IBM-3278-2-E`` from s3270 v4.2pre1.
+                device_type = self.requested_device_type or "IBM-3278-2-E"
                 lu_name = "TDC01702"
                 _send(
                     bytes(

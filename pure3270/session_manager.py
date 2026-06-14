@@ -62,9 +62,12 @@ class SessionManager:
 
     async def teardown_connection(self) -> None:
         """Close the socket connection and reset state."""
-        if self.writer:
+        if self.writer is not None:
+            # StreamWriter.close() is synchronous and returns None; the
+            # ``wait_closed()`` coroutine is what needs to be awaited.
             self.writer.close()
-            await self.writer.wait_closed()
+            with suppress(Exception):
+                await self.writer.wait_closed()
             self.writer = None
         self.reader = None
         self.connected = False
@@ -81,7 +84,7 @@ class SessionManager:
         except TypeError:
             # Not callable (could be Mock without spec) -> nothing to do
             return
-        if asyncio.iscoroutine(result) or isinstance(result, asyncio.Future):
+        if inspect.iscoroutine(result) or isinstance(result, asyncio.Future):
             await result
         # else synchronous -> already executed
 

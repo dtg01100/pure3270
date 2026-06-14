@@ -313,9 +313,88 @@ class TestScreenContentRegression:
     def test_login_buffer_ebcdic_encoding(self, login_buffer):
         """Screen buffer bytes should be valid EBCDIC, not raw ASCII."""
         actual_buffer, _ = login_buffer
-        # Count bytes that look like EBCDIC (>0x7F range typical for EBCDIC letters)
         ebcdic_bytes = sum(1 for b in actual_buffer if b > 0x7F or b == 0x40)
         # Login screen should have significant EBCDIC content
         assert (
             ebcdic_bytes > 100
         ), f"Only {ebcdic_bytes} EBCDIC bytes found - screen may be in wrong encoding"
+
+
+class TestLivePub400StructuralParity:
+    """Live network tests for parity with pub400.com.
+
+    These connect to the real pub400.com and verify that the structural
+    content of the rendered screen matches s3270's expected output. The
+    pub400 banner changes over time so we validate against required
+    substrings rather than byte-exact content.
+
+    Tests are skipped when network access is unavailable.
+    """
+
+    @staticmethod
+    def _can_reach_pub400(timeout: float = 3.0) -> bool:
+        """Probe whether pub400.com:23 is reachable from this environment."""
+        import socket
+
+        try:
+            with socket.create_connection(("pub400.com", 23), timeout=timeout):
+                return True
+        except (OSError, socket.timeout):
+            return False
+
+    @pytest.fixture
+    def pub400_client(self):
+        """Connect to pub400.com, yielding a P3270Client. Skip if unreachable."""
+        if not self._can_reach_pub400():
+            pytest.skip("pub400.com:23 not reachable from this environment")
+        from pure3270.p3270_client import P3270Client
+
+        client = P3270Client(hostName="pub400.com", hostPort=23)
+        client.connect()
+        yield client
+        try:
+            client.disconnect()
+        except Exception:
+            pass
+
+    def test_pub400_required_substrings(self, pub400_client):
+        """The pub400 login screen must contain all required structural content.
+
+        This is the live-network analogue of the byte-exact s3270 golden
+        comparison. s3270 and pure3270 both render the same pub400 screen,
+        so they MUST all contain the same required labels. The exact
+        column positions and dynamic content (session id, banner) can
+        change, but the prompt labels and structure are stable.
+        """
+        text = pub400_client.getScreen()
+        # Use case-insensitive checks for prompt labels
+        text_upper = text.upper()
+        required = [
+            "WELCOME TO PUB400.COM",
+            "SERVER NAME",
+            "SUBSYSTEM",
+            "DISPLAY NAME",
+            "USER NAME",
+            "PASSWORD",
+        ]
+        missing = [r for r in required if r not in text_upper]
+        assert not missing, f"pub400 screen missing required labels: {missing}"
+
+    def test_pub400_screen_size(self, pub400_client):
+        """pub400 returns a 24x80 screen (24 lines, ~80 chars per line)."""
+        text = pub400_client.getScreen()
+        lines = text.split("\n")
+        # pub400 has 24 lines
+        assert len(lines) >= 20, f"Expected >=20 lines, got {len(lines)}"
+        # Each line should be roughly 80 chars (some lines may be shorter)
+        for i, line in enumerate(lines):
+            assert len(line) <= 80, f"Line {i} too long ({len(line)} chars): {line!r}"
+
+    def test_pub400_has_field_attributes(self, pub400_client):
+        """The pub400 screen must have field attributes for input fields."""
+        screen_buffer = pub400_client._pure_session.screen_buffer
+        # The user name and password fields should be detected
+        fields = screen_buffer.fields
+        assert (
+            len(fields) >= 2
+        ), f"Expected >=2 fields (user name + password), got {len(fields)}"

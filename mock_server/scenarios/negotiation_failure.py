@@ -16,3 +16,24 @@ class NegotiationFailureServer(TN3270MockServer):
         await writer.drain()
         await asyncio.sleep(0.1)
         writer.close()
+
+
+async def run() -> None:
+    """Exercise the NegotiationFailureServer end-to-end.
+
+    The test harness in ``mock_server/test_scenarios.py`` imports
+    each scenario module and calls its ``run()`` coroutine. The class
+    above is the canonical implementation; this wrapper spins up an
+    instance so the test does not need to special-case class-based
+    scenarios.
+    """
+    server = NegotiationFailureServer()
+    await server.start()
+    try:
+        await asyncio.sleep(0.5)
+    finally:
+        await server.stop()
+
+
+if __name__ == "__main__":
+    asyncio.run(run())

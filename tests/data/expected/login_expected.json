@@ -26,14 +26,8 @@
   ],
   "protocol": {
     "tn3270e": true,
-    "primary_features": [
-      "screen_operations",
-      "field_processing"
-    ],
+    "primary_features": ["screen_operations", "field_processing"],
     "expected_screen_size": "24x80",
-    "field_count_range": [
-      1,
-      10
-    ]
+    "field_count_range": [1, 10]
   }
 }

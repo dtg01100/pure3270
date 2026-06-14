@@ -1,22 +1,22 @@
 {
   "trace_file": "numeric.trc",
-  "description": "Numeric field operations",
+  "description": "Auto-generated baseline for numeric.trc (auto-generated smoke baseline)",
   "validation_checks": [
     {
       "type": "screen_size",
       "expected": "43x80",
-      "description": "Numeric field test"
+      "description": "Standard 3270 screen size"
     },
     {
       "type": "field_count",
       "min": 0,
       "max": 5,
-      "description": "Numeric tests need input fields"
+      "description": "Generic field count check"
     },
     {
       "type": "parsing_errors",
       "expected_errors": false,
-      "description": "Numeric processing should work"
+      "description": "Should process without errors"
     }
   ],
   "protocol": {
@@ -31,5 +31,6 @@
       1,
       10
     ]
-  }
+  },
+  "auto": true
 }

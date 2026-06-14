@@ -390,19 +390,34 @@ class TraceSemanticValidator:
         return results
 
 
-@pytest.mark.parametrize(
-    "expected_file",
-    [
-        "login_expected.json",
-        "smoke_expected.json",
-        "ra_test_expected.json",
-        "bid-bug_expected.json",
-        "bid_expected.json",
-        "invalid_ra_expected.json",
-        "numeric_expected.json",
-        "wrap_expected.json",
-    ],
-)
+# Curated baselines are the regression guard rails: they have hand-tuned
+# field_count ranges, content checks, and trace-specific assertions
+# that would fail if pure3270 regressed. Auto-generated baselines are
+# produced by ``tools/generate_expected_outputs.py --all-traces`` and
+# carry intentionally loose assertions (0..50 field count, generic
+# content checks) so they round-trip cleanly. They are smoke tests, not
+# regression guards, and are excluded from the parametrized test below
+# to prevent "regression -> regenerate -> commit" from silently
+# restoring passing-but-meaningless coverage.
+_CURATED_EXPECTED: list[str] = []
+_AUTO_EXPECTED: list[str] = []
+for _p in sorted(
+    (Path(__file__).parent / "data" / "expected").glob("*_expected.json")
+):
+    try:
+        _meta = json.loads(_p.read_text(encoding="utf-8"))
+    except Exception:
+        _meta = {}
+    # Explicit ``"auto": true`` flips the file to auto-generated. Files
+    # without the flag default to curated so pre-existing baselines
+    # keep their regression-guard status.
+    if _meta.get("auto") is True:
+        _AUTO_EXPECTED.append(_p.name)
+    else:
+        _CURATED_EXPECTED.append(_p.name)
+
+
+@pytest.mark.parametrize("expected_file", _CURATED_EXPECTED)
 def test_trace_semantic_validation(expected_file):
     """Test semantic validation of trace replay against expected outputs."""
     expected_path = EXPECTED_DIR / expected_file

@@ -38,6 +38,8 @@ Based on IBM Code Page 037.
 import logging
 from typing import Any, Optional, Tuple, Union
 
+from pure3270.protocol.utils import DEFAULT_CODEPAGE
+
 logger = logging.getLogger(__name__)
 
 # Optional dependency: prefer `ebcdic` package when available for explicit
@@ -437,7 +439,7 @@ def _clean_non_printable(s: str) -> str:
     return "".join(cleaned_chars)
 
 
-def _decode_ebcdic(data: bytes, codepage: str = "cp037") -> str:
+def _decode_ebcdic(data: bytes, codepage: str = DEFAULT_CODEPAGE) -> str:
     """Decode bytes using specified EBCDIC codepage to a Python string.
 
     Uses the `ebcdic` package if available; otherwise falls back to the
@@ -485,7 +487,7 @@ def _decode_cp037(data: bytes) -> str:
     return _decode_ebcdic(data, "cp037")
 
 
-def _encode_ebcdic(text: Union[str, bytes], codepage: str = "cp037") -> bytes:
+def _encode_ebcdic(text: Union[str, bytes], codepage: str = DEFAULT_CODEPAGE) -> bytes:
     """Encode a Python string or bytes into EBCDIC bytes using specified codepage.
 
     Accepts either `str` or `bytes`. If `bytes` are provided they are
@@ -569,7 +571,7 @@ class EmulationEncoder:
         return _encode_cp037(text)
 
 
-def translate_ebcdic_to_ascii(data: bytes, codepage: str = "cp037") -> str:
+def translate_ebcdic_to_ascii(data: bytes, codepage: str = DEFAULT_CODEPAGE) -> str:
     """Translate raw EBCDIC bytes to ASCII string matching p3270 behavior.
 
     Decode using specified EBCDIC codepage and return raw decoded string
@@ -604,7 +606,7 @@ def translate_ebcdic_to_ascii(data: bytes, codepage: str = "cp037") -> str:
             return ""
 
 
-def translate_ascii_to_ebcdic(text: str, codepage: str = "cp037") -> bytes:
+def translate_ascii_to_ebcdic(text: str, codepage: str = DEFAULT_CODEPAGE) -> bytes:
     """Translate an ASCII/Unicode string to EBCDIC bytes using specified codepage."""
     return _encode_ebcdic(text, codepage)
 
@@ -651,7 +653,9 @@ class EBCDICCodec:
     punctuation and other characters fall back to as 'unknown' mapping.
     """
 
-    def __init__(self, codepage: str = "cp037", compat: str | None = None) -> None:
+    def __init__(
+        self, codepage: str = DEFAULT_CODEPAGE, compat: str | None = None
+    ) -> None:
         self.codepage = codepage
         # compat mode allows the codec to mimic historical p3270 behaviors
         # For now, support 'p3270' compat which changes the encoding fallback

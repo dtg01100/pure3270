@@ -7,6 +7,7 @@ recovery policies.
 """
 
 import asyncio
+import inspect
 import logging
 import time
 from enum import Enum
@@ -166,7 +167,7 @@ class CircuitBreaker:
     async def _execute_fallback(self, fallback: Callable[[], Any]) -> Any:
         """Execute fallback function."""
         try:
-            if asyncio.iscoroutinefunction(fallback):
+            if inspect.iscoroutinefunction(fallback):
                 return await fallback()
             else:
                 return fallback()

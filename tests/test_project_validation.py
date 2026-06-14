@@ -11,10 +11,15 @@ This script validates that pure3270 is actually usable by testing:
 6. Error handling
 7. Real-world usage patterns
 """
-
 import sys
 import traceback
 from typing import List, Tuple
+
+# This is a CLI validation script, not a pytest test suite. Exclude all
+# functions from pytest collection to avoid PytestReturnNotNoneWarning
+# (the validation functions return List[ValidationResult] for the CLI
+# report, which pytest considers a contract violation).
+__test__ = False
 
 
 class ValidationResult:

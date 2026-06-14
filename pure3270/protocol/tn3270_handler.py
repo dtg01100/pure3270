@@ -70,6 +70,7 @@ from .utils import (
     AYT,
     BREAK,
     BRK,
+    DEFAULT_TERMINAL_MODEL,
     DM,
     DO,
     DONT,
@@ -293,7 +294,7 @@ class TN3270Handler:
         force_mode: Optional[str] = None,
         allow_fallback: bool = True,
         recorder: Optional["TraceRecorder"] = None,
-        terminal_type: str = "IBM-3278-2",  # Terminal model selection
+        terminal_type: str = DEFAULT_TERMINAL_MODEL,  # Terminal model selection
     ):
         # Provide patchable defaults when reader/writer are None so tests can
         # patch methods like .read and .drain without AttributeError.
@@ -2789,7 +2790,7 @@ class TN3270Handler:
                             data_for_parser,
                             data_type=tn3270e_header.data_type,
                         )
-                        if asyncio.iscoroutine(_res):
+                        if inspect.iscoroutine(_res):
                             await _res
                     except ParseError as e:
                         logger.warning(
@@ -2855,7 +2856,7 @@ class TN3270Handler:
                         except Exception:
                             pass
                     _res = self.parser.parse(processed_data, data_type=_TN3270_DATA_opt)
-                    if asyncio.iscoroutine(_res):
+                    if inspect.iscoroutine(_res):
                         await _res
             except Exception as e:
                 logger.debug(f"ASCII fallback parse as TN3270 failed: {e}")
@@ -2935,7 +2936,7 @@ class TN3270Handler:
                         if data_for_parser.startswith(b"\xf5"):
                             data_for_parser = data_for_parser[1:]
                         _res = self.parser.parse(data_for_parser, data_type=data_type)
-                        if asyncio.iscoroutine(_res):
+                        if inspect.iscoroutine(_res):
                             await _res
                     except ParseError:
                         pass
@@ -2968,7 +2969,7 @@ class TN3270Handler:
                         if data_for_parser.startswith(b"\xf5"):
                             data_for_parser = data_for_parser[1:]
                         _res = self.parser.parse(data_for_parser, data_type=data_type)
-                        if asyncio.iscoroutine(_res):
+                        if inspect.iscoroutine(_res):
                             await _res
                     except ParseError:
                         pass
@@ -3043,7 +3044,7 @@ class TN3270Handler:
                     logger.debug(f"  Parser input: {data_for_parser[:20].hex()}")
 
                 _res = self.parser.parse(data_for_parser, data_type=data_type)
-                if asyncio.iscoroutine(_res):
+                if inspect.iscoroutine(_res):
                     await _res
             except ParseError as e:
                 logger.warning(f"Failed to parse received data: {e}")
@@ -3294,21 +3295,37 @@ class TN3270Handler:
                 else:
                     if self.writer:
                         try:
-                            self.writer.close()
-                            await self.writer.wait_closed()
+                            # Some writers (notably asyncio.StreamWriter) expose
+                            # a sync .close() method that just calls
+                            # self._transport.close(). Other writers (most
+                            # notably AsyncMock in tests) make .close() an
+                            # async coroutine. Await it if so, to avoid
+                            # "coroutine was never awaited" RuntimeWarning.
+                            close_result = self.writer.close()
+                            if inspect.isawaitable(close_result):
+                                await close_result
+                            wait_closed = self.writer.wait_closed()
+                            if inspect.isawaitable(wait_closed):
+                                await wait_closed
                         except (AttributeError, TypeError):
-                            # Mocked writers in tests may not have wait_closed()
+                            # Mocked writers in tests may not have close() or
+                            # wait_closed(), or those may not be awaitable.
                             pass
                         self.writer = None
 
-                # Cancel any background tasks we created to avoid dangling tasks
-                for t in list(self._bg_tasks):
-                    if not t.done():
-                        t.cancel()
-                        try:
-                            await t
-                        except (asyncio.CancelledError, Exception):
-                            pass
+                # Cancel any background tasks we created to avoid dangling tasks.
+                # ``await t`` can block forever if a cancelled task is awaiting
+                # something that never resolves, so bound the wait with a
+                # short timeout. The task is best-effort: a non-graceful exit
+                # is acceptable as long as we do not hang the caller. We
+                # cancel all tasks first and then await them concurrently
+                # with a single ``asyncio.wait`` so close latency is bounded
+                # by the timeout itself, not by N times the timeout.
+                pending = [t for t in self._bg_tasks if not t.done()]
+                for t in pending:
+                    t.cancel()
+                if pending:
+                    done, _ = await asyncio.wait(pending, timeout=0.5)
                 self._bg_tasks.clear()
 
                 # Clear all callback dictionaries to prevent memory leaks
@@ -3367,7 +3384,7 @@ class TN3270Handler:
                 else:
                     _res = self.parser.parse(data[offset:], data_type=data_type)
                 # If parser.parse returned a coroutine (async parser), run it.
-                if asyncio.iscoroutine(_res):
+                if inspect.iscoroutine(_res):
                     try:
                         loop = asyncio.get_running_loop()
                     except RuntimeError:

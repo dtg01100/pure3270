@@ -6,6 +6,7 @@ for integration testing without requiring actual network connections.
 """
 
 import asyncio
+import inspect
 import logging
 from typing import Any, Dict, List, Optional, Union
 from unittest.mock import AsyncMock, MagicMock
@@ -450,7 +451,7 @@ def isolated_test(scenario_name: str, scenario_data: Dict[str, Any]):
             async with IsolatedTestContext(
                 scenario_name, effective_scenario
             ) as scenario:
-                if asyncio.iscoroutinefunction(test_func):
+                if inspect.iscoroutinefunction(test_func):
                     return await test_func(*args, scenario, **kwargs)
                 else:
                     return test_func(*args, scenario, **kwargs)

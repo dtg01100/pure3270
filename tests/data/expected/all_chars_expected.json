@@ -2,7 +2,7 @@
   "trace_file": "all_chars.trc",
   "description": "All characters test trace",
   "screen": {
-    "rows": 24,
+    "rows": 43,
     "cols": 80,
     "num_fields": 12,
     "field_details": [

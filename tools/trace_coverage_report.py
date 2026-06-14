@@ -8,6 +8,7 @@ documenting which protocol features are tested by each trace.
 Usage:
   trace_coverage_report.py [--traces-dir DIR] [--output FILE]
 """
+
 import json
 import sys
 from collections import defaultdict

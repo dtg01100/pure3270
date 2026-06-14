@@ -313,8 +313,13 @@ class PrinterErrorHandler:
         if strategy == RecoveryStrategy.IGNORE:
             logger.info(f"Ignoring error for {operation}: {error}")
             return True
-
-        return False  # type: ignore[unreachable]
+        # Defensive fallback: all enum values are handled above, but tests
+        # (and any future enum addition) may pass an unknown value.
+        logger.warning(  # type: ignore[unreachable]
+            f"Unknown recovery strategy {strategy!r} for {operation}; "
+            f"no action taken"
+        )
+        return False
 
     async def _retry_operation(
         self, operation: str, recovery_callback: Optional[Callable[[], Any]] = None

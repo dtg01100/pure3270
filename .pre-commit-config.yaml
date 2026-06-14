@@ -3,9 +3,9 @@ repos:
     rev: v4.6.0
     hooks:
       - id: trailing-whitespace
-        exclude: '(tests/data/traces/.*|test_output/.*)'
+        exclude: '(tests/data/traces/.*|test_output/.*|tests/data/screens/.*|\.bin$)'
       - id: end-of-file-fixer
-        exclude: '(tests/data/traces/.*|test_output/.*)'
+        exclude: '(tests/data/traces/.*|test_output/.*|tests/data/screens/.*|\.bin$)'
       - id: check-yaml
       - id: check-added-large-files
       - id: check-merge-conflict
@@ -52,7 +52,6 @@ repos:
          types: [python]
          args: [--exit-zero, pure3270/]
          exclude: 'tests/data/traces/.*'
-         timeout: 300
        # Disabled: requires `pip install -e .[dev]` for radon/cohesion
        # - id: radon-complexity
        #   name: radon complexity check

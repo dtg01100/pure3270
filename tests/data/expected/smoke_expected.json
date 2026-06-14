@@ -1,6 +1,6 @@
 {
   "trace_file": "smoke.trc",
-  "description": "Basic smoke test trace",
+  "description": "Auto-generated baseline for smoke.trc (auto-generated smoke baseline)",
   "validation_checks": [
     {
       "type": "screen_size",
@@ -11,7 +11,7 @@
       "type": "field_count",
       "min": 0,
       "max": 5,
-      "description": "Basic field count check"
+      "description": "Generic field count check"
     },
     {
       "type": "parsing_errors",
@@ -31,7 +31,5 @@
       10
     ]
   },
-  "printer": {
-    "print_jobs": []
-  }
+  "auto": true
 }

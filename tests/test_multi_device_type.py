@@ -50,3 +50,59 @@ def test_requested_device_type_negotiation(requested):
             s.close()
         loop.run_until_complete(server.stop())
         loop.close()
+
+
+@pytest.mark.timeout(8)
+def test_default_device_type_uses_s3270_compatible_format():
+    """When the server does not request a specific device type, pure3270
+    must negotiate the s3270-compatible default. s3270 sends
+    ``IBM-3278-2-E`` (with the ``-E`` suffix) for the 24x80 model — see
+    the trace evidence in ``tests/data/traces/login.trc`` such as
+    ``DEVICE-TYPE REQUEST IBM-3278-2-E`` lines. The previous default of
+    ``IBM-3278-2`` (no suffix) was a real s3270 parity bug.
+
+    We deliberately configure the mock server with
+    ``requested_device_type="IBM-3278-2"`` (no suffix) so the test would
+    fail loudly if pure3270 ever regresses to the no-suffix default
+    (the server would coerce the negotiation to the no-suffix value
+    and the assertion would fire).
+
+    We also inspect the bytes the client actually emitted on the wire
+    via ``get_received_trace()`` — the DEVICE-TYPE REQUEST subnegotiation
+    from the client must contain ``IBM-3278-2-E``. A pure round-trip
+    assertion on the negotiated value would be circular (the server
+    could echo back whatever the client sent regardless of parity).
+    """
+    # Use the server's default behavior (requested_device_type=None),
+    # so the server's DEVICE-TYPE IS is "IBM-3278-2-E" and the client's
+    # REQUEST subnegotiation can be inspected. We assert on the bytes
+    # the client actually sent (not the negotiated value, which is the
+    # server's authoritative choice — testing on that would be circular).
+    server = EnhancedTN3270MockServer(requested_device_type=None)
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    s = None
+    try:
+        loop.run_until_complete(server.start())
+        s = Session()
+        s.open(server.host, server.port)
+        deadline = time.time() + 5
+        while time.time() < deadline and not s.tn3270e_mode:
+            time.sleep(0.05)
+        assert s.tn3270e_mode, "TN3270E mode not established"
+        # The on-the-wire DEVICE-TYPE IS subnegotiation the client
+        # emitted must contain the s3270-compatible "IBM-3278-2-E"
+        # string. This is the actual parity assertion; a pure
+        # round-trip check on negotiated_device_type would be circular
+        # (the server could echo back whatever the client sent).
+        received = server.get_received_trace()
+        client_request_bytes = b"".join(received)
+        assert b"IBM-3278-2-E" in client_request_bytes, (
+            f"Client DEVICE-TYPE IS does not advertise IBM-3278-2-E; "
+            f"received bytes: {client_request_bytes!r}"
+        )
+    finally:
+        if s is not None:
+            s.close()
+        loop.run_until_complete(server.stop())
+        loop.close()

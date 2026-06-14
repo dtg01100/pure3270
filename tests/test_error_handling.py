@@ -82,11 +82,11 @@ class TestErrorHandling:
         session = AsyncSession()
 
         # Test trying to read when not connected
-        with pytest.raises(SessionError):
+        with pytest.raises(NotConnectedError):
             await session.read()
 
         # Test trying to send when not connected
-        with pytest.raises(SessionError):
+        with pytest.raises(NotConnectedError):
             await session.send(b"test")
 
     @pytest.mark.asyncio
@@ -105,7 +105,7 @@ class TestErrorHandling:
         session = AsyncSession()
 
         # Test that read raises appropriate errors when not connected
-        with pytest.raises(SessionError):
+        with pytest.raises(NotConnectedError):
             await session.read(timeout=0.1)
 
     @pytest.mark.asyncio
@@ -114,7 +114,7 @@ class TestErrorHandling:
         session = AsyncSession()
 
         # Test that send raises appropriate errors when not connected
-        with pytest.raises(SessionError):
+        with pytest.raises(NotConnectedError):
             await session.send(b"test data")
 
     def test_parse_error_handling_in_data_stream_parser(self):
@@ -171,10 +171,10 @@ class TestErrorHandling:
         assert not session.connected
 
         # Try operations that should fail when not connected
-        with pytest.raises(SessionError):
+        with pytest.raises(NotConnectedError):
             await session.read()
 
-        with pytest.raises(SessionError):
+        with pytest.raises(NotConnectedError):
             await session.send(b"test")
 
         # Test parser error handling with malformed input
@@ -225,7 +225,7 @@ class TestErrorHandling:
         session = AsyncSession()
 
         # Test that session raises appropriate errors when not connected
-        with pytest.raises(SessionError):
+        with pytest.raises(NotConnectedError):
             await session.send(b"test")
 
     @pytest.mark.asyncio
@@ -238,7 +238,7 @@ class TestErrorHandling:
 
         # Even after errors, the session should be able to handle operations appropriately
         # until properly connected
-        with pytest.raises(SessionError):
+        with pytest.raises(NotConnectedError):
             await session.read()
 
     def test_exception_hierarchy_compliance(self):
