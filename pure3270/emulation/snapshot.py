@@ -3,9 +3,10 @@
 import base64
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone  # noqa: F401  (kept for back-compat imports)
 from typing import Any, Dict, List, Optional, Tuple, Union, cast
 
+from ..utils import utcnow_iso_z
 from .screen_buffer import Field, ScreenBuffer
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,7 @@ class ScreenSnapshot:
         """Create a snapshot from a ScreenBuffer instance."""
         self.metadata = {
             "version": "1.0",
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": utcnow_iso_z(),
             "ascii_mode": screen_buffer.is_ascii_mode(),
             "rows": screen_buffer.rows,
             "cols": screen_buffer.cols,

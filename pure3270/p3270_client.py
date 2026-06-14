@@ -206,7 +206,7 @@ class P3270Client:
         if self.hostName:
             self.connect()
 
-    def _sendCommand(self, command: str) -> Optional[str]:
+    def _sendCommand(self, command: str) -> Union[None, str, List[str]]:
         """
         Send a command to the session and handle response, matching p3270 behavior.
         Dispatches to appropriate Session methods for full s3270 compatibility.
@@ -345,8 +345,12 @@ class P3270Client:
                         r, c, l = param_list
                         return self.readTextAtPosition(r, c, l)
                     elif len(param_list) == 4:
+                        # s3270's Ascii() wire protocol is 0-based
+                        # (origin (0, 0)). readTextArea is 1-based for
+                        # parity with p3270.P3270Client, so the
+                        # conversion happens here at the boundary.
                         r, c, rs, cs = param_list
-                        return self.readTextArea(r, c, r + rs - 1, c + cs - 1)
+                        return self.readTextArea(r + 1, c + 1, rs, cs)
                 else:
                     return self.getScreen()
 
@@ -448,15 +452,19 @@ class P3270Client:
         """Print current screen content (returns screen text)."""
         return self.getScreen()
 
-    def saveScreen(self, filename: str) -> bool:
-        """Save current screen to file."""
+    def saveScreen(self, fileName: str = "screen", dataType: str = "html") -> bool:
+        """Save current screen to file.
+
+        The default arguments mirror p3270's ``P3270Client.saveScreen``
+        signature so callers ported from that library keep working.
+        """
         try:
             screen_content = self.getScreen()
-            with open(filename, "w", encoding="utf-8") as f:
+            with open(fileName, "w", encoding="utf-8") as f:
                 f.write(screen_content)
             return True
         except Exception as e:
-            logger.error(f"Error saving screen to {filename}: {e}")
+            logger.error(f"Error saving screen to {fileName}: {e}")
             return False
 
     def sendText(self, text: str, asterisks: bool = False) -> None:
@@ -499,13 +507,19 @@ class P3270Client:
         """Clear the screen."""
         self._sendCommand("CLEAR")
 
-    def sendPF(self, pfNum: int) -> None:
-        """Send PF key (PF1-PF24)."""
-        self._sendCommand(f"PF({pfNum})")
+    def sendPF(self, n: int) -> None:
+        """Send PF key (PF1-PF24).
 
-    def sendPA(self, paNum: int) -> None:
-        """Send PA key (PA1-PA3)."""
-        self._sendCommand(f"PA({paNum})")
+        Parameter name ``n`` matches p3270's signature for parity.
+        """
+        self._sendCommand(f"PF({n})")
+
+    def sendPA(self, n: int) -> None:
+        """Send PA key (PA1-PA3).
+
+        Parameter name ``n`` matches p3270's signature for parity.
+        """
+        self._sendCommand(f"PA({n})")
 
     def sendKeys(self, keys: str) -> None:
         """Send arbitrary key sequence."""
@@ -569,19 +583,20 @@ class P3270Client:
         """Alias for disconnect (legacy p3270 API)."""
         self.disconnect()
 
-    def makeArgs(self, *args: Any) -> List[Any]:
-        """Return a list constructed from provided args (legacy helper).
+    def makeArgs(self) -> List[Any]:
+        """Return an empty args list (p3270's no-arg legacy helper).
 
-        Mirrors p3270.P3270Client.makeArgs behavior by simply returning a
-        list of the arguments passed, used by some calling code that expects
-        an args list for command assembly.
+        The previous ``*args`` variant was a useful extension but
+        changed the callable signature, which broke p3270 callers
+        that introspect the method. This version matches p3270's
+        no-argument signature exactly; callers needing an args list
+        can use the builtin ``list()`` instead.
         """
-        return list(args)
+        return []
 
     def readTextAtPosition(self, row: int, col: int, length: int) -> str:
         """
         Read text at specified position.
-
         Args:
             row: Row position (0-based)
             col: Column position (0-based)
@@ -604,47 +619,58 @@ class P3270Client:
         return line[col:end_pos]
 
     def readTextArea(
-        self, startRow: int, startCol: int, endRow: int, endCol: int
-    ) -> str:
+        self, row: int, col: int, rows: int, cols: int
+    ) -> Union[str, List[str]]:
         """
         Read text from a rectangular area.
 
-        Args:
-            startRow: Starting row (0-based)
-            startCol: Starting column (0-based)
-            endRow: Ending row (0-based)
-            endCol: Ending column (0-based)
+        The parameter names ``row``, ``col``, ``rows``, ``cols`` mirror
+        p3270's ``P3270Client.readTextArea`` signature for parity. As
+        in p3270, all arguments are 1-based: the origin is ``(1, 1)``
+        and ``rows``/``cols`` are counts, not end positions. The
+        previous 0-based ``startRow``/``endRow``-style signature was a
+        useful but non-conformant extension.
 
         Returns:
-            Text from the specified area
+            For ``rows == 1`` the joined text; for ``rows > 1`` a list
+            of per-row strings. Matches p3270's return shape.
         """
+        if row < 1 or col < 1 or rows < 1 or cols < 1:
+            raise ValueError(
+                "readTextArea: row, col, rows, cols must all be 1 or above"
+            )
         screen = self.getScreen()
         lines = screen.split("\n")
-        result = []
+        result: List[str] = []
+        for offset in range(rows):
+            target_row = row - 1 + offset
+            if target_row >= len(lines):
+                break
+            line = lines[target_row]
+            start_col = col - 1
+            end_col = start_col + cols
+            result.append(line[start_col:end_col])
+        if rows == 1:
+            return result[0] if result else ""
+        return result
 
-        for row in range(startRow, min(endRow + 1, len(lines))):
-            if row < len(lines):
-                line = lines[row]
-                start = startCol if row == startRow else 0
-                end = endCol + 1 if row == endRow else len(line)
-                result.append(line[start:end])
-
-        return "\n".join(result)
-
-    def foundTextAtPosition(self, row: int, col: int, text: str) -> bool:
+    def foundTextAtPosition(self, row: int, col: int, sent_text: str) -> bool:
         """
         Check if specific text is found at position.
+
+        The parameter name ``sent_text`` matches p3270's signature for
+        parity; the alias ``text`` is kept in the docstring for clarity.
 
         Args:
             row: Row position (0-based)
             col: Column position (0-based)
-            text: Text to search for
+            sent_text: Text to search for
 
         Returns:
             True if text is found at position
         """
-        actual_text = self.readTextAtPosition(row, col, len(text))
-        return actual_text == text
+        actual_text = self.readTextAtPosition(row, col, len(sent_text))
+        return actual_text == sent_text
 
     def trySendTextToField(
         self, text: str, row: Optional[int] = None, col: Optional[int] = None
@@ -688,24 +714,32 @@ class P3270Client:
         return self.waitForCursorAt(row, col, timeout)
 
     def waitForStringAt(
-        self, row: int, col: int, text: str, timeout: float = 5.0
+        self, row: int, col: int, string: str, timeout: float = 5.0
     ) -> bool:
-        """Wait for specific text to appear at position."""
+        """Wait for specific text to appear at position.
+
+        Parameter name ``string`` matches p3270's signature for parity;
+        the local alias ``text`` was renamed to avoid the built-in
+        ``str`` name in older Python versions.
+        """
         start_time = time.time()
         while time.time() - start_time < timeout:
-            if self.foundTextAtPosition(row, col, text):
+            if self.foundTextAtPosition(row, col, string):
                 return True
             time.sleep(0.1)
             self.getScreen()  # Refresh screen
         return False
 
     def waitForStringAtOffset(
-        self, offset: int, text: str, timeout: float = 5.0
+        self, offset: int, string: str, timeout: float = 5.0
     ) -> bool:
-        """Wait for specific text to appear at offset."""
+        """Wait for specific text to appear at offset.
+
+        Parameter name ``string`` matches p3270's signature for parity.
+        """
         row = offset // self._screen_cols
         col = offset % self._screen_cols
-        return self.waitForStringAt(row, col, text, timeout)
+        return self.waitForStringAt(row, col, string, timeout)
 
     def waitForField(self, timeout: float = 5.0) -> bool:
         """Wait for an input field to be available."""

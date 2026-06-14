@@ -6,6 +6,7 @@ Provides functionality to replay 3270 trace files and extract screen buffer stat
 """
 
 import asyncio
+import inspect
 import logging
 import re
 from pathlib import Path
@@ -13,6 +14,7 @@ from typing import Any, Dict, List, Optional
 
 from pure3270.emulation.screen_buffer import ScreenBuffer
 from pure3270.protocol.data_stream import DataStreamParser
+from pure3270.protocol.utils import DEFAULT_TERMINAL_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -70,13 +72,32 @@ class Replayer:
                 )
                 try:
                     _res = self.parser.parse(record)
-                    if asyncio.iscoroutine(_res):
+                    if inspect.iscoroutine(_res):
+                        # parser.parse() returned a coroutine, but replay()
+                        # is synchronous, so we cannot await _res here.
+                        # Schedule the coroutine on a loop so its work
+                        # actually runs (sense-code handling, LU-busy
+                        # recovery, session-failure re-negotiation) --
+                        # closing it would drop that work.
+                        #   * if no loop is running, asyncio.run() runs it
+                        #     to completion in a fresh loop.
+                        #   * if a loop IS running, hand the coroutine to
+                        #     that loop via create_task. If that ever
+                        #     fails, fall back to closing so we at least
+                        #     don't leak the coroutine.
                         try:
                             loop = asyncio.get_running_loop()
                         except RuntimeError:
                             asyncio.run(_res)
                         else:
-                            loop.create_task(_res)
+                            try:
+                                loop.create_task(_res)
+                            except RuntimeError:
+                                _res.close()
+                                logger.debug(
+                                    "Parser returned coroutine but loop "
+                                    "refused the task; closing it"
+                                )
                 except Exception as e:
                     logger.warning(f"Failed to parse record {idx + 1}: {e}")
                     continue
@@ -201,7 +222,7 @@ class Replayer:
                     force_mode=None,
                     allow_fallback=True,
                     recorder=None,
-                    terminal_type="IBM-3278-2",
+                    terminal_type=DEFAULT_TERMINAL_MODEL,
                 )
 
                 # Set the handler on the session

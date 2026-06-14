@@ -289,10 +289,10 @@ class DRYViolationDetector:
             json.dump(report_data, f, indent=2)
 
     def _get_timestamp(self) -> str:
-        """Get current timestamp in ISO format."""
-        from datetime import datetime
+        """Get current timestamp in ISO format with Z suffix for UTC."""
+        from pure3270.utils import utcnow_iso_z
 
-        return datetime.utcnow().isoformat() + "Z"
+        return utcnow_iso_z()
 
     def print_summary(self, violations: Dict) -> None:  # type: ignore
         """Print a human-readable summary of violations."""

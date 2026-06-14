@@ -36,6 +36,7 @@ Session management for pure3270, handling synchronous and asynchronous 3270 conn
 
 import asyncio
 import functools
+import inspect
 import logging
 import unittest.mock as _um
 from builtins import ConnectionError as BuiltinConnectionError  # To avoid name conflict
@@ -55,6 +56,8 @@ from typing import (
 T = TypeVar("T")
 
 from pure3270.protocol.utils import (
+    DEFAULT_CODEPAGE,
+    DEFAULT_TERMINAL_MODEL,
     TN3270E_SYSREQ_ATTN,
     TN3270E_SYSREQ_BREAK,
     TN3270E_SYSREQ_CANCEL,
@@ -69,11 +72,30 @@ from .lu_lu_session import (  # Expose for tests patching pure3270.session.LuLuS
     LuLuSession,
 )
 from .protocol.data_stream import DataStreamParser
-from .protocol.exceptions import NegotiationError
+from .protocol.exceptions import NegotiationError, NotConnectedError
 from .protocol.tcpip_printer_session import TCPIPPrinterSession
 from .protocol.tn3270_handler import TN3270Handler
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_terminal_type(terminal_type: str) -> None:
+    """Raise ValueError if ``terminal_type`` is not a supported 3270 model.
+
+    Centralised so the validation message, supported-models list, and
+    exception class all stay in lockstep between ``Session.__init__``
+    and ``AsyncSession.__init__`` (both exposed as the public API).
+    """
+    from .protocol.utils import (
+        get_supported_terminal_models,
+        is_valid_terminal_model,
+    )
+
+    if not is_valid_terminal_model(terminal_type):
+        raise ValueError(
+            f"Invalid terminal type {terminal_type!r}. "
+            f"Use one of: {', '.join(get_supported_terminal_models())}"
+        )
 
 
 def _require_connected_session(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -139,19 +161,13 @@ class Session:
         force_mode: Optional[str] = None,
         allow_fallback: bool = True,
         enable_trace: bool = False,
-        terminal_type: str = "IBM-3278-2",
-        codepage: str = "cp037",
+        terminal_type: str = DEFAULT_TERMINAL_MODEL,
+        codepage: str = DEFAULT_CODEPAGE,
     ) -> None:
         """
         Initialize a synchronous session with a dedicated thread and event loop.
         """
-        # Validate terminal type
-        from .protocol.utils import is_valid_terminal_model
-
-        if not is_valid_terminal_model(terminal_type):
-            raise ValueError(
-                f"Invalid terminal type '{terminal_type}'. Use one of: {', '.join(['IBM-3278-2', 'IBM-3278-3', 'IBM-3278-4', 'IBM-3278-5', 'IBM-3279-2', 'IBM-3279-3', 'IBM-3279-4', 'IBM-3279-5', 'IBM-3179-2', 'IBM-3270PC-G', 'IBM-3270PC-GA', 'IBM-3270PC-GX', 'IBM-DYNAMIC'])}"
-            )
+        _validate_terminal_type(terminal_type)
 
         # Initialize connection parameters
         self._host = host
@@ -242,7 +258,7 @@ class Session:
             # Submit coroutine to the worker loop and wait for the result
             import concurrent.futures
 
-            if asyncio.iscoroutine(maybe_awaitable):
+            if inspect.iscoroutine(maybe_awaitable):
                 fut: "concurrent.futures.Future[Any]" = (
                     asyncio.run_coroutine_threadsafe(maybe_awaitable, loop=self._loop)
                 )
@@ -959,9 +975,9 @@ class AsyncSession:
         force_mode: Optional[str] = None,
         allow_fallback: bool = True,
         enable_trace: bool = False,
-        terminal_type: str = "IBM-3278-2",
+        terminal_type: str = DEFAULT_TERMINAL_MODEL,
         is_printer_session: bool = False,
-        codepage: str = "cp037",
+        codepage: str = DEFAULT_CODEPAGE,
     ) -> None:
         """
         Initialize the AsyncSession.
@@ -977,13 +993,7 @@ class AsyncSession:
             is_printer_session: True if this is a printer session.
             codepage: EBCDIC code page for screen decoding (e.g. 'cp037', 'cp500').
         """
-        # Validate terminal type
-        from .protocol.utils import is_valid_terminal_model
-
-        if not is_valid_terminal_model(terminal_type):
-            raise ValueError(
-                f"Invalid terminal type '{terminal_type}'. Use one of: {', '.join(['IBM-3278-2', 'IBM-3278-3', 'IBM-3278-4', 'IBM-3278-5', 'IBM-3279-2', 'IBM-3279-3', 'IBM-3279-4', 'IBM-3279-5', 'IBM-3179-2', 'IBM-3270PC-G', 'IBM-3270PC-GA', 'IBM-3270PC-GX', 'IBM-DYNAMIC'])}"
-            )
+        _validate_terminal_type(terminal_type)
 
         self._host = host
         self._port = port
@@ -1223,11 +1233,11 @@ class AsyncSession:
             attempts = 0
             while True:
                 try:
-                    if asyncio.iscoroutinefunction(setup):
+                    if inspect.iscoroutinefunction(setup):
                         await setup()
                     elif callable(setup):
                         res = setup()
-                        if asyncio.iscoroutine(res):
+                        if inspect.iscoroutine(res):
                             await res
                     break
                 except Exception as e:
@@ -1239,19 +1249,19 @@ class AsyncSession:
                     await asyncio.sleep(0)
             # Telnet negotiation
             tn = getattr(transport, "perform_telnet_negotiation", None)
-            if asyncio.iscoroutinefunction(tn):
+            if inspect.iscoroutinefunction(tn):
                 await tn()
             elif callable(tn):
                 res = tn()
-                if asyncio.iscoroutine(res):
+                if inspect.iscoroutine(res):
                     await res
             # TN3270 negotiation
             te = getattr(transport, "perform_tn3270_negotiation", None)
-            if asyncio.iscoroutinefunction(te):
+            if inspect.iscoroutinefunction(te):
                 await te()
             elif callable(te):
                 res = te()
-                if asyncio.iscoroutine(res):
+                if inspect.iscoroutine(res):
                     await res
 
         self._connected = True
@@ -1348,7 +1358,7 @@ class AsyncSession:
     async def send(self, data: bytes) -> None:
         """Send data to the session with retry logic."""
         if not self._handler:
-            raise SessionError("Session not connected.", {"operation": "send"})
+            raise NotConnectedError("Session not connected.", {"operation": "send"})
 
         max_retries = 3
         for attempt in range(max_retries):
@@ -1368,7 +1378,7 @@ class AsyncSession:
     async def read(self, timeout: float = 5.0) -> bytes:
         """Read data from the session with retry logic."""
         if not self._handler:
-            raise SessionError("Session not connected.", {"operation": "read"})
+            raise NotConnectedError("Session not connected.", {"operation": "read"})
 
         max_retries = 3
         data = b""  # Initialize to avoid unbound variable
@@ -1516,8 +1526,11 @@ class AsyncSession:
         MUST explicitly call close() or use the context manager pattern
         to ensure proper synchronous cleanup of async resources.
         """
-        if self._handler is None and not self._connected:
-            # Already closed
+        # __init__ may have raised before attributes were assigned; guard
+        # against AttributeError so the GC destructor itself never raises.
+        handler = getattr(self, "_handler", None)
+        if handler is None and not getattr(self, "_connected", False):
+            # Either never constructed, or already closed
             return
         # Try to schedule cleanup in the event loop
         try:
@@ -1525,7 +1538,7 @@ class AsyncSession:
         except RuntimeError:
             # No running loop - can't schedule cleanup
             loop = None
-        if loop is not None and self._handler is not None:
+        if loop is not None and handler is not None:
             try:
                 loop.create_task(self.close())
             except Exception:
@@ -1662,7 +1675,7 @@ class AsyncSession:
                         res = method(*args)
                     else:
                         res = method()
-                    if asyncio.iscoroutine(res):
+                    if inspect.iscoroutine(res):
                         await res
                     return
         else:
@@ -1671,7 +1684,7 @@ class AsyncSession:
                 method = getattr(self, cmd)
                 if callable(method):
                     res = method()
-                    if asyncio.iscoroutine(res):
+                    if inspect.iscoroutine(res):
                         await res
                     return
         raise ValueError(f"Unsupported script command: {commands}")
@@ -1825,7 +1838,7 @@ class AsyncSession:
                             if self._handler.parser:
                                 try:
                                     _res = self._handler.parser.parse(response_data)
-                                    if asyncio.iscoroutine(_res):
+                                    if inspect.iscoroutine(_res):
                                         await _res
                                 except Exception:
                                     pass  # Ignore parsing errors

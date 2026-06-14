@@ -60,9 +60,7 @@
   "field_attributes": {
     "colors": [],
     "highlighting": [],
-    "protection": [
-      "protected"
-    ],
+    "protection": ["protected"],
     "special": []
   },
   "notes": [
