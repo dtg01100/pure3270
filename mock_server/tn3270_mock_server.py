@@ -181,6 +181,12 @@ class TN3270MockServer:
             if getattr(self, "_thread", None):
                 self._thread.join(timeout=1.0)
             print(f"TN3270MockServer stopped on {self.host}")
+            # Mark the server as stopped so subsequent calls to
+            # stop() short-circuit at the idempotency guard above. The
+            # pre-diff code never set this flag, so a second stop()
+            # would re-enter the (now-stale) loop/thread teardown
+            # branch and hang.
+            self._stopped = True
 
 
 class EnhancedTN3270MockServer(TN3270MockServer):

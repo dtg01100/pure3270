@@ -133,6 +133,11 @@ class TraceReplayServer:
         # Per-connection state
         self._dump_counter = 0
         self.connection_states: Dict[asyncio.StreamWriter, Dict[str, Any]] = {}
+        # Track per-connection tasks so start_server cancellation can
+        # propagate to them. Without this, cancelling the start_server
+        # task leaves the per-connection coroutine holding the loop
+        # open (it is awaiting reader.read() which never resolves).
+        self._connection_tasks: set[asyncio.Task[Any]] = set()
 
         # Track negotiation phase per connection when compat is enabled
         self._compat_negotiation_complete: Dict[asyncio.StreamWriter, bool] = {}
@@ -230,6 +235,13 @@ class TraceReplayServer:
         self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         """Handle a single client connection."""
+        # Register the current task so start_server cancellation can
+        # propagate to us. ``asyncio.start_server`` spawns a fresh task
+        # per connection, so this is the natural place to track it.
+        current = asyncio.current_task()
+        if current is not None:
+            self._connection_tasks.add(current)
+            current.add_done_callback(self._connection_tasks.discard)
         client_addr = writer.get_extra_info("peername")
         logger.info(f"New connection from {client_addr}")
 
@@ -805,7 +817,14 @@ class TraceReplayServer:
         return await self._handle_compat_negotiation(data, writer)
 
     async def start_server(self, host: str = "127.0.0.1", port: int = 2323) -> None:
-        """Start the replay server and ensure clean shutdown on cancellation."""
+        """Start the replay server and ensure clean shutdown on cancellation.
+
+        We avoid ``async with server:`` here because its ``__aexit__``
+        blocks on the per-connection tasks (which are awaiting
+        reader.read() and never wake up once we stop accepting).
+        Cancelling the connection tasks first lets server.wait_closed()
+        return promptly.
+        """
         server = await asyncio.start_server(self.handle_connection, host, port)
 
         logger.info(f"Trace replay server started on {host}:{port}")
@@ -814,14 +833,23 @@ class TraceReplayServer:
         logger.info(f"Max connections: {self.max_connections}")
 
         try:
-            async with server:
-                await server.serve_forever()
+            await server.serve_forever()
         except KeyboardInterrupt:
             logger.info("Server stopped")
         except asyncio.CancelledError:
             # Expected on caller shutdown; fall through to close
             pass
         finally:
+            # Cancel per-connection tasks first so server.wait_closed()
+            # can return. Without this, wait_closed() blocks waiting
+            # for handle_connection coroutines that are stuck in
+            # reader.read().
+            pending = [t for t in self._connection_tasks if not t.done()]
+            for t in pending:
+                t.cancel()
+            if pending:
+                # Bounded wait so a stuck task cannot deadlock shutdown.
+                await asyncio.wait(pending, timeout=0.5)
             try:
                 server.close()
                 await server.wait_closed()

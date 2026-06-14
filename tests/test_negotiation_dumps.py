@@ -31,16 +31,14 @@ async def test_negotiation_dump_files_created(tmp_path: Path) -> None:
         str(trace_file),
         loop_mode=False,
         trace_replay_mode=True,
-        # compat_handshake=True is the path the test was originally
-        # designed to exercise, but TraceReplayServer's per-connection
-        # tasks are not children of start_server, so cancelling
-        # server_task leaves the per-connection task holding the loop
-        # open. The dump tooling itself is the same in both modes
-        # (TraceReplayServer._send_bytes dumps via dump_handles
-        # regardless of compat_handshake), so this test still covers
-        # the dump-file-creation and IAC-token-presence assertions.
-        # The True path is exercised by the tools/trace_replay_server.py
-        # CLI in its own test.
+        # compat_handshake=True exercises a richer TN3270E subnegotiation
+        # path but currently has a deeper protocol-level mismatch with
+        # the AsyncSession (the server keeps sending data the client
+        # does not expect, blocking the test). The dump tooling itself
+        # is the same in both modes (TraceReplayServer._send_bytes
+        # dumps via dump_handles regardless of compat_handshake), so
+        # this test still covers the dump-file-creation and
+        # IAC-token-presence assertions.
         compat_handshake=False,
         dump_negotiation=True,
         dump_dir=str(dump_dir),
@@ -88,10 +86,8 @@ async def test_negotiation_dump_contains_iac_tokens(tmp_path: Path) -> None:
         str(trace_file),
         loop_mode=False,
         trace_replay_mode=True,
-        # See test_negotiation_dump_files_created for the rationale on
-        # compat_handshake=False. Dump-file capture is exercised in
-        # this mode; the compat_handshake=True path is covered by the
-        # tools/trace_replay_server.py CLI test.
+        # See test_negotiation_dump_files_created for the compat_handshake
+        # rationale. The dump capture tooling is mode-agnostic.
         compat_handshake=False,
         dump_negotiation=True,
         dump_dir=str(dump_dir),
