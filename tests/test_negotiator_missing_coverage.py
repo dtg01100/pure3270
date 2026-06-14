@@ -10,6 +10,10 @@ from pure3270.protocol.data_stream import DataStreamParser
 from pure3270.protocol.exceptions import NegotiationError, ProtocolError
 from pure3270.protocol.negotiator import Negotiator
 from pure3270.protocol.utils import (
+    IAC,
+    SB,
+    SE,
+    TELOPT_TN3270E,
     TN3270E_BIND_IMAGE,
     TN3270E_DATA_STREAM_CTL,
     TN3270E_DEVICE_TYPE,
@@ -195,3 +199,66 @@ class TestNegotiatorMissingCoverage:
         negotiator.writer = AsyncMock()
         negotiator.supported_functions = 0
         await negotiator._send_functions_is()
+
+    @pytest.mark.asyncio
+    async def test_default_functions_bytes_match_s3270_trace(
+        self, negotiator, memory_limit_500mb
+    ):
+        """Verify default FUNCTIONS REQUEST/IS bytes match s3270 traces.
+
+        The default FUNCTIONS payload (when no negotiation has occurred)
+        must match what s3270 actually sends, per
+        ``tests/data/traces/bid.trc`` and ``ibmlink2.trc``:
+
+        .. code-block:: text
+
+            fffa 28 03 07 00 02 04 05 fff0    (REQUEST)
+            fffa 28 03 04 00 02 04 05 fff0    (IS)
+
+        The 4-byte function mask is ``0x00 0x02 0x04 0x05`` (== int
+        ``0x00020405``), which encodes BIND-IMAGE, RESPONSES, SYSREQ,
+        and CONTENTION-RESOLUTION per RFC 2355.
+        """
+        expected = bytes([0x00, 0x02, 0x04, 0x05])
+        for command in (TN3270E_REQUEST, TN3270E_IS):
+            # Use AsyncMock so the writer's ``drain()`` coroutine works
+            # when ``_send_functions_request/is`` awaits it.
+            writer = MagicMock()
+            writer.drain = AsyncMock()
+            writer.wait_closed = AsyncMock()
+            negotiator.writer = writer
+            # Force the fallback branch by clearing cached functions.
+            if hasattr(negotiator, "_functions"):
+                negotiator._functions = None
+            if command == TN3270E_REQUEST:
+                await negotiator._send_functions_request()
+            else:
+                await negotiator._send_functions_is()
+            # Find the most recent subnegotiation call with the
+            # expected TN3270E/FUNCTIONS prefix.
+            sent_payloads = [call.args[0] for call in writer.write.call_args_list]
+            found = False
+            for payload in sent_payloads:
+                # + IAC SE by ``send_subnegotiation``. Strip the trailer
+                # before extracting the FUNCTIONS payload.
+                payload = bytes(payload)
+                if not (
+                    len(payload) >= 5
+                    and payload[0] == IAC
+                    and payload[1] == SB
+                    and payload[2] == TELOPT_TN3270E
+                    and payload[3] == TN3270E_FUNCTIONS
+                    and payload[4] == command
+                ):
+                    continue
+                function_bytes = payload[5:-2]  # drop IAC SE
+                assert function_bytes == expected, (
+                    f"Default FUNCTIONS payload {function_bytes.hex()} "
+                    f"does not match s3270 trace {expected.hex()}"
+                )
+                found = True
+                break
+            assert found, (
+                f"No FUNCTIONS subnegotiation with command {command:#x} "
+                f"was sent. Calls: {writer.write.call_args_list}"
+            )

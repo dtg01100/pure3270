@@ -16,6 +16,18 @@ TN3270E_FUNCTIONS = 0x03
 TN3270E_REQUEST = 0x07
 # TN3270E Subnegotiation Type: QUERY (RFC 1646/2355)
 TN3270E_QUERY = 0x0F
+
+# Default FUNCTIONS bitmap advertised on FUNCTIONS REQUEST/IS when the
+# negotiator has no better signal. Matches s3270's own pattern per
+# ibmlink2.trc / bid.trc hex dumps:
+#     REQUEST: fffa 28 03 07 00 02 04 05 fff0
+#     IS:      fffa 28 03 04 00 02 04 05 fff0
+# After dropping the leading REQUEST (0x07) or IS (0x04) byte, the 4
+# function bytes are 0x00 0x02 0x04 0x05 (== int 0x00020405), which
+# encode BIND-IMAGE, RESPONSES, SYSREQ, CONTENTION-RESOLUTION. Used
+# by both _send_functions_request and _send_functions_is in
+# negotiator.py; keep them in lockstep via this single source.
+DEFAULT_TN3270E_FUNCTIONS_DATA: bytes = bytes([0x00, 0x02, 0x04, 0x05])
 """Utility functions for TN3270/TN3270E protocol handling.
 
 Typing notes:
@@ -477,6 +489,11 @@ TERMINAL_MODEL_ALIASES: Dict[str, str] = {
 
 # Default terminal model for backward compatibility
 DEFAULT_TERMINAL_MODEL = TN3270E_IBM_3278_2
+
+# Default EBCDIC code page for screen encoding/decoding.
+# CP037 is the original IBM EBCDIC code page used by US/Canada mainframes
+# and is the de-facto standard for TN3270 sessions.
+DEFAULT_CODEPAGE = "cp037"
 
 
 # Validation helpers

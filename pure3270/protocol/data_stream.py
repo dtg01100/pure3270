@@ -41,6 +41,8 @@
 # mypy: disallow_untyped_defs=False, disallow_incomplete_defs=False, check_untyped_defs=False
 """Data stream parser and sender for 3270 protocol."""
 
+import asyncio
+import inspect
 import logging
 import struct
 import threading
@@ -1050,7 +1052,7 @@ class DataStreamParser:
             return False
 
         self._recovery_attempts += 1
-        logger.debug(f"Attempting recovery (attempt {self._recovery_attempts})")
+        logger.debug("Attempting recovery (attempt %d)", self._recovery_attempts)
 
         try:
             # Try to skip malformed data and continue
@@ -1067,15 +1069,17 @@ class DataStreamParser:
                                 header_bytes = test_data[:5]
                                 if all(0 <= b <= 255 for b in header_bytes):
                                     logger.debug(
-                                        f"Found potential valid header at offset {i}"
+                                        "Found potential valid header at offset %d", i
                                     )
                                     return True
-                    except:
+                    except (ValueError, TypeError, IndexError):
+                        # Indexing into bytes or computing test_data may raise
+                        # these; skip the candidate offset and try the next.
                         continue
 
             return False
         except Exception as e:
-            logger.debug(f"Recovery attempt failed: {e}")
+            logger.debug("Recovery attempt failed: %s", e)
             return False
 
     def get_validation_errors(self) -> List[str]:
@@ -1283,11 +1287,31 @@ class DataStreamParser:
                     handler = getattr(self.negotiator, "_handle_sna_response", None)
                     if handler and callable(handler):
                         try:
-                            handler(sna_response)
+                            result = handler(sna_response)
                         except Exception:
                             logger.warning(
-                                "Negotiator _handle_sna_response raised", exc_info=True
+                                "Negotiator _handle_sna_response raised",
+                                exc_info=True,
                             )
+                            result = None
+                        if inspect.iscoroutine(result):
+                            # _handle_sna_response is async but parse() is
+                            # sync. Schedule the coroutine on the running
+                            # loop so the SNA state machine actually runs;
+                            # falling back to a loud log if no loop is
+                            # available. Closing the coroutine would drop
+                            # sense-code handling, LU-busy recovery, and
+                            # session-failure re-negotiation.
+                            try:
+                                loop = asyncio.get_running_loop()
+                            except RuntimeError:
+                                logger.warning(
+                                    "Negotiator._handle_sna_response is "
+                                    "async; no running loop to schedule it "
+                                    "on, SNA recovery will be skipped"
+                                )
+                            else:
+                                loop.create_task(result)
             except ParseError as e:
                 logger.warning(
                     "Failed to parse SNA response variant: %s, consuming data", e

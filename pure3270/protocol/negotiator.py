@@ -70,6 +70,8 @@ from .errors import handle_drain, raise_protocol_error, safe_socket_operation
 from .exceptions import NegotiationError, NotConnectedError, ProtocolError
 from .tn3270e_header import TN3270EHeader
 from .utils import (  # RFC 2355 7.1.2 CONNECT and 7.1.3 ASSOCIATE
+    DEFAULT_TERMINAL_MODEL,
+    DEFAULT_TN3270E_FUNCTIONS_DATA,
     DO,
     DONT,
     NEW_ENV_ESC,
@@ -171,7 +173,7 @@ class Negotiator:
         force_mode: Optional[str] = None,
         allow_fallback: bool = True,
         recorder: Optional["TraceRecorder"] = None,
-        terminal_type: str = "IBM-3278-2",
+        terminal_type: str = DEFAULT_TERMINAL_MODEL,
         negotiation_mode: str = "strict",
     ):
         """
@@ -1655,17 +1657,30 @@ class Negotiator:
                                 asyncio.create_task(device_ev.wait()),
                                 asyncio.create_task(functions_ev.wait()),
                             }
-                            done, pending = await asyncio.wait(
-                                wait_tasks,
-                                timeout=step_timeout,
-                                return_when=asyncio.FIRST_COMPLETED,
-                            )
-                            # Cancel any pending
-                            for t in pending:
-                                t.cancel()
-                            if not done:
-                                raise asyncio.TimeoutError(
-                                    "Device-type/functions event not received in time"
+                            try:
+                                done, pending = await asyncio.wait(
+                                    wait_tasks,
+                                    timeout=step_timeout,
+                                    return_when=asyncio.FIRST_COMPLETED,
+                                )
+                                if not done:
+                                    raise asyncio.TimeoutError(
+                                        "Device-type/functions event not received in time"
+                                    )
+                            finally:
+                                # Always cancel and drain the wait tasks to
+                                # avoid the "coroutine 'Event.wait' was never
+                                # awaited" warning. Even on exception paths,
+                                # the Task objects wrap underlying coroutines
+                                # that must be awaited or Python's GC raises a
+                                # RuntimeWarning when collecting them.
+                                for t in wait_tasks:
+                                    if not t.done():
+                                        t.cancel()
+                                # Drain: gather with return_exceptions=True
+                                # suppresses the CancelledError on each task.
+                                await asyncio.gather(
+                                    *wait_tasks, return_exceptions=True
                                 )
 
                         # If we have functions event but not device event, still proceed
@@ -3847,8 +3862,21 @@ class Negotiator:
                     logger.info(
                         f"[TN3270E] Using special case for printer session: device_type={device_type}, lu_name={lu_name}"
                     )
+                elif base_model.startswith("3278-2"):
+                    # s3270 sends the -E suffix for the 24x80 model, matching
+                    # trace evidence such as the 3278-2-E REQUESTs in
+                    # tests/data/traces/login.trc. The default fallback below
+                    # used to send "IBM-3278-2" without the suffix, which is
+                    # a real parity bug.
+                    device_type = "IBM-3278-2-E"
+                    lu_name = "TDC01702"
+                elif base_model.startswith("3278"):
+                    # Generic 3278 fallback: always include the -E suffix
+                    # to be consistent with s3270's DEVICE-TYPE IS responses.
+                    device_type = f"IBM-{base_model}-E"
+                    lu_name = "TDC01702"
                 else:
-                    # Default fallback
+                    # Default fallback for other IBM-* models
                     device_type = self.terminal_type
                     lu_name = "TDC01702"
             else:
@@ -3914,8 +3942,7 @@ class Negotiator:
         if hasattr(self, "_functions") and self._functions:
             functions_data = self._functions
         else:
-            # Fallback to standard functions
-            functions_data = bytes([0x01, 0x02, 0x03, 0x04])
+            functions_data = DEFAULT_TN3270E_FUNCTIONS_DATA
 
         logger.info(
             f"[TN3270E] Sending FUNCTIONS REQUEST with functions: {functions_data.hex()}"
@@ -3941,15 +3968,10 @@ class Negotiator:
 
         # Apply functions delay (x3270 pattern)
         self._apply_step_delay("functions")
-
-        # Send FUNCTIONS IS with the functions that were requested by the server
-        # Use the functions received in FUNCTIONS REQUEST IS
         if hasattr(self, "_functions") and self._functions:
             functions_data = self._functions
         else:
-            # Fallback to the functions we requested
-            functions_data = bytes([0x01, 0x02, 0x03, 0x04])
-
+            functions_data = DEFAULT_TN3270E_FUNCTIONS_DATA
         # Update negotiated_functions based on the functions data
         if len(functions_data) == 1:
             self.negotiated_functions = functions_data[0]
@@ -3988,16 +4010,15 @@ class Negotiator:
             # Debug output to see what we're actually sending
             logger.debug(f"[TN3270E] Function bytes to send: {functions_data.hex()}")
 
-            payload = (
-                bytes(
-                    [
-                        TN3270E_FUNCTIONS,
-                        0x07,  # Custom command that s3270 uses instead of standard REQUEST (0x04)
-                        TN3270E_IS,
-                    ]
-                )
-                + functions_data
-            )
+            # Based on trace analysis, s3270 sends:
+            #     REQUEST: fffa 28 03 07 00 02 04 05 fff0
+            #     IS:      fffa 28 03 04 00 02 04 05 fff0
+            # The 0x07 (REQUEST) and 0x04 (IS) bytes are mutually
+            # exclusive command bytes — they MUST NOT both be emitted
+            # in the same subnegotiation. The earlier version of this
+            # function incorrectly concatenated both, producing
+            # ``03 07 04 data`` instead of the correct ``03 04 data``.
+            payload = bytes([TN3270E_FUNCTIONS, TN3270E_IS]) + functions_data
 
             # Debug output to see the full payload
             logger.debug(f"[TN3270E] Full payload to send: {payload.hex()}")
