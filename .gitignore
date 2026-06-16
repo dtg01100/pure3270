@@ -215,6 +215,10 @@ manual_*.py
 direct_*.py
 quick_*.py
 run_*.py
+!tools/run_regression_traces.py
+!tools/run_s3270_parity.py
+!tools/diff_parity_reports.py
+!tools/render_regression_summary.py
 generate_*.py
 establish_*.py
 decode_*.py
