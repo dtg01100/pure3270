@@ -44,23 +44,23 @@ jobs:
 
           trace_dir = Path('tests/data/traces')
           if not trace_dir.exists():
-              print(f'❌ Trace directory not found: {trace_dir}')
+              print('Trace directory not found:', trace_dir)
               sys.exit(1)
 
           trace_files = list(trace_dir.glob('*.trc'))
           if not trace_files:
-              print(f'❌ No trace files found in {trace_dir}')
+              print('No trace files found in', trace_dir)
               sys.exit(1)
 
-          print(f'✅ Found {len(trace_files)} trace files:')
+          print('Found', len(trace_files), 'trace files:')
           for tf in trace_files:
               size = tf.stat().st_size
-              print(f'  - {tf.name} ({size} bytes)")
+              print('  -', tf.name, '(', size, 'bytes)')
               if size == 0:
-                  print(f'❌ Empty trace file: {tf}')
+                  print('Empty trace file:', tf)
                   sys.exit(1)
 
-          print('✅ All trace files validated successfully')
+          print('All trace files validated successfully')
           "
 
       - name: Run regression trace suite (parametrized)

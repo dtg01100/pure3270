@@ -42,10 +42,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from tools.compare_replay_with_s3270 import (  # noqa: E402
-    compare_trace,
-    find_real_s3270,
-)
+from tools.compare_replay_with_s3270 import compare_trace, find_real_s3270  # noqa: E402
 
 pytestmark = [
     pytest.mark.s3270,

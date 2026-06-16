@@ -86,10 +86,7 @@ def _validate_terminal_type(terminal_type: str) -> None:
     exception class all stay in lockstep between ``Session.__init__``
     and ``AsyncSession.__init__`` (both exposed as the public API).
     """
-    from .protocol.utils import (
-        get_supported_terminal_models,
-        is_valid_terminal_model,
-    )
+    from .protocol.utils import get_supported_terminal_models, is_valid_terminal_model
 
     if not is_valid_terminal_model(terminal_type):
         raise ValueError(

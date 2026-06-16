@@ -286,9 +286,7 @@ class ExpectedOutputGenerator:
 
         return generated_count
 
-    def generate_all_expected_files(
-        self, force: bool = False
-    ) -> tuple[int, int]:
+    def generate_all_expected_files(self, force: bool = False) -> tuple[int, int]:
         """Generate expected output files for every ``.trc`` in the traces dir.
 
         Uses generic validation checks (screen size, field count, parsing
