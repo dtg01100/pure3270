@@ -39,20 +39,13 @@ from tools.run_regression_traces import (  # noqa: E402
 # etc.) tracked separately.  Strict xfail forces the marker to be removed
 # once the underlying gap is closed.
 _KNOWN_FAILING: dict[str, str] = {
-    "bid-bug.trc": "Bid-image field accounting drift - tracked separately",
     "bid-ta.trc": "Bid-image field accounting drift - tracked separately",
-    "bid.trc": "Bid-image field accounting drift - tracked separately",
     "contention-resolution.trc": "SNA contention-resolution parity - tracked separately",
-    "ft-crash.trc": "IND$FILE field accounting drift - tracked separately",
     "ft_dft.trc": "IND$FILE DFT field accounting drift - tracked separately",
-    "ibmlink2.trc": "ibmlink variant field accounting drift - tracked separately",
     "ibmlink_help.trc": "ibmlink help field accounting drift - tracked separately",
-    "ignore_eor.trc": "SNA EOR-ignored replay drift - tracked separately",
-    "invalid_sba.trc": "Invalid-SBA tolerance drift - tracked separately",
     "login.trc": "Login flow field accounting drift - tracked separately",
     "no_bid.trc": "No-bid image field accounting drift - tracked separately",
     "sscp-lu.trc": "SNA SSCP-LU session replay drift - tracked separately",
-    "wrap.trc": "Wrap field accounting drift - tracked separately",
 }
 
 

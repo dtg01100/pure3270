@@ -44,14 +44,43 @@ class S3270TraceProcessor:
         self.expected_screen_size: Tuple[int, int] = (24, 80)  # Default
 
     def parse(self) -> List[TraceEvent]:
-        """Parse trace file and extract all events."""
+        """Parse trace file and extract all events.
+
+        Note: s3270 fragments records larger than ~32 bytes across
+        multiple trace lines whose offsets are cumulative byte
+        indices.  We reassemble contiguous fragments into a single
+        event so the downstream parser sees the full 3270 record.
+        Without this, a 64-byte BIND-IMAGE in the middle of a 1087
+        byte EWA would be silently truncated to 32 bytes and the
+        resulting screen would have phantom fields.
+        """
         events = []
         line_num = 0
+        current_dir: Optional[str] = None
+        current_offset: Optional[int] = None
+        current_data = bytearray()
+        current_start_line = 0
+        line_re = re.compile(r"^([<>])\s+0x([0-9a-fA-F]+)\s+([0-9a-fA-F]+)\s*$")
+
+        def _flush() -> None:
+            nonlocal current_data, current_dir, current_offset, current_start_line
+            if current_data and current_dir is not None and current_offset is not None:
+                events.append(
+                    TraceEvent(
+                        direction=current_dir,
+                        offset=current_offset,
+                        data=bytes(current_data),
+                        line_num=current_start_line,
+                    )
+                )
+            current_data = bytearray()
+            current_dir = None
+            current_offset = None
 
         with open(self.trace_file, "r") as f:
-            for line in f:
+            for raw in f:
                 line_num += 1
-                line = line.strip()
+                line = raw.strip()
 
                 # Parse screen size directive
                 if line.startswith("// rows "):
@@ -71,21 +100,43 @@ class S3270TraceProcessor:
                 # Parse data lines
                 # Format: < 0xOFFSET   HEXDATA (output/send)
                 # Format: > 0xOFFSET   HEXDATA (input/recv)
-                match = re.match(r"([<>])\s+0x([0-9a-fA-F]+)\s+([0-9a-fA-F]+)", line)
-                if match:
-                    direction = "send" if match.group(1) == "<" else "recv"
-                    offset = int(match.group(2), 16)
-                    hex_data = match.group(3)
-                    data = bytes.fromhex(hex_data)
+                match = line_re.match(line)
+                if not match:
+                    # Unrecognized line -- hard break.
+                    _flush()
+                    continue
 
-                    events.append(
-                        TraceEvent(
-                            direction=direction,
-                            offset=offset,
-                            data=data,
-                            line_num=line_num,
-                        )
-                    )
+                direction = "send" if match.group(1) == "<" else "recv"
+                line_offset = int(match.group(2), 16)
+                hex_data = match.group(3)
+                try:
+                    data = bytes.fromhex(hex_data)
+                except ValueError:
+                    _flush()
+                    continue
+
+                expected_next = (
+                    current_offset + len(current_data)
+                    if current_offset is not None
+                    else None
+                )
+                if (
+                    current_dir is not None
+                    and direction == current_dir
+                    and expected_next is not None
+                    and line_offset == expected_next
+                ):
+                    # Continuation of the current record.
+                    current_data.extend(data)
+                else:
+                    # New record.
+                    _flush()
+                    current_dir = direction
+                    current_offset = line_offset
+                    current_data.extend(data)
+                    current_start_line = line_num
+
+            _flush()
 
         self.events = events
         return events

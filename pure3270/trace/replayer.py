@@ -199,14 +199,108 @@ class Replayer:
 
         logger.info(f"Processing {len(records)} records from trace")
 
-        # Process each record through the parser
+        # Detect whether the trace negotiated TN3270E mode.  Once we
+        # see a server-initiated ``IAC DO TN3270E`` (0xFF 0xFD 0x28)
+        # that the client responds to with ``IAC WILL TN3270E``
+        # (0xFF 0xFB 0x28), subsequent client -> server records carry
+        # a 5-byte TN3270E envelope (``data_type, request_flag,
+        # response_flag, seq_hi, seq_lo``) that we must strip before
+        # handing the body to the parser.  We also strip the same
+        # envelope from server -> client records so the parser sees
+        # the same body either way.  Traces that never reach a
+        # completed TN3270E negotiation stay in raw 3270 mode where
+        # the first byte is a write command.
+        tn3270e_active = False
+        tn3270e_envelope_types = frozenset(
+            {
+                0x00,  # TN3270_DATA
+                0x01,  # SCS_DATA
+                0x02,  # RESPONSE
+                0x03,  # BIND_IMAGE
+                0x04,  # UNBIND
+                0x05,  # NVT_DATA
+                0x06,  # REQUEST
+                0x07,  # SSCP_LU_DATA
+                0x08,  # PRINT_EOJ
+                0x09,  # SNA_RESPONSE
+                0x0A,  # DATA_STREAM_SSCP / PRINTER_STATUS
+            }
+        )
+
         for idx, record in enumerate(records):
             try:
                 logger.debug(
                     f"Processing record {idx + 1}/{len(records)} ({len(record)} bytes)"
                 )
+
+                # Track TN3270E negotiation: ``IAC DO 0x28``
+                # (0xFF 0xFD 0x28) means the server offered TN3270E
+                # and ``IAC WILL 0x28`` (0xFF 0xFB 0x28) is the
+                # client agreeing.  ``IAC DONT 0x28`` (0xFF 0xFE
+                # 0x28) and ``IAC WONT 0x28`` (0xFF 0xFC 0x28) are
+                # the corresponding refusals.  When negotiation is
+                # in progress, the trace carries envelope-prefixed
+                # records; when the negotiation completes (or
+                # refuses), subsequent records revert to raw 3270
+                # framing until another offer arrives.  The
+                # tn3270e-renegotiate trace exercises this exact
+                # dance and is xfailing without proper tracking.
+                if (
+                    len(record) >= 3
+                    and record[0] == 0xFF
+                    and record[1]
+                    in (
+                        0xFD,
+                        0xFB,
+                        0xFE,
+                        0xFC,
+                    )
+                    and record[2] == 0x28
+                ):
+                    # IAC DO  / IAC WILL  -> enter envelope mode.
+                    # IAC DONT / IAC WONT  -> leave envelope mode.
+                    tn3270e_active = record[1] in (0xFD, 0xFB)
+                    logger.debug(
+                        "TN3270E negotiation %s; envelope mode = %s",
+                        {0xFD: "DO", 0xFB: "WILL", 0xFE: "DONT", 0xFC: "WONT"}[
+                            record[1]
+                        ],
+                        tn3270e_active,
+                    )
+
+                # Skip telnet command-only records (IAC DO/DONT/WILL/
+                # WONT/SB SE/etc.) -- these are negotiation/control
+                # traffic the parser isn't designed to consume.
+                # Detect by the first byte being IAC (0xFF) without a
+                # 3270 write command or TN3270E envelope header.
+                is_envelope = (
+                    tn3270e_active
+                    and len(record) >= 5
+                    and record[0] in tn3270e_envelope_types
+                )
+                if is_envelope:
+                    data_type = record[0]
+                    body = record[5:]
+                else:
+                    data_type = None
+                    body = record
+
+                # If the first byte is an IAC byte and the record
+                # isn't an envelope, treat it as telnet control and
+                # skip -- the parser doesn't understand telnet
+                # framing.
+                if body and body[0] == 0xFF and not is_envelope:
+                    logger.debug(
+                        "Skipping telnet control record: %s",
+                        body[:8].hex(),
+                    )
+                    continue
+
                 try:
-                    _res = self.parser.parse(record)
+                    if data_type is None:
+                        _res = self.parser.parse(body)
+                    else:
+                        _res = self.parser.parse(body, data_type=data_type)
                     if inspect.iscoroutine(_res):
                         # parser.parse() returned a coroutine, but replay()
                         # is synchronous, so we cannot await _res here.
@@ -253,48 +347,88 @@ class Replayer:
             List of byte records extracted from the trace
 
         Notes:
-            This currently treats each ``<`` or ``>`` line as a
-            separate record.  s3270 fragments records larger than
-            ~32 bytes across multiple lines whose offsets are
-            cumulative byte indices, so a faithful parser would
-            concatenate continuation lines (offset == prev_offset +
-            prev_len) into a single record.  The naive parser is
-            known to drop the tail of fragmented BIND-IMAGE records
-            and is the root cause of a cluster of xfailing traces
-            in the regression suite (see the protocol audit notes in
-            the repo).  The right fix is to teach the Replayer to
-            strip the TN3270E envelope *and* reassemble fragmented
-            records, both of which are required to make the
-            ``replay()`` path equivalent to the (correct)
-            ``replay_to_session()`` path that goes through the
-            handler.
+            s3270 fragments any record larger than ~32 bytes across
+            multiple lines.  The first line of a record is prefixed
+            with ``< 0xN`` (or ``> 0xN``) where N is the offset of
+            the first byte; continuation lines have the same
+            direction indicator and an offset equal to ``prev_offset
+            + prev_len`` (i.e. the next free byte in the record).
+            Without reassembly, a naive line-by-line parser keeps
+            only the first line of each record and silently drops
+            the rest, which corrupts BIND-IMAGE records in
+            particular (BIND-IMAGE envelopes are 64-80 bytes).  This
+            routine detects continuation lines by checking that the
+            next line's offset matches where the current record
+            left off.
         """
-        records = []
+        records: List[bytes] = []
+
+        def _flush(buf: bytearray) -> None:
+            if buf:
+                records.append(bytes(buf))
+                buf.clear()
+
+        current = bytearray()
+        current_offset: Optional[int] = None
+        current_dir: Optional[str] = None
+        continuation_re = re.compile(r"^([<>])\s+0x([0-9a-fA-F]+)\s+([0-9a-fA-F]+)\s*$")
 
         try:
             with open(trace_path, "r", encoding="utf-8", errors="replace") as f:
-                for line_num, line in enumerate(f, 1):
-                    line = line.strip()
-                    # Only process lines starting with < or > (direction indicators)
-                    if line.startswith("<") or line.startswith(">"):
-                        # Format: < 0xOFFSET   HEXDATA
-                        # Extract hex data after the offset
-                        match = re.match(
-                            r"[<>]\s+0x[0-9a-fA-F]+\s+([0-9a-fA-F]+)", line
+                for line_num, raw in enumerate(f, 1):
+                    line = raw.strip()
+                    if not line:
+                        continue
+                    m = continuation_re.match(line)
+                    if not m:
+                        # Not a data line (banner, comment, or
+                        # blank).  Flush whatever record we were
+                        # building -- s3270 only ever continues a
+                        # record across consecutive ``<`` / ``>``
+                        # data lines, so a non-data line is a hard
+                        # break.
+                        _flush(current)
+                        current_offset = None
+                        current_dir = None
+                        continue
+
+                    direction = m.group(1)
+                    line_offset = int(m.group(2), 16)
+                    hex_data = m.group(3)
+                    try:
+                        line_bytes = bytes.fromhex(hex_data)
+                    except ValueError as exc:
+                        logger.warning(
+                            f"Could not parse hex data on line {line_num}: {exc}"
                         )
-                        if match:
-                            hex_data = match.group(1)
-                            try:
-                                data = bytes.fromhex(hex_data)
-                                records.append(data)
-                            except ValueError as e:
-                                logger.warning(
-                                    f"Could not parse hex data on line {line_num}: {e}"
-                                )
-                        else:
-                            logger.debug(
-                                f"Skipping unrecognized line format on line {line_num}: {line}"
-                            )
+                        _flush(current)
+                        current_offset = None
+                        current_dir = None
+                        continue
+
+                    expected_next = (
+                        current_offset + len(current)
+                        if current_offset is not None
+                        else None
+                    )
+                    if (
+                        current_dir is not None
+                        and direction == current_dir
+                        and expected_next is not None
+                        and line_offset == expected_next
+                    ):
+                        # Continuation of the record we're building.
+                        current.extend(line_bytes)
+                    else:
+                        # New record: flush whatever we had and start
+                        # fresh.  This also handles the direction
+                        # change (server -> client) case.
+                        _flush(current)
+                        current.extend(line_bytes)
+                        current_dir = direction
+                        current_offset = line_offset
+
+                _flush(current)
         except Exception as e:
             raise ValueError(f"Error parsing trace file: {e}")
 

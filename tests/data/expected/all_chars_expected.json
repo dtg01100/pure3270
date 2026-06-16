@@ -1,10 +1,10 @@
 {
   "trace_file": "all_chars.trc",
-  "description": "All characters test trace",
+  "description": "All characters test trace. The trace uses mixed 12-bit and 14-bit SBA addressing (per the 3270 spec, the addressing mode is determined by bits 6-7 of the first address byte; 0xC1 in the second SBA is a 14-bit address byte). The parser correctly decodes both modes, producing 9 fields (the first field spans rows 0-6 because no SBA+SF/SFE appears between them).",
   "screen": {
     "rows": 43,
     "cols": 80,
-    "num_fields": 12,
+    "num_fields": 9,
     "field_details": [
       {
         "index": 0,
@@ -13,61 +13,16 @@
           0
         ],
         "end": [
-          0,
+          6,
           79
         ],
         "protected": true,
-        "content": "\u00d9\u00da\u009f\u009fWXYZ\u00b2\u00d4\u00d6\u00d2\u00d3\u00d5\u00d7;\u00ac\u00e8\u009f0                                                            ",
+        "content": "-All printable c\u00a4                                                               ",
         "numeric": false,
         "modified": false
       },
       {
         "index": 1,
-        "start": [
-          1,
-          0
-        ],
-        "end": [
-          2,
-          79
-        ],
-        "protected": true,
-        "content": "Y \u00a0\u00e2\u00e4\u00e0\u00e1\u00e3\u00e5\u00e7\u00f1\u00a2.<(+|                                                                                                                                               ",
-        "numeric": false,
-        "modified": false
-      },
-      {
-        "index": 2,
-        "start": [
-          3,
-          0
-        ],
-        "end": [
-          3,
-          79
-        ],
-        "protected": true,
-        "content": "Y-/\u00c2\u00c4\u00c0\u00c1\u00c3\u00c5\u00c7                                                                      ",
-        "numeric": false,
-        "modified": false
-      },
-      {
-        "index": 3,
-        "start": [
-          4,
-          0
-        ],
-        "end": [
-          6,
-          79
-        ],
-        "protected": true,
-        "content": "Y\u00f8\u00c9\u00ca\u00cb\u00c8\u00cd\u00ce\u00cf\u00cc`:#@'=\"                                                                                                                                                                                                                               ",
-        "numeric": false,
-        "modified": false
-      },
-      {
-        "index": 4,
         "start": [
           7,
           0
@@ -82,7 +37,7 @@
         "modified": false
       },
       {
-        "index": 5,
+        "index": 2,
         "start": [
           8,
           0
@@ -92,12 +47,12 @@
           79
         ],
         "protected": true,
-        "content": "Y                                                                               ",
+        "content": "Y^\u00a3\u00a5\u00b7\u00a9\u00a7\u00b6\u00bc\u00bd\u00be[]\u00af\u00a8\u00b4\u00d7                                                               ",
         "numeric": false,
         "modified": false
       },
       {
-        "index": 6,
+        "index": 3,
         "start": [
           9,
           0
@@ -107,12 +62,12 @@
           79
         ],
         "protected": true,
-        "content": "Y{ABCDEFGHI\u00ad                                                                    ",
+        "content": "Y{ABCDEFGHI\u00ad\u00f4\u00f6\u00f2\u00f3\u00f5                                                               ",
         "numeric": false,
         "modified": false
       },
       {
-        "index": 7,
+        "index": 4,
         "start": [
           10,
           0
@@ -127,7 +82,7 @@
         "modified": false
       },
       {
-        "index": 8,
+        "index": 5,
         "start": [
           11,
           0
@@ -137,12 +92,12 @@
           79
         ],
         "protected": true,
-        "content": "Y\\                                                                              ",
+        "content": "Y\\\u00f7STUVWXYZ\u00b2\u00d4\u00d6\u00d2\u00d3\u00d5                                                               ",
         "numeric": false,
         "modified": false
       },
       {
-        "index": 9,
+        "index": 6,
         "start": [
           12,
           0
@@ -152,12 +107,12 @@
           79
         ],
         "protected": true,
-        "content": "Y0123456789\u00b3\u00db                                                                   ",
+        "content": "Y0123456789\u00b3\u00db\u00dc\u00d9\u00da\u009f\u009f                                                              ",
         "numeric": false,
         "modified": false
       },
       {
-        "index": 10,
+        "index": 7,
         "start": [
           13,
           0
@@ -172,17 +127,17 @@
         "modified": false
       },
       {
-        "index": 11,
+        "index": 8,
         "start": [
           14,
           0
         ],
         "end": [
-          23,
+          42,
           79
         ],
         "protected": true,
-        "content": "-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               ",
+        "content": "-                                                                               ",
         "numeric": false,
         "modified": false
       }

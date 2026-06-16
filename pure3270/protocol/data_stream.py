@@ -212,6 +212,12 @@ CMD_EWA = 0x0D
 CMD_WSF = 0x11
 SNA_CMD_W = 0xF1
 SNA_CMD_EW = 0xF5
+# SNA_CMD_EWA: s3270 emits 0x7E for the SNA EWA command; some traces
+# use 0x6E.  Both are valid per the IBM 3270 reference and must be
+# accepted by the parser or the very first byte of every EWA record
+# in those traces is mis-interpreted as a WCC.
+SNA_CMD_EWA_A = 0x6E
+SNA_CMD_EWA_B = 0x7E
 
 # Back-compat constant expected by tests
 # Some tests import WRITE and use it to reference the write handler
@@ -1388,7 +1394,7 @@ class DataStreamParser:
                 # Tests expect a clear on plain Write as well
                 self._handle_write(clear=True)
                 write_cmd = "W"
-            elif first_byte in (SNA_CMD_EW, CMD_EWA):
+            elif first_byte in (SNA_CMD_EW, CMD_EWA, SNA_CMD_EWA_A, SNA_CMD_EWA_B):
                 write_snapshot = self._snapshot_screen()
                 self._handle_write(clear=True)
                 write_cmd = "EW"
