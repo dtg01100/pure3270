@@ -251,6 +251,23 @@ class Replayer:
 
         Returns:
             List of byte records extracted from the trace
+
+        Notes:
+            This currently treats each ``<`` or ``>`` line as a
+            separate record.  s3270 fragments records larger than
+            ~32 bytes across multiple lines whose offsets are
+            cumulative byte indices, so a faithful parser would
+            concatenate continuation lines (offset == prev_offset +
+            prev_len) into a single record.  The naive parser is
+            known to drop the tail of fragmented BIND-IMAGE records
+            and is the root cause of a cluster of xfailing traces
+            in the regression suite (see the protocol audit notes in
+            the repo).  The right fix is to teach the Replayer to
+            strip the TN3270E envelope *and* reassemble fragmented
+            records, both of which are required to make the
+            ``replay()`` path equivalent to the (correct)
+            ``replay_to_session()`` path that goes through the
+            handler.
         """
         records = []
 
