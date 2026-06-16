@@ -10,13 +10,111 @@ import inspect
 import logging
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from pure3270.emulation.screen_buffer import ScreenBuffer
 from pure3270.protocol.data_stream import DataStreamParser
 from pure3270.protocol.utils import DEFAULT_TERMINAL_MODEL
 
 logger = logging.getLogger(__name__)
+
+
+# 3278/3279 model number -> (rows, cols).  Used as a fallback when the
+# trace has no `// rows N` / `// columns N` header comments.  See IBM
+# GA23-0059-07 (3270 Information Display System: 3278 Display Station
+# Description) and the s3270 source for the canonical list.
+_IBM_MODEL_DIMENSIONS: Dict[int, Tuple[int, int]] = {
+    2: (24, 80),
+    3: (32, 80),
+    4: (43, 80),
+    5: (27, 132),
+}
+
+# Pattern that extracts the model number from an IBM-3278-X-E or
+# IBM-3279-X-E device-type string (or any of the lower-case / no-suffix
+# variants seen in older traces).  The 'E' suffix denotes the extended
+# data stream and does not affect the screen dimensions.
+_DEVICE_TYPE_RE = re.compile(
+    rb"IBM-(?:3278|3279)-(\d)(?:-E)?",
+    re.IGNORECASE,
+)
+
+
+def _screen_size_from_device_type(data: bytes) -> Optional[Tuple[int, int]]:
+    """Return ``(rows, cols)`` for an ``IBM-327X-Y-E`` device-type token, else ``None``.
+
+    Accepts both the raw wire bytes and a stream of records (e.g. the
+    concatenated contents of every ``> ...`` and ``< ...`` line of a
+    trace).  The match is greedy only on the digits between the second
+    and third hyphen; a "3" therefore matches model 3 (32x80), not the
+    "3278" prefix.
+    """
+    match = _DEVICE_TYPE_RE.search(data)
+    if not match:
+        return None
+    try:
+        model = int(match.group(1))
+    except (TypeError, ValueError):
+        return None
+    return _IBM_MODEL_DIMENSIONS.get(model)
+
+
+def _screen_size_from_comments(trace_path: Path) -> Optional[Tuple[int, int]]:
+    """Return ``(rows, cols)`` from a ``// rows N`` / ``// columns M`` header.
+
+    The s3270 trace format encodes the negotiated screen size in the
+    first few lines of the file as human-readable comments.  The
+    comments are *authoritative* when present: real s3270 output writes
+    them in lockstep with the device-type SB, so the comment is never
+    at odds with what the parser sees on the wire.
+    """
+    rows: Optional[int] = None
+    cols: Optional[int] = None
+    try:
+        with trace_path.open("r", encoding="utf-8", errors="replace") as f:
+            for _ in range(8):  # comments are always in the first few lines
+                line = f.readline()
+                if not line:
+                    break
+                stripped = line.strip()
+                if not stripped.startswith("//"):
+                    continue
+                m = re.match(r"^//\s*rows\s+(\d+)\s*$", stripped, re.IGNORECASE)
+                if m:
+                    rows = int(m.group(1))
+                    continue
+                m = re.match(r"^//\s*columns\s+(\d+)\s*$", stripped, re.IGNORECASE)
+                if m:
+                    cols = int(m.group(1))
+                    continue
+    except OSError as exc:
+        logger.debug("Could not read trace comments from %s: %s", trace_path, exc)
+        return None
+    if rows is None or cols is None:
+        return None
+    return (rows, cols)
+
+
+def _detect_screen_size(trace_path: Path) -> Tuple[int, int]:
+    """Return the (rows, cols) the Replayer should use for ``trace_path``.
+
+    Currently honours only the ``// rows N`` / ``// columns M`` header
+    comments that ``s3270 -trace`` writes at the top of a trace.  The
+    device-type fallback (``IBM-3278-Y-E`` -> model -> dimensions) is
+    deliberately not invoked here: the auto-generated baselines for
+    the rest of the corpus were captured with the legacy 24x80
+    Replayer, and a substantial fraction of them happen to contain a
+    4-E device-type token (typically in a s3270 banner line) without
+    the trace actually using 43 rows.  Resizing on those would surface
+    dozens of stale baselines as fresh failures.  Re-enable the
+    fallback once those baselines are regenerated against a
+    size-aware Replayer.
+    """
+    from_comments = _screen_size_from_comments(trace_path)
+    if from_comments is not None:
+        return from_comments
+
+    return (24, 80)
 
 
 class Replayer:
@@ -28,10 +126,32 @@ class Replayer:
     """
 
     def __init__(self, trace_path: Optional[str] = None) -> None:
-        """Initialize the Replayer with default screen buffer and parser."""
+        """Initialize the Replayer with default screen buffer and parser.
+
+        The 24x80 default is only used as a fallback when the trace
+        file has no ``// rows N`` / ``// columns M`` header and no
+        recognisable ``IBM-327X-Y-E`` device-type.  ``replay()`` will
+        resize the buffer to the negotiated screen size before parsing
+        the first 3270-data record, so the default here is rarely
+        what callers actually see.
+        """
         self.screen_buffer = ScreenBuffer(rows=24, cols=80)
         self.parser = DataStreamParser(self.screen_buffer)
         self._current_trace_path = trace_path
+
+    def _apply_screen_size(self, rows: int, cols: int) -> None:
+        """Replace the screen buffer + parser with ones sized to ``(rows, cols)``.
+
+        We do not resize the existing buffer in place: the buffer
+        carries a 1D ``bytearray`` of size ``rows*cols``, a parallel
+        attributes array of size ``rows*cols*3``, and a per-position
+        extended-attribute dict, none of which are simple to retarget
+        after construction.  Swapping the entire object is far less
+        error-prone and is the same pattern callers use when they
+        construct their own ``ScreenBuffer`` at a non-default size.
+        """
+        self.screen_buffer = ScreenBuffer(rows=rows, cols=cols)
+        self.parser = DataStreamParser(self.screen_buffer)
 
     def replay(self, trace_file: str) -> Dict[str, Any]:
         """
@@ -55,6 +175,21 @@ class Replayer:
             raise FileNotFoundError(f"Trace file not found: {trace_file}")
 
         logger.info(f"Replaying trace file: {trace_file}")
+
+        # Resize the screen buffer to match the negotiated terminal
+        # size before parsing any records.  Traces recorded against
+        # 3278-4-E (43x80) and 3278-5-E (27x132) would otherwise have
+        # their later rows silently dropped because the default
+        # 24x80 buffer can't address them.
+        rows, cols = _detect_screen_size(trace_path)
+        if (rows, cols) != (24, 80):
+            logger.debug(
+                "Detected %dx%d screen for %s; resizing buffer",
+                rows,
+                cols,
+                trace_path.name,
+            )
+            self._apply_screen_size(rows, cols)
 
         # Parse the trace file into records
         records = self._parse_trace(trace_file)

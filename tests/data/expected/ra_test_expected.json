@@ -7,9 +7,9 @@
     "telnet_negotiation": false
   },
   "screen": {
-    "rows": 24,
+    "rows": 43,
     "cols": 80,
-    "model": "3278-2-E",
+    "model": "3278-4-E",
     "num_fields": 2,
     "key_elements": []
   },

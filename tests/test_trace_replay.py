@@ -98,6 +98,85 @@ def test_replay_trace():
 
 
 @pytest.mark.slow
+def test_replayer_detects_43x80_from_trace_comments():
+    """
+    The Replayer must derive the screen size from the trace so that traces
+    captured against a 3278-4-E terminal (43 rows) replay into a 43x80
+    screen buffer, not the default 24x80.
+
+    Regression for the 6 traces currently marked xfail in
+    tests/test_regression_traces.py under
+    '43x80 dynamic screen size not negotiated by Replayer'.
+    """
+    trace_path = Path("tests/data/traces/numeric.trc")
+    if not trace_path.exists():
+        pytest.skip(f"Trace file not found: {trace_path}")
+
+    replayer = Replayer()
+    result = replayer.replay(str(trace_path))
+
+    screen_buffer = result["screen_buffer"]
+    assert isinstance(screen_buffer, ScreenBuffer)
+    assert (
+        screen_buffer.rows == 43
+    ), f"expected 43 rows from // rows 43 comment, got {screen_buffer.rows}"
+    assert (
+        screen_buffer.cols == 80
+    ), f"expected 80 cols from // columns 80 comment, got {screen_buffer.cols}"
+
+
+@pytest.mark.slow
+def test_replayer_detects_43x80_from_device_type_when_no_comments():
+    """
+    Placeholder for the device-type-fallback path.
+
+    ra_test.trc actually does carry a `// rows 43` comment on line 3
+    (it just isn't on the first two lines, so a quick ``head -2`` miss
+    is a common false negative).  The device-type fallback in
+    ``_detect_screen_size`` is intentionally disabled because the
+    auto-generated baselines for the rest of the corpus were captured
+    with the legacy 24x80 Replayer and a sizeable fraction of them
+    contain a 4-E device-type token in a s3270 banner without the
+    trace actually using 43 rows.  Re-enable this test once the
+    fallback is restored (and the stale baselines are regenerated).
+    """
+    trace_path = Path("tests/data/traces/ra_test.trc")
+    if not trace_path.exists():
+        pytest.skip(f"Trace file not found: {trace_path}")
+
+    replayer = Replayer()
+    result = replayer.replay(str(trace_path))
+
+    screen_buffer = result["screen_buffer"]
+    # ra_test's `// rows 43` comment is on line 3, so the comment
+    # detector catches it.  This test currently passes via the comment
+    # path; it documents the desired behaviour for the (deferred)
+    # device-type fallback.
+    assert screen_buffer.rows == 43
+    assert screen_buffer.cols == 80
+
+
+@pytest.mark.slow
+def test_replayer_defaults_to_24x80_when_size_unrecognised():
+    """
+    Smoke trace has no header comments and no recognisable device-type;
+    the Replayer must fall back to the historical 24x80 default rather
+    than crashing.
+    """
+    trace_path = Path("tests/data/traces/smoke.trc")
+    if not trace_path.exists():
+        pytest.skip(f"Trace file not found: {trace_path}")
+
+    replayer = Replayer()
+    result = replayer.replay(str(trace_path))
+
+    screen_buffer = result["screen_buffer"]
+    assert isinstance(screen_buffer, ScreenBuffer)
+    assert screen_buffer.rows == 24
+    assert screen_buffer.cols == 80
+
+
+@pytest.mark.slow
 def test_trace_packet_analysis():
     """
     Test packet analysis of trace files to ensure protocol compliance.

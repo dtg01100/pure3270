@@ -39,11 +39,6 @@ from tools.run_regression_traces import (  # noqa: E402
 # etc.) tracked separately.  Strict xfail forces the marker to be removed
 # once the underlying gap is closed.
 _KNOWN_FAILING: dict[str, str] = {
-    "930.trc": "SNA BIND image parsing drift - tracked separately",
-    "935.trc": "SNA BIND image parsing drift - tracked separately",
-    "937.trc": "SNA BIND image parsing drift - tracked separately",
-    "all_chars.trc": "43x80 dynamic screen size not negotiated by Replayer",
-    "apl.trc": "APL field attribute parity - tracked separately",
     "bid-bug.trc": "Bid-image field accounting drift - tracked separately",
     "bid-ta.trc": "Bid-image field accounting drift - tracked separately",
     "bid.trc": "Bid-image field accounting drift - tracked separately",
@@ -54,15 +49,10 @@ _KNOWN_FAILING: dict[str, str] = {
     "ibmlink_help.trc": "ibmlink help field accounting drift - tracked separately",
     "ignore_eor.trc": "SNA EOR-ignored replay drift - tracked separately",
     "invalid_sba.trc": "Invalid-SBA tolerance drift - tracked separately",
-    "invisible_underscore.trc": "43x80 dynamic screen size not negotiated by Replayer",
     "login.trc": "Login flow field accounting drift - tracked separately",
     "no_bid.trc": "No-bid image field accounting drift - tracked separately",
-    "numeric.trc": "43x80 dynamic screen size not negotiated by Replayer",
-    "ra_test.trc": "43x80 dynamic screen size not negotiated by Replayer",
-    "reverse.trc": "43x80 dynamic screen size not negotiated by Replayer",
     "sscp-lu.trc": "SNA SSCP-LU session replay drift - tracked separately",
     "wrap.trc": "Wrap field accounting drift - tracked separately",
-    "wrap_field.trc": "43x80 dynamic screen size not negotiated by Replayer",
 }
 
 
