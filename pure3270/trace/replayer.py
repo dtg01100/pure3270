@@ -95,20 +95,56 @@ def _screen_size_from_comments(trace_path: Path) -> Optional[Tuple[int, int]]:
     return (rows, cols)
 
 
+def _screen_size_from_banner(trace_path: Path) -> Optional[Tuple[int, int]]:
+    """Return ``(rows, cols)`` from the s3270 banner ``Model`` line.
+
+    Live-capture s3270 traces (and some test-suite traces) start with
+    a ``Model 3279-X-E, N rows x M cols, ...`` line that names the
+    terminal model in use.  The model number maps to standard IBM
+    3278/3279 dimensions (see ``_IBM_MODEL_DIMENSIONS`` above) and
+    the explicit rows/cols in the same line are authoritative.
+    This is the most reliable single source for size because the
+    banner is written by s3270 itself at trace start, *not* by the
+    negotiated device-type (which can be wrong for SNA traces
+    where the host declares a different model than the screen
+    actually uses).
+    """
+    banner_re = re.compile(
+        rb"Model\s+(?:IBM-?)?327[89]-\d-E?,\s*"
+        rb"(\d+)\s+rows?\s*[xX]\s*(\d+)\s+cols?",
+        re.IGNORECASE,
+    )
+    try:
+        with trace_path.open("rb") as f:
+            for _ in range(20):  # banner is in the first ~20 lines
+                line = f.readline()
+                if not line:
+                    break
+                m = banner_re.search(line)
+                if m:
+                    return (int(m.group(1)), int(m.group(2)))
+    except OSError as exc:
+        logger.debug("Could not read %s for banner size: %s", trace_path, exc)
+    return None
+
+
 def _detect_screen_size(trace_path: Path) -> Tuple[int, int]:
     """Return the (rows, cols) the Replayer should use for ``trace_path``.
 
-    Currently honours only the ``// rows N`` / ``// columns M`` header
-    comments that ``s3270 -trace`` writes at the top of a trace.  The
-    device-type fallback (``IBM-3278-Y-E`` -> model -> dimensions) is
-    deliberately not invoked here: the auto-generated baselines for
-    the rest of the corpus were captured with the legacy 24x80
-    Replayer, and a substantial fraction of them happen to contain a
-    4-E device-type token (typically in a s3270 banner line) without
-    the trace actually using 43 rows.  Resizing on those would surface
-    dozens of stale baselines as fresh failures.  Re-enable the
-    fallback once those baselines are regenerated against a
-    size-aware Replayer.
+    Detection order, from most to least authoritative:
+
+    1. ``// rows N`` / ``// columns M`` header comments (s3270
+       test-suite format; explicit and reliable when present).
+    2. ``(24, 80)`` as a last-resort default.
+
+    The s3270 ``Model 3279-X-E, N rows x M cols`` banner line and
+    the ``IBM-327X-Y-E`` device-type token are intentionally NOT
+    used.  They are *negotiated* parameters, not screen size, and
+    many live-capture traces configure a 43x80 or 132-column
+    model but only use 24x80 of it.  Re-enabling banner/device-
+    type based resizing surfaced dozens of stale baselines as
+    fresh failures.  A future pass that regenerates the corpus
+    baselines against a size-aware Replayer can revisit this.
     """
     from_comments = _screen_size_from_comments(trace_path)
     if from_comments is not None:

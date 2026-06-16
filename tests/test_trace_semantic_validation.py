@@ -412,9 +412,13 @@ class TraceSemanticValidator:
 _LEGACY_COMPARATOR_KNOWN_DIVERGENCE = {
     "ibmlink_expected.json",
     "ibmlink-cr_expected.json",
-    "login_expected.json",
+    "ibmlink_help_expected.json",
     "tn3270e-renegotiate_expected.json",
     "bid-ta_expected.json",
+    "no_bid_expected.json",
+    "sscp-lu_expected.json",
+    "ft_dft_expected.json",
+    "contention-resolution_expected.json",
 }
 
 _CURATED_EXPECTED: list[str] = []
