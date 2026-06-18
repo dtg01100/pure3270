@@ -144,10 +144,13 @@ class IndFile:
         if self.active_transfer:
             raise IndFileError("Another file transfer is already in progress")
 
-        try:
-            if not os.path.exists(local_path):
-                raise IndFileError(f"Local file does not exist: {local_path}")
+        # Validate the local file before we open a session-level transfer.
+        # We must not send an error SF if we never told the host we were
+        # uploading — the host would have nothing to abort.
+        if not os.path.exists(local_path):
+            raise IndFileError(f"Local file does not exist: {local_path}")
 
+        try:
             # Create transfer object
             self.active_transfer = IndFileTransfer("upload", remote_name, local_path)
             self.active_transfer.start()
@@ -176,7 +179,9 @@ class IndFile:
                 self.active_transfer.abort(str(e))
                 self.active_transfer = None
             logger.error(f"Failed to send file {local_path}: {e}")
-            # Send error indication
+            # Send error indication — host is already in a waiting state
+            # because we successfully issued (or attempted) the upload
+            # request above.
             error_msg = IndFileMessage.create_error(str(e))
             await self._send_ind_file_message(error_msg)
             raise IndFileError(f"File transfer failed: {e}")
