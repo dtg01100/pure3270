@@ -997,6 +997,15 @@ class DataStreamParser:
         self._cancel_pending: bool = False  # CANCEL state flag
         self._signal_data: Optional[bytes] = None  # SIGNAL data
 
+        # Track the linear buffer position of the most recently started field.
+        # SA and MF orders, per the IBM 3270 spec, target the most recent field
+        # start — NOT the cursor position. SF updates this when it sets a base
+        # field attribute; SA and MF read it to compute the (row, col) they
+        # need to pass to ``set_extended_attribute_sfe``. Stored as a linear
+        # index (``row * cols + col``) for O(1) clamp; converted to (row, col)
+        # at the read site. ``None`` means no field has been started yet.
+        self._last_field_start_pos: Optional[int] = None
+
     # Back-compat stubs for tests that check for these helpers
     def _parse_order(self) -> None:  # pragma: no cover - existence checked only
         pass
@@ -2024,6 +2033,8 @@ class DataStreamParser:
         pos = row * self.screen.cols + col
         if hasattr(self.screen, "_field_starts"):
             self.screen._field_starts.add(pos)
+        # Track the most recent field start so SA/MF can target it
+        self._last_field_start_pos = pos
         self.screen.set_position(row, col + 1)
         parser = self._ensure_parser()
         self._pos = parser._pos
@@ -2037,12 +2048,19 @@ class DataStreamParser:
 
         MF modifies the attributes of an existing field without changing its position.
         Format: MF | attr_type | attr_value [| attr_type | attr_value ...]
+
+        Per IBM 3270 spec, MF targets the most recent field start position,
+        NOT the cursor. The historical implementation targeted the cursor,
+        which silently dropped modifications on any field except the one
+        the cursor currently occupied (audit §5.2). We now resolve the
+        field-start once at the top of the handler and pass row/col to the
+        setter explicitly.
         """
         self._validate_screen_buffer("MF")
         self._validate_min_data("MF", 2)  # At least one attr_type/attr_value pair
 
-        # MF operates on the current field position
-        current_row, current_col = self.screen.get_position()
+        # MF operates on the most recent field start, not the cursor
+        target_row, target_col = self._resolve_field_start_position()
 
         # Parse attribute pairs: attr_type | attr_value
         modified_attrs = {}
@@ -2054,12 +2072,14 @@ class DataStreamParser:
             attr_type = self._read_byte()
             attr_value = self._read_byte()
 
-            # Apply the attribute modification to the current position
+            # Apply the attribute modification to the field-start position
             try:
-                self.screen.set_extended_attribute_sfe(attr_type, attr_value)
+                self.screen.set_extended_attribute_sfe(
+                    attr_type, attr_value, row=target_row, col=target_col
+                )
                 modified_attrs[attr_type] = attr_value
                 logger.debug(
-                    f"MF: Modified field attribute 0x{attr_type:02x} = 0x{attr_value:02x} at ({current_row}, {current_col})"
+                    f"MF: Modified field attribute 0x{attr_type:02x} = 0x{attr_value:02x} at ({target_row}, {target_col})"
                 )
             except Exception as e:
                 logger.warning(
@@ -2069,7 +2089,7 @@ class DataStreamParser:
         if modified_attrs:
             log_debug_operation(
                 logger,
-                f"Modify field at ({current_row}, {current_col}): {modified_attrs}",
+                f"Modify field at ({target_row}, {target_col}): {modified_attrs}",
             )
 
     def _handle_ra(self) -> None:
@@ -2757,6 +2777,33 @@ class DataStreamParser:
             # SIGNAL sends a signal to the host (similar to ATTN key)
             self._signal_data = bytes([0x6C])  # ATTN key AID code
             logger.info("SIGNAL queued with ATTN key")
+        elif ctl_code == 0x06:  # SMM (Start of Manual Message)
+            # SMM signals that follow-up text is human-readable message text
+            # (RFC 1576 / IBM 3270 char-set spec). We treat it as a no-op
+            # parsing-wise but log so hosts that emit it aren't silently dropped.
+            logger.debug("DATA-STREAM-CTL: SMM (Start of Manual Message)")
+        elif ctl_code == 0x0B:  # VT (Vertical Tab)
+            # VT moves the cursor down one row; treated as a no-op for the
+            # display-buffer driven by subsequent data writes.
+            logger.debug("DATA-STREAM-CTL: VT (Vertical Tab)")
+        elif ctl_code == 0x0C:  # FF (Form Feed)
+            # FF is the printer-page-break indicator; on a display terminal
+            # it is interpreted as a logical page boundary. Treat as no-op.
+            logger.debug("DATA-STREAM-CTL: FF (Form Feed)")
+        elif ctl_code == 0x0D:  # CR (Restore / Carriage Return)
+            # 0x0D is the CR EBCDIC code (EBCDIC nickname for Restore).
+            # On a 3270 stream this is treated as a logical "restore" /
+            # "end of message" marker (carrier reset). Treat as no-op.
+            logger.debug("DATA-STREAM-CTL: CR/Restore")
+        elif ctl_code == 0x10:  # SUB (Substitute)
+            # SUB is a 3270 "substitute" marker; commonly seen in trace
+            # recordings for unavailable / corrupted characters. Treat as
+            # an ignored byte.
+            logger.debug("DATA-STREAM-CTL: SUB (Substitute)")
+        elif ctl_code == 0xFF:  # EM (End of Medium)
+            # EM signals end of the data stream. We treat it as a no-op
+            # but log so hosts can rely on it being observed.
+            logger.debug("DATA-STREAM-CTL: EM (End of Medium)")
         # Known codes from traces that are handled elsewhere but appear in this context
         elif ctl_code in (
             0x0E,
@@ -2775,6 +2822,13 @@ class DataStreamParser:
             0xF0,
             0xF1,
             0xF9,
+        ) or ctl_code in (
+            0x06,  # SMM (handled above)
+            0x0B,  # VT (handled above)
+            0x0C,  # FF (handled above)
+            0x0D,  # CR/Restore (handled above)
+            0x10,  # SUB (handled above)
+            0xFF,  # EM (handled above)
         ):
             # These codes appear in trace testing but are either handled elsewhere in the protocol
             # stack or are extensions/protocol variations. Log at debug level to reduce noise
@@ -2850,19 +2904,48 @@ class DataStreamParser:
     def _handle_sfe_or_sba_fallback(self) -> None:
         self._handle_sfe()
 
+    def _resolve_field_start_position(self) -> Tuple[int, int]:
+        """Return the (row, col) of the most recent field start.
+
+        Used by SA and MF to target the field they apply to, per the IBM
+        3270 spec. Falls back to the cursor position if no field has been
+        started yet (which matches x3270's degenerate behavior).
+        """
+        pos = self._last_field_start_pos
+        if pos is None or not hasattr(self.screen, "cols"):
+            return self.screen.get_position()
+        cols = self.screen.cols
+        if cols <= 0 or pos < 0:
+            return self.screen.get_position()
+        return (pos // cols, pos % cols)
+
     def _handle_sa(self) -> None:
         # Handle Set Attribute (SA, 0x28) order.
+        #
+        # Per IBM 3270 spec, SA targets the most recent field start position,
+        # NOT the cursor position. The historical pure3270 implementation
+        # passed no (row, col) to ``set_extended_attribute_sfe``, which
+        # defaulted to the cursor — silently dropping color/highlight on a
+        # freshly-started field (the audit §5.2 finding). We now pass the
+        # field-start position explicitly.
         parser = self._ensure_parser()
         if parser.remaining() < 2:
             raise ParseError("Incomplete SA order")
         attr_type = self._read_byte()
         attr_value = self._read_byte()
+        # Resolve the field-start (row, col). If no field has been started
+        # yet, fall back to the cursor — that matches x3270 degeneracy and
+        # avoids hard-failing on a malformed stream.
+        target_row, target_col = self._resolve_field_start_position()
         try:
             # Reuse the SFE setter, which updates the extended attribute set
-            self.screen.set_extended_attribute_sfe(attr_type, attr_value)
+            self.screen.set_extended_attribute_sfe(
+                attr_type, attr_value, row=target_row, col=target_col
+            )
         except Exception:
             logger.debug(
-                f"SA: Failed to set extended attribute type=0x{attr_type:02x} value=0x{attr_value:02x}",
+                f"SA: Failed to set extended attribute type=0x{attr_type:02x} "
+                f"value=0x{attr_value:02x} at ({target_row}, {target_col})",
                 exc_info=True,
             )
         # Do not move the cursor
@@ -4261,9 +4344,39 @@ class DataStreamSender:
         stream.append(EOA)  # End of Area
         return bytes(stream)
 
-    def build_sba(self, row: int, col: int) -> bytes:
-        """Build Set Buffer Address command."""
-        # SBA + 2-byte address
+    def build_sba(self, row: int, col: int, addressing_mode: str = "12-bit") -> bytes:
+        """Build Set Buffer Address (SBA) command.
+
+        Encodes the buffer address using the requested addressing mode:
+        - ``12-bit`` (default): splits the 12-bit address into two 6-bit
+          halves across two bytes (matches the historic pure3270
+          behavior).
+        - ``14-bit``: packs the full 14-bit address into two
+          big-endian bytes. Used by 3270 models larger than 24x80
+          (e.g. 62x160, 27x132) where the 4096-byte 12-bit limit is
+          exceeded.
+
+        Args:
+            row: Logical row (0-based).
+            col: Logical column (0-based).
+            addressing_mode: ``"12-bit"`` or ``"14-bit"``. Defaults to
+                ``"12-bit"`` for backward compatibility.
+
+        Returns:
+            A 3-byte sequence: ``SBA, addr_high, addr_low``.
+        """
+        if addressing_mode == "14-bit":
+            # 14-bit addressing: 2 big-endian bytes holding the full 14-bit
+            # address. The high byte holds the upper 6 bits; the low byte
+            # holds the lower 8 bits.
+            address = (row * 80 + col) & 0x3FFF
+            addr_high = (address >> 8) & 0xFF
+            addr_low = address & 0xFF
+            return bytes([SBA, addr_high, addr_low])
+        # 12-bit addressing: split the 12-bit address into two 6-bit halves.
+        # The historical implementation masked the high byte with 0x3F and
+        # left the low byte as the full byte; we keep that exact behavior
+        # to avoid changing the byte sequence that callers currently rely on.
         address = row * 80 + col
         addr_high = (address >> 8) & 0x3F
         addr_low = address & 0xFF

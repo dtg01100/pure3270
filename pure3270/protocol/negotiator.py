@@ -2553,6 +2553,13 @@ class Negotiator:
                 f"[TERMINAL-LOCATION] Unknown subcommand 0x{subcommand:02x} in subnegotiation"
             )
 
+    # RFC 1572 / RFC 1646 cap for subnegotiation payloads. RFC 854
+    # restricts a single subnegotiation to 255 bytes of payload (it
+    # would otherwise be ambiguous with the SE marker). We enforce that
+    # here so a malicious / buggy host cannot blow up memory by sending
+    # a giant IAC SB ... IAC SE block (audit §3.6.1).
+    MAX_SUBPAYLOAD_BYTES = 255
+
     async def handle_subnegotiation(self, option: int, sub_payload: bytes) -> None:
         """
         Handle Telnet subnegotiation for non-TN3270E options.
@@ -2560,7 +2567,31 @@ class Negotiator:
         Args:
             option: The Telnet option number.
             sub_payload: The subnegotiation payload.
+
+        Raises:
+            ProtocolError: If the subnegotiation payload exceeds the
+                255-byte RFC 854 cap.
         """
+        # Cap-check FIRST so we never record/store/log a pathologically
+        # large payload. The check uses ``> MAX`` to fail closed: a payload
+        # of exactly 255 bytes is the largest legitimate value.
+        if len(sub_payload) > self.MAX_SUBPAYLOAD_BYTES:
+            from .exceptions import ProtocolError
+
+            logger.warning(
+                f"[TELNET] Subnegotiation payload {len(sub_payload)} bytes exceeds "
+                f"the 255-byte RFC 854 cap for option 0x{option:02x}"
+            )
+            raise ProtocolError(
+                f"Subnegotiation payload too large: {len(sub_payload)} bytes "
+                f"(max {self.MAX_SUBPAYLOAD_BYTES})",
+                context={
+                    "option": option,
+                    "payload_length": len(sub_payload),
+                    "max": self.MAX_SUBPAYLOAD_BYTES,
+                },
+            )
+
         logger.info(
             f"[TELNET] Handling subnegotiation for option 0x{option:02x}: {sub_payload.hex()}"
         )
