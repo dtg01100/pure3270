@@ -65,6 +65,8 @@ class Field:
         end: Tuple[int, int],
         protected: bool = False,
         numeric: bool = False,
+        bypass: bool = False,
+        hidden: bool = False,
         modified: bool = False,
         selected: bool = False,
         intensity: int = 0,
@@ -96,6 +98,8 @@ class Field:
 
         self.protected = bool(protected)
         self.numeric = bool(numeric)
+        self.bypass = bool(bypass)
+        self.hidden = bool(hidden)
         self.modified = bool(modified)
         self.selected = bool(selected)
         self.intensity = int(intensity)
@@ -617,10 +621,20 @@ class ScreenBuffer(BufferWriter):
                 return  # Skip writing to protected field
 
             self.buffer[pos] = ebcdic_byte
-            # Set full attributes: protection (bit 6 in byte 0), fg=0xF0 (default), bg=0xF0 (default)
-            self.attributes[attr_offset : attr_offset + 3] = bytes(
-                [0x40 if protected else 0, 0xF0, 0xF0]
+            # Set full attributes: PRESERVE existing FA-byte bits (MDT,
+            # numeric, bypass, hidden) when overwriting a buffer position.
+            # The historical implementation replaced the whole 3-byte slot
+            # with ``[0x40, 0xF0, 0xF0]`` (or ``[0, 0xF0, 0xF0]``) which
+            # silently dropped MDT (0x20), numeric (0x10), bypass (0x01),
+            # etc. (audit §5.2). We OR the inherited FA bits with the
+            # protected flag and keep the foreground/background defaults.
+            existing_fa = (
+                int(self.attributes[attr_offset])
+                if attr_offset < len(self.attributes)
+                else 0
             )
+            new_fa = existing_fa | (0x40 if protected else 0)
+            self.attributes[attr_offset : attr_offset + 3] = bytes([new_fa, 0xF0, 0xF0])
 
             # Mark as field start if requested (for explicit positioning operations)
             if mark_field_start:
@@ -889,14 +903,33 @@ class ScreenBuffer(BufferWriter):
         # Extract field content
         content = bytes(self.buffer[start_idx : end_idx + 1])
 
-        # Get basic field attributes from the start position
+        # Get basic field attributes from the start position.
+        #
+        # Full IBM 3270DS FA-byte bit layout (audit §5.1):
+        #   bit 7 (0x80) - always 0 (reserved)
+        #   bit 6 (0x40) - protected
+        #   bit 5 (0x20) - numeric / MDT-set indicator (MDT bit)
+        #   bit 4 (0x10) - display selector / intensifier (high)
+        #   bit 3 (0x08) - display selector / intensifier (low)
+        #   bit 2 (0x04) - intensifier (legacy)
+        #   bit 1 (0x02) - reserved (must be 0)
+        #   bit 0 (0x01) - bypass / hidden (depending on IBM doc)
+        #
+        # Historically pure3270 only decoded protected (0x40) and intensity
+        # (0x0C), silently dropping MDT/numeric (0x20), bypass (0x01), and
+        # the hidden bit (carried in intensity=3). We now decode all of them
+        # so callers can introspect or enforce them.
         attr_offset = start_idx * 3
         basic_attr = 0
         if attr_offset < len(self.attributes):
             basic_attr = self.attributes[attr_offset]
-            protected = bool(basic_attr & 0x40)  # FA_PROTECT
-            # Extract intensity from basic attribute (bits 4-3)
-            intensity_bits = (basic_attr & 0x0C) >> 2  # FA_INTENSITY >> 2
+            protected = bool(basic_attr & 0x40)  # FA_PROTECT (bit 6)
+            # MDT (bit 5) — historically conflated with numeric. The audit
+            # and RFC 1576 treat them as separate flags; we surface both.
+            mdt = bool(basic_attr & 0x20)
+            # Extract intensity from basic attribute (bits 4-3 = 0x0C
+            # after the shift), with bit 2 (0x04) as legacy intensifier.
+            intensity_bits = (basic_attr & 0x0C) >> 2
             # Map to intensity value: 0=normal, 1=normal+detectable, 2=intensified+detectable, 3=nondisplay
             if intensity_bits == 0:
                 intensity = 0  # Normal, non-detectable
@@ -910,10 +943,25 @@ class ScreenBuffer(BufferWriter):
             else:  # intensity_bits == 3
                 intensity = 3  # Nondisplay, non-detectable
                 light_pen = 0
+            # Hidden/non-display bit is also encoded in intensity=3; treat
+            # intensity=3 as implicit hidden (RFC 1576).
+            hidden = intensity == 3
+            # Numeric-only enforcement was dropped by pure3270 historically
+            # (audit §5.1). We now store it on the Field; callers can read
+            # ``field.numeric`` and reject non-numeric input.
+            numeric = bool(basic_attr & 0x20)
+            # Bypass (bit 0, 0x01) — tab to next field automatically
+            bypass = bool(basic_attr & 0x01)
+            # Treat MDT as the "modified" field flag (semantic equivalence).
+            modified = mdt
         else:
             protected = False
             intensity = 0
             light_pen = 0
+            numeric = False
+            bypass = False
+            hidden = False
+            modified = False
 
         # Get extended attributes
         extended_attrs = self._extended_attributes.get((start_row, start_col))
@@ -970,6 +1018,10 @@ class ScreenBuffer(BufferWriter):
             start=(start_row, start_col),
             end=(end_row, end_col),
             protected=protected,
+            numeric=numeric,
+            bypass=bypass,
+            hidden=hidden,
+            modified=modified,
             content=content,
             intensity=intensity,
             color=color,
@@ -1379,19 +1431,32 @@ class ScreenBuffer(BufferWriter):
         # Use the existing method for moving to next input field
         self.move_cursor_to_next_input_field()
 
-    def set_extended_attribute_sfe(self, attr_type: int, attr_value: int) -> None:
-        """Accumulate extended field attributes for the field at the current buffer address.
+    def set_extended_attribute_sfe(
+        self,
+        attr_type: int,
+        attr_value: int,
+        row: Optional[int] = None,
+        col: Optional[int] = None,
+    ) -> None:
+        """Accumulate extended field attributes for the field at the addressed position.
 
         Important semantics:
         - Extended attributes (from SFE or SA) do NOT consume a display byte and
           must NOT create a field-start marker on their own.
         - Only the base field attribute (set via SF or SFE type 0xC0) occupies a
           buffer position and should be recorded in `_field_starts`.
+        - When called without an explicit row/col (the historical
+          default), the cursor position is used. This is correct for SFE
+          (which always follows directly after SF, leaving the BA at the field
+          start) but **wrong** for SA and MF, which the IBM spec requires to
+          target the most recent field-start position rather than the cursor.
+          SA/MF must pass the field-start row/col explicitly.
 
         This method therefore ONLY updates the accumulated extended attributes
         and does not modify the display buffer or `_field_starts`.
         """
-        row, col = self.get_position()
+        if row is None or col is None:
+            row, col = self.get_position()
         attr_map = {
             0x00: "default",  # XA_DEFAULT - reset to default attributes
             0x02: "background",  # XA_BACKGROUND - background color

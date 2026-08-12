@@ -16,15 +16,12 @@ import pytest
 
 from pure3270.emulation.screen_buffer import ScreenBuffer
 
-# Import compare_trace_processing with explicit path
+# Import compare_trace_processing with explicit path.  The module
+# derives its own project root from ``__file__``, so the primary
+# ``examples_dir`` insert works from any checkout.
 examples_dir = Path(__file__).parent.parent / "examples"
 sys.path.insert(0, str(examples_dir))
-try:
-    from compare_trace_processing import TraceComparator
-except ImportError:
-    # Fallback for when path manipulation fails during pytest collection
-    sys.path.insert(0, "/workspaces/pure3270/examples")
-    from compare_trace_processing import TraceComparator
+from compare_trace_processing import TraceComparator
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -399,27 +396,14 @@ class TraceSemanticValidator:
 # regression guards, and are excluded from the parametrized test below
 # to prevent "regression -> regenerate -> commit" from silently
 # restoring passing-but-meaningless coverage.
-# Traces whose field counts differ between the legacy
-# ``examples/compare_trace_processing.py`` TraceComparator and the
-# canonical ``pure3270.trace.replayer.Replayer``.  The two processors
-# reach the same final screen text, but the legacy path produces
-# different field counts because it (a) misinterprets F1 AIDs inside
-# TN3270E envelopes as write commands and (b) does not honor the
-# ``Erase All Unprotected`` semantics of the EW WCC.  The canonical
-# Replayer matches s3270 here.  A future refactor will make the
-# TraceComparator delegate to ``Replayer.replay()`` and these xfails
-# can be removed.
-_LEGACY_COMPARATOR_KNOWN_DIVERGENCE = {
-    "ibmlink_expected.json",
-    "ibmlink-cr_expected.json",
-    "ibmlink_help_expected.json",
-    "tn3270e-renegotiate_expected.json",
-    "bid-ta_expected.json",
-    "no_bid_expected.json",
-    "sscp-lu_expected.json",
-    "ft_dft_expected.json",
-    "contention-resolution_expected.json",
-}
+# ``examples/compare_trace_processing.py`` TraceComparator previously
+# parsed traces with its own inline processor and produced different
+# field counts than the canonical ``pure3270.trace.replayer.Replayer``
+# on 9 traces (it misinterpreted F1 AIDs inside TN3270E envelopes as
+# write commands and did not honor the ``Erase All Unprotected``
+# semantics of the EW WCC).  The comparator now delegates to
+# ``Replayer.replay()``, so every curated baseline must be produced by
+# the canonical Replayer and no xfails are needed.
 
 _CURATED_EXPECTED: list[str] = []
 _AUTO_EXPECTED: list[str] = []
@@ -438,19 +422,7 @@ for _p in sorted((Path(__file__).parent / "data" / "expected").glob("*_expected.
 
 
 def _pytest_param_for(expected_file: str) -> pytest.param:
-    """Build a ``pytest.param`` that marks known-divergence files as xfail."""
-    if expected_file in _LEGACY_COMPARATOR_KNOWN_DIVERGENCE:
-        return pytest.param(
-            expected_file,
-            marks=pytest.mark.xfail(
-                reason=(
-                    "Legacy examples/compare_trace_processing.py TraceComparator "
-                    "produces a different field count than the canonical "
-                    "pure3270.trace.replayer.Replayer; refactor the comparator "
-                    "to delegate to Replayer.replay() to remove this xfail."
-                ),
-            ),
-        )
+    """Build a plain ``pytest.param`` for a curated baseline."""
     return pytest.param(expected_file)
 
 
@@ -482,7 +454,9 @@ def test_trace_semantic_validation(expected_file):
     # Create validator
     validator = TraceSemanticValidator(trace_path, expected_path)
 
-    # Use TraceComparator to properly process the trace (filters protocol negotiation)
+    # Use TraceComparator to process the trace.  It delegates to the
+    # canonical ``Replayer.replay()`` so the field counts and screen
+    # state match the regression-trace suite.
     comparator = TraceComparator()
     # Capture output to silence verbose logging during tests
     import io

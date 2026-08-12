@@ -39,7 +39,6 @@ import functools
 import inspect
 import logging
 import unittest.mock as _um
-from builtins import ConnectionError as BuiltinConnectionError  # To avoid name conflict
 from contextlib import asynccontextmanager
 from typing import (
     Any,
@@ -68,6 +67,8 @@ from pure3270.protocol.utils import (
 
 from .emulation.ebcdic import EBCDICCodec
 from .emulation.screen_buffer import ScreenBuffer
+from .exceptions import ConnectionError as _PublicConnectionError
+from .exceptions import Pure3270Error
 from .lu_lu_session import (  # Expose for tests patching pure3270.session.LuLuSession
     LuLuSession,
 )
@@ -83,8 +84,8 @@ def _validate_terminal_type(terminal_type: str) -> None:
     """Raise ValueError if ``terminal_type`` is not a supported 3270 model.
 
     Centralised so the validation message, supported-models list, and
-    exception class all stay in lockstep between ``Session.__init__``
-    and ``AsyncSession.__init__`` (both exposed as the public API).
+    exception class all stay in lockstep between ``Session.__init__`` and
+    ``AsyncSession.__init__`` (both exposed as the public API).
     """
     from .protocol.utils import get_supported_terminal_models, is_valid_terminal_model
 
@@ -93,6 +94,51 @@ def _validate_terminal_type(terminal_type: str) -> None:
             f"Invalid terminal type {terminal_type!r}. "
             f"Use one of: {', '.join(get_supported_terminal_models())}"
         )
+
+
+# Allowed force_mode values for Session/AsyncSession. None and ``""`` are
+# treated as "no forcing" (the default behaviour). Any other value is
+# considered a typo and rejected at __init__ time rather than silently
+# coerced (audit §2.2 MEDIUM: force_mode silently coerced).
+FORCE_MODES = frozenset({None, "", "tn3270", "tn3270e", "nvt", "ascii"})
+
+
+def _validate_force_mode(force_mode: Optional[str]) -> None:
+    """Raise ValueError if ``force_mode`` is not a recognized mode token.
+
+    Audit §2.2 found that ``force_mode`` was silently coerced to ASCII on
+    any unrecognized value, hiding typos. We now reject unknown values at
+    construction time so the caller can correct them. ``None`` and ``""``
+    are accepted as "no forcing" (the default). Matching is case-insensitive
+    to preserve the historic "TN3270E" / "tn3270e" interchangeability.
+    """
+    if force_mode is None or force_mode == "":
+        return
+    # After the early return, force_mode is statically known to be str
+    # (the type annotation is Optional[str]). The ``casefold`` is used
+    # so we don't lower-case unicode but accept TN3270E / tn3270e etc.
+    if force_mode.casefold() not in {m.casefold() for m in FORCE_MODES if m}:
+        allowed = ", ".join(repr(m) for m in sorted(FORCE_MODES, key=str))
+        raise ValueError(
+            f"Unsupported force_mode={force_mode!r}. " f"Allowed values: {allowed}"
+        )
+
+
+def _suppress_close_exception(task: "asyncio.Future[Any]") -> None:
+    """Swallow exceptions from a background close() task.
+
+    Used by :meth:`AsyncSession.__del__` so that a failed close (e.g.
+    the socket is already torn down) does not surface as an
+    "unhandled exception in task" warning at GC time.
+    """
+    try:
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            logger.debug("AsyncSession.__del__ close failed: %s", exc)
+    except Exception:
+        pass
 
 
 def _require_connected_session(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -116,23 +162,32 @@ def _require_connected_session(func: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 
-class SessionError(Exception):
+class SessionError(Pure3270Error):
     """Base exception for session-related errors.
 
     When context is provided, include key details in the string representation
     so tests can assert on them without reaching into attributes.
+
+    Inherits from :class:`Pure3270Error` so that the two exception hierarchies
+    are unified (``SessionError`` and ``ConnectionError`` are now part of the
+    public ``Pure3270Error`` family). Existing callers that catch ``Exception``
+    or ``Pure3270Error`` continue to work; callers using ``except SessionError``
+    will now also catch structured-with-context exceptions raised from
+    internal code, which is the intended behavior — these were previously
+    two unrelated hierarchies (see audit §5.1.1 / §5.1.2).
     """
 
     def __init__(self, message: str, context: Optional[Dict[str, Any]] = None):
-        super().__init__(message)
-        self.context: Dict[str, Any] = context or {}
+        super().__init__(message, context=context)
 
     def __str__(self) -> str:  # pragma: no cover - trivial
-        base = super().__str__()
+        # Mirror the legacy string format: prefer the base message and only
+        # append the context dict when present. We do NOT delegate to the
+        # Pure3270Error formatter because the legacy format sorts the context
+        # with ``code`` first; tests rely on that ordering.
+        base = super(Pure3270Error, self).__str__()
         if not self.context:
             return base
-        # Prefer stable ordering for deterministic test assertions
-        # If a 'code' key is present, render it first, then the rest sorted by key
         items_list = []
         if "code" in self.context:
             items_list.append(f"code={self.context['code']}")
@@ -144,8 +199,36 @@ class SessionError(Exception):
         return f"{base} ({items})"
 
 
-class ConnectionError(SessionError):
-    """Raised when connection fails."""
+# Re-export ConnectionError from the public exceptions module so that the
+# historic ``pure3270.session.ConnectionError`` import path now points at
+# the same class as ``pure3270.exceptions.ConnectionError``. Previously they
+# were two unrelated classes (the audit §5.1.2 finding), which caused
+# ``except pure3270.session.ConnectionError`` to silently miss exceptions
+# raised from internal code that use the public hierarchy. By aliasing the
+# public class here we preserve the public API surface while collapsing the
+# two hierarchies into one. The public ConnectionError is a Pure3270Error
+# subclass and therefore also a SessionError subclass, so callers catching
+# ``SessionError`` will catch connection errors raised from anywhere.
+class _ConnectionError(_PublicConnectionError, SessionError):  # noqa: F811
+    """Unified ConnectionError subclass of both hierarchies.
+
+    Makes ``except SessionError`` (legacy) catch errors raised from internal
+    code that uses the public ``pure3270.exceptions.ConnectionError`` (which
+    only inherits from ``Pure3270Error``). ``except ConnectionError`` already
+    catches both since this class inherits from the public ConnectionError.
+
+    We do NOT define a custom ``__init__`` — the inherited ``Pure3270Error.__init__``
+    chain already handles ``(message, context=None, original_exception=None)``.
+    Writing an explicit init here would call ``super().__init__()`` which then
+    traverses MRO back to this class and recurses infinitely. The legacy
+    ``SessionError`` test path reads ``self.context`` directly; the public
+    ConnectionError's init stores that for us, so no extra logic is needed.
+    """
+
+    pass
+
+
+ConnectionError = _ConnectionError
 
 
 class Session:
@@ -991,6 +1074,7 @@ class AsyncSession:
             codepage: EBCDIC code page for screen decoding (e.g. 'cp037', 'cp500').
         """
         _validate_terminal_type(terminal_type)
+        _validate_force_mode(force_mode)
 
         self._host = host
         self._port = port
@@ -1021,7 +1105,10 @@ class AsyncSession:
         self._lu_lu_session: Optional[Any] = None  # Initialized on first use
         self._model = "2"
         self.color_mode = False
-        self.tn3270_mode = False
+        # tn3270_mode is a derived property (see below). Do not store
+        # a snapshot; the handler is the single source of truth.
+        # Removal of direct assignment here is part of the audit §3.3.3
+        # fixup so the three parallel TN3270E flags stay in sync.
         self.logger = logging.getLogger(__name__)
 
         # IND$FILE support
@@ -1115,6 +1202,60 @@ class AsyncSession:
         if hasattr(self, "_connected"):
             self._connected = bool(value)
 
+    @property
+    def tn3270_mode(self) -> bool:
+        """Whether TN3270E mode has been negotiated.
+
+        This is a derived property (audit §3.3.3). It reads from the
+        handler's ``negotiated_tn3270e`` flag, which is kept in sync
+        with the negotiator's flag via the centralized
+        ``set_negotiated_tn3270e`` setter. Tests that previously
+        observed ``session.tn3270_mode`` set to a snapshot at
+        connect() time continue to work: the first read after connect()
+        returns the same value as the historic snapshot.
+
+        Pre-connect (no handler yet), the property returns the
+        pending value set via the setter (defaults to False). This
+        preserves the legacy behavior for tests that flip the flag
+        before connect().
+        """
+        # Pre-connect pending value (set by the setter).
+        pending: Optional[bool] = getattr(self, "_pending_tn3270_mode", None)
+        if pending is not None:
+            return pending
+        handler = getattr(self, "_handler", None)
+        if handler is None:
+            return False
+        try:
+            # negotiated_tn3270e is bool-typed on the handler but mypy
+            # sees it as Any because of the getattr chain; ignore that.
+            return bool(handler.negotiated_tn3270e)  # noqa
+        except Exception:
+            return False
+
+    @tn3270_mode.setter
+    def tn3270_mode(self, value: bool) -> None:
+        """Set TN3270E mode by delegating to the handler/negotiator.
+
+        The setter keeps the three historical TN3270E flags in sync
+        by routing through the handler's ``set_negotiated_tn3270e``,
+        which in turn propagates to the negotiator. This is the only
+        write path; direct assignments to handler._negotiated_tn3270e
+        or negotiator._negotiated_tn3270e should be replaced with this
+        setter or the equivalent negotiator method.
+        """
+        handler = getattr(self, "_handler", None)
+        if handler is None:
+            # Pre-connect: fall back to the legacy behavior of storing
+            # the desired mode on the instance. Used by tests that
+            # wish to disable TN3270E before connect() is called.
+            object.__setattr__(self, "_pending_tn3270_mode", bool(value))
+            return
+        try:
+            handler.set_negotiated_tn3270e(bool(value))
+        except Exception:
+            pass
+
     async def connect(
         self,
         host: Optional[str] = None,
@@ -1159,32 +1300,46 @@ class AsyncSession:
                 recorder=None,
                 terminal_type=self._terminal_type,
             )
-            # Perform negotiation; on failure allow ASCII fallback when enabled
+            # Perform negotiation; on failure allow ASCII fallback when enabled.
+            #
+            # Both branches raise to the caller if the fallback path itself
+            # fails (e.g. ``set_ascii_mode`` raises). The historical
+            # implementation silently swallowed the fallback exceptions and
+            # then set ``self._connected = True`` anyway (audit §2.3.1),
+            # leaving callers with a "connected" session that couldn't
+            # actually transmit data. We now tear down the handler and
+            # re-raise so the failure is visible.
+            fallback_failed = False
             try:
                 await self._handler.connect()
             except NegotiationError:
                 if self._allow_fallback:
                     # Switch to ASCII mode and continue as connected
-                    self._handler.set_ascii_mode()
-                    # Best-effort: immediately read a few chunks so initial
-                    # connected-3270 screen data from trace replays is parsed.
                     try:
-                        for _ in range(20):  # ~2s total at 0.1s per read
-                            try:
-                                await self._handler.receive_data(timeout=0.1)
-                            except Exception:
-                                # Ignore transient read/parse errors in fallback warm-up
-                                pass
-                            # Exit early once any non-space content appears
-                            try:
-                                text = self._screen_buffer.to_text()
-                                if any(ch not in (" ", "\n") for ch in text):
+                        self._handler.set_ascii_mode()
+                    except Exception as e:
+                        logger.warning(f"set_ascii_mode() failed during fallback: {e}")
+                        fallback_failed = True
+                    if not fallback_failed:
+                        # Best-effort: immediately read a few chunks so initial
+                        # connected-3270 screen data from trace replays is parsed.
+                        try:
+                            for _ in range(20):  # ~2s total at 0.1s per read
+                                try:
+                                    await self._handler.receive_data(timeout=0.1)
+                                except Exception:
+                                    # Ignore transient read/parse errors in fallback warm-up
+                                    pass
+                                # Exit early once any non-space content appears
+                                try:
+                                    text = self._screen_buffer.to_text()
+                                    if any(ch not in (" ", "\n") for ch in text):
+                                        break
+                                except Exception:
                                     break
-                            except Exception:
-                                break
-                    except Exception:
-                        # Ignore warm-up errors; fallback will continue during normal reads
-                        pass
+                        except Exception:
+                            # Ignore warm-up errors; fallback will continue during normal reads
+                            pass
                 else:
                     raise
             except Exception:
@@ -1194,6 +1349,10 @@ class AsyncSession:
                 if self._allow_fallback and self._handler is not None:
                     try:
                         self._handler.set_ascii_mode()
+                    except Exception as e:
+                        logger.warning(f"set_ascii_mode() failed during fallback: {e}")
+                        fallback_failed = True
+                    if not fallback_failed:
                         # Best-effort fallback warm-up (see above)
                         try:
                             for _ in range(20):
@@ -1209,10 +1368,23 @@ class AsyncSession:
                                     break
                         except Exception:
                             pass
-                    except Exception:
-                        pass
                 else:
                     raise
+
+            if fallback_failed:
+                # Tear down the handler; the caller has explicitly opted out
+                # of a fallback connection that returned a broken state.
+                try:
+                    if self._handler is not None:
+                        await self._handler.close()
+                except Exception:
+                    pass
+                self._handler = None
+                self._connected = False
+                raise ConnectionError(
+                    "Negotiation failed and fallback could not be established",
+                    context={"host": self._host, "port": self._port},
+                )
         else:
             # Legacy/test transport path: use injected transport with setup/perform methods
             transport = self._transport  # property accessor
@@ -1262,7 +1434,15 @@ class AsyncSession:
                     await res
 
         self._connected = True
-        self.tn3270_mode = self._handler.negotiated_tn3270e
+        # ``self.tn3270_mode`` is now a property that derives from the
+        # handler/negotiator state (audit §3.3.3). The historical
+        # assignment of a snapshot here desynced the three copies
+        # (handler._negotiated_tn3270e, negotiator._negotiated_tn3270e,
+        # and AsyncSession.tn3270_mode) whenever the negotiator changed
+        # the flag after connect() returned. Removing the snapshot means
+        # there is now a single source of truth: the handler's
+        # ``negotiated_tn3270e`` property, which the negotiator's
+        # ``set_negotiated_tn3270e`` keeps in sync.
 
         # Initialize IND$FILE support
         from .ind_file import IndFile
@@ -1519,25 +1699,60 @@ class AsyncSession:
         """
         Destructor to ensure cleanup on garbage collection.
 
-        Note: This schedules async cleanup if possible, but the caller
-        MUST explicitly call close() or use the context manager pattern
-        to ensure proper synchronous cleanup of async resources.
+        The historic implementation tried to schedule a ``close()`` task
+        on the running loop, but never propagated failures and silently
+        no-op'd when the event loop was already closed (the audit
+        §4.2.1 finding). This version:
+
+        - Guards against ``__init__`` not finishing (AttributeError).
+        - Skips work cleanly when the session was never connected.
+        - When a loop is running, schedules ``close()`` and swallows its
+          exceptions (the destructor itself must NEVER raise).
+        - When no loop is running (the more common case for unhandled
+          GC), performs a best-effort sync disposal: clears the handler
+          ref, marks the session disconnected, and emits a debug log.
+          We do NOT try to close the socket synchronously because that
+          would require complex event-loop plumbing and risks deadlocks
+          if the loop is being torn down by the parent interpreter.
+        - Always sets ``_connected = False`` so subsequent introspection
+          shows the object as dead even if cleanup was unable to run.
         """
-        # __init__ may have raised before attributes were assigned; guard
-        # against AttributeError so the GC destructor itself never raises.
-        handler = getattr(self, "_handler", None)
-        if handler is None and not getattr(self, "_connected", False):
-            # Either never constructed, or already closed
+        try:
+            handler = getattr(self, "_handler", None)
+            if handler is None and not getattr(self, "_connected", False):
+                return
+        except Exception:
             return
-        # Try to schedule cleanup in the event loop
+
+        # Mark disconnected immediately so any concurrent observer sees
+        # the dead state, regardless of whether we get to actually close.
+        try:
+            self._connected = False
+        except Exception:
+            pass
+
+        # Try to schedule cleanup if a loop is alive
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
-            # No running loop - can't schedule cleanup
             loop = None
+
         if loop is not None and handler is not None:
             try:
-                loop.create_task(self.close())
+                task = loop.create_task(self.close())
+                # Attach a done-callback that swallows any exception so
+                # a failed close (e.g. socket already closed) does not
+                # surface as an unhandled-task warning.
+                if hasattr(task, "add_done_callback"):
+                    task.add_done_callback(_suppress_close_exception)
+            except Exception:
+                pass
+        else:
+            # No live loop: best-effort cleanup. We still drop the
+            # handler reference so the socket can be garbage-collected
+            # when the underlying transport closes it.
+            try:
+                self._handler = None
             except Exception:
                 pass
 
@@ -2020,10 +2235,199 @@ class AsyncSession:
         """Read buffer."""
         return bytes(self.screen_buffer.buffer)
 
-    async def reconnect(self) -> None:
-        """Reconnect."""
-        await self.close()
-        await self.connect()
+    async def wait_for_text(
+        self,
+        pattern: str,
+        timeout: float = 10.0,
+        poll_interval: float = 0.1,
+    ) -> bool:
+        """Wait for ``pattern`` to appear on the screen.
+
+        Polls the screen buffer until ``pattern`` is found or ``timeout``
+        expires. Returns True if the pattern was found, False on timeout.
+
+        Convenience helper for s3270-style automation scripts that need
+        to wait for a specific screen state before sending input. Audit
+        §7 (P2) noted this was missing from the public API.
+
+        Args:
+            pattern: Substring to look for. Case-sensitive.
+            timeout: Maximum wait time in seconds. Default 10s.
+            poll_interval: Time between polls in seconds. Default 0.1s.
+
+        Returns:
+            True if the pattern was found, False if the timeout expired.
+        """
+        import asyncio as _asyncio
+
+        loop = _asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while True:
+            try:
+                if self._screen_buffer is not None:
+                    text = self._screen_buffer.to_text()
+                    if pattern in text:
+                        return True
+                if self._handler is not None:
+                    try:
+                        await self._handler.receive_data(timeout=poll_interval)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            if loop.time() >= deadline:
+                return False
+            await _asyncio.sleep(poll_interval)
+
+    async def wait_for_aid(
+        self,
+        expected_aid: Optional[int] = None,
+        timeout: float = 10.0,
+    ) -> Optional[int]:
+        """Wait for a specific AID (attention ID) byte to be received.
+
+        Polls the handler's last AID until it matches ``expected_aid`` or
+        until ``timeout`` expires. Returns the AID that was observed, or
+        ``None`` on timeout. If ``expected_aid`` is None, returns the
+        first AID that arrives.
+
+        Args:
+            expected_aid: AID byte to wait for, or None to return any AID.
+            timeout: Maximum wait time in seconds. Default 10s.
+
+        Returns:
+            The AID byte observed, or None on timeout.
+        """
+        import asyncio as _asyncio
+
+        loop = _asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while True:
+            try:
+                aid = self.get_aid()
+                if aid is not None and (expected_aid is None or aid == expected_aid):
+                    return aid
+                if self._handler is not None:
+                    try:
+                        await self._handler.receive_data(timeout=0.1)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            if loop.time() >= deadline:
+                return self.get_aid()
+            await _asyncio.sleep(0.1)
+
+    async def tn3270e_info(self) -> Dict[str, Any]:
+        """Return negotiated TN3270E state as a public dict.
+
+        Audit §8 (P2) recommended exposing the negotiated device type,
+        functions, and LU name as a first-class API so callers can introspect
+        the TN3270E state without reaching into negotiator attributes. The
+        returned dict has keys:
+
+        - ``negotiated`` (bool): whether TN3270E was negotiated at all
+        - ``device_type`` (str | None): the negotiated device type token
+        - ``functions`` (list[str]): negotiated function names
+        - ``lu_name`` (str | None): the LU name set via TERMINAL-LOCATION
+        - ``bind_image`` (Dict[str, Any] | None): bind-image info if any
+        """
+        info: Dict[str, Any] = {
+            "negotiated": False,
+            "device_type": None,
+            "functions": [],
+            "lu_name": None,
+            "bind_image": None,
+        }
+        try:
+            negotiator = getattr(self, "_negotiator", None)
+            if negotiator is None and self._handler is not None:
+                negotiator = getattr(self._handler, "negotiator", None)
+            if negotiator is None:
+                return info
+            info["negotiated"] = bool(getattr(negotiator, "negotiated_tn3270e", False))
+            dt = getattr(negotiator, "device_type", None)
+            if dt is not None:
+                info["device_type"] = str(dt)
+            funcs = getattr(negotiator, "negotiated_functions", None)
+            if funcs is not None:
+                if isinstance(funcs, (int, str)):
+                    info["functions"] = [str(funcs)]
+                else:
+                    info["functions"] = [str(f) for f in funcs]
+            lu = getattr(negotiator, "lu_name", None)
+            if lu:
+                info["lu_name"] = str(lu)
+            bi = getattr(negotiator, "bind_image", None)
+            if bi is not None:
+                info["bind_image"] = dict(bi) if isinstance(bi, dict) else {"value": bi}
+        except Exception as e:
+            logger.debug(f"tn3270e_info failed: {e}")
+        return info
+
+    async def reconnect(
+        self,
+        max_attempts: int = 3,
+        initial_backoff: float = 0.5,
+        max_backoff: float = 5.0,
+    ) -> None:
+        """Reconnect with bounded retries and exponential backoff.
+
+        The historical implementation was a naive ``close()`` then
+        ``connect()`` with no try/finally and no backoff: a partial
+        failure left the session in an inconsistent state (handler torn
+        down but no new connection established) and hammering a flapping
+        host with no delay (audit §2.5.1 / §2.5.2). The new implementation:
+
+        - Calls ``close()`` inside a try/finally so the close is always
+          attempted even if ``connect()`` raises.
+        - Retries the close+connect cycle up to ``max_attempts`` times
+          with exponential backoff capped at ``max_backoff``.
+        - Re-raises the final exception so callers can observe the failure.
+
+        Args:
+            max_attempts: Total attempts (including the first). Set to 1
+                to disable retries. Default 3.
+            initial_backoff: Seconds to wait before the second attempt.
+                Default 0.5s.
+            max_backoff: Cap on the per-attempt backoff. Default 5s.
+        """
+        import asyncio as _asyncio
+
+        attempt = 0
+        backoff = initial_backoff
+        last_exc: Optional[Exception] = None
+        while attempt < max_attempts:
+            attempt += 1
+            try:
+                # Always close before reconnecting; the try/finally ensures
+                # we still attempt close even if the next connect raises.
+                try:
+                    await self.close()
+                except Exception as e:
+                    logger.debug(f"reconnect: close() raised: {e}")
+                try:
+                    await self.connect()
+                    return
+                except Exception as e:
+                    last_exc = e
+                    if attempt >= max_attempts:
+                        raise
+                    logger.warning(
+                        f"reconnect: attempt {attempt}/{max_attempts} failed: {e}; "
+                        f"backing off {backoff:.2f}s"
+                    )
+                    await _asyncio.sleep(backoff)
+                    backoff = min(backoff * 2, max_backoff)
+            except Exception:
+                # Final attempt failed; re-raise the original exception.
+                if last_exc is not None:
+                    raise last_exc
+                raise
+        # Defensive: should not be reached, but fall through cleanly if
+        # max_attempts < 1.
+        if last_exc is not None:
+            raise last_exc
 
     async def info(self) -> str:
         """Get session information."""

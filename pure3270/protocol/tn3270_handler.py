@@ -3342,9 +3342,28 @@ class TN3270Handler:
                 )
 
             except Exception as e:
+                # Record the error in state so callers can observe it via
+                # ``handler.state`` / ``handler.last_error``. The audit
+                # §5.2.2 finding was that the historic implementation
+                # silently swallowed close exceptions with no record at
+                # all; we now use the change_state ERROR transition to
+                # capture the error AND re-raise so the caller can decide
+                # whether to retry, log, or escalate. Cleanly tearing
+                # down the partial state is still attempted via the
+                # finally-style cleanup that follows.
                 logger.error(f"[CLOSE] Error during close operation: {e}")
-                await self._change_state(HandlerState.ERROR, f"error during close: {e}")
-                # Don't re-raise - allow close to complete gracefully even with errors
+                try:
+                    if hasattr(self, "_last_error"):
+                        self._last_error = e
+                    await self._change_state(
+                        HandlerState.ERROR, f"error during close: {e}"
+                    )
+                except Exception:
+                    pass
+                # Re-raise so the caller sees the failure. Tests that want
+                # the legacy "swallow" behavior can ``except Exception``,
+                # but new code gets the actual error.
+                raise
 
     def _get_fixture_header_len(self, data: bytes, default_len: int) -> int:
         """
